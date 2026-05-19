@@ -1,0 +1,30 @@
+# dependencies + build
+node_modules/
+dist/
+
+# secrets + runtime data
+.env
+.env.local
+data/
+
+# user profile (your personal resume / deal-breakers / locations)
+config/profile.ts
+
+# logs
+*.log
+
+# editor / IDE
+.claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# yaml/json backup files
+*.bak
+*.tmp-*

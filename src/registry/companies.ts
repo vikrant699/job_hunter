@@ -1,0 +1,105 @@
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { z } from "zod";
+import { config } from "../config.js";
+import { logger } from "../logger.js";
+import { upsertCompany } from "../db/index.js";
+import { isDeniedCompany } from "../filter/denylist.js";
+import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
+
+const ProviderSchema = z.enum([
+  "greenhouse", "lever", "ashby", "smartrecruiters", "workday", "custom",
+]);
+const ParsingStrategySchema = z.enum([
+  "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
+]);
+const StatusSchema = z.enum(["active", "candidate", "dormant", "denied", "broken"]);
+
+const RegistryEntrySchema = z.object({
+  name: z.string().min(1),
+  careers_url: z.string().url(),
+  source: ProviderSchema,
+  source_slug: z.string().min(1).nullable().optional(),
+  parsing_strategy: ParsingStrategySchema,
+  status: StatusSchema.optional(),
+  reason: z.string().optional(),
+  discovered_via: z.string().optional(),
+  discovered_at: z.string().optional(),
+  evidence: z.string().optional(),
+  tenant_url: z.string().url().optional(),
+});
+
+const RegistryFileSchema = z.array(RegistryEntrySchema);
+
+export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
+
+function kebabCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function resolveSlug(entry: RegistryEntry): string {
+  if (entry.source_slug && entry.source_slug.length > 0) return entry.source_slug;
+  return kebabCase(entry.name);
+}
+
+function readRegistryFile(path: string): RegistryEntry[] {
+  if (!existsSync(path)) return [];
+  const raw = readFileSync(path, "utf-8");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`registry file ${path} is not valid JSON: ${err}`);
+  }
+  const result = RegistryFileSchema.safeParse(parsed);
+  if (!result.success) {
+    logger.error({ path, issues: result.error.issues.slice(0, 5) }, "registry JSON failed schema");
+    throw new Error(`registry file ${path} failed validation`);
+  }
+  return result.data;
+}
+
+export function syncRegistryFromJson(): { synced: number; denied: number; seedPath: string; workingPath: string } {
+  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
+  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
+
+  const seed = readRegistryFile(seedPath);
+  const working = readRegistryFile(workingPath);
+
+  const merged = new Map<string, RegistryEntry>();
+  for (const e of seed) merged.set(`${e.source}::${resolveSlug(e)}`, e);
+  for (const e of working) merged.set(`${e.source}::${resolveSlug(e)}`, e);
+
+  const now = new Date().toISOString();
+  let denied = 0;
+
+  for (const entry of merged.values()) {
+    const slug = resolveSlug(entry);
+    const deny = isDeniedCompany(entry.name, slug);
+
+    const status: CompanyStatus = entry.status ?? (deny.denied ? "denied" : "candidate");
+    if (status === "denied") denied++;
+
+    const provider: Provider = entry.source;
+    const parsingStrategy: ParsingStrategy = entry.parsing_strategy;
+
+    upsertCompany({
+      provider,
+      slug,
+      name: entry.name,
+      careersUrl: entry.careers_url,
+      parsingStrategy,
+      status,
+      denyReason: entry.reason ?? deny.reason,
+      discoveredVia: entry.discovered_via ?? "seed",
+      tenantUrl: entry.tenant_url ?? null,
+      discoveredAt: now,
+    });
+  }
+
+  logger.info({ seedPath, workingPath, count: merged.size, denied }, "registry synced");
+  return { synced: merged.size, denied, seedPath, workingPath };
+}
