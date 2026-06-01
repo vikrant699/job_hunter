@@ -178,7 +178,7 @@ export function srPostingUrl(
   detail?: { postingUrl?: string | null; applyUrl?: string | null },
 ): string {
   const fromApi = detail?.postingUrl ?? detail?.applyUrl;
-  if (fromApi) return fromApi;
+  if (fromApi && /^https?:\/\//i.test(fromApi)) return fromApi;
   return `https://jobs.smartrecruiters.com/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`;
 }
 
