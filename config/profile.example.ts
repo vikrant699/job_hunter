@@ -110,6 +110,7 @@ Example shape:
       "chennai",
       "kolkata",
       "ahmedabad",
+      "visakhapatnam", "vizag",
     ],
     targetCountryHints: ["india", "in,"],
     remoteAcceptStrings: [
