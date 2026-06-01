@@ -20,19 +20,19 @@ First WRITE a one-to-two sentence analysis. Then rate four sub-dimensions, each 
 - skillsMatch: fraction of the JD's core required skills the candidate clearly has.
 - domainFit: how well the industry / domain / type of product matches the candidate's background.
 - seniorityFit: does the role's seniority match the candidate? Use explicit years if stated; otherwise INFER from the language and from the title's seniority words (Intern / Junior / Associate vs Senior / Staff / Principal / Lead / Manager / Director / VP). 1.0 = right level; lower it as the gap grows in EITHER direction (too junior or too senior).
-- roleTypeMatch: is the posting in the candidate's job FAMILY? Treat the whole data/analytics family as ONE — Data Analyst, Senior Data Analyst, Business Analyst, Product Analyst, Data Scientist, Analytics Engineer, BI Analyst / Developer, MIS / Reporting Analyst, Data/Reporting roles all count as in-family and score HIGH. Only a clearly DIFFERENT family — pure software / mobile / systems engineering, sales, design, marketing, hardware, customer support — scores low.
+- roleTypeMatch: is the posting one of the candidate's TARGETED role types (see the resume above) or closely adjacent? The candidate targets ANALYTICAL / ANALYST roles broadly — across data, business, product, finance / FP&A / risk, marketing / growth analytics, and revenue / business operations. ALL of these count as in-family and score HIGH. Only a clearly DIFFERENT kind of work — pure software / mobile / systems engineering, sales, visual / UX design, hardware, or non-analytical support — scores low.
 
-Then set matchScore as a holistic 0..1 combination — skillsMatch and roleTypeMatch matter most. Only a clearly-different role family, a hard deal-breaker, or being far outside the experience range should pull the score low.
+Then set matchScore as a holistic 0..1 combination. WITHIN the candidate's broad analyst family, let skillsMatch and seniorityFit drive the score — how well the specific skills (SQL, BI / dashboards, Python, analytics) and the seniority level fit. roleTypeMatch is a GATE: pull the score low only when the role is clearly NOT an analytical / analyst role, when a hard deal-breaker applies, or when it is far outside the experience range.
 
 # matchScore rubric — use the WHOLE scale, to one decimal
-- 0.0–0.2  clearly the WRONG job family (e.g. pure software/mobile engineering, sales, hardware, design), or clearly far outside the experience range
-- 0.3–0.4  in-family but only weak overlap, or a real blocker
-- 0.5      in the candidate's family and plausible, but evidence is mixed or you are genuinely unsure
+- 0.0–0.2  clearly NOT an analytical/analyst role (pure software/mobile/systems engineering, sales, hardware, design, support), or clearly far outside the experience range
+- 0.3–0.4  an analyst-type role but with weak skills overlap, or a real blocker
+- 0.5      an analyst-type role that is plausible but the skills evidence is mixed or you are genuinely unsure
 - 0.6–0.7  strong: in-family, most core skills match, seniority fits
 - 0.8–0.9  excellent: skills, domain, seniority and family all align
 - 1.0      the JD reads like it was written for this candidate
 
-PROTECT RECALL: when a posting is plausibly in the candidate's data/analytics family but you are unsure, score it 0.5–0.6 — do NOT push a plausible match below 0.4. Reserve sub-0.4 scores for postings that are clearly the wrong family or clearly out of the experience range. Use the whole scale and do not cluster scores at exactly 0.5 — vary within each band.
+PROTECT RECALL: when a posting is plausibly in the candidate's broad analyst family (data, business, finance, marketing, or operations analytics) but you are unsure, score it 0.5–0.6 — do NOT push a plausible match below 0.4. Reserve sub-0.4 scores for postings that are clearly the wrong family or clearly out of the experience range. Use the whole scale and do not cluster scores at exactly 0.5 — vary within each band.
 
 # Examples (format and decisiveness only)
 {"analysis":"Core analyst stack (SQL, BI dashboards, reporting) matches directly and the stated band fits the candidate.","skillsMatch":0.9,"domainFit":0.7,"seniorityFit":0.95,"roleTypeMatch":1.0,"matchScore":0.85,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"Direct match on the candidate's core skills and seniority."}
