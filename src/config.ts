@@ -23,7 +23,11 @@ export const config = {
 
   llm: {
     ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
-    model: process.env.OLLAMA_MODEL ?? "qwen2.5:7b-instruct-q4_K_M",
+    // qwen3:8b beat 7B and 9B on a 236-posting replay of reviewer labels:
+    // best separation (AUC 0.78) and best recall (85% at the 0.4 floor), and it
+    // fits entirely in 8GB VRAM so generation stays fast. think:false in the
+    // client keeps it from emitting reasoning tokens.
+    model: process.env.OLLAMA_MODEL ?? "qwen3:8b",
     /** Timeout starts AFTER the semaphore slot is acquired, so it measures
      *  actual generation time (not queue wait). */
     timeoutMs: 90_000,
