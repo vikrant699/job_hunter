@@ -51,6 +51,7 @@ interface RunStats {
   postingsGreen: number;
   postingsYellow: number;
   postingsTitleDenied: number;
+  postingsDuplicated: number;
   errors: string[];
   /** Notify keys (company|title|location) already pinged this run — for dedup. */
   seenNotifyKeys: Set<string>;
@@ -91,6 +92,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsGreen: 0,
     postingsYellow: 0,
     postingsTitleDenied: 0,
+    postingsDuplicated: 0,
     errors: [],
     seenNotifyKeys: new Set(),
   };
@@ -148,6 +150,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsGreen: stats.postingsGreen,
     postingsYellow: stats.postingsYellow,
     postingsTitleDenied: stats.postingsTitleDenied,
+    postingsDuplicated: stats.postingsDuplicated,
     durationMs: endedAt - startedAt,
     errors: stats.errors,
   });
@@ -160,6 +163,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       green: stats.postingsGreen,
       yellow: stats.postingsYellow,
       titleDenied: stats.postingsTitleDenied,
+      duplicated: stats.postingsDuplicated,
       errors: stats.errors.length,
       durationMs: endedAt - startedAt,
     },
@@ -339,6 +343,8 @@ async function processOnePosting(
     // Couldn't score even after the gate's retry (malformed model output). Don't
     // silently drop — an unscored posting could be a real match. Surface it as a
     // yellow "review manually" notification so recall isn't quietly lost.
+    // (Intentionally exempt from per-run dedup below — gate-errors are rare and
+    // we'd rather surface each one than risk collapsing a real match.)
     let notifiedAt: string | null = null;
     try {
       await notifyPosting({
@@ -420,6 +426,7 @@ async function processOnePosting(
   // the await so two concurrent workers can't both notify the same role.
   const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
   if (stats.seenNotifyKeys.has(dupKey)) {
+    stats.postingsDuplicated++;
     updatePostingResult({
       provider: posting.provider,
       externalId: posting.externalId,

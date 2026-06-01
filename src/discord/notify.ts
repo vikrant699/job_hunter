@@ -137,6 +137,7 @@ export interface SummaryInput {
   postingsGreen: number;
   postingsYellow: number;
   postingsTitleDenied?: number;
+  postingsDuplicated?: number;
   candidatesAdded?: number;
   durationMs: number;
   errors: string[];
@@ -164,6 +165,9 @@ export async function notifySummary(input: SummaryInput): Promise<void> {
   ];
   if (input.postingsTitleDenied !== undefined && input.postingsTitleDenied > 0) {
     fields.push({ name: "Title-denied", value: String(input.postingsTitleDenied), inline: true });
+  }
+  if (input.postingsDuplicated !== undefined && input.postingsDuplicated > 0) {
+    fields.push({ name: "Duplicates suppressed", value: String(input.postingsDuplicated), inline: true });
   }
   if (input.candidatesAdded !== undefined) {
     fields.push({ name: "Candidates added", value: String(input.candidatesAdded), inline: true });
