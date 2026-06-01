@@ -45,6 +45,10 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
         prompt,
         stream: false,
         format: opts.format,
+        // Disable "thinking" on reasoning models (qwen3, etc.) — the reasoning
+        // tokens break strict-JSON parsing and blow the timeout. No-op on plain
+        // instruct models like qwen2.5.
+        think: false,
         options: { temperature: opts.temperature ?? 0.2 },
       }),
       signal: controller.signal,
