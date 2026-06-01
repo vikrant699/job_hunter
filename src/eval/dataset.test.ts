@@ -55,8 +55,8 @@ test("LEFT-JOIN miss yields an empty company name", () => {
   const rows = buildLabeledPostings(db, new Map([["workday:R5", true]]));
   db.close();
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].company, ""); // no companies row for slug 'ghost'
-  assert.equal(rows[0].title, "Orphan Role");
+  assert.equal(rows[0]!.company, ""); // no companies row for slug 'ghost'
+  assert.equal(rows[0]!.title, "Orphan Role");
 });
 
 test("preserves a null storedScore (scorer had no opinion)", () => {
@@ -64,5 +64,5 @@ test("preserves a null storedScore (scorer had no opinion)", () => {
   const rows = buildLabeledPostings(db, new Map([["workday:R6", true]]));
   db.close();
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].storedScore, null);
+  assert.equal(rows[0]!.storedScore, null);
 });

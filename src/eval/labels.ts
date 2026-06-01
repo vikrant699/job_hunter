@@ -10,9 +10,10 @@ export interface LoadedLabels {
 
 export function parseLabels(csvText: string): LoadedLabels {
   const cells = parseCsv(csvText);
-  if (cells.length === 0) return { labels: new Map(), skipped: 0 };
+  const headerRow = cells[0];
+  if (!headerRow) return { labels: new Map(), skipped: 0 };
 
-  const header = cells[0].map((h) => h.trim().toLowerCase());
+  const header = headerRow.map((h) => h.trim().toLowerCase());
   const idIx = header.indexOf("id");
   const reactIx = header.indexOf("reaction");
   if (idIx === -1 || reactIx === -1) {
