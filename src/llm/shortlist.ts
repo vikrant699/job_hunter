@@ -7,14 +7,17 @@ import type { CandidateLink } from "../scraper/cheerio.js";
 
 const ShortlistItemSchema = z.object({
   url: z.string().url(),
-  title: z.string().min(1),
+  title: z.string().optional(),
 });
 
-const ShortlistResultSchema = z.object({
-  jobs: z.array(ShortlistItemSchema),
-});
+/** Tolerant top-level shape — only fails when there's no `jobs` array at all.
+ *  Items are validated per-element so one bad entry can't discard the whole batch. */
+const JobsArraySchema = z.object({ jobs: z.array(z.unknown()) });
 
-export type ShortlistItem = z.infer<typeof ShortlistItemSchema>;
+export interface ShortlistItem {
+  url: string;
+  title: string;
+}
 
 export interface RunShortlistInput {
   companyName: string;
@@ -31,11 +34,14 @@ function formatLinksList(candidates: CandidateLink[]): string {
 }
 
 const TextJobSchema = z.object({
-  title: z.string().min(1),
+  title: z.string().optional(),
   location: z.string().nullable().optional(),
 });
-const TextResultSchema = z.object({ jobs: z.array(TextJobSchema) });
-export type TextJob = z.infer<typeof TextJobSchema>;
+type ParsedTextJob = z.infer<typeof TextJobSchema>;
+export interface TextJob {
+  title: string;
+  location: string | null;
+}
 
 const MAX_TEXT_CHARS = 18_000;
 
@@ -49,7 +55,7 @@ export interface RunShortlistFromTextInput {
 const NAV_TITLE_RE = /^(apply( now| for this job)?|save( job)?|share|view (all|details|role|job)|browse (jobs|openings|all)|see (more|all|jobs)|sort by|all filters|skip to content|loading|next|previous|page \d+|home|back|menu|search|sign in|log ?in)$/i;
 const NON_LOCATION_RE = /^(full[ -]?time|part[ -]?time|contract|temporary|intern(ship)?|permanent|hybrid|on[- ]?site|new|featured|posted .*ago|\d+ days? ago)$/i;
 
-function postProcessTextJobs(jobs: TextJob[]): TextJob[] {
+function postProcessTextJobs(jobs: ParsedTextJob[]): TextJob[] {
   const seen = new Set<string>();
   const out: TextJob[] = [];
   for (const j of jobs) {
@@ -68,6 +74,40 @@ function postProcessTextJobs(jobs: TextJob[]): TextJob[] {
     seen.add(key);
 
     out.push({ title, location });
+  }
+  return out;
+}
+
+/** Per-item tolerant selection for body-text jobs: a single malformed item never
+ *  discards the batch; empty/nav/duplicate titles are stripped by post-processing. */
+export function selectTextJobs(rawJobs: unknown[]): TextJob[] {
+  const items: ParsedTextJob[] = [];
+  for (const item of rawJobs) {
+    const r = TextJobSchema.safeParse(item);
+    if (r.success) items.push(r.data);
+  }
+  return postProcessTextJobs(items);
+}
+
+/** Per-item tolerant selection for cheerio link candidates: drops malformed items
+ *  and hallucinated URLs (not in the candidate set), fills an empty title from the
+ *  anchor text, and de-dupes by URL — so one bad item can't lose the whole company. */
+export function selectShortlistItems(rawJobs: unknown[], candidates: CandidateLink[]): ShortlistItem[] {
+  const anchorByUrl = new Map(
+    candidates.map((c) => [c.url, (c.text ?? "").trim().replace(/\s+/g, " ")]),
+  );
+  const seen = new Set<string>();
+  const out: ShortlistItem[] = [];
+  for (const item of rawJobs) {
+    const r = ShortlistItemSchema.safeParse(item);
+    if (!r.success) continue;
+    const url = r.data.url;
+    if (!anchorByUrl.has(url) || seen.has(url)) continue;
+    let title = (r.data.title ?? "").trim().replace(/\s+/g, " ");
+    if (!title) title = anchorByUrl.get(url) ?? "";
+    if (!title) continue;
+    seen.add(url);
+    out.push({ url, title });
   }
   return out;
 }
@@ -93,7 +133,7 @@ export async function runShortlistFromText(input: RunShortlistFromTextInput): Pr
     logger.warn({ raw: raw.slice(0, 400) }, "shortlistFromText JSON.parse failed");
     throw new Error(`shortlistFromText output not JSON: ${err}`);
   }
-  const result = TextResultSchema.safeParse(parsed);
+  const result = JobsArraySchema.safeParse(parsed);
   if (!result.success) {
     logger.warn(
       { raw: raw.slice(0, 400), issues: result.error.issues.slice(0, 3) },
@@ -101,7 +141,7 @@ export async function runShortlistFromText(input: RunShortlistFromTextInput): Pr
     );
     throw new Error("shortlistFromText output failed schema");
   }
-  return postProcessTextJobs(result.data.jobs);
+  return selectTextJobs(result.data.jobs);
 }
 
 /**
@@ -133,7 +173,7 @@ export async function runShortlist(input: RunShortlistInput): Promise<ShortlistI
     throw new Error(`shortlist output not JSON: ${err}`);
   }
 
-  const result = ShortlistResultSchema.safeParse(parsed);
+  const result = JobsArraySchema.safeParse(parsed);
   if (!result.success) {
     logger.warn(
       { raw: raw.slice(0, 500), issues: result.error.issues.slice(0, 3) },
@@ -142,6 +182,5 @@ export async function runShortlist(input: RunShortlistInput): Promise<ShortlistI
     throw new Error("shortlist output failed schema validation");
   }
 
-  const allowed = new Set(input.candidates.map((c) => c.url));
-  return result.data.jobs.filter((j) => allowed.has(j.url));
+  return selectShortlistItems(result.data.jobs, input.candidates);
 }
