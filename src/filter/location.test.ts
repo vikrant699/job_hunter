@@ -49,6 +49,12 @@ test("checkLocationFromText is recall-safe: a foreign HQ mention in the JD body 
   assert.equal(r.accept, true);
 });
 
+test("checkLocationFromText accepts a dual-location title when an in-region city is also named", () => {
+  // foreign + in-region in the same title → in-region wins (recall guard)
+  const r = checkLocationFromText("Senior Data Analyst, Singapore / Bangalore", "", cfg);
+  assert.equal(r.accept, true);
+});
+
 test("checkLocationFromText defers (accepts) when there is no location signal anywhere", () => {
   const r = checkLocationFromText("Data Analyst", "Join our analytics team and build dashboards.", cfg);
   assert.equal(r.accept, true);

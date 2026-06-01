@@ -5,9 +5,11 @@ export interface LocationConfig {
   targetCountryHints: readonly string[];
   remoteAcceptStrings: readonly string[];
   rejectIfPresent: readonly string[];
-  /** Distinctive out-of-region place names (cities/states/countries). Matched
-   *  word-boundary against a posting's TITLE (and any location field), so a
-   *  foreign HQ mentioned only in the JD body does not reject an in-region role. */
+  /** Distinctive out-of-region place names (cities/states/countries), whole-word
+   *  matched. Applied to the metadata location field in checkLocation(), and to
+   *  the TITLE (never the JD body) in checkLocationFromText() — so a foreign HQ
+   *  mentioned only in the JD body does not reject an otherwise in-region role.
+   *  An in-region city in the same title overrides the reject. */
   rejectRegions?: readonly string[];
 }
 
