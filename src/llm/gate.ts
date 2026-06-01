@@ -79,6 +79,17 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
     jdText: input.jdText,
   });
 
-  const raw = await generate(prompt, { format: "json" });
-  return parseGateResponse(raw);
+  // One retry on parse failure: the model occasionally emits malformed JSON (a
+  // wrapper key or a token runaway). A fresh generation usually fixes it, and a
+  // dropped posting is a recall risk we can't afford.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    const raw = await generate(prompt, { format: "json" });
+    try {
+      return parseGateResponse(raw);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
