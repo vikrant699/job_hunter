@@ -17,3 +17,7 @@ test("unescapes doubled quotes", () => {
 test("handles CRLF and a final row without trailing newline", () => {
   assert.deepEqual(parseCsv("a,b\r\n1,2"), [["a", "b"], ["1", "2"]]);
 });
+
+test("returns empty array for empty input", () => {
+  assert.deepEqual(parseCsv(""), []);
+});
