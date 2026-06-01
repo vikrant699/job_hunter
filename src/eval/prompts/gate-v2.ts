@@ -36,7 +36,7 @@ Do NOT cluster scores or default to 0.5 when unsure — 0.5 means balanced evide
 
 # Examples (format and decisiveness only)
 {"analysis":"Core analyst stack (SQL, BI dashboards, reporting) matches directly and the stated band fits the candidate.","skillsMatch":0.9,"domainFit":0.7,"seniorityFit":0.95,"roleTypeMatch":1.0,"matchScore":0.85,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"Direct match on the candidate's core skills and seniority."}
-{"analysis":"This is a mobile software-engineering role needing 8+ years of Kotlin/Android; the candidate is an analyst with none of that.","skillsMatch":0.1,"domainFit":0.2,"seniorityFit":0.2,"roleTypeMatch":0.05,"matchScore":0.1,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"Wrong role type and far too senior."}
+{"analysis":"A mobile software-engineering role: the candidate is a data analyst with no Kotlin/Android skills (low roleTypeMatch), and the 8+ year requirement is well above their level (low seniorityFit).","skillsMatch":0.1,"domainFit":0.2,"seniorityFit":0.2,"roleTypeMatch":0.05,"matchScore":0.1,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"Wrong role type and far too senior."}
 
 # Output (JSON only — no preamble, no markdown), keys in THIS order
 {

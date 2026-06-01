@@ -18,3 +18,17 @@ test("names all four sub-scores and forbids defaulting to 0.5", () => {
   }
   assert.match(GATE_V2, /do not (cluster|default).*0\.5/i);
 });
+
+test("worked-example JSON keys are all valid schema fields", () => {
+  const SCHEMA_KEYS = new Set([
+    "analysis", "skillsMatch", "domainFit", "seniorityFit", "roleTypeMatch",
+    "matchScore", "dealBreakerHit", "dealBreakerSeverity", "reason",
+  ]);
+  const examples = GATE_V2.match(/^\{"analysis".*\}$/gm) ?? [];
+  assert.ok(examples.length >= 2, "expected at least two worked examples");
+  for (const ex of examples) {
+    for (const key of Object.keys(JSON.parse(ex))) {
+      assert.ok(SCHEMA_KEYS.has(key), `example uses non-schema key: ${key}`);
+    }
+  }
+});
