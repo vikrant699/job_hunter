@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate } from "./client.js";
 import { logger } from "../logger.js";
+import { JD_MAX_CHARS } from "./gate.js";
 
 export const ExtractResultSchema = z.object({
   yoeMin: z.number().nullable(),
@@ -26,7 +27,7 @@ function normalize(parsed: unknown): unknown {
 }
 
 export async function runExtract(jdText: string): Promise<ExtractResult> {
-  const prompt = render(config.prompts.extract, { jdText });
+  const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, JD_MAX_CHARS) });
   const raw = await generate(prompt, { format: "json" });
 
   let parsed: unknown;

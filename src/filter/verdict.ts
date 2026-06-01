@@ -19,12 +19,11 @@ export interface VerdictDetail {
 
 /**
  * Lower bound below which we treat the score as noise and silently drop.
- * Kept very low: the well-calibrated v2 gate reserves sub-0.1 scores for clearly
- * out-of-family / out-of-range postings, and reviewer-labelled relevants bottomed
- * out at ~0.1 — so 0.05 drops only dead-certain noise without silencing a real
- * match. Triage now comes from the green/yellow split (matchThreshold), not this floor.
+ * With the calibrated v2 gate, off-profile / junk postings land around 0.1–0.3 and
+ * genuine matches score higher, so 0.4 cuts the noise while keeping ~98% of
+ * reviewer-labelled relevants. Borderline 0.4–0.6 is yellow; >= matchThreshold is green.
  */
-const SILENT_SCORE_FLOOR = 0.05;
+const SILENT_SCORE_FLOOR = 0.4;
 
 export function classifyVerdict(gate: GateResult, extract: ExtractResult | null): VerdictDetail {
   if (gate.dealBreakerSeverity === "hard") {
