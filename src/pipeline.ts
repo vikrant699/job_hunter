@@ -20,7 +20,7 @@ import { workdayAdapter } from "./ats/workday.js";
 import { smartRecruitersAdapter } from "./ats/smartrecruiters.js";
 import { llmScrapeAdapter } from "./scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "./scraper/playwright-scrape.js";
-import { checkLocation, checkLocationFromJd } from "./filter/location.js";
+import { checkLocation, checkLocationFromText } from "./filter/location.js";
 import { isDeniedCompany } from "./filter/denylist.js";
 import { checkTitle } from "./filter/title.js";
 import { runGate } from "./llm/gate.js";
@@ -297,9 +297,11 @@ async function processOnePosting(
     }
   }
 
-  // Late location filter when the listing had no location metadata.
-  if ((posting.location === null || posting.location === "") && posting.jdText) {
-    const loc = checkLocationFromJd(posting.jdText);
+  // Late location filter when the listing had no location metadata: scan the
+  // title (where scraped postings often carry the location, e.g. "… Sydney, NSW")
+  // plus the JD head. Runs even when the JD is empty so a foreign title is caught.
+  if (posting.location === null || posting.location === "") {
+    const loc = checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "");
     if (!loc.accept) return;
   }
 
