@@ -332,16 +332,39 @@ async function processOnePosting(
       jdText: posting.jdText,
     });
   } catch (err) {
+    // Couldn't score even after the gate's retry (malformed model output). Don't
+    // silently drop — an unscored posting could be a real match. Surface it as a
+    // yellow "review manually" notification so recall isn't quietly lost.
+    let notifiedAt: string | null = null;
+    try {
+      await notifyPosting({
+        posting,
+        severity: "yellow",
+        matchScore: 0,
+        reason: "gate-error: couldn't score automatically — review manually",
+        yoeMin: null,
+        yoeMax: null,
+        fallbackCareersUrl: company.careersUrl,
+      });
+      notifiedAt = new Date().toISOString();
+      stats.postingsYellow++;
+    } catch (notifyErr) {
+      logger.error({ err: String(notifyErr), company: posting.companyName }, "gate-error notify failed");
+    }
+    logger.warn(
+      { company: company.name, title: posting.jobTitle, err: String(err).slice(0, 120) },
+      "gate-error → yellow (manual review)",
+    );
     updatePostingResult({
       provider: posting.provider,
       externalId: posting.externalId,
-      llmRelevant: null,
+      llmRelevant: 0,
       llmReason: `gate-error: ${String(err).slice(0, 120)}`,
       llmConfidence: null,
       yoeMin: null,
       yoeMax: null,
       dropStage: "gate-error",
-      notifiedAt: null,
+      notifiedAt,
     });
     return;
   }
