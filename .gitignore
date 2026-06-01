@@ -28,3 +28,6 @@ Desktop.ini
 # yaml/json backup files
 *.bak
 *.tmp-*
+
+# local planning / working notes (never publish)
+docs/superpowers/
