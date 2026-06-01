@@ -1,6 +1,7 @@
 /**
  * Candidate gate prompt v2. Reason-first, decomposed sub-scores, granular rubric,
- * anti-hedge instruction, two worked examples. Same placeholders as config.prompts.relevance.
+ * anti-hedge instruction, recall-safety floor, worked examples. Same placeholders
+ * as config.prompts.relevance.
  */
 export const GATE_V2 = `You are screening job postings for ONE specific candidate, described by the resume below. Score so the candidate sees real matches first and isn't buried in noise — but missing a genuine match is worse than showing a borderline one.
 
