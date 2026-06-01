@@ -6,6 +6,13 @@ import { generate } from "./client.js";
 import { logger } from "../logger.js";
 
 export const GateResultSchema = z.object({
+  // v2 fields — optional so v1 output still validates and downstream is unaffected.
+  analysis: z.string().optional(),
+  skillsMatch: z.number().min(0).max(1).optional(),
+  domainFit: z.number().min(0).max(1).optional(),
+  seniorityFit: z.number().min(0).max(1).optional(),
+  roleTypeMatch: z.number().min(0).max(1).optional(),
+  // contract consumed by verdict.ts — unchanged.
   matchScore: z.number().min(0).max(1),
   dealBreakerHit: z.string().nullable(),
   dealBreakerSeverity: z.enum(["hard", "soft"]).nullable(),
@@ -19,18 +26,13 @@ export interface GateInput {
   jdText: string;
 }
 
-export async function runGate(input: GateInput): Promise<GateResult> {
-  const prompt = render(config.prompts.relevance, {
-    summary: profile.summary,
-    hardDealBreakers: profile.hardDealBreakers,
-    softDealBreakers: profile.softDealBreakers,
-    jobTitle: input.jobTitle ?? "(unknown)",
-    companyName: input.companyName ?? "(unknown)",
-    jdText: input.jdText,
-  });
+export interface RunGateOptions {
+  /** Override the prompt template (defaults to config.prompts.relevance). Used by the eval harness. */
+  promptTemplate?: string;
+}
 
-  const raw = await generate(prompt, { format: "json" });
-
+/** Pure: turn a raw model response into a validated GateResult. Throws on bad output. */
+export function parseGateResponse(raw: string): GateResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -47,9 +49,7 @@ export async function runGate(input: GateInput): Promise<GateResult> {
     if (p.dealBreakerSeverity === "" || p.dealBreakerSeverity === "none" || p.dealBreakerSeverity === "null") {
       p.dealBreakerSeverity = null;
     }
-    // If hit is null, severity must be null (model sometimes inverts this).
     if (p.dealBreakerHit === null) p.dealBreakerSeverity = null;
-    // If severity is null but hit is set, fall back to "soft" (don't silently drop).
     if (p.dealBreakerHit !== null && p.dealBreakerSeverity === null) {
       p.dealBreakerSeverity = "soft";
     }
@@ -57,11 +57,23 @@ export async function runGate(input: GateInput): Promise<GateResult> {
 
   const result = GateResultSchema.safeParse(parsed);
   if (!result.success) {
-    logger.warn(
-      { raw: raw.slice(0, 500), issues: result.error.issues },
-      "gate schema validation failed"
-    );
+    logger.warn({ raw: raw.slice(0, 500), issues: result.error.issues }, "gate schema validation failed");
     throw new Error("gate output failed schema validation");
   }
   return result.data;
+}
+
+export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
+  const template = opts.promptTemplate ?? config.prompts.relevance;
+  const prompt = render(template, {
+    summary: profile.summary,
+    hardDealBreakers: profile.hardDealBreakers,
+    softDealBreakers: profile.softDealBreakers,
+    jobTitle: input.jobTitle ?? "(unknown)",
+    companyName: input.companyName ?? "(unknown)",
+    jdText: input.jdText,
+  });
+
+  const raw = await generate(prompt, { format: "json" });
+  return parseGateResponse(raw);
 }
