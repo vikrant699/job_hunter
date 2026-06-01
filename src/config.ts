@@ -4,6 +4,8 @@
  * Personal stuff (your resume, deal-breakers, target locations, title-deny
  * patterns, services denylist) lives in `config/profile.ts` instead.
  */
+import { RELEVANCE_PROMPT } from "./llm/relevance.js";
+
 export const config = {
   fetch: {
     /** How many companies of one provider run in parallel. */
@@ -32,43 +34,7 @@ export const config = {
   },
 
   prompts: {
-    relevance: `You are filtering structured job postings to find roles matching a specific candidate's resume.
-
-# Candidate's resume
-{{summary}}
-
-# HARD deal-breakers — set dealBreakerSeverity="hard" if ANY apply
-{{hardDealBreakers}}
-
-# SOFT deal-breakers — set dealBreakerSeverity="soft" if ANY apply (and no hard hit)
-{{softDealBreakers}}
-
-# Match scoring
-If NO deal-breaker applies, score how well the JD matches the resume on a 0..1 scale.
-- Focus on skills, tech stack, responsibilities, type of work, and domain fit.
-- IGNORE the job title itself — titles vary widely. Judge from JD content.
-- 0.0 = unrelated
-- 0.3 = weak overlap (adjacent role, few skills match)
-- 0.5 = moderate overlap (some core skills match, same role family)
-- 0.7 = strong overlap (most listed skills match the resume)
-- 1.0 = tight fit (JD reads like it was written for this candidate)
-
-If a soft deal-breaker is hit, STILL score the match — the score is used downstream
-to decide green vs yellow. Hard hits short-circuit; you can return matchScore=0.
-
-# Output (JSON only — no preamble, no markdown)
-{
-  "matchScore":          <number 0..1>,
-  "dealBreakerHit":      <string | null>,
-  "dealBreakerSeverity": <"hard" | "soft" | null>,
-  "reason":              "<one short sentence>"
-}
-
-# Posting to evaluate
-Job title: {{jobTitle}}
-Company:   {{companyName}}
-JD:
-{{jdText}}`,
+    relevance: RELEVANCE_PROMPT,
 
     shortlistFromText: `You are looking at the visible text of a company's careers page that was rendered in a real browser. Find the job postings listed and return their details.
 
