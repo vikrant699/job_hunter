@@ -22,6 +22,7 @@ import { llmScrapeAdapter } from "./scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "./scraper/playwright-scrape.js";
 import { checkLocation, checkLocationFromText } from "./filter/location.js";
 import { isDeniedCompany } from "./filter/denylist.js";
+import { notifyKey } from "./filter/dedup.js";
 import { checkTitle } from "./filter/title.js";
 import { runGate } from "./llm/gate.js";
 import { runExtract, type ExtractResult } from "./llm/extract.js";
@@ -51,6 +52,8 @@ interface RunStats {
   postingsYellow: number;
   postingsTitleDenied: number;
   errors: string[];
+  /** Notify keys (company|title|location) already pinged this run — for dedup. */
+  seenNotifyKeys: Set<string>;
 }
 
 function toAdapterCompany(c: Company): AdapterCompany {
@@ -89,6 +92,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsYellow: 0,
     postingsTitleDenied: 0,
     errors: [],
+    seenNotifyKeys: new Set(),
   };
 
   const allCompanies = selectActiveCompanies();
@@ -409,6 +413,27 @@ async function processOnePosting(
     });
     return;
   }
+
+  // Per-run dedup: an identical (company, title, location) role already pinged
+  // this run is recorded but not re-notified. Different location → different key,
+  // so a multi-city opening still surfaces each city. The key is reserved before
+  // the await so two concurrent workers can't both notify the same role.
+  const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
+  if (stats.seenNotifyKeys.has(dupKey)) {
+    updatePostingResult({
+      provider: posting.provider,
+      externalId: posting.externalId,
+      llmRelevant: verdict.severity === "green" ? 1 : 0,
+      llmReason: `duplicate: ${verdict.reason}`,
+      llmConfidence: gateResult.matchScore,
+      yoeMin: extractResult?.yoeMin ?? null,
+      yoeMax: extractResult?.yoeMax ?? null,
+      dropStage: "duplicate",
+      notifiedAt: null,
+    });
+    return;
+  }
+  stats.seenNotifyKeys.add(dupKey);
 
   let notifiedAt: string | null = null;
   try {
