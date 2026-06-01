@@ -39,12 +39,11 @@ function report(title: string, scored: ScoredLabel[]): void {
   console.log(`  distinct scores ................. ${spread.distinct}`);
   console.log(`  modal score ..................... ${spread.modal} (${(100 * spread.modalShare).toFixed(0)}% of rows)`);
   console.log(`  max threshold @ 100% recall ..... ${maxThresholdForFullRecall(valid).toFixed(2)}`);
-  console.log(`  thr | recall | prec | kept`);
+  console.log(`  thr | recall |  prec | kept`);
+  const cell = (x: number) => (Number.isFinite(x) ? `${(100 * x).toFixed(0)}%` : "—").padStart(5);
   for (const t of [0.4, 0.5, 0.6, 0.7, 0.8]) {
-    const rec = (100 * recallAtThreshold(valid, t)).toFixed(0).padStart(4);
-    const prec = (100 * precisionAtThreshold(valid, t)).toFixed(0).padStart(3);
     const kept = valid.filter((s) => s.score >= t).length;
-    console.log(`  ${t.toFixed(1)} | ${rec}%  | ${prec}% | ${kept}`);
+    console.log(`  ${t.toFixed(1)} | ${cell(recallAtThreshold(valid, t))} | ${cell(precisionAtThreshold(valid, t))} | ${kept}`);
   }
 }
 
@@ -56,7 +55,12 @@ if (rows.length === 0) {
   process.exit(1);
 }
 if (sampleN) {
-  rows = stratifiedSample(rows, Number(sampleN));
+  const n = Number(sampleN);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error(`--sample must be a positive number (got '${sampleN}')`);
+    process.exit(1);
+  }
+  rows = stratifiedSample(rows, n);
   console.log(`sampled down to ${rows.length} (stratified by label)`);
 }
 
