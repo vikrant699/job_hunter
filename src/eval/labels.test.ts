@@ -27,3 +27,14 @@ test("skips blank/unrecognized reactions and counts them", () => {
 test("throws when required columns are missing", () => {
   assert.throws(() => parseLabels("foo,bar\n1,2\n"), /id.*reaction/);
 });
+
+test("throws when only one required column is present", () => {
+  assert.throws(() => parseLabels("reaction,value\nRelevant,2\n"));
+  assert.throws(() => parseLabels("id,value\nlever:x,2\n"));
+});
+
+test("accepts yes/no as aliases for relevant/irrelevant", () => {
+  const { labels } = parseLabels("id,reaction\nlever:yy,yes\nlever:nn,no\n");
+  assert.equal(labels.get("lever:yy"), true);
+  assert.equal(labels.get("lever:nn"), false);
+});
