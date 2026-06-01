@@ -6,6 +6,7 @@ import {
   markFetchFailure,
   insertPostingIfNew,
   postingExists,
+  selectNotifiedRoleKeys,
   updatePostingResult,
   bumpMatched,
   startRun,
@@ -85,6 +86,15 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   const runId = startRun("production");
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
+  // Pre-load every (company, title, location) we've already notified so a role
+  // re-listed with a fresh requisition id isn't pinged again across runs (the
+  // external_id dedup misses reposts; this catches them).
+  const seenNotifyKeys = new Set<string>();
+  for (const r of selectNotifiedRoleKeys()) {
+    seenNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
+  }
+  logger.info({ priorNotified: seenNotifyKeys.size }, "dedup: loaded prior-notified keys (cross-run)");
+
   const stats: RunStats = {
     companiesScanned: 0,
     postingsSeen: 0,
@@ -94,7 +104,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsTitleDenied: 0,
     postingsDuplicated: 0,
     errors: [],
-    seenNotifyKeys: new Set(),
+    seenNotifyKeys,
   };
 
   const allCompanies = selectActiveCompanies();
