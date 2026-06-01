@@ -202,6 +202,20 @@ export function postingExists(provider: Provider, externalId: string): boolean {
   return postingExistsStmt.get({ provider, externalId }) !== undefined;
 }
 
+/**
+ * Every (company name, title, location) tuple we've ever notified. Used to dedupe
+ * re-listed roles ACROSS runs: a repost gets a fresh external_id, so postingExists
+ * misses it, but the role is unchanged — we shouldn't ping it again.
+ */
+export function selectNotifiedRoleKeys(): Array<{ company: string | null; title: string | null; location: string | null }> {
+  return db.prepare(`
+    SELECT c.name AS company, p.job_title AS title, p.location AS location
+    FROM postings p
+    LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
+    WHERE p.notified_at IS NOT NULL
+  `).all() as Array<{ company: string | null; title: string | null; location: string | null }>;
+}
+
 const updatePostingResultStmt = db.prepare(`
   UPDATE postings SET
     llm_relevant   = :llmRelevant,
