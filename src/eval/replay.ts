@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { writeFileSync } from "node:fs";
 import { config } from "../config.js";
 import { runGate } from "../llm/gate.js";
 import { GATE_V2 } from "./prompts/gate-v2.js";
@@ -20,6 +21,7 @@ const dbPath = flag("db", config.storage.dbPath)!;
 const labelsPath = flag("labels", process.env.REVIEW_LABELS ?? "data/review-labels.csv")!;
 const promptName = flag("prompt", "baseline")!;
 const sampleN = flag("sample", null);
+const outPath = flag("out", null);
 
 const CANDIDATES: Record<string, string> = { v1: config.prompts.relevance, v2: GATE_V2 };
 
@@ -77,6 +79,7 @@ if (promptName !== "baseline") {
     process.exit(1);
   }
   const scored: ScoredLabel[] = [];
+  const detailed: Array<{ id: string; company: string; title: string; relevant: boolean; score: number }> = [];
   let done = 0;
   let failed = 0;
   for (const r of rows) {
@@ -86,6 +89,7 @@ if (promptName !== "baseline") {
         { promptTemplate: template },
       );
       scored.push({ score: g.matchScore, relevant: r.relevant });
+      detailed.push({ id: r.id, company: r.company, title: r.title, relevant: r.relevant, score: g.matchScore });
     } catch {
       failed++;
     }
@@ -93,4 +97,16 @@ if (promptName !== "baseline") {
   }
   report(`CANDIDATE '${promptName}'`, scored);
   if (failed > 0) console.log(`  (${failed} gate failures excluded from metrics)`);
+
+  if (outPath) {
+    const esc = (v: string | number | boolean) => {
+      const s = String(v);
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = detailed
+      .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
+      .map((d) => [d.id, d.company, d.title, d.relevant, d.score].map(esc).join(","));
+    writeFileSync(outPath, ["id,company,title,relevant,score", ...lines].join("\r\n") + "\r\n", "utf-8");
+    console.log(`  wrote per-row scores → ${outPath} (ascending by score)`);
+  }
 }
