@@ -54,7 +54,9 @@ interface RunStats {
   postingsTitleDenied: number;
   postingsDuplicated: number;
   errors: string[];
-  /** Notify keys (company|title|location) already pinged this run — for dedup. */
+  /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */
+  priorNotifyKeys: Set<string>;
+  /** keys notified in THIS run — within-run dedup at notify time. */
   seenNotifyKeys: Set<string>;
 }
 
@@ -89,11 +91,11 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   // Pre-load every (company, title, location) we've already notified so a role
   // re-listed with a fresh requisition id isn't pinged again across runs (the
   // external_id dedup misses reposts; this catches them).
-  const seenNotifyKeys = new Set<string>();
+  const priorNotifyKeys = new Set<string>();
   for (const r of selectNotifiedRoleKeys()) {
-    seenNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
+    priorNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
   }
-  logger.info({ priorNotified: seenNotifyKeys.size }, "dedup: loaded prior-notified keys (cross-run)");
+  logger.info({ priorNotified: priorNotifyKeys.size }, "dedup: loaded prior-notified keys (cross-run)");
 
   const stats: RunStats = {
     companiesScanned: 0,
@@ -104,7 +106,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsTitleDenied: 0,
     postingsDuplicated: 0,
     errors: [],
-    seenNotifyKeys,
+    priorNotifyKeys,
+    seenNotifyKeys: new Set(),
   };
 
   const allCompanies = selectActiveCompanies();
@@ -287,8 +290,18 @@ async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  // Pre-fetch dedup — saves a JD HTTP call if we've seen this posting.
+  // Pre-fetch dedup — saves a JD HTTP call if we've seen this exact posting id.
   if (postingExists(posting.provider, posting.externalId)) return;
+
+  // Cross-run dedup BEFORE any LLM work: a role with the same
+  // (company, title, location) already notified in a prior run is a re-listing
+  // (fresh requisition id). Skip it outright rather than spend gate + extract
+  // calls to re-derive a verdict we'd only drop at notify time.
+  const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
+  if (stats.priorNotifyKeys.has(dupKey)) {
+    stats.postingsDuplicated++;
+    return;
+  }
 
   // Cheap title-deny — runs before JD fetch so Workday/llm-scrape save the
   // round trip too. Doesn't write to DB; each tick re-checks.
@@ -430,11 +443,10 @@ async function processOnePosting(
     return;
   }
 
-  // Per-run dedup: an identical (company, title, location) role already pinged
-  // this run is recorded but not re-notified. Different location → different key,
-  // so a multi-city opening still surfaces each city. The key is reserved before
-  // the await so two concurrent workers can't both notify the same role.
-  const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
+  // Within-run dedup: an identical role already pinged earlier in THIS run is
+  // recorded but not re-notified (cross-run repeats were already skipped before
+  // the gate). dupKey was computed above; reserve it before the await so two
+  // concurrent workers can't both notify the same role.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     updatePostingResult({
