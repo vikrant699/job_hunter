@@ -38,3 +38,23 @@ test("scoreSpread reports distinct count and modal share", () => {
   assert.equal(s.modal, 0.5);
   assert.equal(s.modalShare, 0.75);
 });
+
+test("rocAuc on the multi-pair fixture is 5/6", () => {
+  // pos=[0.9,0.7,0.4], neg=[0.5,0.2] → wins=5 of 6 pairs (0.4<0.5 is the only loss)
+  assert.ok(Math.abs(rocAuc(rows) - 5 / 6) < 1e-9);
+});
+
+test("degenerate inputs return the NaN sentinel (contract for callers)", () => {
+  assert.ok(Number.isNaN(rocAuc([])));
+  assert.ok(Number.isNaN(rocAuc([{ score: 0.9, relevant: true }]))); // single class
+  assert.ok(Number.isNaN(recallAtThreshold([{ score: 0.5, relevant: false }], 0.4))); // no relevants
+  assert.ok(Number.isNaN(precisionAtThreshold([{ score: 0.2, relevant: true }], 0.9))); // none kept
+  assert.ok(Number.isNaN(maxThresholdForFullRecall([]))); // no relevants
+});
+
+test("scoreSpread on empty input yields zero distinct and NaN modal/share", () => {
+  const s = scoreSpread([]);
+  assert.equal(s.distinct, 0);
+  assert.ok(Number.isNaN(s.modal));
+  assert.ok(Number.isNaN(s.modalShare));
+});

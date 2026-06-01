@@ -4,7 +4,11 @@ export interface ScoredLabel {
   relevant: boolean;
 }
 
-/** Tie-aware ROC-AUC via the Mann–Whitney U statistic. 0.5 = no separation. */
+/**
+ * Tie-aware ROC-AUC via the Mann–Whitney U statistic. 0.5 = no separation.
+ * Returns NaN if either class is empty. Tie detection uses strict equality,
+ * which assumes scores are raw parsed floats (not computed/averaged values).
+ */
 export function rocAuc(rows: ScoredLabel[]): number {
   const pos = rows.filter((r) => r.relevant).map((r) => r.score);
   const neg = rows.filter((r) => !r.relevant).map((r) => r.score);
@@ -45,7 +49,11 @@ export interface SpreadStats {
   modalShare: number;
 }
 
-/** Distribution shape: how many distinct values, and how concentrated the top one is. */
+/**
+ * Distribution shape: how many distinct values, and how concentrated the top one is.
+ * Ties in count are broken by first occurrence (Map insertion order).
+ * Empty input yields { distinct: 0, modal: NaN, modalShare: NaN }.
+ */
 export function scoreSpread(scores: number[]): SpreadStats {
   const counts = new Map<number, number>();
   for (const s of scores) counts.set(s, (counts.get(s) ?? 0) + 1);
