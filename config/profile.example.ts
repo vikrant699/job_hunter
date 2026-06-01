@@ -42,6 +42,11 @@ export interface UserProfile {
     remoteAcceptStrings: string[];
     /** Phrases that mean "out of region only" — reject even if a target city appears. */
     rejectIfPresent: string[];
+    /** Distinctive out-of-region place names (foreign cities/states/countries),
+     *  matched as whole words against a posting's TITLE. Catches scraped postings
+     *  that carry the location in the title (e.g. "Data Scientist — Sydney, NSW")
+     *  while a foreign HQ named only in the JD body still won't reject. */
+    rejectRegions?: string[];
   };
   /** Cheap regex pre-filter on job titles. A match means "skip before LLM call". */
   titleDenyPatterns: readonly RegExp[];
@@ -115,6 +120,21 @@ Example shape:
       "remote - united states", "remote - us", "remote, us",
       "us only", "us-only", "usa only",
       "uk only", "eu only", "europe only",
+    ],
+    // Distinctive non-India places. Whole-word match against the TITLE, so these
+    // catch title-embedded foreign locations without false-rejecting an India role
+    // whose JD merely mentions a foreign HQ. Curated to avoid India collisions
+    // (e.g. "phoenix" is intentionally absent — it appears in a Hyderabad tech park).
+    rejectRegions: [
+      "sydney", "melbourne", "brisbane", "perth", "canberra", "nsw", "vic", "auckland", "wellington",
+      "new york", "san francisco", "seattle", "chicago", "los angeles", "boston", "austin",
+      "denver", "dallas", "houston", "atlanta", "tempe", "palo alto", "mountain view", "sunnyvale", "san jose",
+      "london", "manchester", "dublin", "paris", "berlin", "munich", "amsterdam", "madrid", "barcelona", "zurich", "stockholm",
+      "singapore", "kuala lumpur", "jakarta", "manila", "bangkok", "hong kong", "shanghai", "beijing", "shenzhen", "tokyo", "seoul",
+      "dubai", "abu dhabi", "tel aviv", "riyadh",
+      "toronto", "vancouver", "montreal", "mexico city", "sao paulo", "buenos aires",
+      "united states", "u.s.a", "australia", "new zealand", "united kingdom", "germany", "france",
+      "netherlands", "canada", "ireland", "brazil", "japan", "philippines",
     ],
   },
 
