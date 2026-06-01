@@ -80,7 +80,7 @@ Example shape:
   hardDealBreakers: [
     // Things you ABSOLUTELY do not want to see — these silently reject a posting.
     "Internship / fresher / trainee / 0–1 YOE roles",
-    "Roles requiring a MINIMUM of 7 or more years of relevant experience (e.g., 'minimum 7 years', '7+ years', '8 to 10 years'). NOTE: ranges that start below 7 (e.g., '4-6 years', '3+ years') are FINE.",
+    "Roles requiring a MINIMUM of 6 or more years of relevant experience (e.g., 'minimum 6 years', '6+ years', '7 to 10 years'). NOTE: ranges that start below 6 (e.g., '3-5 years', '4+ years') are FINE.",
     "Third-party hiring / staffing / recruitment-agency posts where the role is for an unnamed 'client' or 'partner company'. The actual employer must be visible.",
   ],
 
@@ -92,7 +92,7 @@ Example shape:
 
   filters: {
     candidateYoe: 4.5,
-    hardYoeCap: 7,
+    hardYoeCap: 6,
     yoeAcceptUnspecified: false,
     matchThreshold: 0.6,
   },

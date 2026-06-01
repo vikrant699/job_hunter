@@ -5,6 +5,13 @@ import { render } from "./render.js";
 import { generate } from "./client.js";
 import { logger } from "../logger.js";
 
+/**
+ * Cap on JD characters sent to the model. Beyond ~8k chars the prompt+JD overflows
+ * the local model's context window and it returns malformed JSON (the format
+ * instructions fall off the end). Relevance/YOE live in the first few thousand chars.
+ */
+export const JD_MAX_CHARS = 6000;
+
 export const GateResultSchema = z.object({
   // v2 fields — optional so v1 output still validates and downstream is unaffected.
   analysis: z.string().optional(),
@@ -76,7 +83,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
     softDealBreakers: profile.softDealBreakers,
     jobTitle: input.jobTitle ?? "(unknown)",
     companyName: input.companyName ?? "(unknown)",
-    jdText: input.jdText,
+    jdText: input.jdText.slice(0, JD_MAX_CHARS),
   });
 
   // One retry on parse failure: the model occasionally emits malformed JSON (a
