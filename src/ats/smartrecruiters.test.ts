@@ -28,3 +28,10 @@ test("synthesizes a jobs.smartrecruiters.com URL when detail has neither (never 
 test("synthesized fallback url-encodes slug and id", () => {
   assert.equal(srPostingUrl("Acme Co", "a/b"), "https://jobs.smartrecruiters.com/Acme%20Co/a%2Fb");
 });
+
+test("ignores a non-absolute API url and synthesizes instead", () => {
+  assert.equal(
+    srPostingUrl("BoschGroup", "1", { postingUrl: "/relative/path" }),
+    "https://jobs.smartrecruiters.com/BoschGroup/1",
+  );
+});
