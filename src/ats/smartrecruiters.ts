@@ -47,6 +47,8 @@ const SectionSchema = z.object({
 const DetailResponseSchema = z.object({
   id: z.string(),
   name: z.string().nullable().optional(),
+  postingUrl: z.string().nullable().optional(),
+  applyUrl: z.string().nullable().optional(),
   jobAd: z
     .object({
       sections: z
@@ -149,6 +151,9 @@ export const smartRecruitersAdapter: AtsAdapter = {
       return "";
     }
 
+    // Replace the synthesized list-time URL with the canonical one from the API.
+    posting.jobUrl = srPostingUrl(company.slug, posting.externalId, parsed.data);
+
     const sections = parsed.data.jobAd?.sections;
     if (!sections) return "";
     const parts = [
@@ -159,6 +164,23 @@ export const smartRecruitersAdapter: AtsAdapter = {
     return htmlToText(parts.join("\n\n"));
   },
 };
+
+/**
+ * The human-facing posting URL. SmartRecruiters exposes the canonical URL only on
+ * the detail endpoint (postingUrl / applyUrl); the list endpoint carries just an
+ * API self-link. When neither is available we synthesize a jobs.smartrecruiters.com
+ * URL — the correct host (the old careers.smartrecruiters.com form did not resolve
+ * for tenants with their own front-end, e.g. Bosch).
+ */
+export function srPostingUrl(
+  slug: string,
+  id: string,
+  detail?: { postingUrl?: string | null; applyUrl?: string | null },
+): string {
+  const fromApi = detail?.postingUrl ?? detail?.applyUrl;
+  if (fromApi) return fromApi;
+  return `https://jobs.smartrecruiters.com/${encodeURIComponent(slug)}/${encodeURIComponent(id)}`;
+}
 
 function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
   // Build "City, Region, Country" with country upper-cased — SR returns
@@ -171,7 +193,7 @@ function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
   const location = parts.length > 0 ? parts.join(", ") : null;
   const isRemote = loc?.remote === true;
 
-  const jobUrl = `https://careers.smartrecruiters.com/${encodeURIComponent(company.slug)}/${encodeURIComponent(p.id)}`;
+  const jobUrl = srPostingUrl(company.slug, p.id);
 
   return {
     provider: "smartrecruiters",
