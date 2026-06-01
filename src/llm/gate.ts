@@ -31,7 +31,10 @@ export interface RunGateOptions {
   promptTemplate?: string;
 }
 
-/** Pure: turn a raw model response into a validated GateResult. Throws on bad output. */
+/**
+ * Turn a raw model response into a validated GateResult. Throws on malformed
+ * JSON or schema violations (and logs the offending payload before throwing).
+ */
 export function parseGateResponse(raw: string): GateResult {
   let parsed: unknown;
   try {
@@ -49,7 +52,9 @@ export function parseGateResponse(raw: string): GateResult {
     if (p.dealBreakerSeverity === "" || p.dealBreakerSeverity === "none" || p.dealBreakerSeverity === "null") {
       p.dealBreakerSeverity = null;
     }
+    // If hit is null, severity must be null (model sometimes inverts this).
     if (p.dealBreakerHit === null) p.dealBreakerSeverity = null;
+    // If severity is null but a hit is set, fall back to "soft" (don't silently drop).
     if (p.dealBreakerHit !== null && p.dealBreakerSeverity === null) {
       p.dealBreakerSeverity = "soft";
     }

@@ -28,6 +28,16 @@ test("defaults severity to soft when a hit has no severity", () => {
 });
 
 test("throws on non-JSON and on schema violations", () => {
-  assert.throws(() => parseGateResponse("not json"));
-  assert.throws(() => parseGateResponse('{"reason":"missing score"}'));
+  assert.throws(() => parseGateResponse("not json"), /not JSON/);
+  assert.throws(() => parseGateResponse('{"reason":"missing score"}'), /schema validation/);
+});
+
+test("rejects an out-of-range matchScore", () => {
+  assert.throws(() => parseGateResponse('{"matchScore":1.1,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"x"}'), /schema validation/);
+});
+
+test("passes a hard deal-breaker through unchanged", () => {
+  const g = parseGateResponse('{"matchScore":0,"dealBreakerHit":"staffing agency","dealBreakerSeverity":"hard","reason":"x"}');
+  assert.equal(g.dealBreakerHit, "staffing agency");
+  assert.equal(g.dealBreakerSeverity, "hard");
 });
