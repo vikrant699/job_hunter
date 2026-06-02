@@ -19,7 +19,7 @@ const NAV_TIMEOUT_MS = 30_000;
 // longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
 const POST_LOAD_WAIT_NETWORKIDLE_MS = 1_500;
 const POST_LOAD_WAIT_FALLBACK_MS = 6_000;
-const MAX_CONCURRENT_PAGES = Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 2);
+const MAX_CONCURRENT_PAGES = Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5);
 
 // ---- shared browser lifecycle ----
 
