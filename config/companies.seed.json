@@ -618,14 +618,6 @@
     "discovered_via": "seed"
   },
   {
-    "name": "HashiCorp",
-    "careers_url": "https://www.hashicorp.com/career",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "reason": "Acquired by IBM; careers integrated into IBM Workday. Awaits Workday adapter (Phase 5).",
-    "discovered_via": "seed"
-  },
-  {
     "name": "Confluent",
     "careers_url": "https://www.confluent.io/careers/",
     "source": "ashby",
@@ -1906,13 +1898,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "Stable Money",
-    "careers_url": "https://stablemoney.in/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "ZipLoan",
     "careers_url": "https://ziploan.in/career",
     "source": "custom",
@@ -1944,13 +1929,6 @@
   {
     "name": "Jar",
     "careers_url": "https://www.myjar.app/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "Fi Money",
-    "careers_url": "https://fi.money/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -2166,13 +2144,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "Dunzo",
-    "careers_url": "https://www.dunzo.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "Swiggy Instamart",
     "careers_url": "https://careers.swiggy.com/",
     "source": "custom",
@@ -2347,13 +2318,6 @@
   {
     "name": "Chingari",
     "careers_url": "https://chingari.io/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "MX Player",
-    "careers_url": "https://www.mxplayer.in/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -2755,13 +2719,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "WhiteHat Jr",
-    "careers_url": "https://www.whitehatjr.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "Aakash Educational Services",
     "careers_url": "https://www.aakash.ac.in/careers",
     "source": "custom",
@@ -2792,13 +2749,6 @@
   {
     "name": "Cuemath",
     "careers_url": "https://www.cuemath.com/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "Lido Learning",
-    "careers_url": "https://www.lidolearning.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -3111,14 +3061,6 @@
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "Phable",
-    "careers_url": "https://www.phablecare.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "evidence": "URL repaired via WebSearch: rebranded to Phablecare"
   },
   {
     "name": "Cipla India",
@@ -3704,14 +3646,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed",
     "evidence": "URL repaired via WebSearch: real careers page uses 'career' (singular)"
-  },
-  {
-    "name": "Junglee Games",
-    "careers_url": "https://www.jungleegames.com/grow.php",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "evidence": "URL repaired via WebSearch: careers page is /grow.php"
   },
   {
     "name": "Adda52",
@@ -4516,13 +4450,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "Hero Electric",
-    "careers_url": "https://heroelectric.in/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "Revolt Motors",
     "careers_url": "https://www.revoltmotors.com/careers",
     "source": "custom",
@@ -4568,13 +4495,6 @@
   {
     "name": "Sun Mobility",
     "careers_url": "https://www.sunmobility.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "BluSmart Mobility",
-    "careers_url": "https://blu-smart.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -4869,13 +4789,6 @@
   {
     "name": "Sony Pictures India",
     "careers_url": "https://www.sonypicturesnetworks.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "Viacom18",
-    "careers_url": "https://viacom18.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -5342,13 +5255,6 @@
   {
     "name": "Spotify India",
     "careers_url": "https://www.lifeatspotify.com/jobs",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
-    "name": "Wynk Music",
-    "careers_url": "https://wynk.in/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
@@ -6152,13 +6058,6 @@
     "discovered_via": "bulk-seed-2"
   },
   {
-    "name": "Saankhya Labs",
-    "careers_url": "https://www.saankhyalabs.com/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
     "name": "Signalchip",
     "careers_url": "https://signalchip.com/careers/",
     "source": "custom",
@@ -6441,20 +6340,6 @@
   {
     "name": "Browserstack Enterprise",
     "careers_url": "https://www.browserstack.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
-    "name": "Toplyne",
-    "careers_url": "https://www.toplyne.io/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
-    "name": "Sprinto",
-    "careers_url": "https://sprinto.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
@@ -6835,13 +6720,6 @@
   {
     "name": "Niyo Solutions",
     "careers_url": "https://www.goniyo.com/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
-    "name": "PaytmMoney",
-    "careers_url": "https://www.paytmmoney.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
@@ -7983,13 +7861,6 @@
     "discovered_via": "bulk-seed-2"
   },
   {
-    "name": "Visa India GCC",
-    "careers_url": "https://corporate.visa.com/en/jobs.html",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
     "name": "Mastercard India GCC",
     "careers_url": "https://careers.mastercard.com/us/en",
     "source": "custom",
@@ -8130,13 +8001,6 @@
     "discovered_via": "bulk-seed-2"
   },
   {
-    "name": "SciSpace (Typeset)",
-    "careers_url": "https://scispace.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
     "name": "Composio",
     "careers_url": "https://composio.dev/careers",
     "source": "custom",
@@ -8202,13 +8066,6 @@
   {
     "name": "Mantis AI",
     "careers_url": "https://mantis.work/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
-    "name": "Letsdive",
-    "careers_url": "https://www.letsdive.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-3"
@@ -8326,13 +8183,6 @@
     "discovered_via": "bulk-seed-3"
   },
   {
-    "name": "Goalwise",
-    "careers_url": "https://goalwise.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
     "name": "Bondskart",
     "careers_url": "https://www.bondskart.com/careers",
     "source": "custom",
@@ -8398,13 +8248,6 @@
   {
     "name": "Zaggle",
     "careers_url": "https://www.zaggle.in/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
-    "name": "Trapyz",
-    "careers_url": "https://www.trapyz.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-3"
@@ -8566,13 +8409,6 @@
   {
     "name": "Knit (integrations)",
     "careers_url": "https://www.getknit.dev/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
-    "name": "Vellum AI",
-    "careers_url": "https://www.vellum.ai/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-3"
@@ -9294,13 +9130,6 @@
   {
     "name": "Atomic Industries",
     "careers_url": "https://atomicindustries.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
-  },
-  {
-    "name": "Hera Construction",
-    "careers_url": "https://www.hera.so/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-3"
