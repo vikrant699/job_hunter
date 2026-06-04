@@ -95,13 +95,6 @@
     "discovered_via": "seed"
   },
   {
-    "name": "Zerodha",
-    "careers_url": "https://zerodha.com/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "seed"
-  },
-  {
     "name": "smallcase",
     "careers_url": "https://careers.smallcase.com/",
     "source": "custom",
