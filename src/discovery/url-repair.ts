@@ -218,6 +218,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
         denyReason: company.denyReason,
         discoveredVia: company.discoveredVia,
         tenantUrl: company.tenantUrl,
+        apiMeta: company.apiMeta ? JSON.stringify(company.apiMeta) : null,
         discoveredAt: company.discoveredAt,
       });
     } catch (err) {

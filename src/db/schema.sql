@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS companies (
   deny_reason           TEXT,
   discovered_via        TEXT,
   tenant_url            TEXT,
+  api_meta              TEXT,
   discovered_at         TEXT    NOT NULL,
   last_fetched_at       TEXT,
   last_success_at       TEXT,

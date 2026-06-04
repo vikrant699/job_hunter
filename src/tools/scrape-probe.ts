@@ -107,6 +107,7 @@ async function probeOne(
         name: company.name,
         careersUrl: company.careersUrl,
         tenantUrl: company.tenantUrl,
+        apiMeta: company.apiMeta,
       },
       stub
     );
