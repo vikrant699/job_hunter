@@ -168,10 +168,21 @@ Example shape:
       "genpact", "deloitte", "kpmg", "pwc", "pricewaterhousecoopers", "ernst-young",
       "quess", "randstad", "manpower", "teamlease", "antal", "kelly-services",
       "abc-consultants", "michael-page",
+      // Indian gov / PSU
+      "bhel", "bpcl", "bsnl", "coal-india", "cowin-negd", "digilocker-negd",
+      "digital-india-corporation", "drdo", "isro", "hal-aerospace",
+      "reserve-bank-information-technology", "hpcl", "india-post-payments-bank",
+      "indian-oil-corporation", "nhpc", "nic-india", "ntpc-limited", "ongc",
+      "power-grid-corporation", "sjvn", "stpi", "uidai",
+      // Eternal-owned (Zomato Ltd. rebrand, 2025)
+      "zomato", "blinkit", "hyperpure",
     ],
     namePatterns: [
       /\b(consulting|consultants|consultancy|services|solutions)\b/i,
       /\b(staffing|recruit|recruitment|recruiter|talent)\b/i,
+      /\bBhabha Atomic\b/i,
+      /^BARC(\s|$)/,
+      /^HAL(\s|$)/,
     ],
   },
 };
