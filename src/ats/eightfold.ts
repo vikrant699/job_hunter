@@ -29,6 +29,8 @@ const DetailSchema = z.object({
 
 const PAGE = 50;
 const DELAY_MS = 150;
+const MAX_PAGES = 200; // safety cap: 200×50 = 10k postings, far beyond any real board
+const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 
 function hostOf(company: AdapterCompany): string {
   if (!company.tenantUrl) throw new Error(`eightfold requires tenant_url (host) for ${company.slug}`);
@@ -61,6 +63,10 @@ export const eightfoldAdapter: AtsAdapter = {
       if (parsed.data.positions.length < PAGE) break;
       start += PAGE;
       if (total !== null && start >= total) break;
+      if (page + 1 >= MAX_PAGES) {
+        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "eightfold pagination hit MAX_PAGES cap");
+        break;
+      }
       await new Promise((r) => setTimeout(r, DELAY_MS));
     }
     return out;
@@ -87,7 +93,7 @@ export function normalizeEightfold(company: AdapterCompany, p: Position): Normal
     jobTitle: p.name,
     jobUrl: p.canonicalPositionUrl ?? `https://${hostOf(company)}/careers/job/${p.id}`,
     location,
-    isRemote: false,
+    isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: htmlToText(p.job_description ?? ""),
     postedAt: p.t_create ? new Date(p.t_create * 1000).toISOString() : null,
   };
