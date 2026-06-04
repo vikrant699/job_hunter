@@ -38,6 +38,7 @@ const DetailSchema = z.object({ items: z.array(DetailItemSchema) });
 
 const PAGE = 200;
 const DELAY_MS = 150;
+const MAX_PAGES = 100; // safety cap: 100×200 = 20k reqs, far beyond any real board
 const REMOTE_RE = /\b(remote|virtual|work from home|wfh|anywhere)\b/i;
 
 function parts(company: AdapterCompany): { base: string; site: string } {
@@ -72,6 +73,10 @@ export const oracleAdapter: AtsAdapter = {
       if (reqs.length < PAGE) break;
       offset += PAGE;
       if (total !== null && offset >= total) break;
+      if (page + 1 >= MAX_PAGES) {
+        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "oracle pagination hit MAX_PAGES cap");
+        break;
+      }
       await new Promise((r) => setTimeout(r, DELAY_MS));
     }
     return out;
