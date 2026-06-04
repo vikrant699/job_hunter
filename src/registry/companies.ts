@@ -8,7 +8,8 @@ import { isDeniedCompany } from "../filter/denylist.js";
 import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
 
 const ProviderSchema = z.enum([
-  "greenhouse", "lever", "ashby", "smartrecruiters", "workday", "custom",
+  "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
+  "workable", "oracle", "keka", "eightfold", "custom",
 ]);
 const ParsingStrategySchema = z.enum([
   "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
@@ -27,6 +28,7 @@ const RegistryEntrySchema = z.object({
   discovered_at: z.string().optional(),
   evidence: z.string().optional(),
   tenant_url: z.string().url().optional(),
+  api_meta: z.record(z.string()).optional(),
 });
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);
@@ -96,6 +98,7 @@ export function syncRegistryFromJson(): { synced: number; denied: number; seedPa
       denyReason: entry.reason ?? deny.reason,
       discoveredVia: entry.discovered_via ?? "seed",
       tenantUrl: entry.tenant_url ?? null,
+      apiMeta: entry.api_meta ? JSON.stringify(entry.api_meta) : null,
       discoveredAt: now,
     });
   }

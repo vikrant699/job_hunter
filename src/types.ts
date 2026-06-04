@@ -4,6 +4,10 @@ export type Provider =
   | "ashby"
   | "smartrecruiters"
   | "workday"
+  | "workable"
+  | "oracle"
+  | "keka"
+  | "eightfold"
   | "custom";
 
 export type ParsingStrategy =
@@ -32,6 +36,8 @@ export interface Company {
   /** Adapter-specific URL. For Workday: full tenant URL e.g.
    *  "https://apple.wd1.myworkdayjobs.com/External". Null otherwise. */
   tenantUrl: string | null;
+  /** Adapter-specific tokens (Keka orgGuid, Eightfold domain, Oracle siteNumber). Null otherwise. */
+  apiMeta: Record<string, string> | null;
   discoveredAt: string;
   lastFetchedAt: string | null;
   lastSuccessAt: string | null;
@@ -48,6 +54,7 @@ export interface AdapterCompany {
   name: string;
   careersUrl: string;
   tenantUrl: string | null;
+  apiMeta: Record<string, string> | null;
 }
 
 /** Registry entry as stored in JSON (seed or discovery-written working file). */
@@ -64,6 +71,8 @@ export interface RegistryEntry {
   evidence?: string;
   /** Workday tenant URL when source=workday. Ignored otherwise. */
   tenant_url?: string;
+  /** Adapter-specific tokens persisted as JSON (keka orgGuid, eightfold domain, oracle siteNumber). */
+  api_meta?: Record<string, string>;
 }
 
 /** Normalized job posting — shared shape across all parsing strategies. */

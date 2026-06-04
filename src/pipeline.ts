@@ -67,6 +67,7 @@ function toAdapterCompany(c: Company): AdapterCompany {
     name: c.name,
     careersUrl: c.careersUrl,
     tenantUrl: c.tenantUrl,
+    apiMeta: c.apiMeta,
   };
 }
 

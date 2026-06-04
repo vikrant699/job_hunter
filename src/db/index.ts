@@ -19,6 +19,15 @@ db.exec("PRAGMA foreign_keys = ON");
 const schema = readFileSync(schemaPath, "utf-8");
 db.exec(schema);
 
+// Migration: add api_meta to pre-existing companies tables (schema.sql's
+// CREATE TABLE IF NOT EXISTS won't add columns to an existing table).
+{
+  const cols = db.prepare("PRAGMA table_info(companies)").all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "api_meta")) {
+    db.exec("ALTER TABLE companies ADD COLUMN api_meta TEXT");
+  }
+}
+
 logger.info({ path: dbPath }, "sqlite initialized");
 
 /* ===== companies ===== */
@@ -26,10 +35,10 @@ logger.info({ path: dbPath }, "sqlite initialized");
 const upsertCompanyStmt = db.prepare(`
   INSERT INTO companies (
     provider, slug, name, careers_url, parsing_strategy, status,
-    deny_reason, discovered_via, tenant_url, discovered_at
+    deny_reason, discovered_via, tenant_url, api_meta, discovered_at
   ) VALUES (
     :provider, :slug, :name, :careersUrl, :parsingStrategy, :status,
-    :denyReason, :discoveredVia, :tenantUrl, :discoveredAt
+    :denyReason, :discoveredVia, :tenantUrl, :apiMeta, :discoveredAt
   )
   ON CONFLICT(provider, slug) DO UPDATE SET
     name             = excluded.name,
@@ -40,7 +49,8 @@ const upsertCompanyStmt = db.prepare(`
                          ELSE excluded.status
                        END,
     deny_reason      = excluded.deny_reason,
-    tenant_url       = excluded.tenant_url
+    tenant_url       = excluded.tenant_url,
+    api_meta         = excluded.api_meta
 `);
 
 interface UpsertCompanyRow {
@@ -54,6 +64,7 @@ interface UpsertCompanyRow {
   denyReason: string | null;
   discoveredVia: string | null;
   tenantUrl: string | null;
+  apiMeta: string | null;
   discoveredAt: string;
 }
 
@@ -77,6 +88,7 @@ interface CompanyDbRow {
   deny_reason: string | null;
   discovered_via: string | null;
   tenant_url: string | null;
+  api_meta: string | null;
   discovered_at: string;
   last_fetched_at: string | null;
   last_success_at: string | null;
@@ -84,6 +96,17 @@ interface CompanyDbRow {
   consecutive_failures: number;
   postings_seen_total: number;
   postings_matched_total: number;
+}
+
+/** Parse the api_meta JSON column into a token map, or null. */
+export function parseApiMeta(s: string | null): Record<string, string> | null {
+  if (!s) return null;
+  try {
+    const o: unknown = JSON.parse(s);
+    return o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, string>) : null;
+  } catch {
+    return null;
+  }
 }
 
 function rowToCompany(r: CompanyDbRow): Company {
@@ -97,6 +120,7 @@ function rowToCompany(r: CompanyDbRow): Company {
     denyReason: r.deny_reason,
     discoveredVia: r.discovered_via,
     tenantUrl: r.tenant_url,
+    apiMeta: parseApiMeta(r.api_meta),
     discoveredAt: r.discovered_at,
     lastFetchedAt: r.last_fetched_at,
     lastSuccessAt: r.last_success_at,
