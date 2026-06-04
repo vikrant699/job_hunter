@@ -6,11 +6,15 @@ import { generate } from "./client.js";
 import { logger } from "../logger.js";
 
 /**
- * Cap on JD characters sent to the model. Beyond ~8k chars the prompt+JD overflows
- * the local model's context window and it returns malformed JSON (the format
- * instructions fall off the end). Relevance/YOE live in the first few thousand chars.
+ * Cap on JD characters sent to the model — a safety rail sized to num_ctx (16384),
+ * NOT the model's 40960 limit. If prompt+JD exceeds the window, Ollama truncates from
+ * the FRONT (keeps the tail), which would drop our instructions + JSON-format spec and
+ * yield malformed output. Capping the JD keeps total input inside the window so the
+ * prompt always survives. At 16384 ctx (~14k JD tokens after the prompt), 50000 chars
+ * covers ~99.9% of postings untouched; only boilerplate-bloated outliers get the tail
+ * trimmed. NOTE: hard rules (location, dedup, title) run on the FULL JD before this.
  */
-export const JD_MAX_CHARS = 6000;
+export const JD_MAX_CHARS = 50000;
 
 export const GateResultSchema = z.object({
   // v2 fields — optional so v1 output still validates and downstream is unaffected.

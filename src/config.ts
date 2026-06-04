@@ -35,6 +35,12 @@ export const config = {
     /** Ollama serializes on the GPU; only raise this if you run multiple
      *  Ollama instances behind a load balancer. */
     maxConcurrent: 1,
+    /** Context window (tokens) allocated per request. qwen3:8b supports 40960,
+     *  but the KV cache grows linearly with this and must fit alongside the ~5.4GB
+     *  model in 8GB VRAM. 16384 holds a full JD + prompt for ~99.9% of postings;
+     *  pair with OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0 so the
+     *  quantized KV cache (~1.1GB) fits. Ollama defaults to only 4096 if unset. */
+    numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 16384),
   },
 
   prompts: {
