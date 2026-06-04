@@ -29,7 +29,7 @@ const DetailSchema = z.object({
 
 const PAGE = 50;
 const DELAY_MS = 150;
-const MAX_PAGES = 200; // safety cap: 200×50 = 10k postings, far beyond any real board
+const PAGE_WARN_INTERVAL = 100; // warn (don't stop) on unusually deep pagination, like smartrecruiters/workday
 const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 
 function hostOf(company: AdapterCompany): string {
@@ -63,9 +63,8 @@ export const eightfoldAdapter: AtsAdapter = {
       if (parsed.data.positions.length < PAGE) break;
       start += PAGE;
       if (total !== null && start >= total) break;
-      if (page + 1 >= MAX_PAGES) {
-        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "eightfold pagination hit MAX_PAGES cap");
-        break;
+      if ((page + 1) % PAGE_WARN_INTERVAL === 0) {
+        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "eightfold pagination still going — unusually large tenant");
       }
       await new Promise((r) => setTimeout(r, DELAY_MS));
     }
