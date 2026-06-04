@@ -1249,14 +1249,6 @@
     "tenant_url": "https://novartis.wd3.myworkdayjobs.com/Novartis_Careers"
   },
   {
-    "name": "Roche India",
-    "careers_url": "https://careers.roche.com/global/en/india",
-    "source": "custom",
-    "source_slug": "roche-phenom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "seed"
-  },
-  {
     "name": "GSK India",
     "careers_url": "https://www.gsk.com/en-gb/careers/",
     "source": "workday",
@@ -4677,13 +4669,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "Roche India Operations",
-    "careers_url": "https://careers.roche.com/global/en/india",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "Merck India",
     "careers_url": "https://www.merckgroup.com/en/careers.html",
     "source": "custom",
@@ -5133,13 +5118,6 @@
   {
     "name": "Lattice Semiconductor India",
     "careers_url": "https://www.latticesemi.com/About/Careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
-  },
-  {
-    "name": "Silicon Labs India",
-    "careers_url": "https://www.silabs.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
