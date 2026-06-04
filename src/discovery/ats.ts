@@ -402,6 +402,14 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           error: null,
         };
       }
+      case "workable": {
+        const data = (await fetchJsonWithTimeout(
+          `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(c.slug)}?details=false`,
+          { headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" } },
+          timeout
+        )) as { jobs?: unknown[] };
+        return { ok: Array.isArray(data.jobs), total: data.jobs?.length ?? 0, error: null };
+      }
       default:
         return { ok: false, total: null, error: "no validator" };
     }
