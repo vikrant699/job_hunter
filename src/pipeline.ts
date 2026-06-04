@@ -20,6 +20,7 @@ import { ashbyAdapter } from "./ats/ashby.js";
 import { workdayAdapter } from "./ats/workday.js";
 import { smartRecruitersAdapter } from "./ats/smartrecruiters.js";
 import { workableAdapter } from "./ats/workable.js";
+import { kekaAdapter } from "./ats/keka.js";
 import { llmScrapeAdapter } from "./scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "./scraper/playwright-scrape.js";
 import { checkLocation, checkLocationFromText } from "./filter/location.js";
@@ -38,6 +39,7 @@ const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   workday: workdayAdapter,
   smartrecruiters: smartRecruitersAdapter,
   workable: workableAdapter,
+  keka: kekaAdapter,
 };
 
 function resolveAdapter(c: Company): AtsAdapter | null {
