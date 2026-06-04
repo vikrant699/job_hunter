@@ -176,6 +176,8 @@ Example shape:
       "power-grid-corporation", "sjvn", "stpi", "uidai",
       // Eternal-owned (Zomato Ltd. rebrand, 2025)
       "zomato", "blinkit", "hyperpure",
+      // referral-only / no public hiring
+      "zerodha",
     ],
     namePatterns: [
       /\b(consulting|consultants|consultancy|services|solutions)\b/i,
