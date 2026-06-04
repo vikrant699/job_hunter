@@ -3625,13 +3625,6 @@
     "discovered_via": "bulk-seed"
   },
   {
-    "name": "Sumo Logic India",
-    "careers_url": "https://www.sumologic.com/careers/",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
-  },
-  {
     "name": "VictorOps India",
     "careers_url": "https://www.splunk.com/en_us/careers.html",
     "source": "custom",
