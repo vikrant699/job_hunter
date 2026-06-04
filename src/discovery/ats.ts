@@ -20,7 +20,7 @@ export type AtsProvider =
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
-  | "jobvite" | "bamboohr";
+  | "jobvite" | "bamboohr" | "oracle" | "keka";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -39,13 +39,15 @@ const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: false, canValidate: false },
   phenom:         { hasAdapter: false, canValidate: false },
-  eightfold:      { hasAdapter: false, canValidate: false },
+  eightfold:      { hasAdapter: true,  canValidate: false },
   avature:        { hasAdapter: false, canValidate: false },
-  workable:       { hasAdapter: false, canValidate: false },
+  workable:       { hasAdapter: true,  canValidate: true  },
   personio:       { hasAdapter: false, canValidate: false },
   teamtailor:     { hasAdapter: false, canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: false, canValidate: false },
+  oracle:         { hasAdapter: true,  canValidate: false },
+  keka:           { hasAdapter: true,  canValidate: false },
 };
 
 interface PatternDef {
@@ -218,6 +220,24 @@ const PATTERNS: PatternDef[] = [
       const u = safeUrl(m);
       const slug = u?.host.split(".")[0];
       return slug ? { url: `https://${u!.host}/careers`, slug } : null;
+    },
+  },
+  {
+    provider: "oracle",
+    re: /https?:\/\/[a-z0-9-]+\.fa\.[a-z0-9-]+\.oraclecloud\.com\b[^\s"'<>]*/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      return { url: `${u.protocol}//${u.host}`, slug: u.host.split(".")[0]! };
+    },
+  },
+  {
+    provider: "keka",
+    re: /https?:\/\/([a-z0-9-]+)\.keka\.com\/careers\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      return slug ? { url: `https://${u!.host}/careers/`, slug } : null;
     },
   },
 ];
