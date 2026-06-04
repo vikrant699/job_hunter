@@ -2761,7 +2761,7 @@
   },
   {
     "name": "Dr Reddy's",
-    "careers_url": "https://www.drreddys.com/careers/",
+    "careers_url": "https://careers.drreddys.com/jobs",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed"
