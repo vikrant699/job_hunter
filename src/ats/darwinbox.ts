@@ -75,8 +75,15 @@ export const darwinboxAdapter: AtsAdapter = {
     const base = darwinboxTenantBase(company);
     const careersUrl = `${base}${CAREERS_PATH}`;
     const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=main`]);
+    // Confirmed live: detail.message = { job: [{...fields, jd: "<html>"}], isSaved: bool }
+    // "jd" is the primary key; tolerate flat-object fallback for other tenants.
     const msg = (raw as { message?: Record<string, unknown> })?.message ?? {};
-    const jd = (msg["job_description"] ?? msg["description"] ?? msg["jd"] ?? "") as string;
-    return htmlToText(typeof jd === "string" ? jd : "");
+    const jobArr = msg["job"];
+    const jobObj = Array.isArray(jobArr) ? (jobArr[0] as Record<string, unknown>) : msg;
+    const jd = (jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "") as string;
+    // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;).
+    // Decode entities once to get real HTML, then strip tags to plain text.
+    const jdRaw = typeof jd === "string" ? jd : "";
+    return htmlToText(htmlToText(jdRaw));
   },
 };
