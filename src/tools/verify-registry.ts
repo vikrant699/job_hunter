@@ -176,10 +176,10 @@ async function main(): Promise<void> {
   const onlyBroken = args.has("--only-broken");
   const suggest = args.has("--suggest");
 
-  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
-  const entries = JSON.parse(readFileSync(seedPath, "utf-8")) as RawEntry[];
+  const registryPath = resolve(process.cwd(), config.storage.registryPath);
+  const entries = JSON.parse(readFileSync(registryPath, "utf-8")) as RawEntry[];
 
-  console.log(`Verifying ${entries.length} entries from ${seedPath}`);
+  console.log(`Verifying ${entries.length} entries from ${registryPath}`);
   if (suggest) console.log(`(--suggest: will probe other ATSes for failed entries — slower)`);
   console.log("");
 

@@ -64,16 +64,13 @@ function readRegistryFile(path: string): RegistryEntry[] {
   return result.data;
 }
 
-export function syncRegistryFromJson(): { synced: number; denied: number; seedPath: string; workingPath: string } {
-  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
-  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
+export function syncRegistryFromJson(): { synced: number; denied: number; registryPath: string } {
+  const path = resolve(process.cwd(), config.storage.registryPath);
+  const entries = readRegistryFile(path);
 
-  const seed = readRegistryFile(seedPath);
-  const working = readRegistryFile(workingPath);
-
+  // Single source of truth. Map dedups in case the file carries duplicate keys.
   const merged = new Map<string, RegistryEntry>();
-  for (const e of seed) merged.set(`${e.source}::${resolveSlug(e)}`, e);
-  for (const e of working) merged.set(`${e.source}::${resolveSlug(e)}`, e);
+  for (const e of entries) merged.set(`${e.source}::${resolveSlug(e)}`, e);
 
   const now = new Date().toISOString();
   let denied = 0;
@@ -103,6 +100,6 @@ export function syncRegistryFromJson(): { synced: number; denied: number; seedPa
     });
   }
 
-  logger.info({ seedPath, workingPath, count: merged.size, denied }, "registry synced");
-  return { synced: merged.size, denied, seedPath, workingPath };
+  logger.info({ registryPath: path, count: merged.size, denied }, "registry synced");
+  return { synced: merged.size, denied, registryPath: path };
 }

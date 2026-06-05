@@ -131,8 +131,6 @@ Rules:
   storage: {
     dbPath: "data/job_hunter.db",
     registryPath: "config/companies.json",
-    seedRegistryPath: "config/companies.seed.json",
-    workingRegistryPath: "data/companies.json",
     postingRetentionDays: 90,
   },
 
