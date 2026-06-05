@@ -35,3 +35,21 @@ export async function atsFetchJson(
     clearTimeout(timer);
   }
 }
+
+/** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
+export async function atsFetchText(url: string, opts: { provider?: string } = {}): Promise<string> {
+  const provider = opts.provider ?? "ats";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": config.fetch.userAgent, Accept: "text/html,application/json" },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
