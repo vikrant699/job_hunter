@@ -9,6 +9,8 @@ data/
 
 # user profile (your personal resume / deal-breakers / locations)
 config/profile.ts
+config/resume.pdf
+config/resume.txt
 
 # logs
 *.log
