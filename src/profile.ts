@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
@@ -23,7 +23,9 @@ const target = existsSync(userPath) ? userPath : examplePath;
 const usingExample = target === examplePath;
 
 const mod = (await import(pathToFileURL(target).href)) as { profile: UserProfile };
-export const profile: UserProfile = mod.profile;
+const resumeTextPath = resolve(here, "../config/resume.txt");
+const resumeText = existsSync(resumeTextPath) ? readFileSync(resumeTextPath, "utf-8") : undefined;
+export const profile: UserProfile = resumeText ? { ...mod.profile, resumeText } : mod.profile;
 
 if (usingExample) {
   // Logged before pino is fully configured — use stderr so it's visible even
