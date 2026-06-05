@@ -23,11 +23,11 @@ export const config = {
 
   llm: {
     ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
-    // qwen3:8b beat 7B and 9B on a 236-posting replay of reviewer labels:
-    // best separation (AUC 0.78) and best recall (85% at the 0.4 floor), and it
-    // fits entirely in 8GB VRAM so generation stays fast. think:false in the
-    // client keeps it from emitting reasoning tokens.
-    model: process.env.OLLAMA_MODEL ?? "qwen3:8b",
+    // qwen3.5:9b (Q4_K_M, ~6.6GB, 256K-capable ctx). Switched 2026-06-05 from
+    // qwen3:8b (which had beaten 7B/9B on a 236-posting reviewer-label replay —
+    // AUC 0.78, 85% recall). think:false in the client keeps reasoning models
+    // from emitting reasoning tokens. Pull once: `ollama pull qwen3.5:9b`.
+    model: process.env.OLLAMA_MODEL ?? "qwen3.5:9b",
     /** Timeout starts AFTER the semaphore slot is acquired, so it measures
      *  actual generation time (not queue wait). */
     timeoutMs: 90_000,
@@ -35,12 +35,12 @@ export const config = {
     /** Ollama serializes on the GPU; only raise this if you run multiple
      *  Ollama instances behind a load balancer. */
     maxConcurrent: 1,
-    /** Context window (tokens) allocated per request. qwen3:8b supports 40960,
-     *  but the KV cache grows linearly with this and must fit alongside the ~5.4GB
-     *  model in 8GB VRAM. 16384 holds a full JD + prompt for ~99.9% of postings;
-     *  pair with OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0 so the
-     *  quantized KV cache (~1.1GB) fits. Ollama defaults to only 4096 if unset. */
-    numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 16384),
+    /** Context window (tokens) per request. The KV cache grows linearly with this
+     *  and must fit alongside the ~6.6GB qwen3.5:9b weights in 8GB VRAM, so we cap
+     *  it at 9000 (down from 16384). Pair with OLLAMA_FLASH_ATTENTION=1 +
+     *  OLLAMA_KV_CACHE_TYPE=q8_0 so the quantized KV cache fits. JD_MAX_CHARS in
+     *  gate.ts is sized to THIS value — keep them in sync. Ollama defaults to 4096. */
+    numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 9000),
   },
 
   prompts: {

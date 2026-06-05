@@ -6,17 +6,18 @@ import { generate } from "./client.js";
 import { logger } from "../logger.js";
 
 /**
- * Cap on JD characters sent to the model — a safety rail sized to num_ctx (16384),
- * NOT the model's 40960 limit. If prompt+JD exceeds the window, Ollama truncates from
- * the FRONT (keeps the tail), which would drop our instructions + JSON-format spec and
- * yield malformed output. Capping the JD keeps total input inside the window so the
- * prompt always survives. At 16384 ctx (~14k JD tokens after the prompt), 30000 chars
- * (~7.5-10k tokens) leaves comfortable headroom even for token-dense JDs and still
- * covers the vast majority of postings untouched; only boilerplate-bloated outliers
- * get the tail trimmed. NOTE: hard rules (location, dedup, title) run on the FULL JD
- * before this.
+ * Cap on JD characters sent to the model — a safety rail sized to num_ctx (9000).
+ * If prompt+JD exceeds the window, Ollama truncates from the FRONT (keeps the tail),
+ * which would drop our instructions + JSON-format spec and yield malformed output.
+ * Capping the JD keeps total input inside the window so the prompt always survives.
+ * At 9000 ctx (~7.5-8k tokens for the JD after the prompt), 18000 chars (~5-6k tokens)
+ * leaves headroom even for token-dense JDs. Measured against the live corpus (10.8k
+ * JDs): p99 = 17926 chars, so 18000 covers ~99% of postings untouched; only the ~1%
+ * boilerplate-bloated outliers get the tail trimmed (true 99.9% would need ~94k chars,
+ * which can't fit a 9000-token window). Sized to config.llm.numCtx — keep the two in
+ * sync. NOTE: hard rules (location, dedup, title) run on the FULL JD before this.
  */
-export const JD_MAX_CHARS = 30000;
+export const JD_MAX_CHARS = 18000;
 
 export const GateResultSchema = z.object({
   // v2 fields — optional so v1 output still validates and downstream is unaffected.
