@@ -8,6 +8,8 @@ export type Provider =
   | "oracle"
   | "keka"
   | "eightfold"
+  | "phenom"
+  | "darwinbox"
   | "custom";
 
 export type ParsingStrategy =
