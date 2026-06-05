@@ -26,7 +26,7 @@ const MAX_CONCURRENT_PAGES = Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5);
 let sharedBrowser: Browser | null = null;
 let bootPromise: Promise<Browser> | null = null;
 
-async function getBrowser(): Promise<Browser> {
+export async function getBrowser(): Promise<Browser> {
   if (sharedBrowser) return sharedBrowser;
   if (bootPromise) return bootPromise;
   bootPromise = (async () => {
@@ -63,7 +63,7 @@ export async function closePlaywrightBrowser(): Promise<void> {
 let inFlight = 0;
 const waiters: Array<() => void> = [];
 
-async function acquirePageSlot(): Promise<() => void> {
+export async function acquirePageSlot(): Promise<() => void> {
   if (inFlight < MAX_CONCURRENT_PAGES) {
     inFlight++;
   } else {
