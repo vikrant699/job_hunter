@@ -1,6 +1,6 @@
 import { logger } from "../logger.js";
 import { selectAllCompanies, upsertCompany } from "../db/index.js";
-import { upsertWorkingJson } from "./json-writer.js";
+import { upsertRegistry } from "./json-writer.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "./sources/brave.js";
 import type { Company, RegistryEntry } from "../types.js";
 
@@ -273,7 +273,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
   // overlay (working > seed in syncRegistryFromJson).
   if (newEntries.length > 0) {
     try {
-      const r = upsertWorkingJson(newEntries);
+      const r = upsertRegistry(newEntries);
       logger.info(
         { fixed: fixes.length, replaced: r.replaced, added: r.added },
         "url-repair: working registry updated",

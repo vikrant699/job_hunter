@@ -6,7 +6,7 @@ import { discoverFromUrl, validateCandidate, type AtsCandidate } from "./ats.js"
 import { runBraveSource, type BraveCandidate } from "./sources/brave.js";
 import { runRssSources, type RssCandidate } from "./sources/rss.js";
 import { runYcSource, type YcCandidate } from "./sources/yc.js";
-import { appendToWorkingJson, kebabCase, entryKey, knownEntryKeys, knownCompanyNames } from "./json-writer.js";
+import { appendToRegistry, kebabCase, entryKey, knownEntryKeys, knownCompanyNames } from "./json-writer.js";
 
 /**
  * Discovery orchestrator — pulls new candidate companies from YC, RSS funding
@@ -260,7 +260,7 @@ export async function runDiscovery(): Promise<DiscoveryResult> {
 
   if (additions.length > 0) {
     try {
-      const r = appendToWorkingJson(additions);
+      const r = appendToRegistry(additions);
       logger.info(
         { written: r.written, skippedDupes: r.skippedDuplicates, path: r.path },
         "discovery: working registry updated",
