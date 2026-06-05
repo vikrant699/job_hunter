@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { config } from "../config.js";
+import { profile } from "../profile.js";
 import { runGate } from "../llm/gate.js";
 import { GATE_V2 } from "./prompts/gate-v2.js";
 import { loadLabels } from "./labels.js";
@@ -22,6 +23,7 @@ const labelsPath = flag("labels", process.env.REVIEW_LABELS ?? "data/review-labe
 const promptName = flag("prompt", "baseline")!;
 const sampleN = flag("sample", null);
 const outPath = flag("out", null);
+const contextArg = flag("context", "both")!; // summary | resume | both
 
 const CANDIDATES: Record<string, string> = { v1: config.prompts.relevance, v2: GATE_V2 };
 
@@ -78,35 +80,56 @@ if (promptName !== "baseline") {
     console.error(`unknown --prompt '${promptName}' (use: baseline | v1 | v2)`);
     process.exit(1);
   }
-  const scored: ScoredLabel[] = [];
-  const detailed: Array<{ id: string; company: string; title: string; relevant: boolean; score: number }> = [];
-  let done = 0;
-  let failed = 0;
-  for (const r of rows) {
-    try {
-      const g = await runGate(
-        { jobTitle: r.title, companyName: r.company, jdText: r.jdText },
-        { promptTemplate: template },
-      );
-      scored.push({ score: g.matchScore, relevant: r.relevant });
-      detailed.push({ id: r.id, company: r.company, title: r.title, relevant: r.relevant, score: g.matchScore });
-    } catch {
-      failed++;
-    }
-    if (++done % 20 === 0) console.error(`  scored ${done}/${rows.length}...`);
-  }
-  report(`CANDIDATE '${promptName}'`, scored);
-  if (failed > 0) console.log(`  (${failed} gate failures excluded from metrics)`);
 
-  if (outPath) {
-    const esc = (v: string | number | boolean) => {
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = detailed
-      .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
-      .map((d) => [d.id, d.company, d.title, d.relevant, d.score].map(esc).join(","));
-    writeFileSync(outPath, ["id,company,title,relevant,score", ...lines].join("\r\n") + "\r\n", "utf-8");
-    console.log(`  wrote per-row scores → ${outPath} (ascending by score)`);
+  const arms: Array<{ label: string; ctx: string }> = [];
+  if (contextArg === "summary" || contextArg === "both") {
+    arms.push({ label: "summary", ctx: profile.summary });
+  }
+  if (contextArg === "resume" || contextArg === "both") {
+    if (!profile.resumeText) {
+      console.error("--context resume requested but config/resume.txt is absent — run `npm run extract-resume` first");
+      if (contextArg === "resume") process.exit(1);
+    } else {
+      arms.push({ label: "resume", ctx: profile.resumeText });
+    }
+  }
+  if (arms.length === 0) {
+    console.error(`unknown --context '${contextArg}' (use: summary | resume | both)`);
+    process.exit(1);
+  }
+
+  for (const arm of arms) {
+    const scored: ScoredLabel[] = [];
+    const detailed: Array<{ id: string; company: string; title: string; relevant: boolean; score: number }> = [];
+    let done = 0;
+    let failed = 0;
+    for (const r of rows) {
+      try {
+        const g = await runGate(
+          { jobTitle: r.title, companyName: r.company, jdText: r.jdText },
+          { promptTemplate: template, candidateContext: arm.ctx },
+        );
+        scored.push({ score: g.matchScore, relevant: r.relevant });
+        detailed.push({ id: r.id, company: r.company, title: r.title, relevant: r.relevant, score: g.matchScore });
+      } catch {
+        failed++;
+      }
+      if (++done % 20 === 0) console.error(`  [${arm.label}] scored ${done}/${rows.length}...`);
+    }
+    report(`CANDIDATE '${promptName}' / context=${arm.label}`, scored);
+    if (failed > 0) console.log(`  (${failed} gate failures excluded from metrics)`);
+
+    if (outPath) {
+      const esc = (v: string | number | boolean) => {
+        const s = String(v);
+        return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const file = arms.length > 1 ? outPath.replace(/(\.[^.]+)?$/, `.${arm.label}$1`) : outPath;
+      const lines = detailed
+        .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
+        .map((d) => [d.id, d.company, d.title, d.relevant, d.score].map(esc).join(","));
+      writeFileSync(file, ["id,company,title,relevant,score", ...lines].join("\r\n") + "\r\n", "utf-8");
+      console.log(`  wrote per-row scores → ${file} (ascending by score)`);
+    }
   }
 }
