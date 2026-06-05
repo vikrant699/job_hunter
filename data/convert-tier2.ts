@@ -114,13 +114,14 @@ async function buildDarwinbox(name: string, c: { slug: string }, slugOrUrl: stri
   }
 
   const careersUrl = `${origin}/ms/candidate/careers`;
-  // Subdomain is the first label of the host
-  const host = hostFromUrl(origin) ?? "";
-  const subdomain = host.split(".")[0]!;
-
+  // Use the company's OWN slug, NOT the darwinbox subdomain: the adapter reaches
+  // the API via tenant_url, so the slug is just an identifier. Keying on the
+  // subdomain collides when group companies share one tenant (Emeritus+Eruditus
+  // -> emeritus; Karza -> perfios). Postings are deduped by (provider,external_id)
+  // downstream, so two entries on one shared tenant are safe.
   const company: AdapterCompany = {
     provider: "darwinbox",
-    slug: subdomain,
+    slug: c.slug,
     name,
     careersUrl,
     tenantUrl: careersUrl,
@@ -136,7 +137,7 @@ async function buildDarwinbox(name: string, c: { slug: string }, slugOrUrl: stri
       name,
       careers_url: careersUrl,
       source: "darwinbox",
-      source_slug: subdomain,
+      source_slug: c.slug,
       parsing_strategy: "ats-api",
       status: "candidate",
       discovered_via: "convert-tier2",
