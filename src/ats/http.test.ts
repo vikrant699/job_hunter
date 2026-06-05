@@ -13,3 +13,8 @@ test("atsHttpError: non-404 includes status and a trimmed body snippet", () => {
   assert.match(e.message, /^oracle HTTP 500: x+$/);
   assert.ok(e.message.length < 230, "body snippet should be capped at ~200 chars");
 });
+
+test("atsHttpError builds 404 and generic errors", () => {
+  assert.equal(atsHttpError("phenom", 404, "x").message, "phenom 404");
+  assert.match(atsHttpError("phenom", 500, "boom").message, /phenom HTTP 500: boom/);
+});
