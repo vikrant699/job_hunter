@@ -59,14 +59,21 @@ export const darwinboxAdapter: AtsAdapter = {
     if (!parsed0.success) throw new Error(`darwinbox list failed schema for ${company.slug}`);
     for (const j of parsed0.data.message.jobs) out.push(normalizeDarwinbox(company, j));
     const total = parsed0.data.message.jobscount ?? out.length;
-    // Remaining pages in the same browser session.
-    let page = 2;
-    while (out.length < total && page <= 100) {
-      const [more] = await browserFetchJson(careersUrl, [API(page)]);
-      const parsed = ListSchema.safeParse(more);
-      if (!parsed.success || parsed.data.message.jobs.length === 0) break;
-      for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
-      page++;
+    // If more pages are needed, fetch them ALL in one browserFetchJson call
+    // (one navigation → multiple in-page XHR fetches), instead of N navigations.
+    if (out.length < total) {
+      const pageSize = parsed0.data.message.jobs.length || 1;
+      const pagesNeeded = Math.min(Math.ceil(total / pageSize), 100);
+      if (pagesNeeded >= 2) {
+        const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2));
+        const results = await browserFetchJson(careersUrl, remainingApis);
+        for (const raw of results) {
+          const parsed = ListSchema.safeParse(raw);
+          if (!parsed.success || parsed.data.message.jobs.length === 0) break;
+          for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
+          if (out.length >= total) break;
+        }
+      }
     }
     return out;
   },
