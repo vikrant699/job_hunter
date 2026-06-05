@@ -2,13 +2,14 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJson } from "./browser-fetch.js";
 
 const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 
 const JobSchema = z.object({
-  id: z.string(),
+  id: z.union([z.string(), z.number()]).transform(String),
   title: z.string().nullable().optional(),
   designation_display_name: z.string().nullable().optional(),
   officelocation_show_arr: z.string().nullable().optional(),
@@ -56,7 +57,10 @@ export const darwinboxAdapter: AtsAdapter = {
     // First page (in-browser; clears Cloudflare) reveals jobscount.
     const [first] = await browserFetchJson(careersUrl, [API(1)]);
     const parsed0 = ListSchema.safeParse(first);
-    if (!parsed0.success) throw new Error(`darwinbox list failed schema for ${company.slug}`);
+    if (!parsed0.success) {
+      logger.warn({ slug: company.slug, issues: parsed0.error.issues.slice(0, 2) }, "darwinbox schema mismatch");
+      throw new Error(`darwinbox list failed schema for ${company.slug}`);
+    }
     for (const j of parsed0.data.message.jobs) out.push(normalizeDarwinbox(company, j));
     const total = parsed0.data.message.jobscount ?? out.length;
     // If more pages are needed, fetch them ALL in one browserFetchJson call

@@ -12,31 +12,36 @@ const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
  * For Cloudflare-gated JSON APIs (Darwinbox) that reject plain Node fetch.
  */
 export async function browserFetchJson(pageUrl: string, apiPaths: string[]): Promise<unknown[]> {
+  // Outer try guarantees the page slot is released even if getBrowser /
+  // newContext / route throws; inner try guarantees the context is closed.
   const release = await acquirePageSlot();
-  const browser = await getBrowser();
-  const ctx = await browser.newContext({
-    userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-    locale: "en-US", timezoneId: "Asia/Kolkata",
-  });
-  await ctx.route("**/*", (route) =>
-    HEAVY.test(route.request().url()) ? route.abort() : route.continue());
   try {
-    const page = await ctx.newPage();
-    page.setDefaultNavigationTimeout(30_000);
-    try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
-    await page.waitForTimeout(SETTLE_MS);
-    const out: unknown[] = [];
-    for (const path of apiPaths) {
-      const json = await page.evaluate(async (p) => {
-        const res = await fetch(p, { headers: { Accept: "application/json" } });
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return await res.json();
-      }, path);
-      out.push(json);
+    const browser = await getBrowser();
+    const ctx = await browser.newContext({
+      userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
+      locale: "en-US", timezoneId: "Asia/Kolkata",
+    });
+    await ctx.route("**/*", (route) =>
+      HEAVY.test(route.request().url()) ? route.abort() : route.continue());
+    try {
+      const page = await ctx.newPage();
+      page.setDefaultNavigationTimeout(30_000);
+      try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
+      await page.waitForTimeout(SETTLE_MS);
+      const out: unknown[] = [];
+      for (const path of apiPaths) {
+        const json = await page.evaluate(async (p) => {
+          const res = await fetch(p, { headers: { Accept: "application/json" } });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return await res.json();
+        }, path);
+        out.push(json);
+      }
+      return out;
+    } finally {
+      await ctx.close();
     }
-    return out;
   } finally {
-    await ctx.close();
     release();
   }
 }

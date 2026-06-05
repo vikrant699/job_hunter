@@ -23,9 +23,12 @@ const JobSchema = z.object({
 });
 export type PhenomJob = z.infer<typeof JobSchema>;
 
-/** Extract the `phApp.ddo = {...};` JSON island from a Phenom search page. */
+/** Extract the `phApp.ddo = {...};` JSON island from a Phenom search page.
+ * Anchored at the closing </script> so a literal `};` inside a string value
+ * (e.g. a job teaser) can't truncate the blob; falls back to the lazy match. */
 export function extractPhenomDdo(html: string): unknown | null {
-  const m = html.match(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/);
+  const m = html.match(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});\s*<\/script>/)
+    ?? html.match(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/);
   if (!m) return null;
   try { return JSON.parse(m[1]!); } catch { return null; }
 }
@@ -74,7 +77,11 @@ export const phenomAdapter: AtsAdapter = {
       const { jobs, totalHits } = phenomJobsFrom(ddo);
       for (const raw of jobs) {
         const parsed = JobSchema.safeParse(raw);
-        if (parsed.success) out.push(normalizePhenom(company, parsed.data));
+        // Skip postings with no stable id — they'd collide on the
+        // (provider, external_id) dedup key as empty strings.
+        if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
+          out.push(normalizePhenom(company, parsed.data));
+        }
       }
       if (total === null) total = totalHits;
       if (jobs.length === 0) break;
