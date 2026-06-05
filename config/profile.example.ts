@@ -20,6 +20,10 @@
 
 export interface UserProfile {
   summary: string;
+  /** Full resume text (extracted from config/resume.pdf via `npm run extract-resume`).
+   *  Loaded from config/resume.txt at startup, NOT set in this module. When present,
+   *  the relevance gate judges against it instead of `summary`. */
+  resumeText?: string;
   hardDealBreakers: string[];
   softDealBreakers: string[];
   filters: {
