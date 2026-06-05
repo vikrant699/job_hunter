@@ -57,6 +57,26 @@ function hostFromUrl(s: string): string | null {
   return m ? m[1]! : null;
 }
 
+// Extract ?domain=<x> embedded in an eightfold careers page (static tenants).
+function domainFromHtml(html: string): string | null {
+  return html.match(/[?&]domain=([a-z0-9.-]+)/i)?.[1] ?? null;
+}
+
+// Capture the runtime /api/apply/v2/jobs?domain= request (runtime tenants).
+async function domainViaBrowser(host: string): Promise<string | null> {
+  const { chromium } = await import("playwright");
+  const b = await chromium.launch({ headless: true, args: ["--disable-blink-features=AutomationControlled"] });
+  try {
+    const ctx = await b.newContext({ userAgent: UA, locale: "en-US", timezoneId: "Asia/Kolkata" });
+    const page = await ctx.newPage();
+    let domain: string | null = null;
+    page.on("request", (r) => { const m = r.url().match(/\/api\/apply\/v2\/jobs\?[^]*?domain=([a-z0-9.-]+)/i); if (m && !domain) domain = m[1]!; });
+    try { await page.goto(`https://${host}/careers`, { waitUntil: "domcontentloaded", timeout: 30000 }); } catch { /* */ }
+    await page.waitForTimeout(7000);
+    return domain;
+  } finally { await b.close(); }
+}
+
 interface Built { entry: RegistryEntry; oldSlug: string; }
 
 async function buildWorkable(name: string, c: { slug: string }, slugOrUrl: string): Promise<Built | null> {
@@ -90,22 +110,50 @@ async function buildKeka(name: string, c: { slug: string }, slugOrUrl: string): 
 }
 
 async function buildEightfold(name: string, c: { slug: string; careers_url: string }, slugOrUrl: string): Promise<Built | null> {
-  const host = hostFromUrl(slugOrUrl);
-  if (!host || !/eightfold\.ai|\./.test(host)) return null;
-  // domain candidates: company careers host minus www, and host's first label + .com
+  // research slug_or_url is sometimes a bare host (no protocol) e.g. "x.eightfold.ai"
+  const host = hostFromUrl(slugOrUrl)
+    ?? (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(slugOrUrl.trim()) ? slugOrUrl.trim() : null);
+  if (!host || !host.includes(".")) return null;
   const careersHost = hostFromUrl(c.careers_url ?? "") ?? "";
-  const domains = [careersHost.replace(/^www\./, ""), `${host.split(".")[0]}.com`].filter(Boolean);
-  for (const domain of domains) {
+
+  // Fetch careers page HTML to look for ?domain= embed
+  const page = await getText(`https://${host}/careers`);
+  const htmlDomain = domainFromHtml(page.text);
+
+  // Build static candidate list (cheap): HTML-extracted > careersHost-without-www > <label>.com
+  const staticCandidates = [...new Set([
+    htmlDomain,
+    careersHost.replace(/^www\./, ""),
+    `${host.split(".")[0]}.com`,
+  ].filter(Boolean) as string[])];
+
+  // Validate static candidates first (no browser needed)
+  for (const domain of staticCandidates) {
     const company: AdapterCompany = { provider: "eightfold", slug: host.split(".")[0]!, name, careersUrl: `https://${host}/careers`, tenantUrl: `https://${host}`, apiMeta: { domain } };
     const postings = await eightfoldAdapter.listPostings(company).catch(() => []);
     if (postings.length > 0) {
       return { oldSlug: c.slug, entry: {
         name, careers_url: company.careersUrl, source: "eightfold", source_slug: host.split(".")[0]!,
         parsing_strategy: "ats-api", status: "candidate", discovered_via: "convert-tier1",
-        evidence: `eightfold (${postings.length} jobs)`, tenant_url: `https://${host}`, api_meta: { domain },
+        evidence: `eightfold (${postings.length} jobs, domain=${domain})`, tenant_url: `https://${host}`, api_meta: { domain },
       } };
     }
   }
+
+  // Fallback: browser capture (expensive — only runs when all static candidates failed)
+  const bd = await domainViaBrowser(host).catch(() => null);
+  if (bd) {
+    const company: AdapterCompany = { provider: "eightfold", slug: host.split(".")[0]!, name, careersUrl: `https://${host}/careers`, tenantUrl: `https://${host}`, apiMeta: { domain: bd } };
+    const postings = await eightfoldAdapter.listPostings(company).catch(() => []);
+    if (postings.length > 0) {
+      return { oldSlug: c.slug, entry: {
+        name, careers_url: company.careersUrl, source: "eightfold", source_slug: host.split(".")[0]!,
+        parsing_strategy: "ats-api", status: "candidate", discovered_via: "convert-tier1",
+        evidence: `eightfold (${postings.length} jobs, domain=${bd})`, tenant_url: `https://${host}`, api_meta: { domain: bd },
+      } };
+    }
+  }
+
   return null;
 }
 
