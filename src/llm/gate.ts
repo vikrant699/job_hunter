@@ -43,6 +43,9 @@ export interface GateInput {
 export interface RunGateOptions {
   /** Override the prompt template (defaults to config.prompts.relevance). Used by the eval harness. */
   promptTemplate?: string;
+  /** Override the candidate context (the resume/summary block). Defaults to the full
+   *  resume (profile.resumeText) when present, else profile.summary. Used by the eval harness. */
+  candidateContext?: string;
 }
 
 /**
@@ -82,10 +85,18 @@ export function parseGateResponse(raw: string): GateResult {
   return result.data;
 }
 
+/** Candidate context for the prompt's resume slot: explicit override > full resume > summary. */
+export function resolveCandidateContext(
+  override: string | undefined,
+  p: { resumeText?: string; summary: string },
+): string {
+  return override ?? p.resumeText ?? p.summary;
+}
+
 export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
   const template = opts.promptTemplate ?? config.prompts.relevance;
   const prompt = render(template, {
-    summary: profile.summary,
+    summary: resolveCandidateContext(opts.candidateContext, profile),
     hardDealBreakers: profile.hardDealBreakers,
     softDealBreakers: profile.softDealBreakers,
     jobTitle: input.jobTitle ?? "(unknown)",
