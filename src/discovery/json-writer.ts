@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { config } from "../config.js";
-import { logger } from "../logger.js";
 import type { RegistryEntry } from "../types.js";
 
 function kebabCase(s: string): string {
@@ -13,101 +12,79 @@ function entryKey(e: { source?: string; source_slug?: string | null; name: strin
   return `${e.source ?? "custom"}::${slug}`;
 }
 
+function registryPath(): string {
+  return resolve(process.cwd(), config.storage.registryPath);
+}
+
 function readJsonArray(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
   try {
-    const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
     return Array.isArray(parsed) ? (parsed as RegistryEntry[]) : [];
-  } catch (err) {
-    logger.warn({ path, err: String(err).slice(0, 120) }, "json-writer: parse failed; treating as empty");
+  } catch {
     return [];
   }
 }
 
-export function appendToWorkingJson(newEntries: RegistryEntry[]): { written: number; skippedDuplicates: number; path: string } {
-  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
-  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
+/** Stable order so discovery/repair edits produce small, readable git diffs. */
+function sortEntries(entries: RegistryEntry[]): RegistryEntry[] {
+  return [...entries].sort((a, b) => {
+    const sa = a.source ?? "custom", sb = b.source ?? "custom";
+    if (sa !== sb) return sa < sb ? -1 : 1;
+    const ka = a.source_slug && a.source_slug.length > 0 ? a.source_slug : kebabCase(a.name);
+    const kb = b.source_slug && b.source_slug.length > 0 ? b.source_slug : kebabCase(b.name);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+}
 
-  const seed = readJsonArray(seedPath);
-  const working = readJsonArray(workingPath);
+function writeAtomic(path: string, entries: RegistryEntry[]): void {
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync(tmp, JSON.stringify(entries, null, 2), "utf-8");
+  try { renameSync(tmp, path); }
+  catch (err) { try { unlinkSync(tmp); } catch { /* ignore */ } throw err; }
+}
 
-  const known = new Set<string>();
-  for (const e of seed) known.add(entryKey(e));
-  for (const e of working) known.add(entryKey(e));
-
+export function appendToRegistry(
+  newEntries: RegistryEntry[], filePath: string = registryPath(),
+): { written: number; skippedDuplicates: number; path: string } {
+  const existing = readJsonArray(filePath);
+  const known = new Set(existing.map(entryKey));
   const toAdd: RegistryEntry[] = [];
   let skippedDuplicates = 0;
   for (const e of newEntries) {
-    const key = entryKey(e);
-    if (known.has(key)) {
-      skippedDuplicates++;
-      continue;
-    }
-    known.add(key);
-    toAdd.push(e);
+    const k = entryKey(e);
+    if (known.has(k)) { skippedDuplicates++; continue; }
+    known.add(k); toAdd.push(e);
   }
-
-  if (toAdd.length === 0) return { written: 0, skippedDuplicates, path: workingPath };
-
-  writeAtomic(workingPath, [...working, ...toAdd]);
-  return { written: toAdd.length, skippedDuplicates, path: workingPath };
+  if (toAdd.length === 0) return { written: 0, skippedDuplicates, path: filePath };
+  writeAtomic(filePath, sortEntries([...existing, ...toAdd]));
+  return { written: toAdd.length, skippedDuplicates, path: filePath };
 }
 
-export function upsertWorkingJson(entries: RegistryEntry[]): { replaced: number; added: number; path: string } {
-  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
-  const working = readJsonArray(workingPath);
-
-  const workingByKey = new Map<string, number>();
-  working.forEach((e, i) => workingByKey.set(entryKey(e), i));
-
-  let replaced = 0;
-  let added = 0;
+export function upsertRegistry(
+  entries: RegistryEntry[], filePath: string = registryPath(),
+): { replaced: number; added: number; path: string } {
+  const existing = readJsonArray(filePath);
+  const byKey = new Map<string, number>();
+  existing.forEach((e, i) => byKey.set(entryKey(e), i));
+  let replaced = 0, added = 0;
   for (const e of entries) {
-    const key = entryKey(e);
-    const idx = workingByKey.get(key);
-    if (idx !== undefined) {
-      working[idx] = e;
-      replaced++;
-    } else {
-      working.push(e);
-      workingByKey.set(key, working.length - 1);
-      added++;
-    }
+    const k = entryKey(e);
+    const idx = byKey.get(k);
+    if (idx !== undefined) { existing[idx] = e; replaced++; }
+    else { existing.push(e); byKey.set(k, existing.length - 1); added++; }
   }
-
-  if (replaced === 0 && added === 0) return { replaced: 0, added: 0, path: workingPath };
-  writeAtomic(workingPath, working);
-  return { replaced, added, path: workingPath };
+  if (replaced === 0 && added === 0) return { replaced: 0, added: 0, path: filePath };
+  writeAtomic(filePath, sortEntries(existing));
+  return { replaced, added, path: filePath };
 }
 
-function writeAtomic(workingPath: string, combined: RegistryEntry[]): void {
-  const tmpPath = `${workingPath}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(tmpPath, JSON.stringify(combined, null, 2), "utf-8");
-  try {
-    renameSync(tmpPath, workingPath);
-  } catch (err) {
-    try { unlinkSync(tmpPath); } catch { /* ignore */ }
-    throw err;
-  }
+export function knownEntryKeys(filePath: string = registryPath()): Set<string> {
+  return new Set(readJsonArray(filePath).map(entryKey));
 }
 
-export function knownEntryKeys(): Set<string> {
-  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
-  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
-  const known = new Set<string>();
-  for (const e of readJsonArray(seedPath)) known.add(entryKey(e));
-  for (const e of readJsonArray(workingPath)) known.add(entryKey(e));
-  return known;
-}
-
-export function knownCompanyNames(): Set<string> {
-  const seedPath = resolve(process.cwd(), config.storage.seedRegistryPath);
-  const workingPath = resolve(process.cwd(), config.storage.workingRegistryPath);
-  const names = new Set<string>();
-  for (const e of readJsonArray(seedPath)) names.add(kebabCase(e.name));
-  for (const e of readJsonArray(workingPath)) names.add(kebabCase(e.name));
-  return names;
+export function knownCompanyNames(filePath: string = registryPath()): Set<string> {
+  return new Set(readJsonArray(filePath).map((e) => kebabCase(e.name)));
 }
 
 export { entryKey, kebabCase };
