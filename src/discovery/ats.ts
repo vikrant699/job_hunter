@@ -1,5 +1,8 @@
 import { config } from "../config.js";
 import { fetchHtml } from "../scraper/cheerio.js";
+import { phenomAdapter } from "../ats/phenom.js";
+import { darwinboxAdapter } from "../ats/darwinbox.js";
+import type { AdapterCompany } from "../types.js";
 
 /**
  * Universal ATS detection + validation.
@@ -20,7 +23,7 @@ export type AtsProvider =
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
-  | "jobvite" | "bamboohr" | "oracle" | "keka";
+  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -38,7 +41,7 @@ const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   recruitee:      { hasAdapter: false, canValidate: true  },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: false, canValidate: false },
-  phenom:         { hasAdapter: false, canValidate: false },
+  phenom:         { hasAdapter: true,  canValidate: true  },
   eightfold:      { hasAdapter: true,  canValidate: false },
   avature:        { hasAdapter: false, canValidate: false },
   workable:       { hasAdapter: true,  canValidate: true  },
@@ -48,6 +51,7 @@ const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   bamboohr:       { hasAdapter: false, canValidate: false },
   oracle:         { hasAdapter: true,  canValidate: false },
   keka:           { hasAdapter: true,  canValidate: false },
+  darwinbox:      { hasAdapter: true,  canValidate: true  },
 };
 
 interface PatternDef {
@@ -240,6 +244,15 @@ const PATTERNS: PatternDef[] = [
       return slug ? { url: `https://${u!.host}/careers/`, slug } : null;
     },
   },
+  {
+    provider: "darwinbox",
+    re: /https?:\/\/[a-z0-9-]+\.darwinbox\.(?:in|com)\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      return slug ? { url: `https://${u!.host}`, slug } : null;
+    },
+  },
 ];
 
 export interface AtsCandidate {
@@ -409,6 +422,30 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           timeout
         )) as { jobs?: unknown[] };
         return { ok: Array.isArray(data.jobs), total: data.jobs?.length ?? 0, error: null };
+      }
+      case "phenom": {
+        const company: AdapterCompany = {
+          provider: "phenom",
+          slug: c.slug,
+          name: c.slug,
+          careersUrl: c.url,
+          tenantUrl: c.url,
+          apiMeta: null,
+        };
+        const postings = await phenomAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "darwinbox": {
+        const company: AdapterCompany = {
+          provider: "darwinbox",
+          slug: c.slug,
+          name: c.slug,
+          careersUrl: c.url,
+          tenantUrl: c.url,
+          apiMeta: null,
+        };
+        const postings = await darwinboxAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
       }
       default:
         return { ok: false, total: null, error: "no validator" };
