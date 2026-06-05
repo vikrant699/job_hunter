@@ -9,7 +9,7 @@ import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
 
 const ProviderSchema = z.enum([
   "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-  "workable", "oracle", "keka", "eightfold", "custom",
+  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "custom",
 ]);
 const ParsingStrategySchema = z.enum([
   "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
