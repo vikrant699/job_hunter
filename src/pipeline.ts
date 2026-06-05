@@ -23,6 +23,8 @@ import { workableAdapter } from "./ats/workable.js";
 import { kekaAdapter } from "./ats/keka.js";
 import { eightfoldAdapter } from "./ats/eightfold.js";
 import { oracleAdapter } from "./ats/oracle.js";
+import { phenomAdapter } from "./ats/phenom.js";
+import { darwinboxAdapter } from "./ats/darwinbox.js";
 import { llmScrapeAdapter } from "./scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "./scraper/playwright-scrape.js";
 import { checkLocation, checkLocationFromText } from "./filter/location.js";
@@ -44,6 +46,8 @@ const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   keka: kekaAdapter,
   eightfold: eightfoldAdapter,
   oracle: oracleAdapter,
+  phenom: phenomAdapter,
+  darwinbox: darwinboxAdapter,
 };
 
 function resolveAdapter(c: Company): AtsAdapter | null {
