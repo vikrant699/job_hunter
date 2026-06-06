@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { UserProfileSchema } from "./types.js";
+import { UserProfileSchema } from "./schemas.js";
 import type { UserProfile } from "./types.js";
 import { ensureResumeText } from "./tools/extract-resume.js";
 

@@ -5,8 +5,8 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { upsertCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
-import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../types.js";
-import { RegistryEntrySchema } from "../types.js";
+import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../schemas.js";
+import { RegistryEntrySchema } from "../schemas.js";
 import { kebabCase, resolveSlug } from "../util/slug.js";
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);

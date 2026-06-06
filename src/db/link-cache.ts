@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Provider } from "../types.js";
+import type { Provider } from "../schemas.js";
 import { db, queryOne } from "./db.js";
 
 export interface ShortlistedLink {

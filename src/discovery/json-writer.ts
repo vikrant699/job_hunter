@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { config } from "../config.js";
-import type { RegistryEntry } from "../types.js";
-import { RegistryEntrySchema } from "../types.js";
+import type { RegistryEntry } from "../schemas.js";
+import { RegistryEntrySchema } from "../schemas.js";
 import { kebabCase } from "../util/slug.js";
 
 function entryKey(e: { source?: string; source_slug?: string | null; name: string }): string {

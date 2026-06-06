@@ -5,8 +5,8 @@ import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { upsertRegistry, appendToRegistry } from "./json-writer.js";
-import type { RegistryEntry } from "../types.js";
-import { RegistryEntrySchema } from "../types.js";
+import type { RegistryEntry } from "../schemas.js";
+import { RegistryEntrySchema } from "../schemas.js";
 
 function tmpFile(): string {
   const f = join(mkdtempSync(join(tmpdir(), "reg-")), "companies.json");
