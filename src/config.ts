@@ -215,5 +215,3 @@ Rules:
     },
   },
 } as const;
-
-export type Config = typeof config;
