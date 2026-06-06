@@ -7,7 +7,6 @@
  *   3. `config/profile.ts` is gitignored — your edits stay local
  *
  * Field-by-field guide:
- *   - summary             Plain-text resume blurb the LLM uses to judge fit
  *   - hardDealBreakers    Conditions that SILENTLY reject a posting (no Discord ping)
  *   - softDealBreakers    Conditions that still notify, but with a yellow warning
  *   - filters             YOE bounds + the green/yellow score thresholds
@@ -19,10 +18,9 @@
  */
 
 export interface UserProfile {
-  summary: string;
-  /** Full resume text (extracted from config/resume.pdf via `npm run extract-resume`).
-   *  Loaded from config/resume.txt at startup, NOT set in this module. When present,
-   *  the relevance gate judges against it instead of `summary`. */
+  /** Full resume text the relevance gate judges against. NOT set in this module:
+   *  it is loaded at startup from config/resume.txt (generated once from
+   *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
   resumeText?: string;
   hardDealBreakers: string[];
   softDealBreakers: string[];
@@ -63,23 +61,8 @@ export interface UserProfile {
 }
 
 export const profile: UserProfile = {
-  summary: `REPLACE THIS — write a plain-text summary of your resume.
-
-Example shape:
-  Alex Example — Senior Data Analyst with ~4 years of experience, based in <city>.
-  Open to roles in <region> or remote-from-<region>.
-
-  Most recent role: Senior Data Analyst at Example Co (remote) — led a Tableau-to-Power-BI
-  migration and managed a small analytics team. Prior roles: Business Analyst at Beta Corp,
-  Data Analyst at Gamma Health (B2C SaaS).
-
-  Core skills:
-  - SQL (Postgres, BigQuery), Python (pandas), Power BI / Tableau / Looker Studio
-  - A/B testing, product analytics (Mixpanel, GA), ETL design
-  - Stakeholder communication and cross-functional partnership
-
-  Targeted role types: Data Analyst, Senior Data Analyst, Product Analyst, Business Analyst.
-  Targeted domain: open — any industry is acceptable.`,
+  // resumeText is NOT set here. Put your resume at config/resume.pdf; it is
+  // extracted to config/resume.txt and loaded at startup (see src/profile.ts).
 
   hardDealBreakers: [
     // Things you ABSOLUTELY do not want to see — these silently reject a posting.

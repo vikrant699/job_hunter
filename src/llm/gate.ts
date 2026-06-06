@@ -43,9 +43,9 @@ export interface GateInput {
 export interface RunGateOptions {
   /** Override the prompt template (defaults to config.prompts.relevance). Used by the eval harness. */
   promptTemplate?: string;
-  /** Override the candidate context (the resume/summary block). Defaults to the full
-   *  resume (profile.resumeText) when present, else profile.summary. Used by the eval harness. */
-  candidateContext?: string;
+  /** Sampling temperature. undefined → the client default (0.2). Set 0 for
+   *  deterministic, repeatable scoring in the eval harness. */
+  temperature?: number;
 }
 
 /**
@@ -85,18 +85,10 @@ export function parseGateResponse(raw: string): GateResult {
   return result.data;
 }
 
-/** Candidate context for the prompt's resume slot: explicit override > full resume > summary. */
-export function resolveCandidateContext(
-  override: string | undefined,
-  p: { resumeText?: string; summary: string },
-): string {
-  return override ?? p.resumeText ?? p.summary;
-}
-
 export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
   const template = opts.promptTemplate ?? config.prompts.relevance;
   const prompt = render(template, {
-    summary: resolveCandidateContext(opts.candidateContext, profile),
+    resume: profile.resumeText ?? "",
     hardDealBreakers: profile.hardDealBreakers,
     softDealBreakers: profile.softDealBreakers,
     jobTitle: input.jobTitle ?? "(unknown)",
@@ -109,7 +101,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
   // dropped posting is a recall risk we can't afford.
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 1; attempt++) {
-    const raw = await generate(prompt, { format: "json" });
+    const raw = await generate(prompt, { format: "json", temperature: opts.temperature });
     try {
       return parseGateResponse(raw);
     } catch (err) {

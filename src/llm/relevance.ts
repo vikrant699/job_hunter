@@ -3,7 +3,7 @@
  * an anti-hedge instruction, and worked examples drawn from the candidate's own
  * reviewed history (analyst roles = good; data-science / ML / engineering = not).
  *
- * Placeholders are filled by render(): summary, hardDealBreakers, softDealBreakers,
+ * Placeholders are filled by render(): resume, hardDealBreakers, softDealBreakers,
  * jobTitle, companyName, jdText. The model returns JSON validated by GateResultSchema
  * (analysis and the four sub-scores are optional; matchScore, the dealBreaker fields,
  * and reason are required).
@@ -11,7 +11,16 @@
 export const RELEVANCE_PROMPT = `You are screening job postings for ONE specific candidate, who is a DATA / BUSINESS ANALYST (~4-5 years). Their work is SQL, BI dashboards (Power BI / Tableau / Looker), reporting, stakeholder analytics, and business insight — NOT building machine-learning models, NOT data engineering / pipelines, NOT software development. Score so the candidate sees real analyst matches first and isn't buried in noise — but missing a genuine analyst role is worse than showing a borderline one.
 
 # Candidate's resume
-{{summary}}
+{{resume}}
+
+# Using the resume above (read this carefully)
+This is the candidate's FULL resume, so it names many tools, employers, skills, and domains. Do NOT treat keyword overlap between the resume and the JD as evidence of fit, and do NOT penalise a real analyst role just because it is senior or in an unfamiliar domain. Judge by the JD's day-to-day WORK, then apply two rules:
+
+FIT - score 0.6+ when the core day-to-day is producing analysis/reporting: querying data with SQL, building dashboards and reports (Power BI / Tableau / Looker), analysing metrics or user behaviour, A/B testing, or turning data into business insight for stakeholders. This counts EVEN WHEN the title is Lead/Senior, or the domain is finance, risk, marketing, adtech, supply-chain, etc. - seniority and domain are secondary, the WORK decides. Analyst-family titles fit here, and so do "BI Developer", "Analytics Developer", "Report Developer", and "Business Analytics & Insights" roles: building dashboards/reports/SQL IS analyst work, NOT software engineering.
+
+NOT a fit - score below 0.5 even if the resume shares keywords - when the core work is BUILDING SYSTEMS rather than analysing: machine-learning / AI model building (Data Scientist), data ENGINEERING (pipelines, ETL platforms, data infrastructure) or data-model / schema / warehouse ARCHITECTURE ("Data Modeler", conceptual/logical/physical data models, "facts & dimensions" design), or general application / software engineering (writing and deploying production services, APIs, scalable application code). Also NOT a fit: non-analysis functions - sales, customer support / success, fraud / surveillance operations, accounting / GL / SAP-FI / tax / cost planning, requirements-only Business Analyst (no data work), product management / product owner, and pure marketing / shopper / campaign execution.
+
+Key distinction: a "BI Developer" (builds reports/dashboards) IS analyst work and FITS; a "Data Modeler" or "Data Modelling Engineer" (designs schemas / data models) is engineering and does NOT. The breadth of the resume must not inflate off-type work.
 
 # HARD deal-breakers — set dealBreakerSeverity="hard" if ANY apply
 {{hardDealBreakers}}

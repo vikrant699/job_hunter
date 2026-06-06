@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { GATE_V2 } from "./gate-v2.js";
 
 test("keeps every placeholder render() needs", () => {
-  for (const ph of ["{{summary}}", "{{hardDealBreakers}}", "{{softDealBreakers}}", "{{jobTitle}}", "{{companyName}}", "{{jdText}}"]) {
+  for (const ph of ["{{resume}}", "{{hardDealBreakers}}", "{{softDealBreakers}}", "{{jobTitle}}", "{{companyName}}", "{{jdText}}"]) {
     assert.ok(GATE_V2.includes(ph), `missing ${ph}`);
   }
 });
