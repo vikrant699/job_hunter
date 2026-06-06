@@ -4,7 +4,8 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, parsePostedOn } from "./shared.js";
+import { discoverIndiaFacet } from "./workday-facet.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
 // Two-phase: listPostings (metadata only) then fetchJd (full body) so we only
@@ -63,73 +64,6 @@ const WorkdayJobDetailSchema = z.object({
 const INTER_PAGE_DELAY_MS = 150;
 const PAGE_LIMIT = 20;
 const PAGE_WARN_INTERVAL = 100;
-
-// Facet UUIDs differ per tenant, so we discover the India country facet at
-// fetch time. Shape varies between tenants — we accept refineFilters/facets/
-// filters arrays containing any value object with id + descriptor.
-interface DiscoveredFacet {
-  param: string;
-  uuid: string;
-}
-
-// Walks the facet tree (handles both flat and nested shapes) for an India
-// country leaf. Returns the param + UUID needed for appliedFacets.
-function findIndiaFacetIn(node: unknown): DiscoveredFacet | null {
-  if (!node || typeof node !== "object") return null;
-  const f = node as Record<string, unknown>;
-
-  // Pick the most specific param name available on THIS node.
-  const param = typeof f.facetParameter === "string" ? f.facetParameter
-              : typeof f.id === "string" ? f.id
-              : null;
-  const values = Array.isArray(f.values) ? f.values : null;
-  if (!values) return null;
-
-  const looksCountry = param != null && /country|location/i.test(param);
-
-  // Direct check: any value with descriptor=India that has its own id (leaf value).
-  if (looksCountry) {
-    for (const v of values) {
-      if (!v || typeof v !== "object") continue;
-      const vo = v as Record<string, unknown>;
-      if (typeof vo.descriptor === "string"
-          && typeof vo.id === "string"
-          && /^\s*india\s*$/i.test(vo.descriptor)) {
-        return { param: param!, uuid: vo.id };
-      }
-    }
-  }
-
-  // Recurse into nested facets (each value can itself be a facet group).
-  for (const v of values) {
-    const nested = findIndiaFacetIn(v);
-    if (nested) return nested;
-  }
-  return null;
-}
-
-function findIndiaFacet(data: unknown): DiscoveredFacet | null {
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-  for (const key of ["refineFilters", "facets", "filters"]) {
-    const arr = obj[key];
-    if (!Array.isArray(arr)) continue;
-    for (const f of arr) {
-      const found = findIndiaFacetIn(f);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-async function discoverIndiaFacet(parts: WorkdayUrlParts): Promise<DiscoveredFacet | null> {
-  const data = await atsFetchJson(`${parts.cxsBase}/jobs`, {
-    method: "POST",
-    body: { appliedFacets: {}, limit: 1, offset: 0, searchText: "" },
-    provider: "workday",
-  });
-  return findIndiaFacet(data);
-}
 
 export const workdayAdapter: AtsAdapter = {
   provider: "workday",
@@ -273,26 +207,4 @@ function extractExternalPathFromJobUrl(jobUrl: string, uiBase: string): string |
   if (!jobUrl.startsWith(uiBase)) return null;
   const path = jobUrl.slice(uiBase.length);
   return path.length > 0 ? path : null;
-}
-
-// Workday returns relative date strings like "Posted Today" / "5 Days Ago".
-function parsePostedOn(s: string | null): string | null {
-  if (!s) return null;
-  const lc = s.toLowerCase();
-  const now = new Date();
-
-  if (lc.includes("today") || lc.includes("just")) {
-    return now.toISOString();
-  }
-  if (lc.includes("yesterday")) {
-    return new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
-  }
-  const m = lc.match(/(\d+)\s*\+?\s*(day|week|month)s?\s*ago/);
-  if (m) {
-    const n = Number(m[1]);
-    const unit = m[2];
-    const days = unit === "day" ? n : unit === "week" ? n * 7 : n * 30;
-    return new Date(now.getTime() - days * 24 * 3600 * 1000).toISOString();
-  }
-  return null;
 }
