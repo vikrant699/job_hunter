@@ -43,7 +43,6 @@ export interface TextJob {
   location: string | null;
 }
 
-const MAX_TEXT_CHARS = 18_000;
 
 export interface RunShortlistFromTextInput {
   companyName: string;
@@ -117,7 +116,7 @@ export function selectShortlistItems(rawJobs: unknown[], candidates: CandidateLi
  * expose jobs as <a> anchors (Eightfold, iCIMS, custom Angular apps).
  */
 export async function runShortlistFromText(input: RunShortlistFromTextInput): Promise<TextJob[]> {
-  const text = input.bodyText.slice(0, MAX_TEXT_CHARS);
+  const text = input.bodyText.slice(0, config.llm.jdMaxChars);
   if (text.trim().length < 100) return [];
 
   const prompt = render(config.prompts.shortlistFromText, {

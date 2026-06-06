@@ -38,9 +38,11 @@ export const config = {
     /** Context window (tokens) per request. The KV cache grows linearly with this
      *  and must fit alongside the ~6.6GB qwen3.5:9b weights in 8GB VRAM, so we cap
      *  it at 9000 (down from 16384). Pair with OLLAMA_FLASH_ATTENTION=1 +
-     *  OLLAMA_KV_CACHE_TYPE=q8_0 so the quantized KV cache fits. JD_MAX_CHARS in
-     *  gate.ts is sized to THIS value — keep them in sync. Ollama defaults to 4096. */
+     *  OLLAMA_KV_CACHE_TYPE=q8_0 so the quantized KV cache fits. jdMaxChars is
+     *  sized to THIS value — keep them in sync. Ollama defaults to 4096. */
     numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 9000),
+    // max chars of JD/text sent to the model
+    jdMaxChars: 18000,
   },
 
   prompts: {
