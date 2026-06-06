@@ -2,7 +2,8 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { fetchHtml, extractLinkShortlist, extractMainText, extractTitleHint, findOpeningsRecursionLink, type FetchedHtml } from "./cheerio.js";
-import { runShortlist, runShortlistFromText, type ShortlistItem } from "../llm/shortlist.js";
+import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
+import { runShortlistFromText } from "../llm/extract-text-jobs.js";
 import { getLinkCache, setLinkCache, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
 
