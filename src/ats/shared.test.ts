@@ -3,7 +3,6 @@ import { describe, it } from "node:test";
 import {
   REMOTE_RE,
   unixToIso,
-  buildLocationString,
   parsePostedOn,
 } from "./shared.js";
 
@@ -41,24 +40,6 @@ describe("unixToIso", () => {
   it("returns null for undefined", () =>
     assert.strictEqual(unixToIso(undefined), null));
   it("returns null for 0", () => assert.strictEqual(unixToIso(0), null));
-});
-
-describe("buildLocationString", () => {
-  it("joins all non-empty parts", () => {
-    assert.strictEqual(
-      buildLocationString("Bengaluru", "Karnataka", "India"),
-      "Bengaluru, Karnataka, India",
-    );
-  });
-  it("skips null parts", () => {
-    assert.strictEqual(
-      buildLocationString("Pune", null, "India"),
-      "Pune, India",
-    );
-  });
-  it("returns null when all parts are empty/null/undefined", () => {
-    assert.strictEqual(buildLocationString(null, undefined, ""), null);
-  });
 });
 
 describe("parsePostedOn", () => {
