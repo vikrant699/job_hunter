@@ -1,7 +1,7 @@
 /** Probe failed-URL companies, try path variants + Brave Search, and optionally write fixes. */
 import "dotenv/config";
-import { syncRegistryFromJson } from "../registry/companies.js";
-import { repairBrokenUrls } from "../discovery/url-repair.js";
+import { syncRegistryFromJson } from "../src/registry/companies.js";
+import { repairBrokenUrls } from "./url-repair.js";
 
 function parseArgs(): { dryRun: boolean; onlyNames: string[] } {
   const args = process.argv.slice(2);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GATE_PROMPT } from "../llm/prompts/gate.js";
+import { GATE_PROMPT } from "../src/llm/prompts/gate.js";
 
 test("keeps every placeholder render() needs", () => {
   for (const ph of ["{{resume}}", "{{hardDealBreakers}}", "{{softDealBreakers}}", "{{jobTitle}}", "{{companyName}}", "{{jdText}}"]) {
