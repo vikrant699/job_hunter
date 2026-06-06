@@ -1,18 +1,19 @@
 import { type SQLInputValue } from "node:sqlite";
 import { z } from "zod";
 import type { Company, Provider, ParsingStrategy, CompanyStatus } from "../types.js";
+import { ProviderSchema, ParsingStrategySchema, CompanyStatusSchema } from "../types.js";
 import { db, queryAll } from "./db.js";
 import { parseApiMeta } from "./api-meta.js";
 
 /* ===== Row schema ===== */
 
 const CompanyDbRowSchema = z.object({
-  provider: z.string() as z.ZodType<Provider>,
+  provider: ProviderSchema,
   slug: z.string(),
   name: z.string(),
   careers_url: z.string(),
-  parsing_strategy: z.string() as z.ZodType<ParsingStrategy>,
-  status: z.string() as z.ZodType<CompanyStatus>,
+  parsing_strategy: ParsingStrategySchema,
+  status: CompanyStatusSchema,
   deny_reason: z.string().nullable(),
   discovered_via: z.string().nullable(),
   tenant_url: z.string().nullable(),

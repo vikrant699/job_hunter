@@ -1,29 +1,20 @@
-export type Provider =
-  | "greenhouse"
-  | "lever"
-  | "ashby"
-  | "smartrecruiters"
-  | "workday"
-  | "workable"
-  | "oracle"
-  | "keka"
-  | "eightfold"
-  | "phenom"
-  | "darwinbox"
-  | "custom";
+import { z } from "zod";
 
-export type ParsingStrategy =
-  | "ats-api"
-  | "llm-scrape"
-  | "playwright-llm-scrape"
-  | "manual";
+export const ProviderSchema = z.enum([
+  "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
+  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "custom",
+]);
+export type Provider = z.infer<typeof ProviderSchema>;
 
-export type CompanyStatus =
-  | "active"
-  | "candidate"
-  | "dormant"
-  | "denied"
-  | "broken";
+export const ParsingStrategySchema = z.enum([
+  "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
+]);
+export type ParsingStrategy = z.infer<typeof ParsingStrategySchema>;
+
+export const CompanyStatusSchema = z.enum([
+  "active", "candidate", "dormant", "denied", "broken",
+]);
+export type CompanyStatus = z.infer<typeof CompanyStatusSchema>;
 
 /** A company in the registry (mirrors the `companies` DB table). */
 export interface Company {

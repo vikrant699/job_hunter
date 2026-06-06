@@ -6,16 +6,8 @@ import { logger } from "../logger.js";
 import { upsertCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
+import { ProviderSchema, ParsingStrategySchema, CompanyStatusSchema } from "../types.js";
 import { kebabCase, resolveSlug } from "../util/slug.js";
-
-const ProviderSchema = z.enum([
-  "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "custom",
-]);
-const ParsingStrategySchema = z.enum([
-  "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
-]);
-const StatusSchema = z.enum(["active", "candidate", "dormant", "denied", "broken"]);
 
 const RegistryEntrySchema = z.object({
   name: z.string().min(1),
@@ -23,7 +15,7 @@ const RegistryEntrySchema = z.object({
   source: ProviderSchema,
   source_slug: z.string().min(1).nullable().optional(),
   parsing_strategy: ParsingStrategySchema,
-  status: StatusSchema.optional(),
+  status: CompanyStatusSchema.optional(),
   reason: z.string().optional(),
   discovered_via: z.string().optional(),
   discovered_at: z.string().optional(),
