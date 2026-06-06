@@ -1,22 +1,24 @@
 import { logger } from "../logger.js";
 import { config } from "../config.js";
-import { selectAllCompanies, tallyPostingsSince } from "../db/index.js";
+import { selectAllCompanies, listNotifiedPostingsSince } from "../db/index.js";
 import {
-  buildSearchedCsv, buildUncheckedCsv, buildDiscoveryCsv,
-  uploadDailyCsvs, type AttachmentInput,
+  buildSearchedCsv, buildDiscoveryCsv,
+  uploadDailyCsvs, type AttachmentInput, type MatchRow, type CompanyRow,
 } from "../discord/csv.js";
 import type { DiscoveryResult } from "../discovery/run.js";
 
 /**
- * Build & post the end-of-day CSVs to Discord.
+ * Build & post the end-of-run CSVs to Discord (two sheets):
  *
- *   - searched-YYYY-MM-DD.csv   : every company we tried to fetch this tick
- *   - skipped-YYYY-MM-DD.csv    : every company in the registry we did NOT fetch
- *                                  (denylist / manual / broken / etc.) + reason
+ *   - searched-YYYY-MM-DD.csv   : what this tick produced — one row per matched
+ *                                  posting (Kind=match) plus one row per errored /
+ *                                  unchecked company (Kind=company) that needs a fix.
+ *                                  Companies that fetched fine with zero matches are
+ *                                  intentionally omitted (they were noise).
  *   - discovery-YYYY-MM-DD.csv  : new candidates we added (or considered + rejected)
  *
- * Tick-window filter uses `last_fetched_at >= tickStartedAt` on the companies
- * table; anything else in the registry is "skipped".
+ * A company is a "company" row when it was NOT fetched this tick or needs
+ * attention (broken / manual); the fetch window is `last_fetched_at >= tickStartedAt`.
  */
 
 function todayStamp(iso?: string): string {
@@ -54,56 +56,29 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   const { tickStartedAt, tickEndedAt, discovery, stats } = input;
   const stamp = todayStamp(tickEndedAt);
 
-  // ----- Searched + Unchecked -----
+  // ----- Match rows (one per notified posting) -----
+  const matchRows: MatchRow[] = listNotifiedPostingsSince(tickStartedAt);
+
+  // ----- Company rows (errored / unchecked — what to fix) -----
   const all = selectAllCompanies();
-  const tally = tallyPostingsSince(tickStartedAt);
-
-  const searchedRows: Array<{
-    name: string; careersUrl: string; source: string; strategy: string;
-    postingsSeen: number; green: number; yellow: number; status: string; error: string | null;
-  }> = [];
-  const uncheckedRows: Array<{
-    name: string; careersUrl: string; reason: string; source: string; status: string;
-  }> = [];
-
+  const companyRows: CompanyRow[] = [];
   for (const c of all) {
-    // We intentionally do NOT include denied companies in either CSV — they're
-    // permanently off-list (services denylist) and not actionable.
+    // Denied companies are permanently off-list (services denylist) — not actionable.
     if (c.status === "denied") continue;
 
-    // Route broken/manual into the unchecked CSV regardless of whether
-    // they were attempted today — these are the entries we need to fix in
-    // the weekly review (you + me), and grouping them together makes the
-    // CSV easier to read.
+    // A company is "needs attention" when broken/manual, or simply was not
+    // fetched this tick. Anything fetched fine this tick is represented by its
+    // match rows above (or omitted if it produced nothing).
     const needsAttention = c.status === "broken" || c.parsingStrategy === "manual";
     const wasFetched = c.lastFetchedAt !== null && c.lastFetchedAt >= tickStartedAt;
+    if (wasFetched && !needsAttention) continue;
 
-    if (wasFetched && !needsAttention) {
-      const t = tally.get(`${c.provider}::${c.slug}`) ?? { totalNew: 0, green: 0, yellow: 0 };
-      searchedRows.push({
-        name: c.name,
-        careersUrl: c.careersUrl,
-        source: c.provider,
-        strategy: c.parsingStrategy,
-        postingsSeen: t.totalNew,
-        green: t.green,
-        yellow: t.yellow,
-        status: c.status,
-        error: c.lastError ?? null,
-      });
-    } else {
-      uncheckedRows.push({
-        name: c.name,
-        careersUrl: c.careersUrl,
-        reason: classifyUnchecked({ status: c.status, parsingStrategy: c.parsingStrategy, lastError: c.lastError }),
-        source: c.provider,
-        status: c.status,
-      });
-    }
+    companyRows.push({
+      company: c.name,
+      reason: classifyUnchecked({ status: c.status, parsingStrategy: c.parsingStrategy, lastError: c.lastError }),
+    });
   }
-
-  searchedRows.sort((a, b) => b.green - a.green || b.yellow - a.yellow || b.postingsSeen - a.postingsSeen);
-  uncheckedRows.sort((a, b) => a.reason.localeCompare(b.reason) || a.name.localeCompare(b.name));
+  companyRows.sort((a, b) => a.reason.localeCompare(b.reason) || a.company.localeCompare(b.company));
 
   // ----- Discovery -----
   const discoveryRows: Array<{
@@ -139,8 +114,8 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
     color: stats.errors.length > 0 ? 0xe67e22 : 0x2ecc71,
     timestamp: tickEndedAt,
     fields: [
-      { name: "Searched", value: String(searchedRows.length), inline: true },
-      { name: "Unchecked", value: String(uncheckedRows.length), inline: true },
+      { name: "Matches", value: String(matchRows.length), inline: true },
+      { name: "Needs attention", value: String(companyRows.length), inline: true },
       { name: "Duration", value: `${Math.round(stats.durationMs / 1000)}s`, inline: true },
       { name: "Postings seen", value: String(stats.postingsSeen), inline: true },
       { name: "Green",  value: String(stats.postingsGreen),  inline: true },
@@ -168,8 +143,7 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   }
 
   const files: AttachmentInput[] = [
-    { filename: `searched-${stamp}.csv`,  content: buildSearchedCsv(searchedRows) },
-    { filename: `unchecked-${stamp}.csv`, content: buildUncheckedCsv(uncheckedRows) },
+    { filename: `searched-${stamp}.csv`, content: buildSearchedCsv(matchRows, companyRows) },
   ];
   if (discoveryRows.length > 0) {
     files.push({ filename: `discovery-${stamp}.csv`, content: buildDiscoveryCsv(discoveryRows) });
@@ -178,7 +152,7 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   try {
     await uploadDailyCsvs({ embeds: [embed] }, files);
     logger.info(
-      { searched: searchedRows.length, unchecked: uncheckedRows.length, discovery: discoveryRows.length, files: files.length },
+      { matches: matchRows.length, needsAttention: companyRows.length, discovery: discoveryRows.length, files: files.length },
       "daily CSVs posted to Discord"
     );
   } catch (err) {

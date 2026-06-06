@@ -354,31 +354,49 @@ export function selectAllCompanies(): Company[] {
   return (selectAllCompaniesStmt.all() as unknown as CompanyDbRow[]).map(rowToCompany);
 }
 
-interface PostingTallyRow {
+interface NotifiedPostingRow {
+  company: string | null;
   company_slug: string;
-  provider: Provider;
-  total_new: number;
-  green: number;
-  yellow: number;
+  job_title: string | null;
+  job_url: string;
+  llm_confidence: number | null;
+  drop_stage: string | null;
+  llm_reason: string | null;
 }
 
-const tallyPostingsSinceStmt = db.prepare(`
-  SELECT provider, company_slug,
-         COUNT(*) AS total_new,
-         SUM(CASE WHEN notified_at IS NOT NULL AND drop_stage IS NULL THEN 1 ELSE 0 END) AS green,
-         SUM(CASE WHEN notified_at IS NOT NULL AND drop_stage = 'yellow' THEN 1 ELSE 0 END) AS yellow
-  FROM postings
-  WHERE discovered_at >= :since
-  GROUP BY provider, company_slug
+export interface NotifiedPosting {
+  company: string;
+  title: string;
+  url: string;
+  score: number | null;
+  tier: "green" | "yellow";
+  reason: string;
+}
+
+// Notified postings (green = drop_stage NULL, yellow = drop_stage 'yellow')
+// discovered this tick, joined to the company name. Green first, then score desc.
+const listNotifiedPostingsSinceStmt = db.prepare(`
+  SELECT c.name AS company, p.company_slug, p.job_title, p.job_url,
+         p.llm_confidence, p.drop_stage, p.llm_reason
+  FROM postings p
+  LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
+  WHERE p.discovered_at >= :since
+    AND p.notified_at IS NOT NULL
+    AND (p.drop_stage IS NULL OR p.drop_stage = 'yellow')
+  ORDER BY CASE WHEN p.drop_stage IS NULL THEN 0 ELSE 1 END,
+           p.llm_confidence DESC
 `);
 
-export function tallyPostingsSince(sinceIso: string): Map<string, { totalNew: number; green: number; yellow: number }> {
-  const rows = tallyPostingsSinceStmt.all({ since: sinceIso }) as unknown as PostingTallyRow[];
-  const out = new Map<string, { totalNew: number; green: number; yellow: number }>();
-  for (const r of rows) {
-    out.set(`${r.provider}::${r.company_slug}`, { totalNew: r.total_new, green: Number(r.green ?? 0), yellow: Number(r.yellow ?? 0) });
-  }
-  return out;
+export function listNotifiedPostingsSince(sinceIso: string): NotifiedPosting[] {
+  const rows = listNotifiedPostingsSinceStmt.all({ since: sinceIso }) as unknown as NotifiedPostingRow[];
+  return rows.map((r) => ({
+    company: r.company ?? r.company_slug,
+    title: r.job_title ?? "",
+    url: r.job_url,
+    score: r.llm_confidence,
+    tier: r.drop_stage === "yellow" ? "yellow" : "green",
+    reason: r.llm_reason ?? "",
+  }));
 }
 
 /* ===== runs ===== */
