@@ -26,7 +26,7 @@ const outPath = flag("out", null);
 const tempArg = flag("temp", null); // e.g. 0 for deterministic scoring
 const temperature = tempArg != null ? Number(tempArg) : undefined;
 
-const CANDIDATES: Record<string, string> = { v1: config.prompts.relevance, v2: GATE_V2 };
+const CANDIDATES: Record<string, string> = { v1: config.prompts.gate, v2: GATE_V2 };
 
 function stratifiedSample(rows: ReturnType<typeof loadLabeledPostings>, n: number) {
   const pos = rows.filter((r) => r.relevant);
