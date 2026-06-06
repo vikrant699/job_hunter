@@ -5,13 +5,6 @@ export function unixToIso(seconds: number | null | undefined): string | null {
   return new Date(seconds * 1000).toISOString();
 }
 
-export function buildLocationString(
-  ...parts: Array<string | null | undefined>
-): string | null {
-  const joined = parts.filter(Boolean).join(", ");
-  return joined.length > 0 ? joined : null;
-}
-
 // Workday returns relative date strings like "Posted Today" / "5 Days Ago".
 export function parsePostedOn(s: string | null): string | null {
   if (!s) return null;
