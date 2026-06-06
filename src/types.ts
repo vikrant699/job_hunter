@@ -62,6 +62,30 @@ export const RegistryEntrySchema = z.object({
 });
 export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 
+export const UserProfileSchema = z.object({
+  resumeText: z.string().optional(),
+  hardDealBreakers: z.array(z.string()),
+  softDealBreakers: z.array(z.string()),
+  filters: z.object({
+    candidateYoe: z.number(),
+    hardYoeCap: z.number(),
+    yoeAcceptUnspecified: z.boolean(),
+    matchThreshold: z.number(),
+  }),
+  location: z.object({
+    targetCities: z.array(z.string()),
+    targetCountryHints: z.array(z.string()),
+    remoteAcceptStrings: z.array(z.string()),
+    rejectIfPresent: z.array(z.string()),
+    rejectRegions: z.array(z.string()).optional(),
+  }),
+  titleDenyPatterns: z.array(z.instanceof(RegExp)).readonly(),
+  servicesDenylist: z.object({
+    slugFragments: z.array(z.string()),
+    namePatterns: z.array(z.instanceof(RegExp)).readonly(),
+  }),
+});
+
 /** Everything personal about who you are and what roles you want. */
 export interface UserProfile {
   /** Full resume text the relevance gate judges against. NOT set in this module:
