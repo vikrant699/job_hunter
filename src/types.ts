@@ -41,14 +41,7 @@ export interface Company {
 }
 
 /** Subset of Company passed to ATS adapters — strips runtime/stats fields. */
-export interface AdapterCompany {
-  provider: Provider;
-  slug: string;
-  name: string;
-  careersUrl: string;
-  tenantUrl: string | null;
-  apiMeta: Record<string, string> | null;
-}
+export type AdapterCompany = Pick<Company, "provider" | "slug" | "name" | "careersUrl" | "tenantUrl" | "apiMeta">;
 
 /** Registry entry as stored in JSON (seed or discovery-written working file). */
 export interface RegistryEntry {

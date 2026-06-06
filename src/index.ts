@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { logger } from "./logger.js";
 import { syncRegistryFromJson } from "./registry/companies.js";
-import { runProductionTick } from "./pipeline.js";
+import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery, type DiscoveryResult } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
 
