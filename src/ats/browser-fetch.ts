@@ -1,8 +1,6 @@
 // src/ats/browser-fetch.ts
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+import { BROWSER_UA } from "../util/user-agent.js";
 const HEAVY = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 

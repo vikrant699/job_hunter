@@ -9,7 +9,6 @@ import { fetchHtmlPlaywright } from "../../scraper/playwright.js";
 export interface YcCandidate {
   name: string;
   careersUrl: string;
-  ycSlug: string;
   source: "yc-india";
   evidence: string;
 }
@@ -78,7 +77,7 @@ export async function runYcSource(): Promise<YcResult> {
     // llm-scrape if it doesn't resolve.
     const careersUrl = `https://${ycSlug}.com/careers`;
 
-    out.push({ name, careersUrl, ycSlug, source: "yc-india", evidence });
+    out.push({ name, careersUrl, source: "yc-india", evidence });
   }
 
   if (out.length > 0) {

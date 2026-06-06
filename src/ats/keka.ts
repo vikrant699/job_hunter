@@ -5,6 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Keka embed API:
 //   GET <slug>.keka.com/careers/api/embedjobs/default/active/<orgGuid>  -> Job[]
@@ -27,7 +28,6 @@ const JobSchema = z.object({
 type Job = z.infer<typeof JobSchema>;
 const ResponseSchema = z.array(JobSchema);
 
-const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 const GUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 /** Extract the org GUID embedded in a Keka careers page. Null if absent. */

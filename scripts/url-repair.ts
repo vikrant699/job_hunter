@@ -1,16 +1,15 @@
-import { logger } from "../logger.js";
-import { selectAllCompanies, upsertCompany } from "../db/index.js";
-import { upsertRegistry } from "./json-writer.js";
-import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "./sources/brave.js";
-import type { Company, RegistryEntry } from "../types.js";
+import { logger } from "../src/logger.js";
+import { selectAllCompanies, upsertCompany } from "../src/db/index.js";
+import { upsertRegistry } from "../src/discovery/json-writer.js";
+import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
+import type { Company } from "../src/types.js";
+import type { RegistryEntry } from "../src/schemas.js";
+import { BROWSER_UA } from "../src/util/user-agent.js";
 
 // Manual URL-repair (npm run repair-urls). For every company whose last
 // fetch failed with a "URL looks wrong" error, tries same-origin path
 // variants AND (with quota left) a Brave Search lookup. Conservative —
 // never removes entries; ones still broken stay in the registry.
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 const PER_CHECK_TIMEOUT_MS = 8_000;
 const REPAIR_CONCURRENCY = 4;
@@ -174,16 +173,17 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
 
   logger.info({ count: targets.length }, "url-repair: starting");
 
-  const results: Array<{ company: Company; newUrl: string | null }> = new Array(targets.length);
+  const resultMap = new Map<number, { company: Company; newUrl: string | null }>();
   let cursor = 0;
   async function worker(): Promise<void> {
     while (cursor < targets.length) {
       const idx = cursor++;
       const r = await tryRepairOne(targets[idx]!);
-      results[idx] = r;
+      resultMap.set(idx, r);
     }
   }
   await Promise.all(Array.from({ length: REPAIR_CONCURRENCY }, () => worker()));
+  const results = Array.from({ length: targets.length }, (_, i) => resultMap.get(i)!);
 
   const fixes: UrlRepairResult["fixes"] = [];
   const stillBroken: UrlRepairResult["stillBroken"] = [];

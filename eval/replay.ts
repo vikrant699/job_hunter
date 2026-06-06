@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
-import { config } from "../config.js";
-import { runGate } from "../llm/gate.js";
-import { GATE_V2 } from "./prompts/gate-v2.js";
+import { config } from "../src/config.js";
+import { buildCsv } from "../src/discord/attachments.js";
+import { runGate } from "../src/llm/gate.js";
+import { GATE_PROMPT as GATE_V2 } from "../src/llm/prompts/gate.js";
 import { loadLabels } from "./labels.js";
 import { loadLabeledPostings } from "./dataset.js";
 import {
@@ -25,7 +26,7 @@ const outPath = flag("out", null);
 const tempArg = flag("temp", null); // e.g. 0 for deterministic scoring
 const temperature = tempArg != null ? Number(tempArg) : undefined;
 
-const CANDIDATES: Record<string, string> = { v1: config.prompts.relevance, v2: GATE_V2 };
+const CANDIDATES: Record<string, string> = { v1: config.prompts.gate, v2: GATE_V2 };
 
 function stratifiedSample(rows: ReturnType<typeof loadLabeledPostings>, n: number) {
   const pos = rows.filter((r) => r.relevant);
@@ -70,8 +71,7 @@ if (sampleN) {
 
 // Baseline: the production scores already in the DB. No model calls.
 const baseline: ScoredLabel[] = rows
-  .filter((r) => r.storedScore != null)
-  .map((r) => ({ score: r.storedScore as number, relevant: r.relevant }));
+  .flatMap((r) => r.storedScore != null ? [{ score: r.storedScore, relevant: r.relevant }] : []);
 report("BASELINE (stored llm_confidence)", baseline);
 
 if (promptName !== "baseline") {
@@ -102,14 +102,10 @@ if (promptName !== "baseline") {
   if (failed > 0) console.log(`  (${failed} gate failures excluded from metrics)`);
 
   if (outPath) {
-    const esc = (v: string | number | boolean) => {
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = detailed
+    const sortedRows = detailed
       .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
-      .map((d) => [d.id, d.company, d.title, d.relevant, d.score].map(esc).join(","));
-    writeFileSync(outPath, ["id,company,title,relevant,score", ...lines].join("\r\n") + "\r\n", "utf-8");
+      .map((d) => [d.id, d.company, d.title, d.relevant, d.score] as const);
+    writeFileSync(outPath, buildCsv(["id", "company", "title", "relevant", "score"], sortedRows), "utf-8");
     console.log(`  wrote per-row scores → ${outPath} (ascending by score)`);
   }
 }

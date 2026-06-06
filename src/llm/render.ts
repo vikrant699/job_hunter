@@ -1,5 +1,5 @@
 export function render(template: string, vars: Record<string, unknown>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
     const value = vars[key];
     if (value == null) return "";
     if (Array.isArray(value)) {

@@ -2,11 +2,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJson } from "./browser-fetch.js";
-
-const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
+import { REMOTE_RE, unixToIso } from "./shared.js";
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
@@ -41,7 +41,7 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
-    postedAt: j.job_posting_on ? new Date(j.job_posting_on * 1000).toISOString() : (j.created_on ?? null),
+    postedAt: unixToIso(j.job_posting_on) ?? (j.created_on ?? null),
   };
 }
 
@@ -88,13 +88,18 @@ export const darwinboxAdapter: AtsAdapter = {
     const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=main`]);
     // Confirmed live: detail.message = { job: [{...fields, jd: "<html>"}], isSaved: bool }
     // "jd" is the primary key; tolerate flat-object fallback for other tenants.
-    const msg = (raw as { message?: Record<string, unknown> })?.message ?? {};
-    const jobArr = msg["job"];
-    const jobObj = Array.isArray(jobArr) ? (jobArr[0] as Record<string, unknown>) : msg;
-    const jd = (jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "") as string;
+    const parseResult = JsonValueSchema.safeParse(raw);
+    const rawVal: JsonValue = parseResult.success ? parseResult.data : null;
+    const rawObj = typeof rawVal === "object" && rawVal !== null && !Array.isArray(rawVal) ? rawVal : null;
+    const msg = typeof rawObj?.["message"] === "object" && rawObj["message"] !== null && !Array.isArray(rawObj["message"]) ? rawObj["message"] : null;
+    const msgObj = msg ?? rawObj ?? {};
+    const jobArr = msgObj["job"];
+    const jobArrItem = Array.isArray(jobArr) ? jobArr[0] : null;
+    const jobObj = typeof jobArrItem === "object" && jobArrItem !== null && !Array.isArray(jobArrItem) ? jobArrItem : msgObj;
+    const jdRaw = jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "";
+    const jd = typeof jdRaw === "string" ? jdRaw : "";
     // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;).
     // Decode entities once to get real HTML, then strip tags to plain text.
-    const jdRaw = typeof jd === "string" ? jd : "";
-    return htmlToText(htmlToText(jdRaw));
+    return htmlToText(htmlToText(jd));
   },
 };

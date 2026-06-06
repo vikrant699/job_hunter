@@ -5,47 +5,11 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { upsertCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
-import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
-
-const ProviderSchema = z.enum([
-  "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "custom",
-]);
-const ParsingStrategySchema = z.enum([
-  "ats-api", "llm-scrape", "playwright-llm-scrape", "manual",
-]);
-const StatusSchema = z.enum(["active", "candidate", "dormant", "denied", "broken"]);
-
-const RegistryEntrySchema = z.object({
-  name: z.string().min(1),
-  careers_url: z.string().url(),
-  source: ProviderSchema,
-  source_slug: z.string().min(1).nullable().optional(),
-  parsing_strategy: ParsingStrategySchema,
-  status: StatusSchema.optional(),
-  reason: z.string().optional(),
-  discovered_via: z.string().optional(),
-  discovered_at: z.string().optional(),
-  evidence: z.string().optional(),
-  tenant_url: z.string().url().optional(),
-  api_meta: z.record(z.string()).optional(),
-});
+import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../schemas.js";
+import { RegistryEntrySchema } from "../schemas.js";
+import { kebabCase, resolveSlug } from "../util/slug.js";
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);
-
-export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
-
-function kebabCase(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function resolveSlug(entry: RegistryEntry): string {
-  if (entry.source_slug && entry.source_slug.length > 0) return entry.source_slug;
-  return kebabCase(entry.name);
-}
 
 function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];

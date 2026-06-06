@@ -29,7 +29,7 @@ export async function extractResume(): Promise<string> {
   const buf = new Uint8Array(readFileSync(pdfPath));
   const pdf = await getDocumentProxy(buf);
   const { text } = await extractText(pdf, { mergePages: true });
-  const merged = typeof text === "string" ? text : (text as string[]).join("\n");
+  const merged = text;
   const normalized = normalizeResumeText(merged);
   writeFileSync(txtPath, normalized, "utf-8");
   return normalized;

@@ -1,31 +1,24 @@
-/**
- * Verify every entry in the registry is reachable.
- *
- *  - For `parsing_strategy: ats-api` entries: probe the declared provider+slug.
- *    On failure, attempt to re-classify by probing other ATSes with slug variants.
- *  - For other entries: GET the careers_url; flag non-2xx (excluding bot-blocked 4xx).
- *
- * Usage:
- *   npm run verify
- *   npm run verify -- --only-broken     # only print failures
- *   npm run verify -- --suggest         # also try to find a working ATS for missing entries
- */
+/** Probe every registry entry (ATS slug or careers URL) and report failures. */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { config } from "../config.js";
+import { z } from "zod";
+import { config } from "../src/config.js";
 import { probeOne } from "./slug-probe.js";
+import { BROWSER_UA } from "../src/util/user-agent.js";
 
-interface RawEntry {
-  name: string;
-  careers_url: string;
-  source: string;
-  source_slug?: string | null;
-  parsing_strategy: string;
-  status?: string;
-  reason?: string;
-  discovered_via?: string;
-  tenant_url?: string;
-}
+const RawEntrySchema = z.object({
+  name: z.string(),
+  careers_url: z.string(),
+  source: z.string(),
+  source_slug: z.string().nullable().optional(),
+  parsing_strategy: z.string(),
+  status: z.string().optional(),
+  reason: z.string().optional(),
+  discovered_via: z.string().optional(),
+  tenant_url: z.string().optional(),
+});
+
+type RawEntry = z.infer<typeof RawEntrySchema>;
 
 interface Probe {
   url: string;
@@ -63,15 +56,12 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
-    const data = (await res.json()) as { total?: number };
+    const data = z.object({ total: z.number().optional() }).parse(await res.json());
     return (data.total ?? 0) > 0;
   } catch {
     return false;
   }
 }
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
   try {
@@ -177,7 +167,7 @@ async function main(): Promise<void> {
   const suggest = args.has("--suggest");
 
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
-  const entries = JSON.parse(readFileSync(registryPath, "utf-8")) as RawEntry[];
+  const entries = RawEntrySchema.array().parse(JSON.parse(readFileSync(registryPath, "utf-8")));
 
   console.log(`Verifying ${entries.length} entries from ${registryPath}`);
   if (suggest) console.log(`(--suggest: will probe other ATSes for failed entries — slower)`);
