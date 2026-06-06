@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { config } from "../config.js";
+import { buildCsv } from "../discord/csv.js";
 import { runGate } from "../llm/gate.js";
 import { GATE_V2 } from "./prompts/gate-v2.js";
 import { loadLabels } from "./labels.js";
@@ -102,14 +103,10 @@ if (promptName !== "baseline") {
   if (failed > 0) console.log(`  (${failed} gate failures excluded from metrics)`);
 
   if (outPath) {
-    const esc = (v: string | number | boolean) => {
-      const s = String(v);
-      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const lines = detailed
+    const sortedRows = detailed
       .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
-      .map((d) => [d.id, d.company, d.title, d.relevant, d.score].map(esc).join(","));
-    writeFileSync(outPath, ["id,company,title,relevant,score", ...lines].join("\r\n") + "\r\n", "utf-8");
+      .map((d) => [d.id, d.company, d.title, d.relevant, d.score] as const);
+    writeFileSync(outPath, buildCsv(["id", "company", "title", "relevant", "score"], sortedRows), "utf-8");
     console.log(`  wrote per-row scores → ${outPath} (ascending by score)`);
   }
 }
