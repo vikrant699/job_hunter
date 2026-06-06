@@ -70,35 +70,39 @@ export async function postWebhookWithFiles(
   throw new Error("Discord 429 retries exhausted on file upload");
 }
 
-/** Build the "companies searched today" CSV. */
-export function buildSearchedCsv(rows: ReadonlyArray<{
-  name: string;
-  careersUrl: string;
-  source: string;
-  strategy: string;
-  postingsSeen: number;
-  green: number;
-  yellow: number;
-  status: string;
-  error: string | null;
-}>): string {
-  return buildCsv(
-    ["Company", "Careers URL", "Source", "Strategy", "Postings seen", "Green", "Yellow", "Status", "Error"],
-    rows.map((r) => [r.name, r.careersUrl, r.source, r.strategy, r.postingsSeen, r.green, r.yellow, r.status, r.error ?? ""])
-  );
+export interface MatchRow {
+  company: string;
+  title: string;
+  url: string;
+  score: number | null;
+  tier: "green" | "yellow";
+  reason: string;
 }
 
-/** Build the "companies unchecked today" CSV. */
-export function buildUncheckedCsv(rows: ReadonlyArray<{
-  name: string;
-  careersUrl: string;
+export interface CompanyRow {
+  company: string;
   reason: string;
-  source: string;
-  status: string;
-}>): string {
+}
+
+/**
+ * Build the "searched today" CSV: one row per matched posting (Kind=match)
+ * followed by one row per errored / unchecked company (Kind=company, job
+ * columns blank). A single Kind column disambiguates the two row shapes.
+ */
+export function buildSearchedCsv(
+  matchRows: ReadonlyArray<MatchRow>,
+  companyRows: ReadonlyArray<CompanyRow>,
+): string {
+  const rows: unknown[][] = [];
+  for (const m of matchRows) {
+    rows.push(["match", m.company, m.title, m.url, m.score ?? "", m.tier, m.reason]);
+  }
+  for (const c of companyRows) {
+    rows.push(["company", c.company, "", "", "", "", c.reason]);
+  }
   return buildCsv(
-    ["Company", "Careers URL", "Reason", "Source", "Status"],
-    rows.map((r) => [r.name, r.careersUrl, r.reason, r.source, r.status])
+    ["Kind", "Company", "Job title", "Job URL", "Score", "Tier", "Reason/Error"],
+    rows,
   );
 }
 

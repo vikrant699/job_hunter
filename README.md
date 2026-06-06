@@ -90,9 +90,10 @@ hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow b
 to Discord with different sidebar colors. Silent drops are still logged to the SQLite
 DB so you can audit later.
 
-Every run ends with a CSV bundle posted to Discord: `searched-<date>.csv` (every
-company touched and what it produced), `unchecked-<date>.csv` (every company skipped
-and why), and `discovery-<date>.csv` if discovery turned anything up.
+Every run ends with a CSV bundle posted to Discord. `searched-<date>.csv` has one
+row per matched posting (job title, link, score, green/yellow tier, reason) followed
+by one row per company that errored or was skipped, with the reason to fix. A second
+file, `discovery-<date>.csv`, shows up only if discovery turned anything up.
 
 ## The registry and adding a company
 
@@ -186,7 +187,7 @@ Ollama instances behind a load balancer, raise `llm.maxConcurrent` in `src/confi
 If a careers page is bot-blocked (Cloudflare, Akamai, and the like), the bot does not
 work around it; there is no headless-evasion code. The `manual` parsing strategy exists
 for these. Entries marked manual stay in your registry but are never fetched, and they
-surface in the daily "unchecked" CSV for hand-review.
+surface as company rows in the daily `searched` CSV for hand-review.
 
 ## License
 
