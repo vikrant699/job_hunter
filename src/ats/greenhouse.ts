@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
+import { atsFetchJson } from "./http.js";
 
 // Greenhouse public board API: GET boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true
 const GhJobSchema = z.object({
@@ -32,26 +32,7 @@ export const greenhouseAdapter: AtsAdapter = {
     const slug = company.slug;
     const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-
-    let raw: unknown;
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (res.status === 404) {
-        throw new Error(`greenhouse board not found: ${slug}`);
-      }
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`greenhouse HTTP ${res.status}: ${body.slice(0, 200)}`);
-      }
-      raw = await res.json();
-    } finally {
-      clearTimeout(timer);
-    }
+    const raw = await atsFetchJson(url, { provider: "greenhouse" });
 
     const parsed = GhJobsResponseSchema.safeParse(raw);
     if (!parsed.success) {
