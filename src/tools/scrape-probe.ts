@@ -1,13 +1,4 @@
-/**
- * llm-scrape probe — test the new scraper against one company.
- *
- *   npm run scrape -- <slug>             # shortlist + LLM, no JD fetch
- *   npm run scrape -- <slug> --jd        # also fetch the first JD
- *   npm run scrape -- <slug> --no-llm    # cheerio shortlist only (skip LLM)
- *   npm run scrape -- <slug> --html-head # dump first 1000 chars of fetched HTML
- *
- * Slug must match an entry in companies.seed.json (typically source=custom).
- */
+/** Test the llm-scrape pipeline against one company by slug. */
 import "dotenv/config";
 import * as cheerio from "cheerio";
 import { syncRegistryFromJson } from "../registry/companies.js";

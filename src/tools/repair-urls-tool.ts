@@ -1,17 +1,4 @@
-/**
- * Weekly URL-repair review tool. Probe every company whose last fetch failed
- * with a "URL looks wrong" error (404 / DNS / fetch failed), try same-domain
- * path variants AND a Brave Search lookup, and either:
- *
- *   npm run repair-urls                      # dry-run: list proposed fixes
- *   npm run repair-urls -- --apply           # apply ALL proposed fixes
- *   npm run repair-urls -- --apply <names>   # apply only the named entries
- *                                              (comma-separated)
- *
- * Output is human-readable so we can review together. No company is ever
- * removed — entries that can't be repaired stay in the registry with their
- * original URL and continue to surface in the daily unchecked CSV.
- */
+/** Probe failed-URL companies, try path variants + Brave Search, and optionally write fixes. */
 import "dotenv/config";
 import { syncRegistryFromJson } from "../registry/companies.js";
 import { repairBrokenUrls } from "../discovery/url-repair.js";

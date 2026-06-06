@@ -10,11 +10,11 @@ import { REMOTE_RE } from "./shared.js";
 // Two-phase: listPostings (metadata only) then fetchJd (full body) so we only
 // pay the per-job HTTP call for postings that survived location + dedup.
 interface WorkdayUrlParts {
-  base: string;        // "https://apple.wd1.myworkdayjobs.com"
-  tenant: string;      // "apple"
-  site: string;        // "External"
-  cxsBase: string;     // "https://apple.wd1.myworkdayjobs.com/wday/cxs/apple/External"
-  uiBase: string;      // "https://apple.wd1.myworkdayjobs.com/en-US/External"
+  base: string;
+  tenant: string;
+  site: string;
+  cxsBase: string;
+  uiBase: string;
 }
 
 function parseTenantUrl(tenantUrl: string): WorkdayUrlParts {
@@ -162,9 +162,6 @@ export const workdayAdapter: AtsAdapter = {
 
     const out: NormalizedPosting[] = [];
     let offset = 0;
-    // Caterpillar (and presumably others) report `total` correctly only on the
-    // FIRST page response; subsequent pages return total=0. We capture the
-    // page-0 value once and use that for the offset>=total termination check.
     let totalReported: number | null = null;
 
     for (let page = 0; ; page++) {

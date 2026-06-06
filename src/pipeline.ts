@@ -297,27 +297,22 @@ async function processOnePosting(
   company: Company,
   stats: RunStats,
 ): Promise<void> {
-  // Early location filter (only when the adapter populated location).
   if (posting.location !== null && posting.location !== "") {
     const loc = checkLocation(posting.location, posting.isRemote);
     if (!loc.accept) return;
   }
 
-  // Pre-fetch dedup — saves a JD HTTP call if we've seen this exact posting id.
   if (postingExists(posting.provider, posting.externalId)) return;
 
-  // Cross-run dedup BEFORE any LLM work: a role with the same
-  // (company, title, location) already notified in a prior run is a re-listing
-  // (fresh requisition id). Skip it outright rather than spend gate + extract
-  // calls to re-derive a verdict we'd only drop at notify time.
+  // Cross-run dedup: skip re-listings (same company/title/location notified before)
+  // before spending gate + extract calls, since we'd only drop them at notify time.
   const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
   if (stats.priorNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     return;
   }
 
-  // Cheap title-deny — runs before JD fetch so Workday/llm-scrape save the
-  // round trip too. Doesn't write to DB; each tick re-checks.
+  // Title-deny before JD fetch so Workday/llm-scrape save the round trip.
   const titleCheck = checkTitle(posting.jobTitle);
   if (titleCheck.skip) {
     stats.postingsTitleDenied++;
@@ -328,7 +323,6 @@ async function processOnePosting(
     return;
   }
 
-  // Lazy JD fetch for adapters whose listing lacks the body (Workday, llm-scrape).
   if (!posting.jdText && adapter.fetchJd) {
     try {
       posting.jdText = await adapter.fetchJd(adapterCompany, posting);
@@ -341,9 +335,7 @@ async function processOnePosting(
     }
   }
 
-  // Late location filter when the listing had no location metadata: scan the
-  // title (where scraped postings often carry the location, e.g. "… Sydney, NSW")
-  // plus the JD head. Runs even when the JD is empty so a foreign title is caught.
+  // Late location filter from title/JD text when listing had no location metadata.
   if (posting.location === null || posting.location === "") {
     const loc = checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "");
     if (!loc.accept) return;
@@ -415,7 +407,6 @@ async function processOnePosting(
     return;
   }
 
-  // Hard deal-breaker short-circuits before extract.
   if (gateResult.dealBreakerSeverity === "hard") {
     updatePostingResult({
       provider: posting.provider,
@@ -456,10 +447,8 @@ async function processOnePosting(
     return;
   }
 
-  // Within-run dedup: an identical role already pinged earlier in THIS run is
-  // recorded but not re-notified (cross-run repeats were already skipped before
-  // the gate). dupKey was computed above; reserve it before the await so two
-  // concurrent workers can't both notify the same role.
+  // Within-run dedup: reserve dupKey before the await so concurrent workers
+  // can't both notify the same role.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     updatePostingResult({

@@ -23,23 +23,15 @@ export const config = {
 
   llm: {
     ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
-    // qwen3.5:9b (Q4_K_M, ~6.6GB, 256K-capable ctx). Switched 2026-06-05 from
-    // qwen3:8b (which had beaten 7B/9B on a 236-posting reviewer-label replay —
-    // AUC 0.78, 85% recall). think:false in the client keeps reasoning models
-    // from emitting reasoning tokens. Pull once: `ollama pull qwen3.5:9b`.
+    /** Model to use. Pull once: `ollama pull qwen3.5:9b`. Override via OLLAMA_MODEL. */
     model: process.env.OLLAMA_MODEL ?? "qwen3.5:9b",
-    /** Timeout starts AFTER the semaphore slot is acquired, so it measures
-     *  actual generation time (not queue wait). */
+    /** Timeout starts AFTER the semaphore slot is acquired (measures generation, not queue wait). */
     timeoutMs: 90_000,
     maxRetries: 2,
-    /** Ollama serializes on the GPU; only raise this if you run multiple
-     *  Ollama instances behind a load balancer. */
+    /** Only raise above 1 if running multiple Ollama instances behind a load balancer. */
     maxConcurrent: 1,
-    /** Context window (tokens) per request. The KV cache grows linearly with this
-     *  and must fit alongside the ~6.6GB qwen3.5:9b weights in 8GB VRAM, so we cap
-     *  it at 9000 (down from 16384). Pair with OLLAMA_FLASH_ATTENTION=1 +
-     *  OLLAMA_KV_CACHE_TYPE=q8_0 so the quantized KV cache fits. jdMaxChars is
-     *  sized to THIS value — keep them in sync. Ollama defaults to 4096. */
+    /** Context window (tokens). Pair with OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0
+     *  so the KV cache fits in VRAM alongside model weights. jdMaxChars is sized to this. */
     numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 9000),
     // max chars of JD/text sent to the model
     jdMaxChars: 18000,

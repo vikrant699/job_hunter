@@ -56,10 +56,8 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   const { tickStartedAt, tickEndedAt, discovery, stats } = input;
   const stamp = todayStamp(tickEndedAt);
 
-  // ----- Match rows (one per notified posting) -----
   const matchRows: MatchRow[] = listNotifiedPostingsSince(tickStartedAt);
 
-  // ----- Company rows (errored / unchecked — what to fix) -----
   const all = selectAllCompanies();
   const companyRows: CompanyRow[] = [];
   for (const c of all) {
@@ -80,7 +78,6 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   }
   companyRows.sort((a, b) => a.reason.localeCompare(b.reason) || a.company.localeCompare(b.company));
 
-  // ----- Discovery -----
   const discoveryRows: Array<{
     outcome: "added" | "skipped"; name: string; careersUrl: string;
     source: string; strategy: string; detail: string;
@@ -108,7 +105,6 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
     }
   }
 
-  // ----- Compose embed + post -----
   const embed: Record<string, unknown> = {
     title: `${config.discord.titlePrefix} daily report`,
     color: stats.errors.length > 0 ? 0xe67e22 : 0x2ecc71,
