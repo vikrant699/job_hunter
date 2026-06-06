@@ -62,6 +62,8 @@ gitignored, so they stay on your machine.
 | `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
 | `npm run repair-urls` | Dry-runs URL repair on companies whose last fetch failed with a 404 or DNS error. Pass `--apply` to write the fixes. |
+| `npm run eval` | Replays a labelled eval dataset through the gate and prints accuracy stats. |
+| `npm run lint` | `eslint .` |
 | `npm run typecheck` | `tsc --noEmit`. |
 
 ## How a posting moves through
@@ -136,19 +138,29 @@ config/
   resume.pdf             your resume PDF                             (gitignored)
   resume.txt             extracted resume text the gate judges on    (gitignored)
 data/                    SQLite DB + caches                          (gitignored)
+eval/                    offline gate-replay harness (replay.ts, dataset, metrics)
+scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
+                           scrape-probe, repair-urls-tool, url-repair
 src/
-  ats/                   one file per ATS provider, plus a small html-to-text helper
-  scraper/               cheerio + Playwright fetchers for non-ATS careers pages
-  discovery/             YC + RSS + Brave sources; the URL-repair tool
+  ats/                   one file per ATS provider; registry.ts maps provider names
+                           to adapters; workday-facet.ts for faceted Workday search
+  db/                    per-table modules (companies, postings, runs, quota, ...)
+                           behind a barrel index.ts
+  discovery/             YC + RSS + Brave sources; ats-patterns + ats-validate
   filter/                location / title / denylist / verdict
-  llm/                   Ollama client + gate and extract prompts
-  discord/               webhook + CSV uploader
+  llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
+  discord/               webhook + attachments uploader
   reports/               end-of-run CSV builder
   registry/              loads and validates config/companies.json into the companies table
-  db/                    SQLite setup + queries
-  tools/                 resume extractor and registry/probe utilities
-  pipeline.ts            company to postings to Discord
-  profile.ts             loads the profile and attaches the resume text
+  scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
+  util/                  shared helpers: semaphore, user-agent, slug, json
+  tools/
+    extract-resume.ts    PDF-to-text extraction (run via npm run extract-resume)
+  pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts
+  config.ts              tunable knobs (workers, LLM model, discovery settings, ...)
+  types.ts               shared TypeScript types
+  profile.ts             loads config/profile.ts and attaches resume text
+  logger.ts              pino logger setup
   index.ts               CLI entry point
 ```
 
@@ -165,7 +177,7 @@ simplest existing example. The contract:
 
 After writing the adapter:
 
-1. Register it in `src/pipeline.ts` under `ATS_ADAPTERS`.
+1. Register it in `src/ats/registry.ts` under `ATS_ADAPTERS`.
 2. Add the provider name to the `Provider` union in `src/types.ts`.
 3. Add it to the zod enum in `src/registry/companies.ts`.
 
