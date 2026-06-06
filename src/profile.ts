@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
-import type { UserProfile } from "../config/profile.example.js";
+import type { UserProfile } from "./types.js";
 import { ensureResumeText } from "./tools/extract-resume.js";
 
 // Loads the user profile; see README "Setup". config/profile.ts and resume files are gitignored.
@@ -26,4 +26,4 @@ if (usingExample) {
   );
 }
 
-export type { UserProfile } from "../config/profile.example.js";
+export type { UserProfile } from "./types.js";

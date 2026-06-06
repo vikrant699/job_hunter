@@ -12,7 +12,7 @@ import { oracleAdapter } from "./oracle.js";
 import { phenomAdapter } from "./phenom.js";
 import { darwinboxAdapter } from "./darwinbox.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
-import { playwrightScrapeAdapter } from "../scraper/playwright-scrape.js";
+import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
 export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   greenhouse: greenhouseAdapter,

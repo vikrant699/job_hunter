@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCsv } from "./csv.js";
+import { parseCsv } from "./csv-parser.js";
 
 test("parses simple rows", () => {
   assert.deepEqual(parseCsv("a,b\n1,2\n"), [["a", "b"], ["1", "2"]]);
