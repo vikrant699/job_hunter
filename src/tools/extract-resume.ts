@@ -1,7 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { extractText, getDocumentProxy } from "unpdf";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pdfPath = resolve(here, "../../config/resume.pdf");
@@ -19,20 +18,34 @@ export function normalizeResumeText(raw: string): string {
   return out.join("\n").trim() + "\n";
 }
 
-async function main(): Promise<void> {
+/** Extract config/resume.pdf -> normalized text, write config/resume.txt, return it.
+ *  Throws if config/resume.pdf is absent. (unpdf imported lazily so it is not loaded
+ *  on the hot path when config/resume.txt is already cached.) */
+export async function extractResume(): Promise<string> {
   if (!existsSync(pdfPath)) {
-    console.error("config/resume.pdf not found — drop your resume PDF there first.");
-    process.exit(1);
+    throw new Error("config/resume.pdf not found - add your resume PDF at config/resume.pdf");
   }
+  const { extractText, getDocumentProxy } = await import("unpdf");
   const buf = new Uint8Array(readFileSync(pdfPath));
   const pdf = await getDocumentProxy(buf);
   const { text } = await extractText(pdf, { mergePages: true });
   const merged = typeof text === "string" ? text : (text as string[]).join("\n");
   const normalized = normalizeResumeText(merged);
   writeFileSync(txtPath, normalized, "utf-8");
-  console.log(`extracted ${normalized.length} chars → config/resume.txt`);
+  return normalized;
 }
 
+/** The candidate resume text the relevance gate judges against: the cached
+ *  config/resume.txt if present, else generated once from config/resume.pdf.
+ *  Throws if neither exists - the bot must stop, there is nothing to match on. */
+export async function ensureResumeText(): Promise<string> {
+  if (existsSync(txtPath)) return readFileSync(txtPath, "utf-8");
+  return extractResume();
+}
+
+// `npm run extract-resume` forces a fresh extraction (e.g. after the PDF changes).
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  main().catch((e) => { console.error(`extract-resume failed: ${e}`); process.exit(1); });
+  extractResume()
+    .then((t) => console.log(`extracted ${t.length} chars → config/resume.txt`))
+    .catch((e) => { console.error(`extract-resume failed: ${e instanceof Error ? e.message : e}`); process.exit(1); });
 }

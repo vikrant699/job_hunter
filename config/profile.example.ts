@@ -7,7 +7,6 @@
  *   3. `config/profile.ts` is gitignored — your edits stay local
  *
  * Field-by-field guide:
- *   - summary             Plain-text resume blurb the LLM uses to judge fit
  *   - hardDealBreakers    Conditions that SILENTLY reject a posting (no Discord ping)
  *   - softDealBreakers    Conditions that still notify, but with a yellow warning
  *   - filters             YOE bounds + the green/yellow score thresholds
@@ -19,10 +18,9 @@
  */
 
 export interface UserProfile {
-  summary: string;
-  /** Full resume text (extracted from config/resume.pdf via `npm run extract-resume`).
-   *  Loaded from config/resume.txt at startup, NOT set in this module. When present,
-   *  the relevance gate judges against it instead of `summary`. */
+  /** Full resume text the relevance gate judges against. NOT set in this module:
+   *  it is loaded at startup from config/resume.txt (generated once from
+   *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
   resumeText?: string;
   hardDealBreakers: string[];
   softDealBreakers: string[];
@@ -63,21 +61,8 @@ export interface UserProfile {
 }
 
 export const profile: UserProfile = {
-  summary: `REPLACE THIS — write a plain-text summary of your resume.
-
-Example shape:
-  Alex Example — <role> with ~<N> years of experience, based in <city>.
-  Open to roles in <region> or remote-from-<region>.
-
-  Most recent role: <role> at Example Co — <one-line highlight>.
-  Prior roles: <role> at Beta Corp.
-
-  Core skills:
-  - <skill>, <skill>, <skill>
-  - <skill>, <skill>
-
-  Targeted role types: <role>, <role>.
-  Targeted domain: open — any industry is acceptable.`,
+  // resumeText is NOT set here. Put your resume at config/resume.pdf; it is
+  // extracted to config/resume.txt and loaded at startup (see src/profile.ts).
 
   hardDealBreakers: [
     // Things you ABSOLUTELY do not want to see — these silently reject a posting.
