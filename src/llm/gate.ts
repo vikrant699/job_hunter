@@ -28,7 +28,7 @@ export interface GateInput {
 }
 
 export interface RunGateOptions {
-  /** Override the prompt template (defaults to config.prompts.relevance). Used by the eval harness. */
+  /** Override the prompt template (defaults to config.prompts.gate). Used by the eval harness. */
   promptTemplate?: string;
   /** Sampling temperature. undefined → the client default (0.2). Set 0 for
    *  deterministic, repeatable scoring in the eval harness. */
@@ -73,7 +73,7 @@ export function parseGateResponse(raw: string): GateResult {
 }
 
 export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
-  const template = opts.promptTemplate ?? config.prompts.relevance;
+  const template = opts.promptTemplate ?? config.prompts.gate;
   const prompt = render(template, {
     resume: profile.resumeText ?? "",
     hardDealBreakers: profile.hardDealBreakers,

@@ -4,7 +4,10 @@
  * Personal stuff (your resume, deal-breakers, target locations, title-deny
  * patterns, services denylist) lives in `config/profile.ts` instead.
  */
-import { RELEVANCE_PROMPT } from "./llm/relevance.js";
+import { GATE_PROMPT } from "./llm/prompts/gate.js";
+import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
+import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
+import { SKIP_HOSTS, QUERY_POOL } from "./discovery/static-data.js";
 
 export const config = {
   fetch: {
@@ -38,88 +41,10 @@ export const config = {
   },
 
   prompts: {
-    relevance: RELEVANCE_PROMPT,
-
-    shortlistFromText: `You are looking at the visible text of a company's careers page that was rendered in a real browser. Find the job postings listed and return their details.
-
-Pages typically format each posting in a block like:
-  Job Title
-  Location, Region, Country
-  Department or Posted X days ago
-
-A LOCATION is one or more of: city name, state/region, country, or any combination.
-"Remote" alone counts as a location. The location usually appears on the line
-DIRECTLY UNDER the job title.
-
-For each posting you find:
-- "title": the role title exactly as printed
-- "location": the location line under the title. If genuinely absent, set null —
-  but try hard first; the location is almost always one line below.
-
-DROP nav text ("Dashboard", "Search jobs", "Job Cart", "All Filters", "Sort by",
-"Skip to content", "View all jobs"), footer / legal / cookie text, and generic
-copy ("Get personalized job recommendations", "Upload your resume", "Apply now",
-"Save job", "Share"). Don't return section headers ("Engineering", "Open Roles",
-"Featured Jobs") or category labels as jobs.
-
-Be permissive on titles — when in doubt, KEEP. Downstream filters drop bad picks.
-
-# Output (JSON only — no preamble, no markdown)
-{
-  "jobs": [
-    { "title": "<role title>", "location": "<city, region, country or null>" }
-  ]
-}
-
-# Company
-{{companyName}}
-
-# Visible page text
-{{text}}`,
-
-    shortlist: `You are looking at candidate links scraped from a company's careers page.
-Pick which links lead to a SPECIFIC job posting (one role, with a title and a JD).
-
-DROP:
-- index/overview pages ("view all", "all openings", "see jobs", "explore careers")
-- category pages by team/department/location ("Engineering jobs", "Bangalore openings")
-- non-posting pages ("about", "blog", "team", "perks", "FAQ", "events", "press", "contact")
-- internship / fellowship landing pages that aren't a single posting
-- duplicate forms of the same posting
-
-KEEP only links that look like one role with a title. When unsure, KEEP —
-downstream filters will drop bad picks.
-
-# Output (JSON only — no preamble, no markdown)
-{
-  "jobs": [
-    { "url": "<exact url from input>", "title": "<role title>" }
-  ]
-}
-
-# Company
-{{companyName}}
-
-# Candidate links (URL · visible text)
-{{linksList}}`,
-
-    extract: `From the JD below, extract the minimum and maximum years of experience required.
-
-Rules:
-- "3-5 years"      → yoeMin=3, yoeMax=5
-- "5+ years"       → yoeMin=5, yoeMax=null
-- "up to 6 years"  → yoeMin=null, yoeMax=6
-- If unstated or only soft phrasing ("experienced"), return null for both.
-- Never invent values.
-
-# Output (JSON only — no preamble, no markdown)
-{
-  "yoeMin": <number | null>,
-  "yoeMax": <number | null>
-}
-
-# JD
-{{jdText}}`,
+    gate: GATE_PROMPT,
+    shortlist: SHORTLIST_PROMPT,
+    shortlistFromText: SHORTLIST_FROM_TEXT_PROMPT,
+    extract: EXTRACT_PROMPT,
   },
 
   storage: {
@@ -141,60 +66,14 @@ Rules:
     /** Don't add anything older than this. */
     rssMaxArticleAgeDays: 14,
     /** Hosts to skip — aggregators, content sites, salary-blog SEO farms. */
-    skipHosts: [
-      "linkedin.com", "indeed.com", "naukri.com", "glassdoor.com", "glassdoor.co.in",
-      "monster.com", "ziprecruiter.com", "simplyhired.com", "ambitionbox.com",
-      "shine.com", "timesjobs.com", "instahyre.com", "hirist.com", "iimjobs.com",
-      "foundit.in", "wellfound.com", "angel.co", "builtin.com",
-      "unojobs.com", "freshersworld.com", "joberge.com", "jobsforher.com",
-      "jobaaj.com", "hireperfect.com", "jooble.org", "talent.com",
-      "lsvp.com", "sequoiacap.com", "a16z.com", "accel.com",
-      "kleinerperkins.com", "ycombinator.com",
-      "youtube.com", "facebook.com", "twitter.com", "x.com", "instagram.com",
-      "github.com", "medium.com", "substack.com", "reddit.com", "quora.com",
-      "wikipedia.org", "crunchbase.com", "tracxn.com", "owler.com",
-      "timesofindia.indiatimes.com", "indiatimes.com", "ndtv.com", "yourstory.com",
-      "inc42.com", "entrackr.com", "moneycontrol.com", "livemint.com",
-      "upgrad.com", "guvi.in", "igmguru.com", "excelgoodies.in", "edureka.co",
-      "simplilearn.com", "intellipaat.com", "datacamp.com", "kaggle.com",
-      "riadataanalytics.com", "growai.in", "analyticsvidhya.com",
-      "geeksforgeeks.org", "tutorialspoint.com", "javatpoint.com",
-    ],
+    skipHosts: [...SKIP_HOSTS],
     brave: {
       monthlyCap: 1000,
       monthlyBuffer: 50,
       queriesPerRun: 8,
       /** Rotating queries — daily run picks `queriesPerRun` by hash-of-date.
        *  Tune for your region and target role family. */
-      queryPool: [
-        'site:boards.greenhouse.io "India"',
-        'site:boards.greenhouse.io "Bangalore"',
-        'site:boards.greenhouse.io "Bengaluru"',
-        'site:boards.greenhouse.io "Mumbai" "analyst"',
-        'site:boards.greenhouse.io "analyst" "India"',
-        'site:job-boards.greenhouse.io "India"',
-        'site:jobs.lever.co "India"',
-        'site:jobs.lever.co "Bangalore"',
-        'site:jobs.lever.co "Bengaluru" "analyst"',
-        'site:jobs.ashbyhq.com "India"',
-        'site:jobs.ashbyhq.com "Bangalore"',
-        'site:careers.smartrecruiters.com "India"',
-        'site:jobs.smartrecruiters.com "Bangalore"',
-        'site:myworkdayjobs.com "India" "analyst"',
-        'site:myworkdayjobs.com "Bangalore" "analytics"',
-        'site:myworkdayjobs.com "Mumbai" "analyst"',
-        'site:eightfold.ai "Bangalore"',
-        'site:eightfold.ai "India" "analyst"',
-        'site:apply.workable.com "India"',
-        'site:apply.workable.com "Bangalore"',
-        'site:recruitee.com "India" "analyst"',
-        'inurl:/careers "Bengaluru" "data analyst" -site:linkedin.com -site:naukri.com',
-        'inurl:/careers "Pune" "business analyst" -site:linkedin.com -site:naukri.com',
-        'inurl:/careers "Mumbai" "analyst" -site:linkedin.com -site:naukri.com',
-        'inurl:/careers "Hyderabad" "analyst" -site:linkedin.com -site:naukri.com',
-        'inurl:careers. "Bangalore" "analytics" -inurl:salary -inurl:blog -inurl:course',
-        'inurl:jobs. "Bengaluru" "analyst" -inurl:salary -inurl:blog -inurl:course',
-      ],
+      queryPool: [...QUERY_POOL],
     },
     rss: {
       sources: [

@@ -8,7 +8,7 @@
  * (analysis and the four sub-scores are optional; matchScore, the dealBreaker fields,
  * and reason are required).
  */
-export const RELEVANCE_PROMPT = `You are screening job postings for ONE specific candidate, who is a DATA / BUSINESS ANALYST (~4-5 years). Their work is SQL, BI dashboards (Power BI / Tableau / Looker), reporting, stakeholder analytics, and business insight — NOT building machine-learning models, NOT data engineering / pipelines, NOT software development. Score so the candidate sees real analyst matches first and isn't buried in noise — but missing a genuine analyst role is worse than showing a borderline one.
+export const GATE_PROMPT = `You are screening job postings for ONE specific candidate, who is a DATA / BUSINESS ANALYST (~4-5 years). Their work is SQL, BI dashboards (Power BI / Tableau / Looker), reporting, stakeholder analytics, and business insight — NOT building machine-learning models, NOT data engineering / pipelines, NOT software development. Score so the candidate sees real analyst matches first and isn't buried in noise — but missing a genuine analyst role is worse than showing a borderline one.
 
 # Candidate's resume
 {{resume}}
