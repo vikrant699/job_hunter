@@ -9,14 +9,14 @@
   "scripts": {
     "once": "tsx src/index.ts --once",
     "discover": "tsx src/index.ts --discover",
-    "probe": "tsx src/tools/slug-probe.ts",
-    "verify": "tsx src/tools/verify-registry.ts",
-    "scrape": "tsx src/tools/scrape-probe.ts",
-    "repair-urls": "tsx src/tools/repair-urls-tool.ts",
+    "probe": "tsx scripts/slug-probe.ts",
+    "verify": "tsx scripts/verify-registry.ts",
+    "scrape": "tsx scripts/scrape-probe.ts",
+    "repair-urls": "tsx scripts/repair-urls-tool.ts",
     "extract-resume": "tsx src/tools/extract-resume.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "eval": "tsx src/eval/replay.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"eval/**/*.test.ts\"",
+    "eval": "tsx eval/replay.ts",
     "lint": "eslint ."
   },
   "dependencies": {

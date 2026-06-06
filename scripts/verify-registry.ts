@@ -2,9 +2,9 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { config } from "../config.js";
+import { config } from "../src/config.js";
 import { probeOne } from "./slug-probe.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../src/util/user-agent.js";
 
 const RawEntrySchema = z.object({
   name: z.string(),

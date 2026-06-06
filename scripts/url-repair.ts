@@ -1,9 +1,9 @@
-import { logger } from "../logger.js";
-import { selectAllCompanies, upsertCompany } from "../db/index.js";
-import { upsertRegistry } from "./json-writer.js";
-import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "./sources/brave.js";
-import type { Company, RegistryEntry } from "../types.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { logger } from "../src/logger.js";
+import { selectAllCompanies, upsertCompany } from "../src/db/index.js";
+import { upsertRegistry } from "../src/discovery/json-writer.js";
+import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
+import type { Company, RegistryEntry } from "../src/types.js";
+import { BROWSER_UA } from "../src/util/user-agent.js";
 
 // Manual URL-repair (npm run repair-urls). For every company whose last
 // fetch failed with a "URL looks wrong" error, tries same-origin path

@@ -1,11 +1,11 @@
 /** Test the llm-scrape pipeline against one company by slug. */
 import "dotenv/config";
 import * as cheerio from "cheerio";
-import { syncRegistryFromJson } from "../registry/companies.js";
-import { selectActiveCompanies } from "../db/index.js";
-import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
-import { fetchHtml, extractLinkShortlist } from "../scraper/cheerio.js";
-import { runShortlist } from "../llm/shortlist.js";
+import { syncRegistryFromJson } from "../src/registry/companies.js";
+import { selectActiveCompanies } from "../src/db/index.js";
+import { llmScrapeAdapter } from "../src/scraper/llm-scrape.js";
+import { fetchHtml, extractLinkShortlist } from "../src/scraper/cheerio.js";
+import { runShortlist } from "../src/llm/shortlist.js";
 
 function dumpAllAnchors(html: string, baseUrl: string): void {
   const $ = cheerio.load(html);
