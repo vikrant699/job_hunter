@@ -1,15 +1,4 @@
-/**
- * Verify every entry in the registry is reachable.
- *
- *  - For `parsing_strategy: ats-api` entries: probe the declared provider+slug.
- *    On failure, attempt to re-classify by probing other ATSes with slug variants.
- *  - For other entries: GET the careers_url; flag non-2xx (excluding bot-blocked 4xx).
- *
- * Usage:
- *   npm run verify
- *   npm run verify -- --only-broken     # only print failures
- *   npm run verify -- --suggest         # also try to find a working ATS for missing entries
- */
+/** Probe every registry entry (ATS slug or careers URL) and report failures. */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config } from "../config.js";
