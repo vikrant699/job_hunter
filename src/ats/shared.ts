@@ -1,4 +1,4 @@
-export const REMOTE_RE = /remote|work from home|wfh|anywhere|virtual/i;
+export const REMOTE_RE = /\b(remote|work from home|wfh|anywhere|virtual)\b/i;
 
 export function unixToIso(seconds: number | null | undefined): string | null {
   if (!seconds) return null;

@@ -4,6 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Lever public postings: GET api.lever.co/v0/postings/<slug>?mode=json
 // Response is a flat array, not wrapped in a `postings` key.
@@ -37,8 +38,6 @@ const LeverPostingSchema = z.object({
 });
 type LeverPosting = z.infer<typeof LeverPostingSchema>;
 
-const REMOTE_HINT_RE = /\b(remote|anywhere|work from home|wfh)\b/i;
-
 export const leverAdapter: AtsAdapter = {
   provider: "lever",
 
@@ -70,7 +69,7 @@ function normalize(company: AdapterCompany, j: LeverPosting): NormalizedPosting 
   const workplace = j.workplaceType ?? "";
   const isRemote =
     workplace.toLowerCase() === "remote" ||
-    (location ? REMOTE_HINT_RE.test(location) : false);
+    (location ? REMOTE_RE.test(location) : false);
 
   // Assemble the WHOLE posting: intro + every list section + closing. Lever
   // keeps the responsibilities/requirements (and thus the real skill signal)

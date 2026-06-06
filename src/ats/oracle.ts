@@ -5,6 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Oracle HCM Cloud Recruiting (CE) public REST API:
 //   list:   <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitions
@@ -39,7 +40,6 @@ const DetailSchema = z.object({ items: z.array(DetailItemSchema) });
 const PAGE = 200;
 const DELAY_MS = 150;
 const PAGE_WARN_INTERVAL = 100; // warn (don't stop) on unusually deep pagination, like smartrecruiters/workday
-const REMOTE_RE = /\b(remote|virtual|work from home|wfh|anywhere)\b/i;
 
 function parts(company: AdapterCompany): { base: string; site: string } {
   if (!company.tenantUrl) throw new Error(`oracle requires tenant_url for ${company.slug}`);

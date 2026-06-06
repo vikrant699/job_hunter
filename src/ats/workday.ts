@@ -4,6 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
 // Two-phase: listPostings (metadata only) then fetchJd (full body) so we only
@@ -58,8 +59,6 @@ const WorkdayJobDetailSchema = z.object({
     remoteType: z.string().nullable().optional(),
   }),
 });
-
-const REMOTE_HINT_RE = /\b(remote|virtual|work from home|wfh|anywhere)\b/i;
 
 const INTER_PAGE_DELAY_MS = 150;
 const PAGE_LIMIT = 20;
@@ -255,7 +254,7 @@ function normalizeListing(
     j.externalPath;
 
   const location = j.locationsText ?? null;
-  const isRemote = location ? REMOTE_HINT_RE.test(location) : false;
+  const isRemote = location ? REMOTE_RE.test(location) : false;
 
   return {
     provider: "workday",

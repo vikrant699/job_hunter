@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config } from "../config.js";
 import { probeOne } from "./slug-probe.js";
+import { BROWSER_UA } from "../util/user-agent.js";
 
 interface RawEntry {
   name: string;
@@ -69,9 +70,6 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
     return false;
   }
 }
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
   try {

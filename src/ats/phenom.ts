@@ -4,8 +4,8 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
-const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 const PAGE = 50;
 const DELAY_MS = 150;
 
