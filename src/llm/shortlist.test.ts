@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { selectShortlistItems } from "./shortlist.js";
 import type { CandidateLink } from "../scraper/cheerio.js";
 
-const cands = [
+const cands: CandidateLink[] = [
   { url: "https://x.com/jobs/1", text: "Data Analyst" },
   { url: "https://x.com/jobs/2", text: "Business Analyst" },
   { url: "https://x.com/jobs/3", text: "Product Analyst" },
-] as unknown as CandidateLink[];
+];
 
 test("one malformed item does not discard the whole batch", () => {
   const raw = [

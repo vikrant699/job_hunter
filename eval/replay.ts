@@ -71,8 +71,7 @@ if (sampleN) {
 
 // Baseline: the production scores already in the DB. No model calls.
 const baseline: ScoredLabel[] = rows
-  .filter((r) => r.storedScore != null)
-  .map((r) => ({ score: r.storedScore as number, relevant: r.relevant }));
+  .flatMap((r) => r.storedScore != null ? [{ score: r.storedScore, relevant: r.relevant }] : []);
 report("BASELINE (stored llm_confidence)", baseline);
 
 if (promptName !== "baseline") {

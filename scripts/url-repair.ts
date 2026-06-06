@@ -172,16 +172,17 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
 
   logger.info({ count: targets.length }, "url-repair: starting");
 
-  const results: Array<{ company: Company; newUrl: string | null }> = new Array(targets.length);
+  const resultMap = new Map<number, { company: Company; newUrl: string | null }>();
   let cursor = 0;
   async function worker(): Promise<void> {
     while (cursor < targets.length) {
       const idx = cursor++;
       const r = await tryRepairOne(targets[idx]!);
-      results[idx] = r;
+      resultMap.set(idx, r);
     }
   }
   await Promise.all(Array.from({ length: REPAIR_CONCURRENCY }, () => worker()));
+  const results = Array.from({ length: targets.length }, (_, i) => resultMap.get(i)!);
 
   const fixes: UrlRepairResult["fixes"] = [];
   const stillBroken: UrlRepairResult["stillBroken"] = [];

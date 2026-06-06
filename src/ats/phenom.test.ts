@@ -1,7 +1,7 @@
 // src/ats/phenom.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPhenomDdo, phenomJobsFrom, normalizePhenom } from "./phenom.js";
+import { extractPhenomDdo, phenomJobsFrom, normalizePhenom, PhenomJobSchema } from "./phenom.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -28,7 +28,7 @@ test("extractPhenomDdo returns null when absent", () => {
 
 test("normalizePhenom maps fields", () => {
   const { jobs } = phenomJobsFrom(extractPhenomDdo(html));
-  const p = normalizePhenom(company, jobs[0] as any);
+  const p = normalizePhenom(company, PhenomJobSchema.parse(jobs[0]));
   assert.equal(p.provider, "phenom");
   assert.equal(p.externalId, "31146766");
   assert.equal(p.jobTitle, "Business Development Manager");
