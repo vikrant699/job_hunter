@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import { GATE_PROMPT } from "../src/llm/prompts/gate.js";
 
 test("keeps every placeholder render() needs", () => {
@@ -27,7 +28,7 @@ test("worked-example JSON keys are all valid schema fields", () => {
   const examples = GATE_PROMPT.match(/^\{"analysis".*\}$/gm) ?? [];
   assert.ok(examples.length >= 2, "expected at least two worked examples");
   for (const ex of examples) {
-    for (const key of Object.keys(JSON.parse(ex))) {
+    for (const key of Object.keys(z.record(z.unknown()).parse(JSON.parse(ex)))) {
       assert.ok(SCHEMA_KEYS.has(key), `example uses non-schema key: ${key}`);
     }
   }

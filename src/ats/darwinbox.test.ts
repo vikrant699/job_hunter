@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeDarwinbox, darwinboxTenantBase } from "./darwinbox.js";
+import type { DarwinboxJob } from "./darwinbox.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -10,10 +11,10 @@ const company: AdapterCompany = {
   tenantUrl: "https://emeritus.darwinbox.in/ms/candidate/careers", apiMeta: null,
 };
 
-const job = {
+const job: DarwinboxJob = {
   id: "a66faa21bc4531", title: "Team Leader - Sales", designation_display_name: "Team Leader",
   officelocation_show_arr: "Mumbai, Maharashtra, India", job_posting_on: 1780511400,
-  created_on: "2024-09-30T13:05:31.000Z", department: "Sales",
+  created_on: "2024-09-30T13:05:31.000Z",
 };
 
 test("darwinboxTenantBase derives the origin", () => {
@@ -21,7 +22,7 @@ test("darwinboxTenantBase derives the origin", () => {
 });
 
 test("normalizeDarwinbox maps fields, prefers title, converts epoch", () => {
-  const p = normalizeDarwinbox(company, job as any);
+  const p = normalizeDarwinbox(company, job);
   assert.equal(p.provider, "darwinbox");
   assert.equal(p.externalId, "a66faa21bc4531");
   assert.equal(p.jobTitle, "Team Leader - Sales");
@@ -30,6 +31,6 @@ test("normalizeDarwinbox maps fields, prefers title, converts epoch", () => {
 });
 
 test("normalizeDarwinbox falls back to designation when title empty", () => {
-  const p = normalizeDarwinbox(company, { ...job, title: "" } as any);
+  const p = normalizeDarwinbox(company, { ...job, title: "" });
   assert.equal(p.jobTitle, "Team Leader");
 });
