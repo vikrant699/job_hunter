@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
+import { atsFetchJson } from "./http.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
 // Two-phase: listPostings (metadata only) then fetchJd (full body) so we only
@@ -124,54 +124,12 @@ function findIndiaFacet(data: unknown): DiscoveredFacet | null {
 }
 
 async function discoverIndiaFacet(parts: WorkdayUrlParts): Promise<DiscoveredFacet | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  let data: unknown;
-  try {
-    data = await postJson(
-      `${parts.cxsBase}/jobs`,
-      { appliedFacets: {}, limit: 1, offset: 0, searchText: "" },
-      controller.signal
-    );
-  } finally {
-    clearTimeout(timer);
-  }
-  return findIndiaFacet(data);
-}
-
-async function postJson(url: string, body: unknown, signal: AbortSignal): Promise<unknown> {
-  const res = await fetch(url, {
+  const data = await atsFetchJson(`${parts.cxsBase}/jobs`, {
     method: "POST",
-    headers: {
-      "User-Agent": config.fetch.userAgent,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(body),
-    signal,
+    body: { appliedFacets: {}, limit: 1, offset: 0, searchText: "" },
+    provider: "workday",
   });
-  if (res.status === 404) throw new Error(`workday 404: ${url}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`workday HTTP ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res.json();
-}
-
-async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": config.fetch.userAgent,
-      Accept: "application/json",
-    },
-    signal,
-  });
-  if (res.status === 404) throw new Error(`workday 404: ${url}`);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`workday HTTP ${res.status}: ${text.slice(0, 200)}`);
-  }
-  return res.json();
+  return findIndiaFacet(data);
 }
 
 export const workdayAdapter: AtsAdapter = {
@@ -211,18 +169,11 @@ export const workdayAdapter: AtsAdapter = {
     let totalReported: number | null = null;
 
     for (let page = 0; ; page++) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-      let data: unknown;
-      try {
-        data = await postJson(
-          listUrl,
-          { appliedFacets, limit: PAGE_LIMIT, offset, searchText: "" },
-          controller.signal
-        );
-      } finally {
-        clearTimeout(timer);
-      }
+      const data = await atsFetchJson(listUrl, {
+        method: "POST",
+        body: { appliedFacets, limit: PAGE_LIMIT, offset, searchText: "" },
+        provider: "workday",
+      });
 
       const parsed = WorkdayListResponseSchema.safeParse(data);
       if (!parsed.success) {
@@ -276,14 +227,7 @@ export const workdayAdapter: AtsAdapter = {
     }
     const detailUrl = `${parts.cxsBase}${externalPath}`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-    let raw: unknown;
-    try {
-      raw = await getJson(detailUrl, controller.signal);
-    } finally {
-      clearTimeout(timer);
-    }
+    const raw = await atsFetchJson(detailUrl, { provider: "workday" });
 
     const parsed = WorkdayJobDetailSchema.safeParse(raw);
     if (!parsed.success) {

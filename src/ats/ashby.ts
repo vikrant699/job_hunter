@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
+import { atsFetchJson } from "./http.js";
 
 // Ashby public board: GET api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=false
 const AshbyJobSchema = z.object({
@@ -36,26 +36,7 @@ export const ashbyAdapter: AtsAdapter = {
     const slug = company.slug;
     const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}?includeCompensation=false`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-
-    let raw: unknown;
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (res.status === 404) {
-        throw new Error(`ashby board not found: ${slug}`);
-      }
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`ashby HTTP ${res.status}: ${body.slice(0, 200)}`);
-      }
-      raw = await res.json();
-    } finally {
-      clearTimeout(timer);
-    }
+    const raw = await atsFetchJson(url, { provider: "ashby" });
 
     const parsed = AshbyResponseSchema.safeParse(raw);
     if (!parsed.success) {
