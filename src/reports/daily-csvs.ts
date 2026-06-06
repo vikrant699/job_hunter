@@ -4,7 +4,7 @@ import { selectAllCompanies, listNotifiedPostingsSince } from "../db/index.js";
 import {
   buildSearchedCsv, buildDiscoveryCsv,
   uploadDailyCsvs, type AttachmentInput, type MatchRow, type CompanyRow,
-} from "../discord/csv.js";
+} from "../discord/attachments.js";
 import type { DiscoveryResult } from "../discovery/run.js";
 
 /**
@@ -105,7 +105,10 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
     }
   }
 
-  const embed: Record<string, unknown> = {
+  interface EmbedField { name: string; value: string; inline: boolean }
+  interface DiscordEmbed { title: string; color: number; timestamp: string; fields: EmbedField[] }
+
+  const embed: DiscordEmbed = {
     title: `${config.discord.titlePrefix} daily report`,
     color: stats.errors.length > 0 ? 0xe67e22 : 0x2ecc71,
     timestamp: tickEndedAt,
@@ -119,19 +122,19 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
     ],
   };
   if (stats.postingsTitleDenied > 0) {
-    (embed.fields as Array<{ name: string; value: string; inline: boolean }>).push(
+    embed.fields.push(
       { name: "Title-denied", value: String(stats.postingsTitleDenied), inline: true }
     );
   }
   if (discovery) {
-    (embed.fields as Array<{ name: string; value: string; inline: boolean }>).push(
+    embed.fields.push(
       { name: "Discovery added",  value: String(discovery.additions.length), inline: true },
       { name: "Discovery skipped", value: String(discovery.skipped.length), inline: true },
       { name: "Brave quota used", value: `${discovery.braveQuotaUsed}/${discovery.braveQuotaCap}`, inline: true },
     );
   }
   if (stats.errors.length > 0) {
-    (embed.fields as Array<{ name: string; value: string; inline: boolean }>).push({
+    embed.fields.push({
       name: `Errors (${stats.errors.length})`,
       value: stats.errors.slice(0, 5).join("\n").slice(0, 900),
       inline: false,

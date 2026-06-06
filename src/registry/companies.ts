@@ -5,28 +5,11 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { upsertCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
-import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
-import { ProviderSchema, ParsingStrategySchema, CompanyStatusSchema } from "../types.js";
+import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../types.js";
+import { RegistryEntrySchema } from "../types.js";
 import { kebabCase, resolveSlug } from "../util/slug.js";
 
-const RegistryEntrySchema = z.object({
-  name: z.string().min(1),
-  careers_url: z.string().url(),
-  source: ProviderSchema,
-  source_slug: z.string().min(1).nullable().optional(),
-  parsing_strategy: ParsingStrategySchema,
-  status: CompanyStatusSchema.optional(),
-  reason: z.string().optional(),
-  discovered_via: z.string().optional(),
-  discovered_at: z.string().optional(),
-  evidence: z.string().optional(),
-  tenant_url: z.string().url().optional(),
-  api_meta: z.record(z.string()).optional(),
-});
-
 const RegistryFileSchema = z.array(RegistryEntrySchema);
-
-export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 
 function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];

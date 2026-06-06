@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import type { RegistryEntry, Provider, ParsingStrategy } from "../types.js";
+import { ProviderSchema } from "../types.js";
 import { discoverFromUrl, validateCandidate, type AtsCandidate } from "./ats.js";
 import { runBraveSource, type BraveCandidate } from "./sources/brave.js";
 import { runRssSources, type RssCandidate } from "./sources/rss.js";
@@ -102,7 +103,7 @@ async function resolveRegistryEntry(
       const entry: DiscoveryAddition = {
         name: u.name,
         careers_url: u.careersUrl,
-        source: best.provider as Provider,
+        source: ProviderSchema.parse(best.provider),
         source_slug: best.slug.includes("/") ? best.slug.split("/")[0] : best.slug,
         parsing_strategy: "ats-api",
         status: "candidate",

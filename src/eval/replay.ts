@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { config } from "../config.js";
-import { buildCsv } from "../discord/csv.js";
+import { buildCsv } from "../discord/attachments.js";
 import { runGate } from "../llm/gate.js";
-import { GATE_V2 } from "./prompts/gate-v2.js";
+import { GATE_PROMPT as GATE_V2 } from "../llm/prompts/gate.js";
 import { loadLabels } from "./labels.js";
 import { loadLabeledPostings } from "./dataset.js";
 import {
