@@ -1,8 +1,8 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { isDeniedCompany } from "../filter/denylist.js";
-import type { RegistryEntry, Provider, ParsingStrategy } from "../types.js";
-import { ProviderSchema } from "../types.js";
+import type { RegistryEntry, Provider, ParsingStrategy } from "../schemas.js";
+import { ProviderSchema } from "../schemas.js";
 import { discoverFromUrl, validateCandidate, type AtsCandidate } from "./ats.js";
 import { runBraveSource, type BraveCandidate } from "./sources/brave.js";
 import { runRssSources, type RssCandidate } from "./sources/rss.js";

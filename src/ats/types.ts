@@ -1,4 +1,5 @@
-import type { AdapterCompany, NormalizedPosting, Provider } from "../types.js";
+import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import type { Provider } from "../schemas.js";
 
 export interface AtsAdapter {
   provider: Provider;
