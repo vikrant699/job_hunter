@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate } from "./client.js";
@@ -10,15 +11,17 @@ export const ExtractResultSchema = z.object({
 });
 export type ExtractResult = z.infer<typeof ExtractResultSchema>;
 
-function normalize(parsed: unknown): unknown {
-  if (!parsed || typeof parsed !== "object") return parsed;
-  const p = parsed as Record<string, unknown>;
+function normalize(parsed: JsonValue): JsonValue {
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return parsed;
+  const p: { [k: string]: JsonValue } = parsed;
   for (const key of ["yoeMin", "yoeMax"]) {
-    if (typeof p[key] === "string") {
-      const n = Number(p[key]);
+    const val = p[key];
+    if (typeof val === "string") {
+      const n = Number(val);
       p[key] = Number.isFinite(n) ? n : null;
     }
-    if (p[key] === "" || p[key] === "null" || p[key] === "none") {
+    const val2 = p[key];
+    if (val2 === "" || val2 === "null" || val2 === "none") {
       p[key] = null;
     }
   }
@@ -29,9 +32,9 @@ export async function runExtract(jdText: string): Promise<ExtractResult> {
   const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
   const raw = await generate(prompt, { format: "json" });
 
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JsonValueSchema.parse(JSON.parse(raw));
   } catch (err) {
     logger.warn({ raw: raw.slice(0, 500) }, "extract JSON.parse failed");
     throw new Error(`extract output not JSON: ${err}`);

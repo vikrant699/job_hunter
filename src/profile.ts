@@ -2,6 +2,8 @@ import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
+import { z } from "zod";
+import { UserProfileSchema } from "./types.js";
 import type { UserProfile } from "./types.js";
 import { ensureResumeText } from "./tools/extract-resume.js";
 
@@ -14,7 +16,8 @@ const examplePath = resolve(here, "../config/profile.example.ts");
 const target = existsSync(userPath) ? userPath : examplePath;
 const usingExample = target === examplePath;
 
-const mod = (await import(pathToFileURL(target).href)) as { profile: UserProfile };
+const ProfileModuleSchema = z.object({ profile: UserProfileSchema });
+const mod = ProfileModuleSchema.parse(await import(pathToFileURL(target).href));
 const resumeText = await ensureResumeText();
 export const profile: UserProfile = { ...mod.profile, resumeText };
 

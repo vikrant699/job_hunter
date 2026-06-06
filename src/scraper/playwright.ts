@@ -141,7 +141,8 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       // Pass the eval as a string so it runs in the browser context.
       let bodyText = "";
       try {
-        bodyText = (await page.evaluate("document.body && document.body.innerText || ''")) as string;
+        const evalResult = await page.evaluate("document.body && document.body.innerText || ''");
+        bodyText = typeof evalResult === "string" ? evalResult : "";
       } catch { /* page closed mid-eval */ }
 
       logger.debug(
