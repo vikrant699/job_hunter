@@ -12,9 +12,6 @@ import type { AdapterCompany } from "../types.js";
  * reporting but need an adapter before they can be promoted.
  */
 
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
-
 export type AtsProvider =
   // adapter exists
   | "greenhouse" | "lever" | "ashby" | "workday"
@@ -467,8 +464,6 @@ export interface DiscoveryResult {
  */
 export async function discoverFromUrl(careersUrl: string): Promise<DiscoveryResult> {
   // fetchHtml uses our standard UA + timeout + redirect follow.
-  // We override UA here implicitly via the same call (it already uses BROWSER_UA).
-  void BROWSER_UA;
   const { finalUrl, html } = await fetchHtml(careersUrl);
   return { finalUrl, candidates: extractAtsCandidates(html, finalUrl) };
 }
