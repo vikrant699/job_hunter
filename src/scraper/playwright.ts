@@ -1,6 +1,8 @@
 import { chromium, type Browser } from "playwright";
 import { logger } from "../logger.js";
 import type { FetchedHtml } from "./cheerio.js";
+import { BROWSER_UA } from "../util/user-agent.js";
+import { makeSemaphore } from "../util/semaphore.js";
 
 export interface RenderedPage extends FetchedHtml {
   /** Visible body text — captures content even when jobs render outside <a>. */
@@ -10,9 +12,6 @@ export interface RenderedPage extends FetchedHtml {
 // Headless-Chromium fetcher for SPA careers pages. One shared Browser
 // instance; per-call Context so cookies don't leak; heavy assets aborted
 // at the route level; concurrent pages capped to control RAM.
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 const NAV_TIMEOUT_MS = 30_000;
 // Settle after primary load: short under networkidle (JS hydrated during goto),
@@ -60,25 +59,7 @@ export async function closePlaywrightBrowser(): Promise<void> {
 
 // ---- concurrency gate ----
 
-let inFlight = 0;
-const waiters: Array<() => void> = [];
-
-export async function acquirePageSlot(): Promise<() => void> {
-  if (inFlight < MAX_CONCURRENT_PAGES) {
-    inFlight++;
-  } else {
-    await new Promise<void>((resolve) => waiters.push(resolve));
-    inFlight++;
-  }
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    inFlight--;
-    const next = waiters.shift();
-    if (next) next();
-  };
-}
+export const acquirePageSlot = makeSemaphore(() => MAX_CONCURRENT_PAGES);
 
 // ---- resource blocking ----
 
@@ -160,7 +141,8 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       // Pass the eval as a string so it runs in the browser context.
       let bodyText = "";
       try {
-        bodyText = (await page.evaluate("document.body && document.body.innerText || ''")) as string;
+        const evalResult = await page.evaluate("document.body && document.body.innerText || ''");
+        bodyText = typeof evalResult === "string" ? evalResult : "";
       } catch { /* page closed mid-eval */ }
 
       logger.debug(

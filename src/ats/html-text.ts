@@ -38,8 +38,8 @@ export function htmlToText(html: string | null | undefined): string {
   }
 
   // Decode numeric entities.
-  s = s.replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
-  s = s.replace(/&#x([\da-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  s = s.replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(Number(d)));
+  s = s.replace(/&#x([\da-f]+);/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
 
   // Collapse whitespace.
   s = s.replace(/[ \t]+/g, " ");

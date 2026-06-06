@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
+import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Greenhouse public board API: GET boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true
 const GhJobSchema = z.object({
@@ -23,8 +24,6 @@ const GhJobsResponseSchema = z.object({
   jobs: z.array(GhJobSchema),
 });
 
-const REMOTE_HINT_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
-
 export const greenhouseAdapter: AtsAdapter = {
   provider: "greenhouse",
 
@@ -32,26 +31,7 @@ export const greenhouseAdapter: AtsAdapter = {
     const slug = company.slug;
     const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-
-    let raw: unknown;
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (res.status === 404) {
-        throw new Error(`greenhouse board not found: ${slug}`);
-      }
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`greenhouse HTTP ${res.status}: ${body.slice(0, 200)}`);
-      }
-      raw = await res.json();
-    } finally {
-      clearTimeout(timer);
-    }
+    const raw = await atsFetchJson(url, { provider: "greenhouse" });
 
     const parsed = GhJobsResponseSchema.safeParse(raw);
     if (!parsed.success) {
@@ -66,7 +46,7 @@ export const greenhouseAdapter: AtsAdapter = {
 function normalize(company: AdapterCompany, j: GhJob): NormalizedPosting {
   const locationName = j.location?.name ?? null;
   const jdText = htmlToText(j.content ?? "");
-  const isRemote = locationName ? REMOTE_HINT_RE.test(locationName) : false;
+  const isRemote = locationName ? REMOTE_RE.test(locationName) : false;
 
   return {
     provider: "greenhouse",

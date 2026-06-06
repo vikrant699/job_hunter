@@ -1,11 +1,9 @@
 import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import { config } from "../config.js";
-import type { RegistryEntry } from "../types.js";
-
-function kebabCase(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
+import type { RegistryEntry } from "../schemas.js";
+import { RegistryEntrySchema } from "../schemas.js";
+import { kebabCase } from "../util/slug.js";
 
 function entryKey(e: { source?: string; source_slug?: string | null; name: string }): string {
   const slug = e.source_slug && e.source_slug.length > 0 ? e.source_slug : kebabCase(e.name);
@@ -19,8 +17,8 @@ function registryPath(): string {
 function readJsonArray(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf-8"));
-    return Array.isArray(parsed) ? (parsed as RegistryEntry[]) : [];
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
+    return Array.isArray(parsed) ? RegistryEntrySchema.array().parse(parsed) : [];
   } catch {
     return [];
   }

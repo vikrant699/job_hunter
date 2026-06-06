@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { config } from "../../config.js";
 import { logger } from "../../logger.js";
 import { getBraveQuotaUsed, incrementBraveQuota } from "../../db/index.js";
@@ -24,15 +25,16 @@ export interface BraveResult {
   haltedReason: string | null;
 }
 
-interface BraveSearchResponse {
-  web?: {
-    results?: Array<{
-      url: string;
-      title?: string;
-      description?: string;
-    }>;
-  };
-}
+const BraveSearchResponseSchema = z.object({
+  web: z.object({
+    results: z.array(z.object({
+      url: z.string(),
+      title: z.string().optional(),
+      description: z.string().optional(),
+    })).optional(),
+  }).optional(),
+});
+type BraveSearchResponse = z.infer<typeof BraveSearchResponseSchema>;
 
 // Deterministic by date — a re-run on the same day picks the same queries
 // (no re-spend); day-over-day we rotate through the pool.
@@ -183,7 +185,7 @@ async function runOneQuery(query: string, apiKey: string, count = 15, country = 
       const body = await res.text();
       throw new Error(`Brave HTTP ${res.status}: ${body.slice(0, 200)}`);
     }
-    return (await res.json()) as BraveSearchResponse;
+    return BraveSearchResponseSchema.parse(await res.json());
   } finally {
     clearTimeout(timer);
   }

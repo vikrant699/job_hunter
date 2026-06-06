@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { selectShortlistItems, selectTextJobs } from "./shortlist.js";
+import { selectShortlistItems } from "./shortlist.js";
 import type { CandidateLink } from "../scraper/cheerio.js";
 
-const cands = [
+const cands: CandidateLink[] = [
   { url: "https://x.com/jobs/1", text: "Data Analyst" },
   { url: "https://x.com/jobs/2", text: "Business Analyst" },
   { url: "https://x.com/jobs/3", text: "Product Analyst" },
-] as unknown as CandidateLink[];
+];
 
 test("one malformed item does not discard the whole batch", () => {
   const raw = [
@@ -37,22 +37,4 @@ test("duplicate URLs are collapsed", () => {
     { url: "https://x.com/jobs/1", title: "Data Analyst (dup)" },
   ];
   assert.equal(selectShortlistItems(raw, cands).length, 1);
-});
-
-test("selectTextJobs keeps valid jobs and drops empty/nav titles without failing the batch", () => {
-  const raw = [
-    { title: "Senior Data Analyst", location: "Bangalore" },
-    { title: "", location: "Mumbai" }, // empty → dropped
-    { title: "Apply now" }, // nav phrase → dropped
-    { location: "Pune" }, // missing title → dropped, batch survives
-    { title: "Business Analyst", location: "Full-time" }, // bogus location stripped
-  ];
-  const out = selectTextJobs(raw);
-  assert.deepEqual(
-    out,
-    [
-      { title: "Senior Data Analyst", location: "Bangalore" },
-      { title: "Business Analyst", location: null },
-    ],
-  );
 });

@@ -1,5 +1,6 @@
 // src/eval/dataset.ts
 import { DatabaseSync } from "node:sqlite";
+import { z } from "zod";
 
 export interface LabeledPosting {
   id: string;              // provider:external_id
@@ -11,14 +12,15 @@ export interface LabeledPosting {
   relevant: boolean;
 }
 
-interface Row {
-  id: string;
-  provider: string;
-  company: string | null;
-  title: string | null;
-  jd_text: string | null;
-  stored_score: number | null;
-}
+const RowSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  company: z.string().nullable(),
+  title: z.string().nullable(),
+  jd_text: z.string().nullable(),
+  stored_score: z.number().nullable(),
+});
+type Row = z.infer<typeof RowSchema>;
 
 /** Pure-ish core: takes an open DB handle so it can be unit-tested with :memory:. */
 export function buildLabeledPostings(
@@ -36,7 +38,7 @@ export function buildLabeledPostings(
     LEFT JOIN companies c
       ON c.provider = p.provider AND c.slug = p.company_slug
     WHERE p.notified_at IS NOT NULL
-  `).all() as unknown as Row[];
+  `).all().map((r) => RowSchema.parse(r));
 
   const out: LabeledPosting[] = [];
   for (const r of rows) {

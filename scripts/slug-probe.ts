@@ -9,7 +9,7 @@
  * ATS and reports the first hit. Used during seed compilation to classify names
  * into ats-api vs llm-scrape strategies.
  */
-import { config } from "../config.js";
+import { config } from "../src/config.js";
 
 const PROBES: Array<{ provider: string; url: (slug: string) => string }> = [
   {

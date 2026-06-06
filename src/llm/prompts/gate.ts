@@ -8,7 +8,7 @@
  * (analysis and the four sub-scores are optional; matchScore, the dealBreaker fields,
  * and reason are required).
  */
-export const RELEVANCE_PROMPT = `You are screening job postings for ONE specific candidate, described by the resume below. Score so the candidate sees real matches first and isn't buried in noise — but missing a genuine match is worse than showing a borderline one.
+export const GATE_PROMPT = `You are screening job postings for ONE specific candidate, described by the resume below. Score so the candidate sees real matches first and isn't buried in noise — but missing a genuine match is worse than showing a borderline one.
 
 # Candidate's resume
 {{resume}}

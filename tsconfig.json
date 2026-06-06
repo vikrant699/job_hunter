@@ -11,5 +11,5 @@
     "resolveJsonModule": true,
     "lib": ["ES2022"]
   },
-  "include": ["src/**/*", "config/**/*.ts"]
+  "include": ["src/**/*", "config/**/*.ts", "eval/**/*", "scripts/**/*"]
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildSearchedCsv } from "./csv.js";
+import { buildSearchedCsv } from "./attachments.js";
 
 test("buildSearchedCsv emits match rows then company rows under one Kind schema", () => {
   const csv = buildSearchedCsv(

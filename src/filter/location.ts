@@ -129,11 +129,3 @@ export function checkLocationFromText(
   }
   return { accept: true, isRemoteInRegion: false, reason: "unknown-defer" };
 }
-
-/** @deprecated retained for compatibility; prefer checkLocationFromText(title, jdText). */
-export function checkLocationFromJd(
-  jdText: string,
-  cfg: LocationConfig = profile.location,
-): LocationCheck {
-  return checkLocationFromText("", jdText, cfg);
-}

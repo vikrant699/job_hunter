@@ -1,36 +1,21 @@
+import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { makeSemaphore } from "../util/semaphore.js";
 
 interface GenerateOpts {
   format?: "json";
   temperature?: number;
 }
 
+const OllamaResponseSchema = z.object({ response: z.string().optional() });
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Ollama serializes on the GPU, so the AbortController is started AFTER the
 // semaphore slot is held — otherwise deep queues caused tail calls to time out
 // before generation began.
-const waiters: Array<() => void> = [];
-let inFlight = 0;
-
-async function acquire(): Promise<() => void> {
-  const limit = config.llm.maxConcurrent;
-  if (inFlight < limit) {
-    inFlight++;
-  } else {
-    await new Promise<void>((resolve) => waiters.push(resolve));
-    inFlight++;
-  }
-  let released = false;
-  return () => {
-    if (released) return;
-    released = true;
-    inFlight--;
-    const next = waiters.shift();
-    if (next) next();
-  };
-}
+const acquire = makeSemaphore(() => config.llm.maxConcurrent);
 
 async function once(prompt: string, opts: GenerateOpts): Promise<string> {
   const release = await acquire();
@@ -57,7 +42,7 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
       const body = await res.text();
       throw new Error(`Ollama HTTP ${res.status}: ${body.slice(0, 200)}`);
     }
-    const data = (await res.json()) as { response?: string };
+    const data = OllamaResponseSchema.parse(await res.json());
     if (typeof data.response !== "string") {
       throw new Error("Ollama returned no 'response' field");
     }

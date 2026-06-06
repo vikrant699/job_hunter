@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
+import { atsFetchJson } from "./http.js";
 
 // SmartRecruiters public Posting API.
 //   list:   GET api.smartrecruiters.com/v1/companies/<slug>/postings (paginated)
@@ -65,22 +65,6 @@ const DetailResponseSchema = z.object({
     .optional(),
 });
 
-async function getJson(url: string, signal: AbortSignal): Promise<unknown> {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": config.fetch.userAgent,
-      Accept: "application/json",
-    },
-    signal,
-  });
-  if (res.status === 404) throw new Error(`smartrecruiters 404: ${url}`);
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`smartrecruiters HTTP ${res.status}: ${body.slice(0, 200)}`);
-  }
-  return res.json();
-}
-
 export const smartRecruitersAdapter: AtsAdapter = {
   provider: "smartrecruiters",
 
@@ -92,14 +76,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
     for (let page = 0; ; page++) {
       const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=${PAGE_LIMIT}&offset=${offset}`;
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-      let raw: unknown;
-      try {
-        raw = await getJson(url, controller.signal);
-      } finally {
-        clearTimeout(timer);
-      }
+      const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
 
       const parsed = ListResponseSchema.safeParse(raw);
       if (!parsed.success) {
@@ -133,14 +110,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company.slug)}/postings/${encodeURIComponent(posting.externalId)}`;
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-    let raw: unknown;
-    try {
-      raw = await getJson(url, controller.signal);
-    } finally {
-      clearTimeout(timer);
-    }
+    const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
 
     const parsed = DetailResponseSchema.safeParse(raw);
     if (!parsed.success) {

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { logger } from "./logger.js";
 import { syncRegistryFromJson } from "./registry/companies.js";
-import { runProductionTick } from "./pipeline.js";
+import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery, type DiscoveryResult } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
 
@@ -10,10 +10,6 @@ function printUsage(): void {
 
   once       Run a single production tick: fetch postings → filter → notify Discord
   discover   Run discovery only: pull new candidate companies from configured sources
-  probe      Probe a company name against known ATSes to find its slug
-  verify     Validate every entry in your registry is reachable
-  scrape     Test the llm-scrape adapter against a single careers URL
-  repair-urls Try to repair broken careers URLs in the registry
 `);
 }
 

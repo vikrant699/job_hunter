@@ -2,7 +2,9 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { fetchHtml, extractLinkShortlist, extractMainText, extractTitleHint, findOpeningsRecursionLink, type FetchedHtml } from "./cheerio.js";
-import { runShortlist, runShortlistFromText, type ShortlistItem } from "../llm/shortlist.js";
+import type { RenderedPage } from "./playwright.js";
+import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
+import { runShortlistFromText } from "../llm/extract-text-jobs.js";
 import { getLinkCache, setLinkCache, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
 
@@ -22,7 +24,7 @@ function hashKey(s: string): string {
 // an SPA cheerio can't read — bail rather than waste an LLM call.
 const SPA_SENTINEL_THRESHOLD = 3;
 
-export type Fetcher = (url: string) => Promise<FetchedHtml>;
+export type Fetcher = (url: string) => Promise<FetchedHtml | RenderedPage>;
 
 export interface LlmScrapeFactoryOptions {
   /** Log tag — distinguishes "llm-scrape" from "playwright-llm-scrape". */
@@ -112,7 +114,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
       if (!spaSentinel && candidates.length === 0) {
         // Browser-rendered but no anchors — Eightfold/iCIMS often render
         // jobs as non-anchor DOM. Try a text-fallback against bodyText.
-        const bodyText = (page as { bodyText?: string }).bodyText;
+        const bodyText = "bodyText" in page ? page.bodyText : undefined;
         if (textFallback && bodyText && bodyText.length > 200) {
           try {
             const textJobs = await runShortlistFromText({ companyName: company.name, bodyText });
