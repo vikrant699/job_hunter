@@ -3,14 +3,12 @@ import { selectAllCompanies, upsertCompany } from "../db/index.js";
 import { upsertRegistry } from "./json-writer.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "./sources/brave.js";
 import type { Company, RegistryEntry } from "../types.js";
+import { BROWSER_UA } from "../util/user-agent.js";
 
 // Manual URL-repair (npm run repair-urls). For every company whose last
 // fetch failed with a "URL looks wrong" error, tries same-origin path
 // variants AND (with quota left) a Brave Search lookup. Conservative —
 // never removes entries; ones still broken stay in the registry.
-
-const BROWSER_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 const PER_CHECK_TIMEOUT_MS = 8_000;
 const REPAIR_CONCURRENCY = 4;

@@ -6,6 +6,7 @@ import { logger } from "../logger.js";
 import { upsertCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import type { Provider, ParsingStrategy, CompanyStatus } from "../types.js";
+import { kebabCase, resolveSlug } from "../util/slug.js";
 
 const ProviderSchema = z.enum([
   "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
@@ -34,18 +35,6 @@ const RegistryEntrySchema = z.object({
 const RegistryFileSchema = z.array(RegistryEntrySchema);
 
 export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
-
-function kebabCase(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function resolveSlug(entry: RegistryEntry): string {
-  if (entry.source_slug && entry.source_slug.length > 0) return entry.source_slug;
-  return kebabCase(entry.name);
-}
 
 function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];

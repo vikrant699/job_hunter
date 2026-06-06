@@ -4,6 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
 
 // Greenhouse public board API: GET boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true
 const GhJobSchema = z.object({
@@ -22,8 +23,6 @@ type GhJob = z.infer<typeof GhJobSchema>;
 const GhJobsResponseSchema = z.object({
   jobs: z.array(GhJobSchema),
 });
-
-const REMOTE_HINT_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
 
 export const greenhouseAdapter: AtsAdapter = {
   provider: "greenhouse",
@@ -47,7 +46,7 @@ export const greenhouseAdapter: AtsAdapter = {
 function normalize(company: AdapterCompany, j: GhJob): NormalizedPosting {
   const locationName = j.location?.name ?? null;
   const jdText = htmlToText(j.content ?? "");
-  const isRemote = locationName ? REMOTE_HINT_RE.test(locationName) : false;
+  const isRemote = locationName ? REMOTE_RE.test(locationName) : false;
 
   return {
     provider: "greenhouse",

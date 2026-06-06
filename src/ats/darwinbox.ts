@@ -5,8 +5,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJson } from "./browser-fetch.js";
-
-const REMOTE_RE = /\b(remote|work from home|wfh|anywhere)\b/i;
+import { REMOTE_RE, unixToIso } from "./shared.js";
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
@@ -41,7 +40,7 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
-    postedAt: j.job_posting_on ? new Date(j.job_posting_on * 1000).toISOString() : (j.created_on ?? null),
+    postedAt: unixToIso(j.job_posting_on) ?? (j.created_on ?? null),
   };
 }
 

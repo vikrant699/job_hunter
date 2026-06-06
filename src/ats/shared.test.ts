@@ -24,6 +24,10 @@ describe("REMOTE_RE", () => {
   it('does not match "On-site"', () => assert.ok(!REMOTE_RE.test("On-site")));
   it('does not match "Bengaluru"', () =>
     assert.ok(!REMOTE_RE.test("Bengaluru")));
+  it('does not match "Promote"', () =>
+    assert.ok(!REMOTE_RE.test("Promote")));
+  it('does not match "Premote"', () =>
+    assert.ok(!REMOTE_RE.test("Premote")));
 });
 
 describe("unixToIso", () => {

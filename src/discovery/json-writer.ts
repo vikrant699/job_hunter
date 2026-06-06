@@ -2,10 +2,7 @@ import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from 
 import { resolve } from "node:path";
 import { config } from "../config.js";
 import type { RegistryEntry } from "../types.js";
-
-function kebabCase(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-}
+import { kebabCase } from "../util/slug.js";
 
 function entryKey(e: { source?: string; source_slug?: string | null; name: string }): string {
   const slug = e.source_slug && e.source_slug.length > 0 ? e.source_slug : kebabCase(e.name);
