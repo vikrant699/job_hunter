@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseApiMeta } from "./index.js";
+import { parseApiMeta } from "./api-meta.js";
 
 test("parseApiMeta: parses a JSON object", () => {
   assert.deepEqual(parseApiMeta('{"orgGuid":"abc"}'), { orgGuid: "abc" });
