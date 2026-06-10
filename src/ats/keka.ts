@@ -35,12 +35,17 @@ export function extractKekaOrgGuid(html: string): string | null {
   return html.match(GUID_RE)?.[0] ?? null;
 }
 
+/** Embed-API endpoint for a slug + orgGuid; shared by the adapter and discovery validation. */
+export function kekaEmbedUrl(slug: string, orgGuid: string): string {
+  return `https://${slug}.keka.com/careers/api/embedjobs/default/active/${orgGuid}`;
+}
+
 export const kekaAdapter: AtsAdapter = {
   provider: "keka",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const orgGuid = company.apiMeta?.orgGuid;
     if (!orgGuid) throw new Error(`keka adapter requires apiMeta.orgGuid for ${company.slug}`);
-    const url = `https://${company.slug}.keka.com/careers/api/embedjobs/default/active/${orgGuid}`;
+    const url = kekaEmbedUrl(company.slug, orgGuid);
     const raw = await atsFetchJson(url, { provider: "keka" });
     const parsed = ResponseSchema.safeParse(raw);
     if (!parsed.success) {
