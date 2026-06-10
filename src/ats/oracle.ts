@@ -5,7 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 // Oracle HCM Cloud Recruiting (CE) public REST API:
 //   list:   <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitions
@@ -38,8 +38,6 @@ const DetailItemSchema = z.object({
 const DetailSchema = z.object({ items: z.array(DetailItemSchema) });
 
 const PAGE = 200;
-const DELAY_MS = 150;
-const PAGE_WARN_INTERVAL = 100; // warn (don't stop) on unusually deep pagination, like smartrecruiters/workday
 
 function parts(company: AdapterCompany): { base: string; site: string } {
   if (!company.tenantUrl) throw new Error(`oracle requires tenant_url for ${company.slug}`);
@@ -59,7 +57,7 @@ export const oracleAdapter: AtsAdapter = {
       const url =
         `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
         `?onlyData=true&expand=requisitionList.secondaryLocations` +
-        `&finder=findReqs;siteNumber=${site}&limit=${PAGE}&offset=${offset}`;
+        `&finder=findReqs;siteNumber=${encodeURIComponent(site)}&limit=${PAGE}&offset=${offset}`;
       const raw = await atsFetchJson(url, { provider: "oracle" });
       const parsed = ListSchema.safeParse(raw);
       if (!parsed.success) {
@@ -73,10 +71,8 @@ export const oracleAdapter: AtsAdapter = {
       if (reqs.length < PAGE) break;
       offset += PAGE;
       if (total !== null && offset >= total) break;
-      if ((page + 1) % PAGE_WARN_INTERVAL === 0) {
-        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "oracle pagination still going — unusually large tenant");
-      }
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+      warnDeepPagination("oracle", company.slug, page + 1, out.length);
+      await sleep(INTER_PAGE_DELAY_MS);
     }
     return out;
   },
@@ -84,7 +80,7 @@ export const oracleAdapter: AtsAdapter = {
     const { base, site } = parts(company);
     const url =
       `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails` +
-      `?onlyData=true&expand=all&finder=ById;Id=${encodeURIComponent(posting.externalId)},siteNumber=${site}`;
+      `?onlyData=true&expand=all&finder=ById;Id=${encodeURIComponent(posting.externalId)},siteNumber=${encodeURIComponent(site)}`;
     const raw = await atsFetchJson(url, { provider: "oracle" });
     const parsed = DetailSchema.safeParse(raw);
     if (!parsed.success) return "";

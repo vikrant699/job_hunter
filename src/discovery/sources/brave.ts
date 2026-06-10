@@ -111,7 +111,8 @@ export function isCareerShaped(url: URL): boolean {
   // Path indicates a careers area — but reject blog/salary/article paths
   if (/\/(careers?|jobs?|positions?|openings?|opportunit|hiring|roles?|vacanc)(\/|$)/.test(path)) {
     // Reject if path also contains blog/salary/news/article markers
-    if (/\/(blog|salary|salaries|article|news|guide|tutorial|course|learn|how-to|2024|2025|2026)\b/.test(path)) return false;
+    // \d{4} instead of hardcoded years: a year segment marks dated articles, any year.
+    if (/\/(blog|salary|salaries|article|news|guide|tutorial|course|learn|how-to|\d{4})\b/.test(path)) return false;
     return true;
   }
   return false;

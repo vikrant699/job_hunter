@@ -54,20 +54,25 @@ const selectNotifiedRoleKeysStmt = db.prepare(`
   SELECT c.name AS company, p.job_title AS title, p.location AS location
   FROM postings p
   LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
-  WHERE p.notified_at IS NOT NULL
+  WHERE p.notified_at IS NOT NULL AND p.notified_at >= :cutoff
 `);
 
+// A role re-posted after this long is worth a fresh ping anyway, and the cutoff
+// keeps the in-memory dedup set from growing unboundedly with notify history.
+const NOTIFY_DEDUP_WINDOW_DAYS = 180;
+
 /**
- * Every (company name, title, location) tuple we've ever notified. Used to dedupe
- * re-listed roles ACROSS runs: a repost gets a fresh external_id, so postingExists
- * misses it, but the role is unchanged — we shouldn't ping it again.
+ * Every (company name, title, location) tuple notified in the last 180 days. Used
+ * to dedupe re-listed roles ACROSS runs: a repost gets a fresh external_id, so
+ * postingExists misses it, but the role is unchanged — we shouldn't ping it again.
  */
 export function selectNotifiedRoleKeys(): Array<{
   company: string | null;
   title: string | null;
   location: string | null;
 }> {
-  return queryAll(selectNotifiedRoleKeysStmt, NotifiedRoleKeySchema);
+  const cutoff = new Date(Date.now() - NOTIFY_DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return queryAll(selectNotifiedRoleKeysStmt, NotifiedRoleKeySchema, { cutoff });
 }
 
 /* ===== updatePostingResult ===== */

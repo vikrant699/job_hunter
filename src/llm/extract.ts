@@ -28,10 +28,7 @@ function normalize(parsed: JsonValue): JsonValue {
   return p;
 }
 
-export async function runExtract(jdText: string): Promise<ExtractResult> {
-  const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
-  const raw = await generate(prompt, { format: "json" });
-
+function parseExtractResponse(raw: string): ExtractResult {
   let parsed: JsonValue;
   try {
     parsed = JsonValueSchema.parse(JSON.parse(raw));
@@ -49,4 +46,21 @@ export async function runExtract(jdText: string): Promise<ExtractResult> {
     throw new Error("extract output failed schema validation");
   }
   return result.data;
+}
+
+export async function runExtract(jdText: string): Promise<ExtractResult> {
+  const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
+
+  // One retry on parse failure, mirroring runGate: a fresh generation usually
+  // fixes malformed JSON, and a failed extract degrades YOE classification.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= 1; attempt++) {
+    const raw = await generate(prompt, { format: "json" });
+    try {
+      return parseExtractResponse(raw);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }

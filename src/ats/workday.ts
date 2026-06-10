@@ -4,7 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, parsePostedOn } from "./shared.js";
+import { REMOTE_RE, parsePostedOn, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
 import { discoverIndiaFacet } from "./workday-facet.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
@@ -61,9 +61,7 @@ const WorkdayJobDetailSchema = z.object({
   }),
 });
 
-const INTER_PAGE_DELAY_MS = 150;
 const PAGE_LIMIT = 20;
-const PAGE_WARN_INTERVAL = 100;
 
 export const workdayAdapter: AtsAdapter = {
   provider: "workday",
@@ -129,15 +127,8 @@ export const workdayAdapter: AtsAdapter = {
       if (parsed.data.jobPostings.length < PAGE_LIMIT) break;
       offset += PAGE_LIMIT;
       if (totalReported !== null && offset >= totalReported) break;
-      if ((page + 1) % PAGE_WARN_INTERVAL === 0) {
-        logger.warn(
-          { company: company.slug, pages: page + 1, jobsSoFar: out.length, totalReported },
-          "workday pagination still going — unusually large tenant"
-        );
-      }
-      if (INTER_PAGE_DELAY_MS > 0) {
-        await new Promise((r) => setTimeout(r, INTER_PAGE_DELAY_MS));
-      }
+      warnDeepPagination("workday", company.slug, page + 1, out.length);
+      await sleep(INTER_PAGE_DELAY_MS);
     }
 
     return out;
@@ -176,11 +167,12 @@ function normalizeListing(
   parts: WorkdayUrlParts,
   j: WorkdayJobPosting
 ): NormalizedPosting {
-  // externalId: prefer shortId/jobPostingId/bulletFields, fall back to externalPath tail.
+  // externalId: prefer shortId/jobPostingId, fall back to externalPath tail.
+  // bulletFields is display metadata ("Full time", "40 hrs/week") — never an ID;
+  // using it would collide every posting on tenants that omit shortId.
   const externalId =
     j.shortId ??
     j.jobPostingId ??
-    (j.bulletFields && j.bulletFields[0]) ??
     j.externalPath.split("/").pop() ??
     j.externalPath;
 

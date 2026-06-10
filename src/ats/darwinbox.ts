@@ -73,7 +73,16 @@ export const darwinboxAdapter: AtsAdapter = {
         const results = await browserFetchJson(careersUrl, remainingApis);
         for (const raw of results) {
           const parsed = ListSchema.safeParse(raw);
-          if (!parsed.success || parsed.data.message.jobs.length === 0) break;
+          if (!parsed.success) {
+            // Don't silently truncate the remaining pages — page 1 throws loudly
+            // on schema mismatch, so a mid-stream one deserves at least a warn.
+            logger.warn(
+              { slug: company.slug, fetched: out.length, total, issues: parsed.error.issues.slice(0, 2) },
+              "darwinbox: page schema mismatch mid-pagination; truncating",
+            );
+            break;
+          }
+          if (parsed.data.message.jobs.length === 0) break;
           for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
           if (out.length >= total) break;
         }

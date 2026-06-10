@@ -103,7 +103,7 @@ if (promptName !== "baseline") {
 
   if (outPath) {
     const sortedRows = detailed
-      .sort((a, b) => a.score - b.score) // worst first — buried relevants surface at the top
+      .sort((a, b) => a.score - b.score) // ascending by score: relevant rows scored low (false negatives) sort to the top for inspection
       .map((d) => [d.id, d.company, d.title, d.relevant, d.score] as const);
     writeFileSync(outPath, buildCsv(["id", "company", "title", "relevant", "score"], sortedRows), "utf-8");
     console.log(`  wrote per-row scores → ${outPath} (ascending by score)`);

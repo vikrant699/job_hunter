@@ -9,7 +9,8 @@ export interface LocationConfig {
    *  matched. Applied to the metadata location field in checkLocation(), and to
    *  the TITLE (never the JD body) in checkLocationFromText() — so a foreign HQ
    *  mentioned only in the JD body does not reject an otherwise in-region role.
-   *  An in-region city in the same title overrides the reject. */
+   *  In both paths, an in-region city/country alongside the foreign one overrides
+   *  the reject (multi-location postings like "Bengaluru | New York" stay in). */
   rejectRegions?: readonly string[];
 }
 
@@ -73,7 +74,12 @@ export function checkLocation(
   const lc = location.toLowerCase();
   const re = compile(cfg);
 
-  if (re.reject.test(lc) || re.rejectRegions.test(lc)) {
+  if (re.reject.test(lc)) {
+    return { accept: false, isRemoteInRegion: false, reason: "geo-rejected" };
+  }
+  // Foreign place name rejects only when no in-region signal sits beside it —
+  // multi-location postings ("Bengaluru, India; New York, NY") must survive.
+  if (re.rejectRegions.test(lc) && !(re.city.test(lc) || re.country.test(lc))) {
     return { accept: false, isRemoteInRegion: false, reason: "geo-rejected" };
   }
   if (re.remote.test(lc)) {

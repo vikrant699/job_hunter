@@ -109,6 +109,8 @@ async function fetchRssFeed(url: string): Promise<Array<{ title: string; link: s
       Accept: "application/rss+xml, application/xml, text/xml",
       "User-Agent": config.fetch.userAgent,
     },
+    // A stalled feed must not hang the whole discovery loop.
+    signal: AbortSignal.timeout(config.fetch.timeoutMs),
   });
   if (!res.ok) throw new Error(`RSS HTTP ${res.status} fetching ${url}`);
   const xml = await res.text();
@@ -172,9 +174,8 @@ export async function runRssSources(): Promise<RssResult> {
       });
     }
 
-    if (errors.length === 0) {
-      logger.info({ source: feed.name, items: items.length, candidates: out.length }, "rss: feed scanned");
-    }
+    // Per-feed log — an earlier feed's error must not silence this one's.
+    logger.info({ source: feed.name, items: items.length, candidates: out.length }, "rss: feed scanned");
   }
 
   return { candidates: out, feedsFetched, articlesScanned, errors };

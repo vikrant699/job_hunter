@@ -76,6 +76,10 @@ const upsertCompanyStmt = db.prepare(`
     tenant_url       = excluded.tenant_url,
     api_meta         = excluded.api_meta
 `);
+// Intentionally NOT updated on conflict:
+//   discovered_via / discovered_at — provenance of the FIRST discovery, frozen.
+//   broken status — a re-import alone doesn't prove the source recovered; repair
+//   goes through url-repair, which resets broken -> candidate alongside a fixed URL.
 
 interface UpsertCompanyRow {
   [key: string]: SQLInputValue;
@@ -141,6 +145,9 @@ export function markFetchSuccess(
   });
 }
 
+// In the CASE, `consecutive_failures` reads the PRE-update value (SQLite evaluates
+// all SET expressions against the old row), so `+ 1 >= 5` flips to broken on the
+// 5th consecutive failure — the same failure that writes the counter as 5.
 const markFetchFailureStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at      = :now,

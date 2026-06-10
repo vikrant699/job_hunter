@@ -15,6 +15,8 @@ mkdirSync(dirname(dbPath), { recursive: true });
 export const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
+// Wait instead of throwing SQLITE_BUSY when a script runs while the bot holds a write lock.
+db.exec("PRAGMA busy_timeout = 5000");
 
 const schema = readFileSync(schemaPath, "utf-8");
 db.exec(schema);

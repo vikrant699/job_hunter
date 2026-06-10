@@ -22,6 +22,20 @@ test("checkLocation rejects on an explicit reject phrase", () => {
   assert.equal(checkLocation("Remote - United States", false, cfg).accept, false);
 });
 
+test("checkLocation accepts a multi-location posting when an in-region city is also listed", () => {
+  // foreign + in-region in the same metadata field → in-region wins (recall guard)
+  assert.equal(checkLocation("Bengaluru, India; Seattle, WA", false, cfg).accept, true);
+  assert.equal(checkLocation("Sydney, Australia | Pune, India", false, cfg).accept, true);
+});
+
+test("checkLocation still rejects multi-location postings that are all foreign", () => {
+  assert.equal(checkLocation("Sydney, NSW; London, UK", false, cfg).accept, false);
+});
+
+test("checkLocation: explicit reject phrase wins even next to an in-region city", () => {
+  assert.equal(checkLocation("Bengaluru preferred, US only", false, cfg).accept, false);
+});
+
 test("checkLocationFromText rejects a foreign place embedded in the TITLE (DoorDash leak)", () => {
   const r = checkLocationFromText("Data Scientist Sydney, NSW; Melbourne, VIC", "We deliver food.", cfg);
   assert.equal(r.accept, false);
