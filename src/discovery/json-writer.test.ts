@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { upsertRegistry, appendToRegistry } from "./json-writer.js";
+import { upsertRegistry, appendToRegistry, updateRegistryStrategy } from "./json-writer.js";
 import type { RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
 
@@ -44,4 +44,18 @@ test("appendToRegistry skips duplicates by key", () => {
   const r = appendToRegistry([E("custom", "a", "A"), E("custom", "b", "B")], f);
   assert.equal(r.written, 1);
   assert.equal(r.skippedDuplicates, 1);
+});
+
+test("updateRegistryStrategy patches only parsing_strategy, leaves other fields", () => {
+  const f = tmpFile();
+  upsertRegistry([{ ...E("custom", "spa-co", "Spa Co"), evidence: "seed note" }], f);
+  const flipped = updateRegistryStrategy("custom", "spa-co", "Spa Co", "playwright-llm-scrape", f);
+  assert.equal(flipped, true);
+  const arr = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(f, "utf8")));
+  assert.equal(arr[0]!.parsing_strategy, "playwright-llm-scrape");
+  assert.equal(arr[0]!.evidence, "seed note"); // untouched
+  // Second flip to the same value is a no-op.
+  assert.equal(updateRegistryStrategy("custom", "spa-co", "Spa Co", "playwright-llm-scrape", f), false);
+  // Unknown key does not write.
+  assert.equal(updateRegistryStrategy("custom", "missing", "Missing", "playwright-llm-scrape", f), false);
 });

@@ -77,6 +77,29 @@ export function upsertRegistry(
   return { replaced, added, path: filePath };
 }
 
+/**
+ * Patch one entry's parsing_strategy in place (other fields untouched).
+ * Used by the SPA sentinel to make its llm-scrape -> playwright-llm-scrape
+ * recommendation stick — a DB-only flip would be reverted by the next
+ * syncRegistryFromJson. Returns false when no entry matches the key.
+ */
+export function updateRegistryStrategy(
+  source: string,
+  sourceSlug: string,
+  name: string,
+  strategy: RegistryEntry["parsing_strategy"],
+  filePath: string = registryPath(),
+): boolean {
+  const existing = readJsonArray(filePath);
+  const key = entryKey({ source, source_slug: sourceSlug, name });
+  const idx = existing.findIndex((e) => entryKey(e) === key);
+  const entry = idx >= 0 ? existing[idx] : undefined;
+  if (!entry || entry.parsing_strategy === strategy) return false;
+  entry.parsing_strategy = strategy;
+  writeAtomic(filePath, sortEntries(existing));
+  return true;
+}
+
 export function knownEntryKeys(filePath: string = registryPath()): Set<string> {
   return new Set(readJsonArray(filePath).map(entryKey));
 }

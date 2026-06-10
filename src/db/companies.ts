@@ -173,6 +173,17 @@ export function markFetchFailure(
   });
 }
 
+const updateParsingStrategyStmt = db.prepare(`
+  UPDATE companies SET parsing_strategy = :strategy
+  WHERE provider = :provider AND slug = :slug
+`);
+
+/** Runtime strategy flip (SPA sentinel). Pair with updateRegistryStrategy —
+ *  the registry file is the source of truth and re-syncs over this column. */
+export function updateParsingStrategy(provider: Provider, slug: string, strategy: ParsingStrategy): void {
+  updateParsingStrategyStmt.run({ provider, slug, strategy });
+}
+
 const bumpMatchedStmt = db.prepare(`
   UPDATE companies SET postings_matched_total = postings_matched_total + 1
   WHERE provider = :provider AND slug = :slug
