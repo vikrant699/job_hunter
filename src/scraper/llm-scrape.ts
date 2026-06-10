@@ -5,8 +5,9 @@ import { fetchHtml, extractLinkShortlist, extractMainText, extractTitleHint, fin
 import type { RenderedPage } from "./playwright.js";
 import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
 import { runShortlistFromText } from "../llm/extract-text-jobs.js";
-import { getLinkCache, setLinkCache, type ShortlistedLink } from "../db/index.js";
+import { getLinkCache, setLinkCache, updateParsingStrategy, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
+import { updateRegistryStrategy } from "../discovery/json-writer.js";
 
 const LINK_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -105,9 +106,17 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
       }
 
       if (spaSentinel && candidates.length <= SPA_SENTINEL_THRESHOLD) {
+        // Act on the recommendation instead of just logging it: flip the
+        // strategy in the DB (this run's state) AND the registry file (the
+        // source of truth — sync would revert a DB-only flip next run).
+        // Next run fetches this company through headless chromium.
+        updateParsingStrategy(company.provider, company.slug, "playwright-llm-scrape");
+        const inRegistry = updateRegistryStrategy(
+          company.provider, company.slug, company.name, "playwright-llm-scrape",
+        );
         logger.warn(
-          { company: company.slug, candidates: candidates.length, careersUrl: company.careersUrl },
-          `${tag}: too few candidate links — set strategy to playwright-llm-scrape`,
+          { company: company.slug, candidates: candidates.length, careersUrl: company.careersUrl, inRegistry },
+          `${tag}: too few candidate links — auto-flipped strategy to playwright-llm-scrape`,
         );
         return [];
       }
@@ -154,7 +163,9 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
       let jobs: ShortlistItem[];
       const cached = getLinkCache(company.provider, company.slug, LINK_CACHE_TTL_MS);
-      if (cached) {
+      // An empty cached list is not a usable hit — `[]` is truthy, and serving
+      // it would pin the company at zero postings for the whole TTL.
+      if (cached && cached.length > 0) {
         jobs = cached;
         logger.debug({ company: company.slug, count: jobs.length }, `${tag}: link cache hit`);
       } else {
@@ -163,8 +174,12 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         } catch (err) {
           throw new Error(`${tag} shortlist failed for ${company.slug}: ${String(err).slice(0, 160)}`);
         }
-        const toCache: ShortlistedLink[] = jobs.map((j) => ({ url: j.url, title: j.title }));
-        setLinkCache(company.provider, company.slug, toCache);
+        // Only cache a useful result — caching an empty shortlist would skip
+        // the LLM retry on every run until the TTL expires.
+        if (jobs.length > 0) {
+          const toCache: ShortlistedLink[] = jobs.map((j) => ({ url: j.url, title: j.title }));
+          setLinkCache(company.provider, company.slug, toCache);
+        }
         logger.debug(
           { company: company.slug, candidates: candidates.length, picked: jobs.length },
           `${tag}: shortlist done`,
