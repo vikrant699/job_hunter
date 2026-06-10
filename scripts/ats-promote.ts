@@ -22,6 +22,7 @@ import { db } from "../src/db/db.js";
 import { selectAllCompanies, upsertCompany } from "../src/db/index.js";
 import { upsertRegistry } from "../src/discovery/json-writer.js";
 import { atsFetchJson, atsFetchText } from "../src/ats/http.js";
+import { fetchHtmlPlaywright, closePlaywrightBrowser } from "../src/scraper/playwright.js";
 import { ProviderSchema, ParsingStrategySchema, type RegistryEntry } from "../src/schemas.js";
 import type { Company } from "../src/types.js";
 
@@ -58,13 +59,19 @@ interface Promotion {
   jobs: number | null;
 }
 
-function buildPromotions(rows: AuditRow[], stamp: string): { promotions: Promotion[]; skipped: string[] } {
+function buildPromotions(rows: AuditRow[], stamp: string, all: Company[]): { promotions: Promotion[]; skipped: string[] } {
   const skipped: string[] = [];
   const byBoard = new Map<string, AuditRow[]>();
   for (const r of rows) {
     if (!r.detectedProvider || !r.detectedSlug) continue;
     if (SUSPECT_SLUGS.has(r.detectedSlug)) {
       skipped.push(`${r.name}: suspect slug ${r.detectedProvider}/${r.detectedSlug}`);
+      continue;
+    }
+    // Idempotency: a board already in the DB (e.g. from a previous --apply)
+    // needs no new entry, and its source rows need no retirement re-run.
+    if (all.some((c) => c.provider === r.detectedProvider && c.slug === r.detectedSlug)) {
+      skipped.push(`${r.name}: ${r.detectedProvider}/${r.detectedSlug} already in DB`);
       continue;
     }
     const key = `${r.detectedProvider}/${r.detectedSlug}`;
@@ -109,13 +116,26 @@ function buildPromotions(rows: AuditRow[], stamp: string): { promotions: Promoti
 const SITE_RE = /\/sites\/(CX_[0-9]+)/i;
 const EF_DOMAIN_RES = [/[?&]domain=([a-z0-9._-]+)/i, /"domain"\s*:\s*"([a-z0-9._-]+)"/i];
 
+// SPA careers pages hide tokens from a raw GET — render as a fallback.
+async function pageTextRawThenRendered(url: string, provider: string): Promise<string[]> {
+  const texts: string[] = [];
+  try { texts.push(await atsFetchText(url, { provider })); } catch { /* unreachable raw */ }
+  try {
+    const page = await fetchHtmlPlaywright(url);
+    texts.push(page.html, page.finalUrl);
+  } catch { /* unreachable rendered */ }
+  return texts;
+}
+
 async function tryOracleTokens(row: AuditRow): Promise<RegistryEntry | null> {
   if (!row.detectedUrl) return null;
   const base = new URL(row.detectedUrl).origin;
   let site = row.careersUrl.match(SITE_RE)?.[1] ?? row.detectedUrl.match(SITE_RE)?.[1] ?? null;
   if (!site) {
-    try { site = (await atsFetchText(row.careersUrl, { provider: "oracle" })).match(SITE_RE)?.[1] ?? null; }
-    catch { /* page unreachable — give up below */ }
+    for (const text of await pageTextRawThenRendered(row.careersUrl, "oracle")) {
+      site = text.match(SITE_RE)?.[1] ?? site;
+      if (site) break;
+    }
   }
   if (!site) return null;
   try {
@@ -139,13 +159,13 @@ async function tryEightfoldTokens(row: AuditRow): Promise<RegistryEntry | null> 
   let domain: string | null = null;
   for (const url of [row.detectedUrl, row.careersUrl]) {
     if (domain) break;
-    try {
-      const html = await atsFetchText(url, { provider: "eightfold" });
+    for (const text of await pageTextRawThenRendered(url, "eightfold")) {
       for (const re of EF_DOMAIN_RES) {
-        domain = html.match(re)?.[1] ?? domain;
+        domain = text.match(re)?.[1] ?? domain;
         if (domain) break;
       }
-    } catch { /* try next url */ }
+      if (domain) break;
+    }
   }
   if (!domain) return null;
   try {
@@ -176,7 +196,7 @@ async function main(): Promise<void> {
   const stamp = new Date().toISOString().slice(0, 10);
   const all = selectAllCompanies();
 
-  const { promotions, skipped } = buildPromotions(rows.filter((r) => r.bucket === "promotable"), stamp);
+  const { promotions, skipped } = buildPromotions(rows.filter((r) => r.bucket === "promotable"), stamp, all);
 
   // Phase 3: attempt tokens for eightfold/oracle needs-tokens rows.
   const tokenRows = rows.filter((r) => r.bucket === "needs-tokens" &&
@@ -197,12 +217,12 @@ async function main(): Promise<void> {
   for (const p of promotions) {
     for (const row of p.fromRows) {
       const c = findDbCompany(all, row);
-      if (c) retirements.push({ company: c, reason: `superseded: fetched via ${p.entry.source}/${p.entry.source_slug} (ats-audit ${stamp})` });
+      if (c && c.status !== "denied") retirements.push({ company: c, reason: `superseded: fetched via ${p.entry.source}/${p.entry.source_slug} (ats-audit ${stamp})` });
     }
   }
   for (const row of rows.filter((r) => r.bucket === "already-covered")) {
     const c = findDbCompany(all, row);
-    if (c) retirements.push({ company: c, reason: `superseded: duplicate of ${row.detectedProvider}/${row.detectedSlug} (ats-audit ${stamp})` });
+    if (c && c.status !== "denied") retirements.push({ company: c, reason: `superseded: duplicate of ${row.detectedProvider}/${row.detectedSlug} (ats-audit ${stamp})` });
   }
 
   console.log(`\n=== plan (${apply ? "APPLY" : "dry run"}) ===`);
@@ -253,4 +273,6 @@ async function main(): Promise<void> {
   console.log(`db updated: ${retirements.length} retired, ${promotions.length} promoted.`);
 }
 
-main().catch((err) => { console.error("promote failed:", err); process.exit(1); });
+main()
+  .then(() => closePlaywrightBrowser())
+  .catch((err) => { console.error("promote failed:", err); process.exit(1); });

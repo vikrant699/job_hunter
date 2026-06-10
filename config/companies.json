@@ -5635,9 +5635,10 @@
     "name": "Rivigo",
     "careers_url": "https://www.rivigo.com/careers/",
     "source": "custom",
+    "source_slug": "rivigo",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "evidence": "Bot-blocked; same URL works in browser — flip to playwright"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/nectar (ats-audit 2026-06-10)"
   },
   {
     "name": "Roambee",
@@ -8322,6 +8323,18 @@
     "discovered_at": "2026-06-10",
     "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
     "tenant_url": "https://myhr.darwinbox.in"
+  },
+  {
+    "name": "Rivigo",
+    "careers_url": "https://www.rivigo.com/careers/",
+    "source": "darwinbox",
+    "source_slug": "nectar",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://nectar.darwinbox.in"
   },
   {
     "name": "Niva Bupa",
