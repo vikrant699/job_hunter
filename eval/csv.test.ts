@@ -21,3 +21,7 @@ test("handles CRLF and a final row without trailing newline", () => {
 test("returns empty array for empty input", () => {
   assert.deepEqual(parseCsv(""), []);
 });
+
+test("normalizes CRLF inside a quoted field to \\n (no stray \\r in the value)", () => {
+  assert.deepEqual(parseCsv('"line1\r\nline2",x\r\n'), [["line1\nline2", "x"]]);
+});

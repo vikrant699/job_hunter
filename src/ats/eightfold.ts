@@ -5,7 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, unixToIso } from "./shared.js";
+import { REMOTE_RE, unixToIso, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 // Eightfold public API:
 //   list:   GET <host>/api/apply/v2/jobs?domain=<domain>&start=&num=   -> {positions[],count}
@@ -29,8 +29,6 @@ const DetailSchema = z.object({
 });
 
 const PAGE = 50;
-const DELAY_MS = 150;
-const PAGE_WARN_INTERVAL = 100; // warn (don't stop) on unusually deep pagination, like smartrecruiters/workday
 
 function hostOf(company: AdapterCompany): string {
   if (!company.tenantUrl) throw new Error(`eightfold requires tenant_url (host) for ${company.slug}`);
@@ -63,10 +61,8 @@ export const eightfoldAdapter: AtsAdapter = {
       if (parsed.data.positions.length < PAGE) break;
       start += PAGE;
       if (total !== null && start >= total) break;
-      if ((page + 1) % PAGE_WARN_INTERVAL === 0) {
-        logger.warn({ slug: company.slug, pages: page + 1, jobsSoFar: out.length }, "eightfold pagination still going — unusually large tenant");
-      }
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+      warnDeepPagination("eightfold", company.slug, page + 1, out.length);
+      await sleep(INTER_PAGE_DELAY_MS);
     }
     return out;
   },

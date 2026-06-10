@@ -45,17 +45,17 @@ export async function runYcSource(): Promise<YcResult> {
   // YC wraps each card in multiple anchors with the same href (link-overlays
   // + one with the visible text). Group by slug, keep the longest text.
   const bestText = new Map<string, string>();
-  let cardsSeen = 0;
 
   $('a[href]').each((_, el) => {
     const href = $(el).attr("href") ?? "";
     if (!COMPANY_LINK_RE.test(href)) return;
-    cardsSeen++;
     const ycSlug = href.replace(/^\/companies\//, "");
     const text = $(el).text().replace(/\s+/g, " ").trim();
     const prev = bestText.get(ycSlug) ?? "";
     if (text.length > prev.length) bestText.set(ycSlug, text);
   });
+  // Unique companies, not anchor elements — each card has 2-3 anchors.
+  const cardsSeen = bestText.size;
 
   const out: YcCandidate[] = [];
   for (const [ycSlug, text] of bestText) {

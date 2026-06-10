@@ -1,4 +1,21 @@
+import { logger } from "../logger.js";
+
 export const REMOTE_RE = /\b(remote|work from home|wfh|anywhere|virtual)\b/i;
+
+/** Politeness delay between pagination requests, shared by all API adapters. */
+export const INTER_PAGE_DELAY_MS = 150;
+
+export { sleep } from "../util/sleep.js";
+
+// 100+ pages usually means either a termination bug or a genuinely huge board —
+// either way worth a log line. Warn, don't stop.
+const PAGE_WARN_INTERVAL = 100;
+
+export function warnDeepPagination(provider: string, slug: string, pagesDone: number, jobsSoFar: number): void {
+  if (pagesDone % PAGE_WARN_INTERVAL === 0) {
+    logger.warn({ slug, pages: pagesDone, jobsSoFar }, `${provider} pagination still going — unusually large tenant`);
+  }
+}
 
 export function unixToIso(seconds: number | null | undefined): string | null {
   if (!seconds) return null;

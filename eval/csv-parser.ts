@@ -11,6 +11,8 @@ export function parseCsv(text: string): string[][] {
       if (c === '"') {
         if (text[i + 1] === '"') { field += '"'; i++; }
         else inQuotes = false;
+      } else if (c === "\r" && text[i + 1] === "\n") {
+        // Normalize CRLF inside quoted fields to \n (the \n is appended next pass).
       } else {
         field += c;
       }

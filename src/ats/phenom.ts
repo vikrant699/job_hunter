@@ -5,10 +5,9 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 const PAGE = 50;
-const DELAY_MS = 150;
 
 export const PhenomJobSchema = z.object({
   jobId: z.union([z.string(), z.number()]).nullable().optional(),
@@ -45,7 +44,7 @@ export function phenomJobsFrom(ddo: unknown): { jobs: unknown[]; totalHits: numb
   const jobs = nodeData?.["jobs"];
   const jobsArr = Array.isArray(jobs) ? jobs : [];
   const nodeCounts = typeof nodeData?.["counts"] === "object" && nodeData["counts"] !== null && !Array.isArray(nodeData["counts"]) ? nodeData["counts"] : null;
-  const totalHits = Number(nodeObj?.["totalHits"] ?? nodeCounts?.["totalHits"] ?? jobsArr.length ?? 0);
+  const totalHits = Number(nodeObj?.["totalHits"] ?? nodeCounts?.["totalHits"] ?? jobsArr.length);
   return { jobs: jobsArr, totalHits };
 }
 
@@ -93,9 +92,9 @@ export const phenomAdapter: AtsAdapter = {
       if (total === null) total = totalHits;
       if (jobs.length === 0) break;
       from += jobs.length;          // advance by actual count (server may cap size)
-      if (total && from >= total) break;
+      if (total !== null && from >= total) break; // strict null-check: total=0 must still bound the loop
       if (page > 200) break;        // safety
-      await new Promise((r) => setTimeout(r, DELAY_MS));
+      await sleep(INTER_PAGE_DELAY_MS);
     }
     return out;
   },

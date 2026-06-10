@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { sleep } from "../util/sleep.js";
 import type { NormalizedPosting } from "../types.js";
 
 export type DiscordSeverity = "green" | "yellow";
@@ -21,6 +22,15 @@ async function postWebhook(url: string, body: unknown): Promise<void> {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+    } catch (err) {
+      // Timeout abort or transient network failure — retry like a 429 rather
+      // than losing the notification to a single blip.
+      if (attempt < WEBHOOK_MAX_429_RETRIES) {
+        logger.warn({ attempt, err: String(err).slice(0, 120) }, "Discord webhook fetch failed; retrying");
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -29,7 +39,7 @@ async function postWebhook(url: string, body: unknown): Promise<void> {
       const retryAfter = Number(res.headers.get("retry-after") ?? "1");
       const waitMs = Math.min(Math.max(retryAfter, 0.25) * 1000, 30_000);
       logger.warn({ retryAfter, attempt }, "Discord 429; backing off");
-      await new Promise((r) => setTimeout(r, waitMs));
+      await sleep(waitMs);
       continue;
     }
     if (!res.ok) {

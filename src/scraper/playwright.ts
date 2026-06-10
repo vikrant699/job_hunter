@@ -18,7 +18,8 @@ const NAV_TIMEOUT_MS = 30_000;
 // longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
 const POST_LOAD_WAIT_NETWORKIDLE_MS = 1_500;
 const POST_LOAD_WAIT_FALLBACK_MS = 6_000;
-const MAX_CONCURRENT_PAGES = Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5);
+// `|| 1` also catches NaN from a non-numeric env value; 0 would deadlock the semaphore.
+const MAX_CONCURRENT_PAGES = Math.max(1, Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5) || 1);
 
 // ---- shared browser lifecycle ----
 
@@ -39,12 +40,16 @@ export async function getBrowser(): Promise<Browser> {
     const teardown = async () => {
       try { await b.close(); } catch { /* already closed */ }
       sharedBrowser = null;
+      bootPromise = null;
     };
     process.once("exit", () => { teardown(); });
     process.once("SIGINT", () => { teardown().then(() => process.exit(0)); });
     process.once("SIGTERM", () => { teardown().then(() => process.exit(0)); });
     return b;
   })();
+  // A failed launch must not poison future calls: clear the cached promise so
+  // the next getBrowser() retries instead of re-returning the same rejection.
+  bootPromise.catch(() => { bootPromise = null; });
   return bootPromise;
 }
 
@@ -85,15 +90,15 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       locale: "en-US",
       timezoneId: "Asia/Kolkata",
     });
-    // Drop heavy assets — saves ~80% of bandwidth without affecting job-list HTML.
-    await ctx.route("**/*", (route) => {
-      const reqUrl = route.request().url();
-      if (HEAVY_EXTENSIONS.test(reqUrl) || ANALYTICS_HOSTS.test(reqUrl)) {
-        return route.abort();
-      }
-      return route.continue();
-    });
     try {
+      // Drop heavy assets — saves ~80% of bandwidth without affecting job-list HTML.
+      await ctx.route("**/*", (route) => {
+        const reqUrl = route.request().url();
+        if (HEAVY_EXTENSIONS.test(reqUrl) || ANALYTICS_HOSTS.test(reqUrl)) {
+          return route.abort();
+        }
+        return route.continue();
+      });
       const page = await ctx.newPage();
       page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
       page.setDefaultTimeout(NAV_TIMEOUT_MS);

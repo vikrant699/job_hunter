@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS postings (
   llm_relevant   INTEGER,
   llm_reason     TEXT,
   llm_confidence REAL,
-  yoe_min        INTEGER,
-  yoe_max        INTEGER,
+  yoe_min        REAL,    -- fractional YOE like 4.5 is valid
+  yoe_max        REAL,
   drop_stage     TEXT,
   notified_at    TEXT,
   PRIMARY KEY (provider, external_id)

@@ -4,6 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
+import { sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 // SmartRecruiters public Posting API.
 //   list:   GET api.smartrecruiters.com/v1/companies/<slug>/postings (paginated)
@@ -11,8 +12,6 @@ import { atsFetchJson } from "./http.js";
 // Two-phase like Workday so fetchJd only runs for new in-region postings.
 
 const PAGE_LIMIT = 100;
-const INTER_PAGE_DELAY_MS = 150;
-const PAGE_WARN_INTERVAL = 100;
 
 const LocationSchema = z.object({
   city: z.string().nullable().optional(),
@@ -93,15 +92,8 @@ export const smartRecruitersAdapter: AtsAdapter = {
 
       if (parsed.data.content.length < PAGE_LIMIT) break;
       offset += PAGE_LIMIT;
-      if ((page + 1) % PAGE_WARN_INTERVAL === 0) {
-        logger.warn(
-          { slug, pages: page + 1, jobsSoFar: out.length },
-          "smartrecruiters pagination still going — unusually large company"
-        );
-      }
-      if (INTER_PAGE_DELAY_MS > 0) {
-        await new Promise((r) => setTimeout(r, INTER_PAGE_DELAY_MS));
-      }
+      warnDeepPagination("smartrecruiters", slug, page + 1, out.length);
+      await sleep(INTER_PAGE_DELAY_MS);
     }
 
     return out;

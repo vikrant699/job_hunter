@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { makeSemaphore } from "../util/semaphore.js";
+import { sleep } from "../util/sleep.js";
 
 interface GenerateOpts {
   format?: "json";
@@ -9,8 +10,6 @@ interface GenerateOpts {
 }
 
 const OllamaResponseSchema = z.object({ response: z.string().optional() });
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Ollama serializes on the GPU, so the AbortController is started AFTER the
 // semaphore slot is held — otherwise deep queues caused tail calls to time out

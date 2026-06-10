@@ -8,9 +8,11 @@ const BraveQuotaRowSchema = z.object({
 const selectBraveQuotaStmt = db.prepare(
   "SELECT count FROM brave_quota WHERE month = :month",
 );
-const upsertBraveQuotaStmt = db.prepare(`
-  INSERT INTO brave_quota (month, count, updated_at) VALUES (:month, :count, :now)
-  ON CONFLICT(month) DO UPDATE SET count = :count, updated_at = :now
+// Increment happens in SQL (`count + :by`), not read-then-write in JS, so two
+// processes sharing the DB (bot + a script) can't under-count the quota.
+const incrementBraveQuotaStmt = db.prepare(`
+  INSERT INTO brave_quota (month, count, updated_at) VALUES (:month, :by, :now)
+  ON CONFLICT(month) DO UPDATE SET count = count + :by, updated_at = :now
 `);
 
 function currentMonthKey(): string {
@@ -27,7 +29,6 @@ export function getBraveQuotaUsed(): number {
 
 export function incrementBraveQuota(by: number = 1): number {
   const month = currentMonthKey();
-  const next = getBraveQuotaUsed() + by;
-  upsertBraveQuotaStmt.run({ month, count: next, now: new Date().toISOString() });
-  return next;
+  incrementBraveQuotaStmt.run({ month, by, now: new Date().toISOString() });
+  return getBraveQuotaUsed();
 }

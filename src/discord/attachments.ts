@@ -1,4 +1,5 @@
 import { logger } from "../logger.js";
+import { sleep } from "../util/sleep.js";
 
 const WEBHOOK_TIMEOUT_MS = 30_000;
 const WEBHOOK_MAX_429_RETRIES = 3;
@@ -50,6 +51,14 @@ export async function postWebhookWithFiles(
         body: form,
         signal: controller.signal,
       });
+    } catch (err) {
+      // Timeout abort or transient network failure — retry like a 429.
+      if (attempt < WEBHOOK_MAX_429_RETRIES) {
+        logger.warn({ attempt, err: String(err).slice(0, 120) }, "Discord file upload fetch failed; retrying");
+        await sleep(1000 * (attempt + 1));
+        continue;
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -58,7 +67,7 @@ export async function postWebhookWithFiles(
       const retryAfter = Number(res.headers.get("retry-after") ?? "1");
       const waitMs = Math.min(Math.max(retryAfter, 0.25) * 1000, 30_000);
       logger.warn({ retryAfter, attempt }, "Discord 429 on file upload; backing off");
-      await new Promise((r) => setTimeout(r, waitMs));
+      await sleep(waitMs);
       continue;
     }
     if (!res.ok) {
@@ -136,7 +145,10 @@ export async function uploadDailyCsvs(
   for (const f of files) {
     if (f.content.length > 5_000_000) {
       logger.warn({ filename: f.filename, bytes: f.content.length }, "CSV too large; truncating");
-      f.content = f.content.slice(0, 5_000_000) + "\r\n# truncated";
+      // Cut at the last full line so we never split a quoted cell mid-value.
+      const head = f.content.slice(0, 5_000_000);
+      const lastBreak = head.lastIndexOf("\r\n");
+      f.content = (lastBreak > 0 ? head.slice(0, lastBreak) : head) + "\r\n# truncated";
     }
   }
   await postWebhookWithFiles(webhookUrl, payload, files);

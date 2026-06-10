@@ -43,13 +43,12 @@ async function processOneCompany(
   company: Company,
   stats: RunContext,
 ): Promise<void> {
-  stats.companiesScanned++;
-
   const deny = isDeniedCompany(company.name, company.slug);
   if (deny.denied) {
     logger.debug({ company: company.name, reason: deny.reason }, "skip: services-denylist");
     return;
   }
+  stats.companiesScanned++;
 
   const adapterCompany = toAdapterCompany(company);
 

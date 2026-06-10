@@ -3,22 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { config } from "../src/config.js";
+import { RegistryEntrySchema, type RegistryEntry } from "../src/schemas.js";
 import { probeOne } from "./slug-probe.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
-
-const RawEntrySchema = z.object({
-  name: z.string(),
-  careers_url: z.string(),
-  source: z.string(),
-  source_slug: z.string().nullable().optional(),
-  parsing_strategy: z.string(),
-  status: z.string().optional(),
-  reason: z.string().optional(),
-  discovered_via: z.string().optional(),
-  tenant_url: z.string().optional(),
-});
-
-type RawEntry = z.infer<typeof RawEntrySchema>;
 
 interface Probe {
   url: string;
@@ -26,7 +13,7 @@ interface Probe {
 }
 
 interface Result {
-  entry: RawEntry;
+  entry: RegistryEntry;
   kind: "ats" | "url";
   ok: boolean;
   probe: Probe | null;
@@ -56,8 +43,10 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
-    const data = z.object({ total: z.number().optional() }).parse(await res.json());
-    return (data.total ?? 0) > 0;
+    // A live CXS endpoint that answers with the expected JSON shape is a valid
+    // tenant even with zero current openings (matches ats-validate.ts).
+    const parsed = z.object({ total: z.number().optional() }).safeParse(await res.json());
+    return parsed.success;
   } catch {
     return false;
   }
@@ -78,7 +67,10 @@ async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
         redirect: "follow",
         signal: controller.signal,
       });
-      return res.status < 500;
+      // ok (2xx, post-redirect) or 403 = page exists but bot-blocks GETs.
+      // 404/410 means the careers page is actually gone — that's the point
+      // of this script, so don't paper over it.
+      return res.ok || res.status === 403;
     } finally {
       clearTimeout(timer);
     }
@@ -110,7 +102,7 @@ async function probeAtsBody(url: string): Promise<boolean> {
   }
 }
 
-async function checkAts(entry: RawEntry, suggest: boolean): Promise<Result> {
+async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result> {
   const slug = entry.source_slug ?? "";
 
   if (entry.source === "workday") {
@@ -131,13 +123,10 @@ async function checkAts(entry: RawEntry, suggest: boolean): Promise<Result> {
 
   const builder = ATS_URL_BUILDERS[entry.source];
   if (!builder) {
-    return {
-      entry,
-      kind: "ats",
-      ok: false,
-      probe: { url: `(no probe url for provider=${entry.source})`, ok: false },
-      suggestion: null,
-    };
+    // No public probe for this provider (or it needs api_meta tokens we can't
+    // synthesize, e.g. keka/eightfold/oracle). Fall back to probing the careers
+    // page rather than reporting a false "broken".
+    return checkUrl(entry, suggest);
   }
 
   const url = builder(slug);
@@ -151,7 +140,7 @@ async function checkAts(entry: RawEntry, suggest: boolean): Promise<Result> {
   return { entry, kind: "ats", ok, probe: { url, ok }, suggestion };
 }
 
-async function checkUrl(entry: RawEntry, suggest: boolean): Promise<Result> {
+async function checkUrl(entry: RegistryEntry, suggest: boolean): Promise<Result> {
   const ok = await probeUrl(entry.careers_url);
   let suggestion: Result["suggestion"] = null;
   if (!ok && suggest) {
@@ -167,7 +156,7 @@ async function main(): Promise<void> {
   const suggest = args.has("--suggest");
 
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
-  const entries = RawEntrySchema.array().parse(JSON.parse(readFileSync(registryPath, "utf-8")));
+  const entries = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(registryPath, "utf-8")));
 
   console.log(`Verifying ${entries.length} entries from ${registryPath}`);
   if (suggest) console.log(`(--suggest: will probe other ATSes for failed entries — slower)`);

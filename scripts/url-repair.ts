@@ -53,7 +53,9 @@ async function probeUrl(url: string): Promise<ProbeResult> {
       redirect: "follow",
       signal: controller.signal,
     });
-    return { url, ok: res.ok, status: res.status };
+    // res.url is the post-redirect URL — record where we actually landed, not
+    // the candidate we guessed, so repairs persist the real destination.
+    return { url: res.url || url, ok: res.ok, status: res.status };
   } catch {
     return { url, ok: false, status: null };
   } finally {
@@ -77,9 +79,12 @@ function isUrlRepairable(lastError: string | null): boolean {
 
 // Phase B: when path-variant probing fails, try Brave Search. Catches
 // rebrand / domain-move cases. First working different-host hit wins.
-async function findUrlViaBraveSearch(company: Company): Promise<string | null> {
+// `queried` reports whether a Brave API call was actually spent — searchBrave
+// returns null without spending quota when the key is missing or the cap is hit.
+async function findUrlViaBraveSearch(company: Company): Promise<{ url: string | null; queried: boolean }> {
   const results = await searchBrave(`"${company.name}" careers`, { count: 10 });
-  if (!results || results.length === 0) return null;
+  if (!results) return { url: null, queried: false };
+  if (results.length === 0) return { url: null, queried: true };
 
   let oldHost = "";
   try { oldHost = new URL(company.careersUrl).host.replace(/^www\./, ""); } catch { /* */ }
@@ -100,13 +105,13 @@ async function findUrlViaBraveSearch(company: Company): Promise<string | null> {
     const probe = await probeUrl(r.url);
     if (probe.ok) {
       logger.info(
-        { company: company.name, oldHost, newUrl: r.url },
+        { company: company.name, oldHost, newUrl: probe.url },
         "url-repair: Brave found a working URL on a different host"
       );
-      return r.url;
+      return { url: probe.url, queried: true };
     }
   }
-  return null;
+  return { url: null, queried: true };
 }
 
 async function tryRepairOne(company: Company): Promise<{ company: Company; newUrl: string | null }> {
@@ -252,10 +257,10 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
       continue;
     }
     try {
-      const newUrl = await findUrlViaBraveSearch(company);
-      braveQueriesUsed++;
-      if (newUrl) {
-        recordFix(company, newUrl, "brave-search");
+      const found = await findUrlViaBraveSearch(company);
+      if (found.queried) braveQueriesUsed++;
+      if (found.url) {
+        recordFix(company, found.url, "brave-search");
         fixedByBraveSearch++;
       } else {
         phaseBStillBroken.push(broken);
