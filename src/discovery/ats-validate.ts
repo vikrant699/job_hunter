@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { config } from "../config.js";
-import { atsFetchJson } from "../ats/http.js";
+import { atsFetchJson, atsFetchText } from "../ats/http.js";
+import { extractKekaOrgGuid, kekaEmbedUrl } from "../ats/keka.js";
 import { phenomAdapter } from "../ats/phenom.js";
 import { darwinboxAdapter } from "../ats/darwinbox.js";
 import type { AdapterCompany } from "../types.js";
@@ -39,6 +39,30 @@ const WorkableResponseSchema = z.object({
   jobs: z.array(z.unknown()).optional(),
 });
 
+export interface KekaMeta {
+  orgGuid: string;
+  total: number;
+}
+
+/**
+ * Keka can't be validated from the slug alone — the embed API needs the org
+ * GUID that sits in the careers-page HTML. Fetch the page, extract the GUID,
+ * then confirm the embed API answers with a job array. Null on any failure;
+ * the caller falls back to llm-scrape.
+ */
+export async function discoverKekaMeta(c: AtsCandidate): Promise<KekaMeta | null> {
+  try {
+    const html = await atsFetchText(c.url, { provider: "keka" });
+    const orgGuid = extractKekaOrgGuid(html);
+    if (!orgGuid) return null;
+    const raw = await atsFetchJson(kekaEmbedUrl(c.slug, orgGuid), { provider: "keka" });
+    if (!Array.isArray(raw)) return null;
+    return { orgGuid, total: raw.length };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Probe a single candidate. Returns {ok, total} where total is the posting
  * count if the provider exposes one. Providers without a public validator
@@ -46,8 +70,6 @@ const WorkableResponseSchema = z.object({
  * treat the *detection* as useful evidence.
  */
 export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult> {
-  const timeout = config.fetch.timeoutMs;
-  void timeout; // atsFetchJson uses config.fetch.timeoutMs internally
   try {
     switch (c.provider) {
       case "greenhouse": {

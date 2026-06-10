@@ -3,7 +3,7 @@ import { logger } from "../logger.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import type { RegistryEntry, Provider, ParsingStrategy } from "../schemas.js";
 import { ProviderSchema } from "../schemas.js";
-import { discoverFromUrl, validateCandidate, type AtsCandidate } from "./ats.js";
+import { discoverFromUrl, validateCandidate, discoverKekaMeta, type AtsCandidate } from "./ats.js";
 import { runBraveSource, type BraveCandidate } from "./sources/brave.js";
 import { runRssSources, type RssCandidate } from "./sources/rss.js";
 import { runYcSource, type YcCandidate } from "./sources/yc.js";
@@ -115,6 +115,60 @@ async function resolveRegistryEntry(
       return { entry };
     }
     return { skipReason: `ats-detected-but-validation-failed (${best.provider}/${best.slug}: ${v.error ?? "unknown"})` };
+  }
+
+  // Keka is special among the unvalidatable-adapter providers: its missing
+  // api_meta token (orgGuid) sits in the careers-page HTML, so we can extract
+  // it here and register a full ats-api entry right away.
+  if (best?.provider === "keka") {
+    const meta = await discoverKekaMeta(best);
+    if (meta) {
+      logger.info(
+        { name: u.name, slug: best.slug, total: meta.total },
+        "discovery: keka orgGuid extracted — registering ats-api",
+      );
+      return {
+        entry: {
+          name: u.name,
+          careers_url: u.careersUrl,
+          source: "keka",
+          source_slug: best.slug,
+          parsing_strategy: "ats-api",
+          status: "candidate",
+          discovered_via: u.source,
+          discovered_at: now,
+          evidence: u.evidence,
+          api_meta: { orgGuid: meta.orgGuid },
+        },
+      };
+    }
+    // Extraction or embed-API validation failed — fall through to llm-scrape.
+  }
+
+  // Adapter exists but the provider has no validation probe — and these
+  // providers (eightfold/oracle, plus keka when extraction fails) need
+  // api_meta tokens we couldn't supply, so registering ats-api would just
+  // rack up five failed fetches and flip the company to broken. Keep
+  // llm-scrape, but preserve the detected provider + slug so a repair pass
+  // can promote the entry to ats-api later without re-detection.
+  if (best?.hasAdapter) {
+    logger.info(
+      { name: u.name, provider: best.provider, slug: best.slug, url: best.url },
+      "discovery: adapter available but unvalidatable — registering llm-scrape (promotable to ats-api)",
+    );
+    return {
+      entry: {
+        name: u.name,
+        careers_url: u.careersUrl,
+        source: ProviderSchema.parse(best.provider),
+        source_slug: best.slug.includes("/") ? best.slug.split("/")[0] : best.slug,
+        parsing_strategy: "llm-scrape",
+        status: "candidate",
+        discovered_via: u.source,
+        discovered_at: now,
+        evidence: u.evidence,
+      },
+    };
   }
 
   // Fallback: register as custom + llm-scrape. Pipeline's SPA sentinel will
