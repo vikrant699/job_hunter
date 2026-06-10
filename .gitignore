@@ -33,3 +33,4 @@ Desktop.ini
 
 # local planning / working notes (never publish)
 docs/superpowers/
+docs/sqlite-to-postgres-migration.md
