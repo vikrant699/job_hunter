@@ -12,17 +12,33 @@
  *   fetch-failed      — careers page unreachable
  *
  * Usage: node --import tsx scripts/ats-audit.ts
- * Writes data/ats-audit-<yyyy-mm-dd>.json with full per-company results.
+ *        node --import tsx scripts/ats-audit.ts --render --from data/ats-audit-<date>.json
+ * Writes data/ats-audit[-render]-<yyyy-mm-dd>.json with full per-company results.
+ *
+ * --render: fetch pages through headless chromium instead of a raw GET, so
+ * SPA careers pages reveal their embeds (iframe/subframe URLs are included in
+ * the rendered HTML). --from limits targets to companies a previous raw audit
+ * bucketed fetch-failed, or no-ats under the playwright strategy.
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { z } from "zod";
 import { db } from "../src/db/db.js";
 import { selectAllCompanies } from "../src/db/index.js";
 import {
-  discoverFromUrl, validateCandidate, discoverKekaMeta, type AtsCandidate,
+  discoverFromUrl, validateCandidate, discoverKekaMeta, extractAtsCandidates, type AtsCandidate,
 } from "../src/discovery/ats.js";
+import { fetchHtmlPlaywright } from "../src/scraper/playwright.js";
+import { closePlaywrightBrowser } from "../src/scraper/playwright.js";
 
-const CONCURRENCY = 10;
+const RAW_CONCURRENCY = 10;
+const RENDER_CONCURRENCY = 5; // matches the playwright page-slot semaphore
+
+const PrevRowSchema = z.object({
+  slug: z.string(),
+  strategy: z.string(),
+  bucket: z.string(),
+});
 
 interface AuditRow {
   name: string;
@@ -50,7 +66,10 @@ function pickBest(candidates: AtsCandidate[]): AtsCandidate | null {
       ?? candidates[0] ?? null;
 }
 
-async function auditOne(c: { name: string; slug: string; parsingStrategy: string; careersUrl: string }): Promise<AuditRow> {
+async function auditOne(
+  c: { name: string; slug: string; parsingStrategy: string; careersUrl: string },
+  render: boolean,
+): Promise<AuditRow> {
   const base: Omit<AuditRow, "bucket" | "detail"> = {
     name: c.name, slug: c.slug, strategy: c.parsingStrategy, careersUrl: c.careersUrl,
     detectedProvider: null, detectedSlug: null, detectedUrl: null, total: null,
@@ -58,7 +77,13 @@ async function auditOne(c: { name: string; slug: string; parsingStrategy: string
 
   let candidates: AtsCandidate[];
   try {
-    ({ candidates } = await discoverFromUrl(c.careersUrl));
+    if (render) {
+      // Rendered HTML includes subframe URLs, so embedded boards surface.
+      const page = await fetchHtmlPlaywright(c.careersUrl);
+      candidates = extractAtsCandidates(`${page.html}\n${page.finalUrl}`, page.finalUrl);
+    } else {
+      ({ candidates } = await discoverFromUrl(c.careersUrl));
+    }
   } catch (err) {
     return { ...base, bucket: "fetch-failed", detail: String(err).slice(0, 100) };
   }
@@ -101,12 +126,31 @@ async function auditOne(c: { name: string; slug: string; parsingStrategy: string
 }
 
 async function main(): Promise<void> {
-  const targets = selectAllCompanies().filter(
+  const args = process.argv.slice(2);
+  const render = args.includes("--render");
+  const fromIdx = args.indexOf("--from");
+  const fromFile = fromIdx >= 0 ? args[fromIdx + 1] : undefined;
+
+  let targets = selectAllCompanies().filter(
     (c) =>
       (c.parsingStrategy === "llm-scrape" || c.parsingStrategy === "playwright-llm-scrape") &&
       c.status !== "denied" && c.status !== "broken",
   );
-  console.log(`auditing ${targets.length} scrape-strategy companies (concurrency ${CONCURRENCY})...`);
+
+  if (fromFile) {
+    // Re-audit only what the raw pass couldn't see: unreachable pages, and
+    // SPA (playwright-strategy) pages where a raw GET showed no ATS.
+    const prev = PrevRowSchema.array().parse(JSON.parse(readFileSync(resolve(process.cwd(), fromFile), "utf-8")));
+    const wanted = new Set(
+      prev
+        .filter((r) => r.bucket === "fetch-failed" || (r.bucket === "no-ats" && r.strategy === "playwright-llm-scrape"))
+        .map((r) => `${r.slug}::${r.strategy}`),
+    );
+    targets = targets.filter((c) => wanted.has(`${c.slug}::${c.parsingStrategy}`));
+  }
+
+  const concurrency = render ? RENDER_CONCURRENCY : RAW_CONCURRENCY;
+  console.log(`auditing ${targets.length} scrape-strategy companies (${render ? "rendered" : "raw"}, concurrency ${concurrency})...`);
 
   const rows: AuditRow[] = [];
   let cursor = 0;
@@ -116,12 +160,12 @@ async function main(): Promise<void> {
       const idx = cursor++;
       const t = targets[idx];
       if (!t) return;
-      rows.push(await auditOne(t));
+      rows.push(await auditOne(t, render));
       done++;
       if (done % 50 === 0) console.log(`  ${done}/${targets.length}`);
     }
   }
-  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
   const byBucket = new Map<string, AuditRow[]>();
   for (const r of rows) {
@@ -149,9 +193,11 @@ async function main(): Promise<void> {
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
-  const outPath = resolve(process.cwd(), `data/ats-audit-${stamp}.json`);
+  const outPath = resolve(process.cwd(), `data/ats-audit${render ? "-render" : ""}-${stamp}.json`);
   writeFileSync(outPath, JSON.stringify(rows, null, 2), "utf-8");
   console.log(`\nfull results -> ${outPath}`);
+
+  if (render) await closePlaywrightBrowser();
 }
 
 main().catch((err) => {

@@ -378,9 +378,9 @@
     "careers_url": "https://www.accenture.com/in-en/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Accenture India",
@@ -515,8 +515,8 @@
     "source": "custom",
     "source_slug": "agnext-technologies",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "AgNext (AgTech, India) hosts openings on Workable at apply.workable.com/agnext-technologies/; agnext.com/jobs/ links there."
+    "status": "denied",
+    "reason": "superseded: fetched via workable/agnext-technologies (ats-audit 2026-06-10)"
   },
   {
     "name": "Agnikul Cosmos",
@@ -662,7 +662,8 @@
     "source": "custom",
     "source_slug": "amex-pw",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: fetched via oracle/egug (ats-audit 2026-06-10)"
   },
   {
     "name": "AmpleLogic",
@@ -1133,9 +1134,9 @@
     "careers_url": "https://www.birlasoft.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Bitbns",
@@ -1345,8 +1346,8 @@
     "source": "custom",
     "source_slug": "cadila-healthcare",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Cadila Healthcare Ltd was renamed Zydus Lifesciences Ltd; official careers at zyduslife.com/career.html (openings via zydusgroup.darwinbox.in)."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/zydusgroup (ats-audit 2026-06-10)"
   },
   {
     "name": "Camp K12",
@@ -1362,9 +1363,9 @@
     "careers_url": "https://www.capgemini.com/in-en/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Capgemini India",
@@ -1397,8 +1398,8 @@
     "source": "custom",
     "source_slug": "capital-float",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Capital Float rebranded to axio (CapFloat Financial Services); careers hosted on Darwinbox at axiofinance.darwinbox.in."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/axiofinance (ats-audit 2026-06-10)"
   },
   {
     "name": "Capital SFB",
@@ -1427,7 +1428,8 @@
     "source": "custom",
     "source_slug": "cardekho",
     "parsing_strategy": "llm-scrape",
-    "evidence": "URL repaired via path-variant from https://www.cardekho.com/careers/"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/cardekho (ats-audit 2026-06-10)"
   },
   {
     "name": "Careers | Monks",
@@ -1580,15 +1582,19 @@
     "name": "CleverTap",
     "careers_url": "https://clevertap.com/careers/",
     "source": "custom",
+    "source_slug": "clevertap",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/clevertap (ats-audit 2026-06-10)"
   },
   {
     "name": "CleverTap Enterprise",
     "careers_url": "https://clevertap.com/careers/",
     "source": "custom",
+    "source_slug": "clevertap-enterprise",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/clevertap (ats-audit 2026-06-10)"
   },
   {
     "name": "Climate Pledge India",
@@ -1635,9 +1641,9 @@
     "careers_url": "https://www.coforge.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Cogniable",
@@ -1660,9 +1666,9 @@
     "careers_url": "https://careers.cognizant.com/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Coinbase",
@@ -1850,15 +1856,19 @@
     "name": "CropIn",
     "careers_url": "https://www.cropin.com/careers",
     "source": "custom",
+    "source_slug": "cropin",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/cropinhrms (ats-audit 2026-06-10)"
   },
   {
     "name": "Cropin Cloud",
     "careers_url": "https://www.cropin.com/careers",
     "source": "custom",
+    "source_slug": "cropin-cloud",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/cropinhrms (ats-audit 2026-06-10)"
   },
   {
     "name": "Crossword Bookstores",
@@ -1935,8 +1945,10 @@
     "name": "Darwinbox",
     "careers_url": "https://darwinbox.com/careers",
     "source": "custom",
+    "source_slug": "darwinbox",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/dbx (ats-audit 2026-06-10)"
   },
   {
     "name": "DealShare",
@@ -1973,18 +1985,19 @@
     "name": "DeHaat",
     "careers_url": "https://apply.workable.com/agrevolution/",
     "source": "custom",
+    "source_slug": "dehaat",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "evidence": "URL repaired via WebSearch: hiring on Workable"
+    "status": "denied",
+    "reason": "superseded: fetched via workable/agrevolution (ats-audit 2026-06-10)"
   },
   {
     "name": "Deloitte",
     "careers_url": "https://www2.deloitte.com/in/en/careers.html",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Deloitte India",
@@ -2036,8 +2049,10 @@
     "name": "Digit Insurance",
     "careers_url": "https://www.godigit.com/careers",
     "source": "custom",
+    "source_slug": "digit-insurance",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/godigit (ats-audit 2026-06-10)"
   },
   {
     "name": "Dil Foods",
@@ -2145,9 +2160,9 @@
     "careers_url": "https://dxc.com/us/en/about-us/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "DXC Technology India",
@@ -2330,9 +2345,9 @@
     "careers_url": "https://www.ey.com/en_in/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "FabAlley",
@@ -2601,7 +2616,8 @@
     "source": "custom",
     "source_slug": "games24x7",
     "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repair 2026-06-05 (fix-url, high): games24x7.com/careers/ → HTTP 404. games24x7.darwinbox.in/ms/candidate"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/games24x7 (ats-audit 2026-06-10)"
   },
   {
     "name": "GE Healthcare India",
@@ -2625,9 +2641,9 @@
     "careers_url": "https://www.genpact.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Genpact India",
@@ -2695,7 +2711,8 @@
     "source": "custom",
     "source_slug": "goibibo",
     "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repair 2026-06-05 (fix-url, high): careers.makemytrip.com → HTTP 200 initially but WebFetch times out (JS"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/gommt (ats-audit 2026-06-10)"
   },
   {
     "name": "Goodspace",
@@ -2847,9 +2864,9 @@
     "careers_url": "https://www.hcltech.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "HDFC Bank",
@@ -2879,8 +2896,10 @@
     "name": "HealthifyMe",
     "careers_url": "https://www.healthifyme.com/careers",
     "source": "custom",
+    "source_slug": "healthifyme",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/healthify (ats-audit 2026-06-10)"
   },
   {
     "name": "HealthPlix",
@@ -2911,9 +2930,9 @@
     "careers_url": "https://hexaware.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Hexaware Tech",
@@ -3241,9 +3260,9 @@
     "careers_url": "https://www.infosys.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Infosys BPM",
@@ -3519,9 +3538,9 @@
     "careers_url": "https://home.kpmg/in/en/home/careers.html",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "KreditBee",
@@ -3818,9 +3837,9 @@
     "careers_url": "https://www.ltimindtree.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Lupin",
@@ -3856,8 +3875,10 @@
     "name": "Mad Street Den",
     "careers_url": "https://www.madstreetden.com/careers",
     "source": "custom",
+    "source_slug": "mad-street-den",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/msd (ats-audit 2026-06-10)"
   },
   {
     "name": "Magenta Mobility",
@@ -4353,9 +4374,9 @@
     "careers_url": "https://www.mphasis.com/home/careers.html",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "MPL",
@@ -4496,8 +4517,10 @@
     "name": "NetApp India",
     "careers_url": "https://careers.netapp.com/",
     "source": "custom",
+    "source_slug": "netapp-india",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via eightfold/netapp (ats-audit 2026-06-10)"
   },
   {
     "name": "Netcore Cloud",
@@ -4617,9 +4640,9 @@
     "careers_url": "https://www.nttdata.com/global/en/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "NTT Data India",
@@ -4707,8 +4730,10 @@
     "name": "ON Semiconductor India",
     "careers_url": "https://www.onsemi.com/careers",
     "source": "custom",
+    "source_slug": "on-semiconductor-india",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via oracle/hctz (ats-audit 2026-06-10)"
   },
   {
     "name": "Onecard",
@@ -4954,8 +4979,10 @@
     "name": "Perfios",
     "careers_url": "https://www.perfios.com/careers/",
     "source": "custom",
+    "source_slug": "perfios",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/perfios (ats-audit 2026-06-10)"
   },
   {
     "name": "Persistent Engineering Services",
@@ -4969,9 +4996,9 @@
     "careers_url": "https://www.persistent.com/careers/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Persistent Systems Engineering",
@@ -5008,8 +5035,10 @@
     "name": "Pharmeasy",
     "careers_url": "https://pharmeasy.in/careers",
     "source": "custom",
+    "source_slug": "pharmeasy",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/myhr (ats-audit 2026-06-10)"
   },
   {
     "name": "Phool",
@@ -5095,8 +5124,10 @@
     "name": "Pixxel",
     "careers_url": "https://www.pixxel.space/careers",
     "source": "custom",
+    "source_slug": "pixxel",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/pixxel (ats-audit 2026-06-10)"
   },
   {
     "name": "Plastics for Change",
@@ -5299,9 +5330,9 @@
     "careers_url": "https://www.pwc.in/careers.html",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Python Developer (Remote) | Monks",
@@ -5363,8 +5394,8 @@
     "source": "custom",
     "source_slug": "rapido",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Rapido (bike taxi, Bangalore) careers page live at rapido.bike/Careers (capital C); old lowercase /careers 404'd."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/rapido (ats-audit 2026-06-10)"
   },
   {
     "name": "Raymond Group",
@@ -5384,9 +5415,10 @@
     "name": "Razorpay",
     "careers_url": "https://razorpay.com/jobs/",
     "source": "custom",
+    "source_slug": "razorpay",
     "parsing_strategy": "playwright-llm-scrape",
-    "reason": "Was on Greenhouse; slug no longer responds. Awaits llm-scrape (Phase 6).",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: duplicate of greenhouse/razorpaysoftwareprivatelimited (ats-audit 2026-06-10)"
   },
   {
     "name": "RazorpayX Payroll",
@@ -5654,7 +5686,8 @@
     "source": "custom",
     "source_slug": "rummycircle",
     "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repair 2026-06-05 (fix-url, high): curl https://www.rummycircle.com/careers returned HTTP 404 (current UR"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/games24x7 (ats-audit 2026-06-10)"
   },
   {
     "name": "Saahas Zero Waste",
@@ -5925,8 +5958,8 @@
     "source": "custom",
     "source_slug": "shoppers-stop",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Official careers moved to Darwinbox at ss-people.darwinbox.in/ms/candidate/careers (corporate.shoppersstop.com/careers broke); Darwinbox not a supported ATS."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/ss-people (ats-audit 2026-06-10)"
   },
   {
     "name": "Shoppers Stop India",
@@ -6024,8 +6057,10 @@
     "name": "Skillshare India",
     "careers_url": "https://www.skillshare.com/careers",
     "source": "custom",
+    "source_slug": "skillshare-india",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via workable/skillshare (ats-audit 2026-06-10)"
   },
   {
     "name": "Skoda India",
@@ -6033,8 +6068,8 @@
     "source": "custom",
     "source_slug": "skoda-india",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Skoda in India is run by Skoda Auto Volkswagen India; its live careers page (skoda-vw.co.in/current-openings) links to a DarwinBox recruitment portal."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/skoda-vw (ats-audit 2026-06-10)"
   },
   {
     "name": "Skuad",
@@ -6220,15 +6255,19 @@
     "name": "Spinny",
     "careers_url": "https://www.spinny.com/careers",
     "source": "custom",
+    "source_slug": "spinny",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/spinzone (ats-audit 2026-06-10)"
   },
   {
     "name": "Spinny Cars",
     "careers_url": "https://www.spinny.com/careers",
     "source": "custom",
+    "source_slug": "spinny-cars",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/spinzone (ats-audit 2026-06-10)"
   },
   {
     "name": "Splunk India",
@@ -6249,8 +6288,10 @@
     "name": "Squad Stack",
     "careers_url": "https://squadstack.com/careers",
     "source": "custom",
+    "source_slug": "squad-stack",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-3"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/squadrun (ats-audit 2026-06-10)"
   },
   {
     "name": "Square Yards",
@@ -6299,8 +6340,8 @@
     "source": "custom",
     "source_slug": "stanplus",
     "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "StanPlus rebranded to RED.Health; careers at red.health/career link to DarwinBox board (redhealth.darwinbox.in/ms/candidate/careers)."
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/redhealth (ats-audit 2026-06-10)"
   },
   {
     "name": "Stanza Living",
@@ -6382,8 +6423,10 @@
     "name": "Subex",
     "careers_url": "https://subex.com/careers/",
     "source": "custom",
+    "source_slug": "subex",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/subex (ats-audit 2026-06-10)"
   },
   {
     "name": "Subtl.ai",
@@ -6558,8 +6601,10 @@
     "name": "Tata 1mg",
     "careers_url": "https://www.1mg.com/jobs",
     "source": "custom",
+    "source_slug": "tata-1mg",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: duplicate of darwinbox/1mg (ats-audit 2026-06-10)"
   },
   {
     "name": "Tata Advanced Systems",
@@ -6581,15 +6626,19 @@
     "name": "Tata Capital",
     "careers_url": "https://www.tatacapital.com/careers",
     "source": "custom",
+    "source_slug": "tata-capital",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: duplicate of oracle/eofh (ats-audit 2026-06-10)"
   },
   {
     "name": "Tata Chemicals",
     "careers_url": "https://www.tatachemicals.com/careers",
     "source": "custom",
+    "source_slug": "tata-chemicals",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via oracle/fa-eskj-saasfaprod1 (ats-audit 2026-06-10)"
   },
   {
     "name": "Tata CLiQ",
@@ -6747,9 +6796,9 @@
     "careers_url": "https://www.tcs.com/careers",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "TCS BPS",
@@ -6763,9 +6812,9 @@
     "careers_url": "https://careers.techmahindra.com/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Tech Mahindra BPS",
@@ -6801,8 +6850,10 @@
     "name": "Tessolve Semiconductor",
     "careers_url": "https://www.tessolve.com/careers/",
     "source": "custom",
+    "source_slug": "tessolve-semiconductor",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/tessolve (ats-audit 2026-06-10)"
   },
   {
     "name": "The Hindu",
@@ -6939,9 +6990,9 @@
     "careers_url": "https://www.toppr.com/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "Defunct — acquired by Byju's; operations wound down",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Torrent Pharma",
@@ -7040,8 +7091,10 @@
     "name": "Truebil",
     "careers_url": "https://www.truebil.com/careers",
     "source": "custom",
+    "source_slug": "truebil",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/spinzone (ats-audit 2026-06-10)"
   },
   {
     "name": "TrueFan",
@@ -7124,8 +7177,10 @@
     "name": "Unacademy Group",
     "careers_url": "https://unacademy.com/careers",
     "source": "custom",
+    "source_slug": "unacademy-group",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/unacademy (ats-audit 2026-06-10)"
   },
   {
     "name": "Uni Cards",
@@ -7140,8 +7195,10 @@
     "name": "Unicommerce",
     "careers_url": "https://unicommerce.com/careers/",
     "source": "custom",
+    "source_slug": "unicommerce",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/unicommerce (ats-audit 2026-06-10)"
   },
   {
     "name": "Unocoin",
@@ -7156,15 +7213,19 @@
     "name": "upGrad",
     "careers_url": "https://www.upgrad.com/careers",
     "source": "custom",
+    "source_slug": "upgrad",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/upgrad (ats-audit 2026-06-10)"
   },
   {
     "name": "upGrad Campus",
     "careers_url": "https://www.upgrad.com/careers/",
     "source": "custom",
+    "source_slug": "upgrad-campus",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/upgrad (ats-audit 2026-06-10)"
   },
   {
     "name": "Urban Company",
@@ -7309,8 +7370,8 @@
     "source": "custom",
     "source_slug": "vikram-solar",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Vikram Solar's vacancies page is live and lists current openings; applications route through an Oracle Cloud HCM recruiting portal."
+    "status": "denied",
+    "reason": "superseded: fetched via oracle/iabqiz (ats-audit 2026-06-10)"
   },
   {
     "name": "Vimeo",
@@ -7341,7 +7402,8 @@
     "source": "custom",
     "source_slug": "vivriti-capital",
     "parsing_strategy": "llm-scrape",
-    "evidence": "URL repaired via path-variant from https://www.vivriticapital.com/careers"
+    "status": "denied",
+    "reason": "superseded: fetched via darwinbox/vivriti (ats-audit 2026-06-10)"
   },
   {
     "name": "Vodafone Idea",
@@ -7391,15 +7453,19 @@
     "name": "Vyapar",
     "careers_url": "https://vyaparapp.in/careers",
     "source": "custom",
+    "source_slug": "vyapar",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/vyaparapp (ats-audit 2026-06-10)"
   },
   {
     "name": "Vyapar Online",
     "careers_url": "https://vyaparapp.in/careers",
     "source": "custom",
+    "source_slug": "vyapar-online",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/vyaparapp (ats-audit 2026-06-10)"
   },
   {
     "name": "Waaree Energies",
@@ -7471,7 +7537,8 @@
     "source": "custom",
     "source_slug": "webengage",
     "parsing_strategy": "llm-scrape",
-    "evidence": "URL repaired via path-variant from https://webengage.com/careers/"
+    "status": "denied",
+    "reason": "superseded: fetched via keka/webklipper (ats-audit 2026-06-10)"
   },
   {
     "name": "WeRize",
@@ -7564,9 +7631,9 @@
     "careers_url": "https://careers.wipro.com/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
+    "status": "denied",
     "reason": "services",
-    "discovered_via": "seed",
-    "status": "denied"
+    "discovered_via": "seed"
   },
   {
     "name": "Wipro BPO",
@@ -7631,8 +7698,10 @@
     "name": "Writesonic",
     "careers_url": "https://writesonic.com/careers",
     "source": "custom",
+    "source_slug": "writesonic",
     "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed"
+    "status": "denied",
+    "reason": "superseded: fetched via workable/writesonic (ats-audit 2026-06-10)"
   },
   {
     "name": "WROGN",
@@ -7791,7 +7860,8 @@
     "source": "custom",
     "source_slug": "zensar-technologies",
     "parsing_strategy": "llm-scrape",
-    "evidence": "URL repaired via path-variant from https://www.zensar.com/careers/"
+    "status": "denied",
+    "reason": "superseded: fetched via oracle/fa-etvl-saasfaprod1 (ats-audit 2026-06-10)"
   },
   {
     "name": "Zepto",
@@ -7934,6 +8004,18 @@
     "tenant_url": "https://autalenthub.darwinbox.in/ms/candidate/careers"
   },
   {
+    "name": "axio",
+    "careers_url": "https://axiofinance.darwinbox.in/ms/candidate/careers",
+    "source": "darwinbox",
+    "source_slug": "axiofinance",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://axiofinance.darwinbox.in"
+  },
+  {
     "name": "BharatPe",
     "careers_url": "https://bharatpe.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
@@ -7962,6 +8044,30 @@
     "discovered_via": "convert-tier2",
     "evidence": "darwinbox (5 jobs)",
     "tenant_url": "https://bigbasket.darwinbox.in/ms/candidate/careers"
+  },
+  {
+    "name": "CarDekho",
+    "careers_url": "https://careers.cardekho.com/",
+    "source": "darwinbox",
+    "source_slug": "cardekho",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://cardekho.darwinbox.in"
+  },
+  {
+    "name": "CleverTap",
+    "careers_url": "https://clevertap.com/careers/",
+    "source": "darwinbox",
+    "source_slug": "clevertap",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://clevertap.darwinbox.in"
   },
   {
     "name": "Cure.fit Care",
@@ -7994,6 +8100,18 @@
     "tenant_url": "https://curefit.darwinbox.in/ms/candidate/careers"
   },
   {
+    "name": "Darwinbox",
+    "careers_url": "https://darwinbox.com/careers",
+    "source": "darwinbox",
+    "source_slug": "dbx",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://dbx.darwinbox.in"
+  },
+  {
     "name": "Delhivery",
     "careers_url": "https://delhivery.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
@@ -8024,6 +8142,18 @@
     "tenant_url": "https://emeritus.darwinbox.in/ms/candidate/careers"
   },
   {
+    "name": "Games24x7",
+    "careers_url": "https://games24x7.darwinbox.in/ms/candidate/a6150564417204/careers",
+    "source": "darwinbox",
+    "source_slug": "games24x7",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://games24x7.darwinbox.in"
+  },
+  {
     "name": "Glenmark Pharma",
     "careers_url": "https://glenmarkspring.darwinbox.com/ms/candidate/careers",
     "source": "darwinbox",
@@ -8032,6 +8162,30 @@
     "discovered_via": "convert-tier2",
     "evidence": "darwinbox (11 jobs)",
     "tenant_url": "https://glenmarkspring.darwinbox.com/ms/candidate/careers"
+  },
+  {
+    "name": "Digit Insurance",
+    "careers_url": "https://www.godigit.com/careers",
+    "source": "darwinbox",
+    "source_slug": "godigit",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://godigit.darwinbox.in"
+  },
+  {
+    "name": "Goibibo",
+    "careers_url": "https://gommt.darwinbox.in/ms/candidate/careers",
+    "source": "darwinbox",
+    "source_slug": "gommt",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://gommt.darwinbox.in"
   },
   {
     "name": "Great Learning",
@@ -8052,6 +8206,18 @@
     "discovered_via": "convert-tier2",
     "evidence": "darwinbox (8 jobs)",
     "tenant_url": "https://hdfcsecurities.darwinbox.in/ms/candidate/careers"
+  },
+  {
+    "name": "HealthifyMe",
+    "careers_url": "https://www.healthifyme.com/careers",
+    "source": "darwinbox",
+    "source_slug": "healthify",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://healthify.darwinbox.in"
   },
   {
     "name": "Hero FinCorp",
@@ -8134,6 +8300,30 @@
     "tenant_url": "https://mgmhr.darwinbox.in/ms/candidate/careers"
   },
   {
+    "name": "Mad Street Den",
+    "careers_url": "https://www.madstreetden.com/careers",
+    "source": "darwinbox",
+    "source_slug": "msd",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://msd.darwinbox.in"
+  },
+  {
+    "name": "Pharmeasy",
+    "careers_url": "https://pharmeasy.in/careers",
+    "source": "darwinbox",
+    "source_slug": "myhr",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://myhr.darwinbox.in"
+  },
+  {
     "name": "Niva Bupa",
     "careers_url": "https://disha.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
@@ -8142,6 +8332,18 @@
     "discovered_via": "convert-tier2",
     "evidence": "darwinbox (151 jobs)",
     "tenant_url": "https://disha.darwinbox.in/ms/candidate/careers"
+  },
+  {
+    "name": "Perfios",
+    "careers_url": "https://www.perfios.com/careers/",
+    "source": "darwinbox",
+    "source_slug": "perfios",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://perfios.darwinbox.in"
   },
   {
     "name": "PharmEasy Diagnostics",
@@ -8154,6 +8356,42 @@
     "tenant_url": "https://myhr.darwinbox.in/ms/candidate/careers"
   },
   {
+    "name": "Pixxel",
+    "careers_url": "https://www.pixxel.space/careers",
+    "source": "darwinbox",
+    "source_slug": "pixxel",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://pixxel.darwinbox.in"
+  },
+  {
+    "name": "Rapido",
+    "careers_url": "https://www.rapido.bike/Careers",
+    "source": "darwinbox",
+    "source_slug": "rapido",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://rapido.darwinbox.in"
+  },
+  {
+    "name": "RED.Health",
+    "careers_url": "https://www.red.health/career",
+    "source": "darwinbox",
+    "source_slug": "redhealth",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://redhealth.darwinbox.in"
+  },
+  {
     "name": "IndusInd General Insurance",
     "careers_url": "https://hr360brobot.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
@@ -8162,6 +8400,114 @@
     "discovered_via": "convert-tier2",
     "evidence": "darwinbox (130 jobs)",
     "tenant_url": "https://hr360brobot.darwinbox.in/ms/candidate/careers"
+  },
+  {
+    "name": "Skoda India",
+    "careers_url": "https://skoda-vw.co.in/current-openings/",
+    "source": "darwinbox",
+    "source_slug": "skoda-vw",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://skoda-vw.darwinbox.in"
+  },
+  {
+    "name": "Spinny",
+    "careers_url": "https://www.spinny.com/careers",
+    "source": "darwinbox",
+    "source_slug": "spinzone",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://spinzone.darwinbox.in"
+  },
+  {
+    "name": "Shoppers Stop",
+    "careers_url": "https://ss-people.darwinbox.in/ms/candidate/careers",
+    "source": "darwinbox",
+    "source_slug": "ss-people",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://ss-people.darwinbox.in"
+  },
+  {
+    "name": "Subex",
+    "careers_url": "https://subex.com/careers/",
+    "source": "darwinbox",
+    "source_slug": "subex",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://subex.darwinbox.in"
+  },
+  {
+    "name": "Tessolve Semiconductor",
+    "careers_url": "https://www.tessolve.com/careers/",
+    "source": "darwinbox",
+    "source_slug": "tessolve",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://tessolve.darwinbox.com"
+  },
+  {
+    "name": "Unacademy Group",
+    "careers_url": "https://unacademy.com/careers",
+    "source": "darwinbox",
+    "source_slug": "unacademy",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://unacademy.darwinbox.in"
+  },
+  {
+    "name": "upGrad",
+    "careers_url": "https://www.upgrad.com/careers",
+    "source": "darwinbox",
+    "source_slug": "upgrad",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://upgrad.darwinbox.in"
+  },
+  {
+    "name": "Vivriti Capital",
+    "careers_url": "https://www.vivriticapital.com/work-with-us",
+    "source": "darwinbox",
+    "source_slug": "vivriti",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "tenant_url": "https://vivriti.darwinbox.in"
+  },
+  {
+    "name": "Zydus Lifesciences",
+    "careers_url": "https://zyduslife.com/career.html",
+    "source": "darwinbox",
+    "source_slug": "zydusgroup",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape",
+    "tenant_url": "https://zydusgroup.darwinbox.in"
   },
   {
     "name": "AstraZeneca India Ops",
@@ -8174,6 +8520,20 @@
     "tenant_url": "https://astrazeneca.eightfold.ai",
     "api_meta": {
       "domain": "astrazeneca.com"
+    }
+  },
+  {
+    "name": "NetApp India",
+    "careers_url": "https://careers.netapp.com/",
+    "source": "eightfold",
+    "source_slug": "netapp",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: eightfold domain auto-extracted (netapp.com)",
+    "tenant_url": "https://netapp.eightfold.ai",
+    "api_meta": {
+      "domain": "netapp.com"
     }
   },
   {
@@ -8946,12 +9306,26 @@
     "source": "keka",
     "source_slug": "convertcart",
     "parsing_strategy": "ats-api",
+    "discovered_via": "url-repair-2026-06-05",
+    "evidence": "Keka board convertcart.keka.com validated (6 live jobs)",
     "tenant_url": "https://convertcart.keka.com",
     "api_meta": {
       "orgGuid": "456baa77-8d84-408a-8d4e-e7ed841104d4"
-    },
-    "discovered_via": "url-repair-2026-06-05",
-    "evidence": "Keka board convertcart.keka.com validated (6 live jobs)"
+    }
+  },
+  {
+    "name": "CropIn",
+    "careers_url": "https://www.cropin.com/careers",
+    "source": "keka",
+    "source_slug": "cropinhrms",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "api_meta": {
+      "orgGuid": "953bbd12-8a46-443b-8c3e-a6fdf7bbd11e"
+    }
   },
   {
     "name": "Eka.Care",
@@ -9059,6 +9433,62 @@
     "evidence": "keka (36 jobs)",
     "api_meta": {
       "orgGuid": "fa11c430-c96c-447f-9f68-d05ab3867c12"
+    }
+  },
+  {
+    "name": "Squad Stack",
+    "careers_url": "https://squadstack.com/careers",
+    "source": "keka",
+    "source_slug": "squadrun",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "api_meta": {
+      "orgGuid": "c750f148-70b8-4a21-868e-f891a1b2d818"
+    }
+  },
+  {
+    "name": "Unicommerce",
+    "careers_url": "https://unicommerce.com/careers/",
+    "source": "keka",
+    "source_slug": "unicommerce",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "api_meta": {
+      "orgGuid": "ba349d77-13ff-489e-a068-2301b1073b3e"
+    }
+  },
+  {
+    "name": "Vyapar",
+    "careers_url": "https://vyaparapp.in/careers",
+    "source": "keka",
+    "source_slug": "vyaparapp",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "api_meta": {
+      "orgGuid": "641c96f0-d54d-4e5c-a4ef-8a4a10fe2d2c"
+    }
+  },
+  {
+    "name": "WebEngage",
+    "careers_url": "https://webengage.com/careers",
+    "source": "keka",
+    "source_slug": "webklipper",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape",
+    "api_meta": {
+      "orgGuid": "db770a22-93d1-46f6-af73-c35e960ea796"
     }
   },
   {
@@ -9252,6 +9682,20 @@
     }
   },
   {
+    "name": "American Express India",
+    "careers_url": "https://careers.americanexpress.com/jobs/?searchby=location&searchstring=India",
+    "source": "oracle",
+    "source_slug": "egug",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: oracle tokens auto-extracted (CX_1)",
+    "tenant_url": "https://egug.fa.us2.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "CX_1"
+    }
+  },
+  {
     "name": "Tata Capital Housing",
     "careers_url": "https://eofh.fa.em2.oraclecloud.com",
     "source": "oracle",
@@ -9273,6 +9717,34 @@
     "discovered_via": "convert-tier1",
     "evidence": "oracle (25 jobs, CX_1)",
     "tenant_url": "https://fa-eryk-saasfaprod1.fa.ocs.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "CX_1"
+    }
+  },
+  {
+    "name": "Tata Chemicals",
+    "careers_url": "https://www.tatachemicals.com/careers",
+    "source": "oracle",
+    "source_slug": "fa-eskj-saasfaprod1",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: oracle tokens auto-extracted (CX_1001)",
+    "tenant_url": "https://fa-eskj-saasfaprod1.fa.ocs.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "CX_1001"
+    }
+  },
+  {
+    "name": "Zensar Technologies",
+    "careers_url": "https://www.zensar.com/careers",
+    "source": "oracle",
+    "source_slug": "fa-etvl-saasfaprod1",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: oracle tokens auto-extracted (CX_1)",
+    "tenant_url": "https://fa-etvl-saasfaprod1.fa.ocs.oraclecloud.com",
     "api_meta": {
       "siteNumber": "CX_1"
     }
@@ -9304,6 +9776,20 @@
     }
   },
   {
+    "name": "ON Semiconductor India",
+    "careers_url": "https://www.onsemi.com/careers",
+    "source": "oracle",
+    "source_slug": "hctz",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: oracle tokens auto-extracted (CX_1001)",
+    "tenant_url": "https://hctz.fa.us2.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "CX_1001"
+    }
+  },
+  {
     "name": "Havells India",
     "careers_url": "https://iabgcp.fa.ocs.oraclecloud.com",
     "source": "oracle",
@@ -9325,6 +9811,20 @@
     "discovered_via": "convert-tier1",
     "evidence": "oracle (25 jobs, CX_1)",
     "tenant_url": "https://iabiiz.fa.ocs.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "CX_1"
+    }
+  },
+  {
+    "name": "Vikram Solar",
+    "careers_url": "https://www.vikramsolar.com/vacancies/",
+    "source": "oracle",
+    "source_slug": "iabqiz",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "evidence": "ats-audit: oracle tokens auto-extracted (CX_1)",
+    "tenant_url": "https://iabqiz.fa.ocs.oraclecloud.com",
     "api_meta": {
       "siteNumber": "CX_1"
     }
@@ -9792,6 +10292,28 @@
     "evidence": "on smartrecruiters (1 jobs); was llm-scrape"
   },
   {
+    "name": "AgNext Technologies",
+    "careers_url": "https://apply.workable.com/agnext-technologies/",
+    "source": "workable",
+    "source_slug": "agnext-technologies",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape"
+  },
+  {
+    "name": "DeHaat",
+    "careers_url": "https://apply.workable.com/agrevolution/",
+    "source": "workable",
+    "source_slug": "agrevolution",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from playwright-llm-scrape"
+  },
+  {
     "name": "Hugging Face",
     "careers_url": "https://apply.workable.com/huggingface/",
     "source": "workable",
@@ -9819,13 +10341,35 @@
     "evidence": "Workable board apply.workable.com/practo validated (account live; 0 jobs at add time)"
   },
   {
+    "name": "Skillshare India",
+    "careers_url": "https://www.skillshare.com/careers",
+    "source": "workable",
+    "source_slug": "skillshare",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape"
+  },
+  {
+    "name": "Writesonic",
+    "careers_url": "https://writesonic.com/careers",
+    "source": "workable",
+    "source_slug": "writesonic",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "ats-audit",
+    "discovered_at": "2026-06-10",
+    "evidence": "ats-audit 2026-06-10: promoted from llm-scrape"
+  },
+  {
     "name": "3M India",
     "careers_url": "https://www.3m.com/3M/en_US/careers-us/",
     "source": "workday",
     "source_slug": "3m",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://3m.wd1.myworkdayjobs.com/Search",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://3m.wd1.myworkdayjobs.com/Search"
   },
   {
     "name": "Adobe India",
@@ -9833,9 +10377,9 @@
     "source": "workday",
     "source_slug": "adobe",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://adobe.wd5.myworkdayjobs.com/external_experienced",
     "discovered_via": "claude-research",
-    "evidence": "workday (1180 jobs)"
+    "evidence": "workday (1180 jobs)",
+    "tenant_url": "https://adobe.wd5.myworkdayjobs.com/external_experienced"
   },
   {
     "name": "Airbus India",
@@ -9843,9 +10387,9 @@
     "source": "workday",
     "source_slug": "ag",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ag.wd3.myworkdayjobs.com/Airbus",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (2000 jobs); was llm-scrape"
+    "evidence": "embedded workday board (2000 jobs); was llm-scrape",
+    "tenant_url": "https://ag.wd3.myworkdayjobs.com/Airbus"
   },
   {
     "name": "Nissan India",
@@ -9853,9 +10397,9 @@
     "source": "workday",
     "source_slug": "alliance",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://alliance.wd3.myworkdayjobs.com/nissanjobs",
     "discovered_via": "claude-research",
-    "evidence": "workday (328 jobs)"
+    "evidence": "workday (328 jobs)",
+    "tenant_url": "https://alliance.wd3.myworkdayjobs.com/nissanjobs"
   },
   {
     "name": "Alvarez & Marsal India",
@@ -9863,9 +10407,9 @@
     "source": "workday",
     "source_slug": "alvarezandmarsal",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://alvarezandmarsal.wd1.myworkdayjobs.com/alvarezandmarsal",
     "discovered_via": "claude-research",
-    "evidence": "workday (0 jobs)"
+    "evidence": "workday (0 jobs)",
+    "tenant_url": "https://alvarezandmarsal.wd1.myworkdayjobs.com/alvarezandmarsal"
   },
   {
     "name": "Maxim Integrated India",
@@ -9873,9 +10417,9 @@
     "source": "workday",
     "source_slug": "analogdevices",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://analogdevices.wd1.myworkdayjobs.com/External",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (941 jobs); was llm-scrape"
+    "evidence": "embedded workday board (941 jobs); was llm-scrape",
+    "tenant_url": "https://analogdevices.wd1.myworkdayjobs.com/External"
   },
   {
     "name": "Automation Anywhere India",
@@ -9883,9 +10427,9 @@
     "source": "workday",
     "source_slug": "automationanywhere",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://automationanywhere.wd5.myworkdayjobs.com/AutomationAnywhereJobs",
     "discovered_via": "claude-research",
-    "evidence": "workday (37 jobs)"
+    "evidence": "workday (37 jobs)",
+    "tenant_url": "https://automationanywhere.wd5.myworkdayjobs.com/AutomationAnywhereJobs"
   },
   {
     "name": "Aviva India",
@@ -9893,9 +10437,9 @@
     "source": "workday",
     "source_slug": "aviva",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://aviva.wd1.myworkdayjobs.com/External",
     "discovered_via": "claude-research",
-    "evidence": "workday (114 jobs)"
+    "evidence": "workday (114 jobs)",
+    "tenant_url": "https://aviva.wd1.myworkdayjobs.com/External"
   },
   {
     "name": "Bank of America Continuum India",
@@ -9903,8 +10447,8 @@
     "source": "workday",
     "source_slug": "bankofamerica",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ghr.wd1.myworkdayjobs.com/lateral-ba_continuum",
-    "evidence": "tenant corrected to India board (was lateral-us); Current URL https://careers.bankofamerica.com returned 502 B"
+    "evidence": "tenant corrected to India board (was lateral-us); Current URL https://careers.bankofamerica.com returned 502 B",
+    "tenant_url": "https://ghr.wd1.myworkdayjobs.com/lateral-ba_continuum"
   },
   {
     "name": "Barclays India",
@@ -9921,9 +10465,9 @@
     "source": "workday",
     "source_slug": "bdx",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://bdx.wd1.myworkdayjobs.com/EXTERNAL_CAREER_SITE_USA",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (583 jobs); was llm-scrape"
+    "evidence": "embedded workday board (583 jobs); was llm-scrape",
+    "tenant_url": "https://bdx.wd1.myworkdayjobs.com/EXTERNAL_CAREER_SITE_USA"
   },
   {
     "name": "Belkin India",
@@ -9931,9 +10475,9 @@
     "source": "workday",
     "source_slug": "belkin",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://belkin.wd5.myworkdayjobs.com/belkin_careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (28 jobs); was llm-scrape"
+    "evidence": "embedded workday board (28 jobs); was llm-scrape",
+    "tenant_url": "https://belkin.wd5.myworkdayjobs.com/belkin_careers"
   },
   {
     "name": "BlackRock India",
@@ -9950,9 +10494,9 @@
     "source": "workday",
     "source_slug": "boeing",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1094 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1094 jobs); was llm-scrape",
+    "tenant_url": "https://boeing.wd1.myworkdayjobs.com/EXTERNAL_CAREERS"
   },
   {
     "name": "Bose India",
@@ -9960,9 +10504,9 @@
     "source": "workday",
     "source_slug": "boseallaboutme",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://boseallaboutme.wd503.myworkdayjobs.com/Bose_Careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (98 jobs); was llm-scrape"
+    "evidence": "embedded workday board (98 jobs); was llm-scrape",
+    "tenant_url": "https://boseallaboutme.wd503.myworkdayjobs.com/Bose_Careers"
   },
   {
     "name": "Bristol Myers Squibb India",
@@ -9970,9 +10514,9 @@
     "source": "workday",
     "source_slug": "bristolmyerssquibb",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (753 jobs); was llm-scrape"
+    "evidence": "embedded workday board (753 jobs); was llm-scrape",
+    "tenant_url": "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS"
   },
   {
     "name": "Pivotal Labs India",
@@ -9980,9 +10524,9 @@
     "source": "workday",
     "source_slug": "broadcom",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://broadcom.wd1.myworkdayjobs.com/External_Career",
     "discovered_via": "claude-research",
-    "evidence": "workday (335 jobs)"
+    "evidence": "workday (335 jobs)",
+    "tenant_url": "https://broadcom.wd1.myworkdayjobs.com/External_Career"
   },
   {
     "name": "Browserstack Enterprise",
@@ -9990,9 +10534,9 @@
     "source": "workday",
     "source_slug": "browserstack",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://browserstack.wd3.myworkdayjobs.com/External",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (19 jobs); was llm-scrape"
+    "evidence": "embedded workday board (19 jobs); was llm-scrape",
+    "tenant_url": "https://browserstack.wd3.myworkdayjobs.com/External"
   },
   {
     "name": "Cadence Design Systems",
@@ -10000,9 +10544,9 @@
     "source": "workday",
     "source_slug": "cadence",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://cadence.wd1.myworkdayjobs.com/External_Careers",
     "discovered_via": "claude-research",
-    "evidence": "workday (627 jobs)"
+    "evidence": "workday (627 jobs)",
+    "tenant_url": "https://cadence.wd1.myworkdayjobs.com/External_Careers"
   },
   {
     "name": "Discover Financial India",
@@ -10010,9 +10554,9 @@
     "source": "workday",
     "source_slug": "capitalone",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://capitalone.wd12.myworkdayjobs.com/Capital_One",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1563 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1563 jobs); was llm-scrape",
+    "tenant_url": "https://capitalone.wd12.myworkdayjobs.com/Capital_One"
   },
   {
     "name": "Caterpillar India",
@@ -10020,8 +10564,8 @@
     "source": "workday",
     "source_slug": "caterpillar",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://cat.wd5.myworkdayjobs.com/CaterpillarCareers",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://cat.wd5.myworkdayjobs.com/CaterpillarCareers"
   },
   {
     "name": "Citi India",
@@ -10029,8 +10573,8 @@
     "source": "workday",
     "source_slug": "citi",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://citi.wd5.myworkdayjobs.com/2",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://citi.wd5.myworkdayjobs.com/2"
   },
   {
     "name": "Concentrix India",
@@ -10038,9 +10582,9 @@
     "source": "workday",
     "source_slug": "cnx",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://cnx.wd1.myworkdayjobs.com/external_global",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1634 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1634 jobs); was llm-scrape",
+    "tenant_url": "https://cnx.wd1.myworkdayjobs.com/external_global"
   },
   {
     "name": "Coca-Cola India",
@@ -10048,8 +10592,8 @@
     "source": "workday",
     "source_slug": "cocacola",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://coke.wd1.myworkdayjobs.com/coca-cola-careers",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://coke.wd1.myworkdayjobs.com/coca-cola-careers"
   },
   {
     "name": "CrowdStrike India",
@@ -10057,8 +10601,8 @@
     "source": "workday",
     "source_slug": "crowdstrike",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers"
   },
   {
     "name": "Dell Technologies India",
@@ -10066,9 +10610,9 @@
     "source": "workday",
     "source_slug": "dell",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://dell.wd1.myworkdayjobs.com/External",
     "discovered_via": "claude-research",
-    "evidence": "workday (0 jobs)"
+    "evidence": "workday (0 jobs)",
+    "tenant_url": "https://dell.wd1.myworkdayjobs.com/External"
   },
   {
     "name": "Deutsche Bank India",
@@ -10085,8 +10629,8 @@
     "source": "workday",
     "source_slug": "f5",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ffive.wd5.myworkdayjobs.com/f5jobs",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://ffive.wd5.myworkdayjobs.com/f5jobs"
   },
   {
     "name": "Junglee Games",
@@ -10113,9 +10657,9 @@
     "source": "workday",
     "source_slug": "fractal",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://fractal.wd1.myworkdayjobs.com/Careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (120 jobs); was llm-scrape"
+    "evidence": "embedded workday board (120 jobs); was llm-scrape",
+    "tenant_url": "https://fractal.wd1.myworkdayjobs.com/Careers"
   },
   {
     "name": "Genesys India",
@@ -10123,9 +10667,9 @@
     "source": "workday",
     "source_slug": "genesys",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://genesys.wd1.myworkdayjobs.com/Genesys",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (217 jobs); was llm-scrape"
+    "evidence": "embedded workday board (217 jobs); was llm-scrape",
+    "tenant_url": "https://genesys.wd1.myworkdayjobs.com/Genesys"
   },
   {
     "name": "Bank of America India",
@@ -10133,8 +10677,8 @@
     "source": "workday",
     "source_slug": "ghr",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ghr.wd1.myworkdayjobs.com/lateral-apac",
-    "evidence": "tenant corrected to India board (was lateral-us); Current URL https://ghr.wd1.myworkdayjobs.com/lateral-us ret"
+    "evidence": "tenant corrected to India board (was lateral-us); Current URL https://ghr.wd1.myworkdayjobs.com/lateral-us ret",
+    "tenant_url": "https://ghr.wd1.myworkdayjobs.com/lateral-apac"
   },
   {
     "name": "Pratt & Whitney India",
@@ -10142,9 +10686,9 @@
     "source": "workday",
     "source_slug": "globalhr",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://globalhr.wd5.myworkdayjobs.com/REC_RTX_Ext_Gateway",
     "discovered_via": "claude-research",
-    "evidence": "workday (4198 jobs)"
+    "evidence": "workday (4198 jobs)",
+    "tenant_url": "https://globalhr.wd5.myworkdayjobs.com/REC_RTX_Ext_Gateway"
   },
   {
     "name": "GSK India",
@@ -10161,8 +10705,8 @@
     "source": "workday",
     "source_slug": "homedepot",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://homedepot.wd5.myworkdayjobs.com/CareerDepot",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://homedepot.wd5.myworkdayjobs.com/CareerDepot"
   },
   {
     "name": "HPE India",
@@ -10170,9 +10714,9 @@
     "source": "workday",
     "source_slug": "hpe",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://hpe.wd5.myworkdayjobs.com/Jobsathpe",
     "discovered_via": "claude-research",
-    "evidence": "workday (1209 jobs)"
+    "evidence": "workday (1209 jobs)",
+    "tenant_url": "https://hpe.wd5.myworkdayjobs.com/Jobsathpe"
   },
   {
     "name": "Intel India",
@@ -10180,8 +10724,8 @@
     "source": "workday",
     "source_slug": "intel",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://intel.wd1.myworkdayjobs.com/External",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://intel.wd1.myworkdayjobs.com/External"
   },
   {
     "name": "Star India",
@@ -10189,9 +10733,9 @@
     "source": "workday",
     "source_slug": "jiostar",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://jiostar.wd102.myworkdayjobs.com/JioStar",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (137 jobs); was llm-scrape"
+    "evidence": "embedded workday board (137 jobs); was llm-scrape",
+    "tenant_url": "https://jiostar.wd102.myworkdayjobs.com/JioStar"
   },
   {
     "name": "Johnson & Johnson India",
@@ -10217,9 +10761,9 @@
     "source": "workday",
     "source_slug": "logitech",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://logitech.wd5.myworkdayjobs.com/Logitech",
     "discovered_via": "claude-research",
-    "evidence": "workday (219 jobs)"
+    "evidence": "workday (219 jobs)",
+    "tenant_url": "https://logitech.wd5.myworkdayjobs.com/Logitech"
   },
   {
     "name": "Marvell India",
@@ -10227,9 +10771,9 @@
     "source": "workday",
     "source_slug": "marvell",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://marvell.wd1.myworkdayjobs.com/MarvellCareers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (692 jobs); was llm-scrape"
+    "evidence": "embedded workday board (692 jobs); was llm-scrape",
+    "tenant_url": "https://marvell.wd1.myworkdayjobs.com/MarvellCareers"
   },
   {
     "name": "Mastercard India GCC",
@@ -10237,9 +10781,9 @@
     "source": "workday",
     "source_slug": "mastercard",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1060 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1060 jobs); was llm-scrape",
+    "tenant_url": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers"
   },
   {
     "name": "Medtronic India",
@@ -10247,9 +10791,9 @@
     "source": "workday",
     "source_slug": "medtronic",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1101 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1101 jobs); was llm-scrape",
+    "tenant_url": "https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers"
   },
   {
     "name": "Micron India",
@@ -10257,8 +10801,8 @@
     "source": "workday",
     "source_slug": "micron",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://micron.wd1.myworkdayjobs.com/External",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://micron.wd1.myworkdayjobs.com/External"
   },
   {
     "name": "Mizuho India",
@@ -10266,9 +10810,9 @@
     "source": "workday",
     "source_slug": "mizuhogroup",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://mizuhogroup.wd102.myworkdayjobs.com/External",
     "discovered_via": "claude-research",
-    "evidence": "workday (7 jobs)"
+    "evidence": "workday (7 jobs)",
+    "tenant_url": "https://mizuhogroup.wd102.myworkdayjobs.com/External"
   },
   {
     "name": "Oliver Wyman India",
@@ -10276,9 +10820,9 @@
     "source": "workday",
     "source_slug": "mmc",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://mmc.wd1.myworkdayjobs.com/MMC",
     "discovered_via": "claude-research",
-    "evidence": "workday (2000 jobs)"
+    "evidence": "workday (2000 jobs)",
+    "tenant_url": "https://mmc.wd1.myworkdayjobs.com/MMC"
   },
   {
     "name": "Morgan Stanley India",
@@ -10304,9 +10848,9 @@
     "source": "workday",
     "source_slug": "mufgub",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://mufgub.wd3.myworkdayjobs.com/MUFG-Careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (585 jobs); was llm-scrape"
+    "evidence": "embedded workday board (585 jobs); was llm-scrape",
+    "tenant_url": "https://mufgub.wd3.myworkdayjobs.com/MUFG-Careers"
   },
   {
     "name": "Northrop Grumman India",
@@ -10314,9 +10858,9 @@
     "source": "workday",
     "source_slug": "ngc",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site",
     "discovered_via": "claude-research",
-    "evidence": "workday (2746 jobs)"
+    "evidence": "workday (2746 jobs)",
+    "tenant_url": "https://ngc.wd1.myworkdayjobs.com/Northrop_Grumman_External_Site"
   },
   {
     "name": "Northern Trust India",
@@ -10324,8 +10868,8 @@
     "source": "workday",
     "source_slug": "northerntrust",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ntrs.wd1.myworkdayjobs.com/northerntrust",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://ntrs.wd1.myworkdayjobs.com/northerntrust"
   },
   {
     "name": "Novartis Healthcare India",
@@ -10342,8 +10886,8 @@
     "source": "workday",
     "source_slug": "nvidia",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
   },
   {
     "name": "NXP India",
@@ -10351,9 +10895,9 @@
     "source": "workday",
     "source_slug": "nxp",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://nxp.wd3.myworkdayjobs.com/careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (612 jobs); was llm-scrape"
+    "evidence": "embedded workday board (612 jobs); was llm-scrape",
+    "tenant_url": "https://nxp.wd3.myworkdayjobs.com/careers"
   },
   {
     "name": "OutSystems India",
@@ -10361,9 +10905,9 @@
     "source": "workday",
     "source_slug": "outsystems",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://outsystems.wd503.myworkdayjobs.com/OutSystems",
     "discovered_via": "claude-research",
-    "evidence": "workday (82 jobs)"
+    "evidence": "workday (82 jobs)",
+    "tenant_url": "https://outsystems.wd503.myworkdayjobs.com/OutSystems"
   },
   {
     "name": "Palo Alto Networks India",
@@ -10371,8 +10915,8 @@
     "source": "workday",
     "source_slug": "paloaltonetworks",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://paloaltonetworks.wd5.myworkdayjobs.com/panwexternalcareers",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://paloaltonetworks.wd5.myworkdayjobs.com/panwexternalcareers"
   },
   {
     "name": "Pfizer India",
@@ -10389,9 +10933,9 @@
     "source": "workday",
     "source_slug": "pg",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://pg.wd5.myworkdayjobs.com/1000",
     "discovered_via": "claude-research",
-    "evidence": "workday (641 jobs)"
+    "evidence": "workday (641 jobs)",
+    "tenant_url": "https://pg.wd5.myworkdayjobs.com/1000"
   },
   {
     "name": "Philips India",
@@ -10399,9 +10943,9 @@
     "source": "workday",
     "source_slug": "philips",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://philips.wd3.myworkdayjobs.com/jobs-and-careers",
     "discovered_via": "claude-research",
-    "evidence": "workday (1072 jobs)"
+    "evidence": "workday (1072 jobs)",
+    "tenant_url": "https://philips.wd3.myworkdayjobs.com/jobs-and-careers"
   },
   {
     "name": "Pluralsight India",
@@ -10409,9 +10953,9 @@
     "source": "workday",
     "source_slug": "pluralsight",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://pluralsight.wd1.myworkdayjobs.com/Careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (34 jobs); was llm-scrape"
+    "evidence": "embedded workday board (34 jobs); was llm-scrape",
+    "tenant_url": "https://pluralsight.wd1.myworkdayjobs.com/Careers"
   },
   {
     "name": "Prudential India",
@@ -10419,9 +10963,9 @@
     "source": "workday",
     "source_slug": "pru",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://pru.wd5.myworkdayjobs.com/Careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (133 jobs); was llm-scrape"
+    "evidence": "embedded workday board (133 jobs); was llm-scrape",
+    "tenant_url": "https://pru.wd5.myworkdayjobs.com/Careers"
   },
   {
     "name": "Red Hat India",
@@ -10429,9 +10973,9 @@
     "source": "workday",
     "source_slug": "redhat",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://redhat.wd5.myworkdayjobs.com/jobs",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (296 jobs); was llm-scrape"
+    "evidence": "embedded workday board (296 jobs); was llm-scrape",
+    "tenant_url": "https://redhat.wd5.myworkdayjobs.com/jobs"
   },
   {
     "name": "Roche India",
@@ -10439,9 +10983,9 @@
     "source": "workday",
     "source_slug": "roche",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://roche.wd3.myworkdayjobs.com/roche-ext",
     "discovered_via": "log-redirect-scan",
-    "evidence": "ATS redirect flagged in run logs (workday)"
+    "evidence": "ATS redirect flagged in run logs (workday)",
+    "tenant_url": "https://roche.wd3.myworkdayjobs.com/roche-ext"
   },
   {
     "name": "Salesforce India",
@@ -10449,9 +10993,9 @@
     "source": "workday",
     "source_slug": "salesforce",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site",
     "discovered_via": "claude-research",
-    "evidence": "workday (1448 jobs)"
+    "evidence": "workday (1448 jobs)",
+    "tenant_url": "https://salesforce.wd12.myworkdayjobs.com/External_Career_Site"
   },
   {
     "name": "Sanofi India",
@@ -10468,9 +11012,9 @@
     "source": "workday",
     "source_slug": "silabs",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers",
     "discovered_via": "log-redirect-scan",
-    "evidence": "ATS redirect flagged in run logs (workday)"
+    "evidence": "ATS redirect flagged in run logs (workday)",
+    "tenant_url": "https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers"
   },
   {
     "name": "Slack",
@@ -10478,8 +11022,8 @@
     "source": "workday",
     "source_slug": "slack",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://salesforce.wd12.myworkdayjobs.com/Slack",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://salesforce.wd12.myworkdayjobs.com/Slack"
   },
   {
     "name": "Sprinklr India",
@@ -10487,9 +11031,9 @@
     "source": "workday",
     "source_slug": "sprinklr",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://sprinklr.wd1.myworkdayjobs.com/careers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (87 jobs); was llm-scrape"
+    "evidence": "embedded workday board (87 jobs); was llm-scrape",
+    "tenant_url": "https://sprinklr.wd1.myworkdayjobs.com/careers"
   },
   {
     "name": "Blue Prism India",
@@ -10497,9 +11041,9 @@
     "source": "workday",
     "source_slug": "ssctech",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://ssctech.wd1.myworkdayjobs.com/ssctechnologies",
     "discovered_via": "claude-research",
-    "evidence": "workday (408 jobs)"
+    "evidence": "workday (408 jobs)",
+    "tenant_url": "https://ssctech.wd1.myworkdayjobs.com/ssctechnologies"
   },
   {
     "name": "State Street India",
@@ -10507,8 +11051,8 @@
     "source": "workday",
     "source_slug": "statestreet",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://statestreet.wd1.myworkdayjobs.com/Global",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://statestreet.wd1.myworkdayjobs.com/Global"
   },
   {
     "name": "Stryker India",
@@ -10516,9 +11060,9 @@
     "source": "workday",
     "source_slug": "stryker",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://stryker.wd1.myworkdayjobs.com/StrykerCareers",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (1219 jobs); was llm-scrape"
+    "evidence": "embedded workday board (1219 jobs); was llm-scrape",
+    "tenant_url": "https://stryker.wd1.myworkdayjobs.com/StrykerCareers"
   },
   {
     "name": "Suse India",
@@ -10526,9 +11070,9 @@
     "source": "workday",
     "source_slug": "suse",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://suse.wd3.myworkdayjobs.com/Jobsatsuse",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (29 jobs); was llm-scrape"
+    "evidence": "embedded workday board (29 jobs); was llm-scrape",
+    "tenant_url": "https://suse.wd3.myworkdayjobs.com/Jobsatsuse"
   },
   {
     "name": "Trend Micro India",
@@ -10536,9 +11080,9 @@
     "source": "workday",
     "source_slug": "trendmicro",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://trendmicro.wd3.myworkdayjobs.com/External",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (290 jobs); was llm-scrape"
+    "evidence": "embedded workday board (290 jobs); was llm-scrape",
+    "tenant_url": "https://trendmicro.wd3.myworkdayjobs.com/External"
   },
   {
     "name": "HUL",
@@ -10546,9 +11090,9 @@
     "source": "workday",
     "source_slug": "unilever",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://unilever.wd3.myworkdayjobs.com/Unilever_Experienced_Professionals",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (245 jobs); was llm-scrape"
+    "evidence": "embedded workday board (245 jobs); was llm-scrape",
+    "tenant_url": "https://unilever.wd3.myworkdayjobs.com/Unilever_Experienced_Professionals"
   },
   {
     "name": "Uniphore",
@@ -10556,9 +11100,9 @@
     "source": "workday",
     "source_slug": "uniphore",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://uniphore.wd503.myworkdayjobs.com/Uniphore",
     "discovered_via": "page-detect",
-    "evidence": "embedded workday board (71 jobs); was llm-scrape"
+    "evidence": "embedded workday board (71 jobs); was llm-scrape",
+    "tenant_url": "https://uniphore.wd503.myworkdayjobs.com/Uniphore"
   },
   {
     "name": "Visa India",
@@ -10566,8 +11110,8 @@
     "source": "workday",
     "source_slug": "visa",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://visa.wd5.myworkdayjobs.com/Visa",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://visa.wd5.myworkdayjobs.com/Visa"
   },
   {
     "name": "Walmart Global Tech India",
@@ -10575,8 +11119,8 @@
     "source": "workday",
     "source_slug": "walmart",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://walmart.wd5.myworkdayjobs.com/WalmartExternal"
   },
   {
     "name": "Wells Fargo India",
@@ -10593,7 +11137,7 @@
     "source": "workday",
     "source_slug": "workday",
     "parsing_strategy": "ats-api",
-    "tenant_url": "https://workday.wd5.myworkdayjobs.com/Workday",
-    "discovered_via": "seed"
+    "discovered_via": "seed",
+    "tenant_url": "https://workday.wd5.myworkdayjobs.com/Workday"
   }
 ]
