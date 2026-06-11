@@ -21,6 +21,13 @@ const POST_LOAD_WAIT_FALLBACK_MS = 6_000;
 // `|| 1` also catches NaN from a non-numeric env value; 0 would deadlock the semaphore.
 const MAX_CONCURRENT_PAGES = Math.max(1, Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5) || 1);
 
+// ---- listing expansion (infinite scroll / "Load more") ----
+const EXPAND_MAX_ROUNDS = 8;
+const EXPAND_WAIT_MS = 1200;
+/** Button/CTA text that loads more rows in place. Deliberately excludes
+ *  "Next"/"Learn more"/"Read more" — those navigate away or are marketing. */
+export const LOAD_MORE_TEXT_RE = /^(load|show|view|see)\s+more\b|^more\s+(jobs|positions|openings|results)\b/i;
+
 // ---- shared browser lifecycle ----
 
 let sharedBrowser: Browser | null = null;
@@ -120,6 +127,29 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       if (settleMs > 0) {
         await page.waitForTimeout(settleMs);
       }
+
+      // Expand the listing: scroll to the bottom and click one in-place
+      // "Load more"-style control per round, until the page stops growing.
+      // Bounded so a pathological page can't hold the slot hostage.
+      try {
+        let prevAnchors = await page.locator("a[href]").count();
+        for (let round = 0; round < EXPAND_MAX_ROUNDS; round++) {
+          await page.evaluate("window.scrollTo(0, document.body.scrollHeight)");
+          const btn = page
+            .locator("button, [role='button'], a:not([href]), input[type='button']")
+            .filter({ hasText: LOAD_MORE_TEXT_RE })
+            .first();
+          if ((await btn.count()) > 0) {
+            try { await btn.click({ timeout: 1500 }); } catch { /* covered/detached — scroll alone may still load */ }
+          }
+          await page.waitForTimeout(EXPAND_WAIT_MS);
+          const anchors = await page.locator("a[href]").count();
+          if (anchors <= prevAnchors) break;
+          logger.debug({ url, round, anchors, prevAnchors }, "playwright: listing grew, expanding further");
+          prevAnchors = anchors;
+        }
+      } catch { /* expansion is best-effort; the initial render is still used */ }
+
       const html = await page.content();
       const finalUrl = page.url();
 
