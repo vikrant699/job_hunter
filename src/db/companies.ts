@@ -26,6 +26,8 @@ const CompanyDbRowSchema = z.object({
   consecutive_failures: z.number(),
   postings_seen_total: z.number(),
   postings_matched_total: z.number(),
+  zero_yield_streak: z.number(),
+  url_suspect: z.number(),
 });
 
 export type CompanyDbRow = z.infer<typeof CompanyDbRowSchema>;
@@ -51,6 +53,8 @@ export function rowToCompany(r: CompanyDbRow): Company {
     consecutiveFailures: r.consecutive_failures,
     postingsSeenTotal: r.postings_seen_total,
     postingsMatchedTotal: r.postings_matched_total,
+    zeroYieldStreak: r.zero_yield_streak,
+    urlSuspect: r.url_suspect !== 0,
   };
 }
 
@@ -125,8 +129,10 @@ const markFetchSuccessStmt = db.prepare(`
     last_error           = NULL,
     consecutive_failures = 0,
     postings_seen_total  = postings_seen_total + :seen,
+    zero_yield_streak    = CASE WHEN :seen > 0 THEN 0 ELSE zero_yield_streak + 1 END,
+    url_suspect          = CASE WHEN :seen > 0 THEN 0 ELSE url_suspect END,
     status               = CASE
-                             WHEN status = 'candidate' AND :seen > 0 THEN 'active'
+                             WHEN status IN ('candidate','dormant') AND :seen > 0 THEN 'active'
                              ELSE status
                            END
   WHERE provider = :provider AND slug = :slug
@@ -182,6 +188,24 @@ const updateParsingStrategyStmt = db.prepare(`
  *  the registry file is the source of truth and re-syncs over this column. */
 export function updateParsingStrategy(provider: Provider, slug: string, strategy: ParsingStrategy): void {
   updateParsingStrategyStmt.run({ provider, slug, strategy });
+}
+
+const markUrlSuspectStmt = db.prepare(`
+  UPDATE companies SET url_suspect = 1 WHERE provider = :provider AND slug = :slug
+`);
+
+/** Page fetched OK but doesn't look like a careers page — url-repair will probe it. */
+export function markUrlSuspect(provider: Provider, slug: string): void {
+  markUrlSuspectStmt.run({ provider, slug });
+}
+
+const clearUrlSuspectStmt = db.prepare(`
+  UPDATE companies SET url_suspect = 0, zero_yield_streak = 0 WHERE provider = :provider AND slug = :slug
+`);
+
+/** Called after a URL repair so the company gets a fresh yield run-in. */
+export function clearUrlSuspect(provider: Provider, slug: string): void {
+  clearUrlSuspectStmt.run({ provider, slug });
 }
 
 const bumpMatchedStmt = db.prepare(`
