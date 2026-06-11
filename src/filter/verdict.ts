@@ -19,11 +19,12 @@ export interface VerdictDetail {
 
 /**
  * Lower bound below which we treat the score as noise and silently drop.
- * With the calibrated v2 gate, off-profile / junk postings land around 0.1–0.3 and
- * genuine matches score higher, so 0.4 cuts the noise while keeping ~98% of
- * reviewer-labelled relevants. Borderline 0.4–0.6 is yellow; >= matchThreshold is green.
+ * Raised 0.4 -> 0.65 (user decision 2026-06-11) after the first full-volume run:
+ * the 0.4-0.65 band was ~76% of yellow notifications and almost entirely noise.
+ * Replayed against that run: costs 3 of 30 former greens (scored 0.6-0.65).
+ * Borderline 0.65-matchThreshold is yellow; >= matchThreshold (0.8) is green.
  */
-const SILENT_SCORE_FLOOR = 0.4;
+const SILENT_SCORE_FLOOR = 0.65;
 
 export function classifyVerdict(gate: GateResult, extract: ExtractResult | null): VerdictDetail {
   if (gate.dealBreakerSeverity === "hard") {
