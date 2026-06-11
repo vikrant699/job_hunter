@@ -5,10 +5,11 @@ import { fetchHtml, extractLinkShortlist, extractMainText, extractTitleHint, fin
 import type { RenderedPage } from "./playwright.js";
 import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
 import { runShortlistFromText } from "../llm/extract-text-jobs.js";
-import { getLinkCache, setLinkCache, updateParsingStrategy, type ShortlistedLink } from "../db/index.js";
+import { getLinkCache, setLinkCache, updateParsingStrategy, markUrlSuspect, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
 import { updateRegistryStrategy } from "../discovery/json-writer.js";
 import { extractJsonLdJobs } from "./json-ld.js";
+import { analyzeCareersPage } from "./page-signals.js";
 import { htmlToText } from "../ats/html-text.js";
 import { REMOTE_RE } from "../ats/shared.js";
 
@@ -131,7 +132,23 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         }
       }
 
+      // Zero-yield triage: if we're about to return nothing AND the page
+      // doesn't even look like a careers page (or silently redirected to the
+      // site root), the URL is the suspect — flag it for the url-repair pass
+      // instead of letting the dormancy policy file it under "not hiring".
+      const flagIfSuspectUrl = (): void => {
+        const sig = analyzeCareersPage(page.html, page.finalUrl, company.careersUrl);
+        if (!sig.looksLikeCareersPage || sig.redirectedToRoot) {
+          markUrlSuspect(company.provider, company.slug);
+          logger.warn(
+            { company: company.slug, careersUrl: company.careersUrl, redirectedToRoot: sig.redirectedToRoot },
+            `${tag}: zero yield and page does not look like a careers page — flagged url_suspect`,
+          );
+        }
+      };
+
       if (spaSentinel && candidates.length <= SPA_SENTINEL_THRESHOLD) {
+        flagIfSuspectUrl();
         // Act on the recommendation instead of just logging it: flip the
         // strategy in the DB (this run's state) AND the registry file (the
         // source of truth — sync would revert a DB-only flip next run).
@@ -180,6 +197,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
             );
           }
         }
+        flagIfSuspectUrl();
         logger.warn(
           { company: company.slug, careersUrl: company.careersUrl },
           `${tag}: zero candidates even after browser render`
@@ -211,6 +229,8 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
           `${tag}: shortlist done`,
         );
       }
+
+      if (jobs.length === 0) flagIfSuspectUrl();
 
       return jobs.map<NormalizedPosting>((j) => ({
         provider: company.provider,
