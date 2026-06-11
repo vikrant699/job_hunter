@@ -24,7 +24,7 @@ export interface VerdictDetail {
  * Replayed against that run: costs 3 of 30 former greens (scored 0.6-0.65).
  * Borderline 0.65-matchThreshold is yellow; >= matchThreshold (0.8) is green.
  */
-const SILENT_SCORE_FLOOR = 0.65;
+export const SILENT_SCORE_FLOOR = 0.65;
 
 export function classifyVerdict(gate: GateResult, extract: ExtractResult | null): VerdictDetail {
   if (gate.dealBreakerSeverity === "hard") {

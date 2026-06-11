@@ -12,7 +12,7 @@ import { notifyKey } from "../filter/dedup.js";
 import { checkTitle } from "../filter/title.js";
 import { runGate } from "../llm/gate.js";
 import { runExtract, type ExtractResult } from "../llm/extract.js";
-import { classifyVerdict } from "../filter/verdict.js";
+import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { notifyPosting } from "../discord/notify.js";
 import type { RunContext } from "./index.js";
 
@@ -166,12 +166,17 @@ export async function processOnePosting(
     return;
   }
 
-  let extractResult: ExtractResult | null;
-  try {
-    extractResult = await runExtract(posting.jdText);
-  } catch (err) {
-    extractResult = null;
-    logger.warn({ company: company.name, err: String(err) }, "extract failed, continuing without YOE");
+  // Below the silent floor, classifyVerdict drops the posting before YOE is
+  // ever consulted — running extract would be a wasted LLM call AND would
+  // evict the gate prompt's KV prefix cache (the resume) between gate calls.
+  // Last full run this skipped ~4k of ~4.6k extract calls.
+  let extractResult: ExtractResult | null = null;
+  if (gateResult.matchScore >= SILENT_SCORE_FLOOR) {
+    try {
+      extractResult = await runExtract(posting.jdText);
+    } catch (err) {
+      logger.warn({ company: company.name, err: String(err) }, "extract failed, continuing without YOE");
+    }
   }
 
   const verdict = classifyVerdict(gateResult, extractResult);
