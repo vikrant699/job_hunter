@@ -8,6 +8,9 @@ import { runShortlistFromText } from "../llm/extract-text-jobs.js";
 import { getLinkCache, setLinkCache, updateParsingStrategy, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
 import { updateRegistryStrategy } from "../discovery/json-writer.js";
+import { extractJsonLdJobs } from "./json-ld.js";
+import { htmlToText } from "../ats/html-text.js";
+import { REMOTE_RE } from "../ats/shared.js";
 
 const LINK_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -53,7 +56,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
     provider: "custom",
 
     async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-      let page;
+      let page: FetchedHtml | RenderedPage;
       try {
         page = await fetcher(company.careersUrl);
       } catch (err) {
@@ -76,6 +79,29 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
           `${tag}: detected ATS redirect — re-classify this registry entry`,
         );
         return [];
+      }
+
+      // Structured data first: schema.org JobPosting JSON-LD gives titles,
+      // locations, and dates without an LLM call — and location metadata
+      // lets the cheap pre-gate India filter work for scraped postings.
+      const ldJobs = extractJsonLdJobs(page.html);
+      if (ldJobs.length > 0) {
+        logger.info(
+          { company: company.slug, jobs: ldJobs.length },
+          `${tag}: using JSON-LD structured data (skipping link shortlist)`,
+        );
+        return ldJobs.map<NormalizedPosting>((j) => ({
+          provider: company.provider,
+          externalId: j.url ?? `ld:${company.slug}:${hashKey(j.title + "|" + (j.location ?? ""))}`,
+          companySlug: company.slug,
+          companyName: company.name,
+          jobTitle: j.title,
+          jobUrl: j.url ?? page.finalUrl,
+          location: j.location,
+          isRemote: j.location ? REMOTE_RE.test(j.location) : false,
+          jdText: j.description ? htmlToText(j.description) : "",
+          postedAt: j.datePosted,
+        }));
       }
 
       let candidates = extractLinkShortlist(page.html, page.finalUrl);
@@ -202,6 +228,13 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
     async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
       const { html } = await fetcher(posting.jobUrl);
+      // JD pages very often carry a JobPosting JSON-LD block with the full
+      // description — cleaner than heuristic main-text stripping.
+      const ld = extractJsonLdJobs(html);
+      const ldDescription = ld[0]?.description;
+      if (ldDescription && ldDescription.length > 100) {
+        return htmlToText(ldDescription);
+      }
       // Overwrite the listing-shortlist title when it's a generic "Apply Now"-
       // style anchor and the JD page exposes a real <h1>.
       const hint = extractTitleHint(html);
