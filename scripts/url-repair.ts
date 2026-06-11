@@ -1,5 +1,5 @@
 import { logger } from "../src/logger.js";
-import { selectAllCompanies, upsertCompany } from "../src/db/index.js";
+import { selectAllCompanies, upsertCompany, clearUrlSuspect } from "../src/db/index.js";
 import { upsertRegistry } from "../src/discovery/json-writer.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
 import type { Company } from "../src/types.js";
@@ -163,7 +163,10 @@ export interface RepairOptions {
 
 export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRepairResult> {
   const all = selectAllCompanies();
-  let targets = all.filter((c) => isUrlRepairable(c.lastError));
+  // Two ways in: an URL-shaped fetch error (404/DNS), or a page that fetched
+  // fine but was flagged url_suspect (homepage at a careers path, no careers
+  // signals) by the scraper's zero-yield triage.
+  let targets = all.filter((c) => isUrlRepairable(c.lastError) || c.urlSuspect);
   if (opts.onlyNames && opts.onlyNames.length > 0) {
     const wanted = new Set(opts.onlyNames.map((n) => n.toLowerCase()));
     targets = targets.filter((c) => wanted.has(c.name.toLowerCase()));
@@ -226,6 +229,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
         apiMeta: company.apiMeta ? JSON.stringify(company.apiMeta) : null,
         discoveredAt: company.discoveredAt,
       });
+      clearUrlSuspect(company.provider, company.slug);
     } catch (err) {
       errors.push(`db-update-on-repair (${company.name}): ${String(err).slice(0, 120)}`);
     }
