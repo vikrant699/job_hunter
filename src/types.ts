@@ -22,6 +22,10 @@ export interface Company {
   consecutiveFailures: number;
   postingsSeenTotal: number;
   postingsMatchedTotal: number;
+  /** Consecutive clean fetches that saw 0 raw postings (dormancy input). */
+  zeroYieldStreak: number;
+  /** Page fetched OK but doesn't look like a careers page — url-repair target. */
+  urlSuspect: boolean;
 }
 
 /** Subset of Company passed to ATS adapters — strips runtime/stats fields. */

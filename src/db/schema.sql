@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS companies (
   consecutive_failures  INTEGER NOT NULL DEFAULT 0,
   postings_seen_total   INTEGER NOT NULL DEFAULT 0,
   postings_matched_total INTEGER NOT NULL DEFAULT 0,
+  zero_yield_streak     INTEGER NOT NULL DEFAULT 0,  -- consecutive clean fetches that saw 0 raw postings
+  url_suspect           INTEGER NOT NULL DEFAULT 0,  -- 1 = fetched OK but page doesn't look like a careers page
   PRIMARY KEY (provider, slug)
 );
 
