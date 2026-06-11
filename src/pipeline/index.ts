@@ -4,6 +4,7 @@ import {
   selectNotifiedRoleKeys,
   finishRun,
   startRun,
+  applyDormancy,
 } from "../db/index.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company } from "../types.js";
@@ -108,6 +109,11 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   await Promise.all(
     Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
   );
+
+  const parked = applyDormancy();
+  if (parked > 0) {
+    logger.info({ companies: parked }, "dormancy: zero-yield scrape companies parked (weekly recheck)");
+  }
 
   const endedAt = Date.now();
   const errorBlob = stats.errors.length > 0 ? stats.errors.slice(0, 10).join("\n") : null;

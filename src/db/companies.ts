@@ -73,7 +73,7 @@ const upsertCompanyStmt = db.prepare(`
     careers_url      = excluded.careers_url,
     parsing_strategy = excluded.parsing_strategy,
     status           = CASE
-                         WHEN companies.status IN ('denied','broken') THEN companies.status
+                         WHEN companies.status IN ('denied','broken','dormant') THEN companies.status
                          ELSE excluded.status
                        END,
     deny_reason      = excluded.deny_reason,
@@ -84,6 +84,8 @@ const upsertCompanyStmt = db.prepare(`
 //   discovered_via / discovered_at — provenance of the FIRST discovery, frozen.
 //   broken status — a re-import alone doesn't prove the source recovered; repair
 //   goes through url-repair, which resets broken -> candidate alongside a fixed URL.
+//   dormant status — set by applyDormancy from runtime yield data; a registry
+//   re-sync must not wake a parked company (markFetchSuccess wakes it on jobs).
 
 interface UpsertCompanyRow {
   [key: string]: SQLInputValue;
@@ -106,12 +108,17 @@ export function upsertCompany(row: UpsertCompanyRow): void {
 
 const selectActiveCompaniesStmt = db.prepare(`
   SELECT * FROM companies
-  WHERE status IN ('active','candidate','dormant')
+  WHERE status IN ('active','candidate')
+     OR (status = 'dormant' AND (last_fetched_at IS NULL OR last_fetched_at <= :dormantCutoff))
   ORDER BY provider, slug
 `);
 
+/** Dormant companies are rechecked weekly rather than every run. */
+const DORMANT_RECHECK_DAYS = 7;
+
 export function selectActiveCompanies(): Company[] {
-  return queryAll(selectActiveCompaniesStmt, CompanyDbRowSchema).map(rowToCompany);
+  const dormantCutoff = new Date(Date.now() - DORMANT_RECHECK_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  return queryAll(selectActiveCompaniesStmt, CompanyDbRowSchema, { dormantCutoff }).map(rowToCompany);
 }
 
 const selectAllCompaniesStmt = db.prepare(`
@@ -206,6 +213,26 @@ const clearUrlSuspectStmt = db.prepare(`
 /** Called after a URL repair so the company gets a fresh yield run-in. */
 export function clearUrlSuspect(provider: Provider, slug: string): void {
   clearUrlSuspectStmt.run({ provider, slug });
+}
+
+const applyDormancyStmt = db.prepare(`
+  UPDATE companies SET status = 'dormant'
+  WHERE status IN ('active','candidate')
+    AND parsing_strategy IN ('llm-scrape','playwright-llm-scrape')
+    AND url_suspect = 0
+    AND zero_yield_streak >= :minStreak
+`);
+
+/**
+ * Park scrape companies whose careers page looks real but has produced zero
+ * postings for `minStreak` consecutive clean runs. They re-enter the rotation
+ * weekly (selectActiveCompanies) and wake instantly when jobs appear
+ * (markFetchSuccess). ats-api companies are exempt — an API call is too cheap
+ * to be worth parking. Returns the number of companies parked.
+ */
+export function applyDormancy(minStreak: number = 3): number {
+  const result = applyDormancyStmt.run({ minStreak });
+  return Number(result.changes ?? 0);
 }
 
 const bumpMatchedStmt = db.prepare(`
