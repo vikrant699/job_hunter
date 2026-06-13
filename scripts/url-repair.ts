@@ -2,6 +2,7 @@ import { logger } from "../src/logger.js";
 import { selectAllCompanies, upsertCompany, clearUrlSuspect } from "../src/db/index.js";
 import { upsertRegistry } from "../src/discovery/json-writer.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
+import { analyzeCareersPage } from "../src/scraper/page-signals.js";
 import type { Company } from "../src/types.js";
 import type { RegistryEntry } from "../src/schemas.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
@@ -39,6 +40,27 @@ interface ProbeResult {
   status: number | null;
 }
 
+// Parked / for-sale domains return HTTP 200 but are dead companies.
+const PARKED_RE = /hugedomains\.com|domain_profile|sedoparking|domainmarket|buydomains|godaddy\.com\/domainsearch/i;
+// Dedicated careers hosts are unambiguous even when their landing page is a JS
+// shell with no static signals (careers.acme.com, jobs.acme.com, acme.careers).
+const CAREERS_HOST_RE = /^(careers?|jobs?|talent|recruit|work)\./i;
+
+/**
+ * A 200 is necessary but NOT sufficient — soft-404s, homepages served at
+ * /careers, and /careers paths that 301 to the site root all return 200. Accept
+ * only when the landing page is plausibly a careers page (reusing the scraper's
+ * content-signal analyzer), so a "repair" never swaps a careers URL for junk.
+ */
+function isCareersLanding(requestedUrl: string, finalUrl: string, html: string): boolean {
+  let host = "";
+  try { host = new URL(finalUrl).host.replace(/^www\./, ""); } catch { return false; }
+  if (CAREERS_HOST_RE.test(host) || /\.careers$/i.test(host)) return true;
+  const sig = analyzeCareersPage(html, finalUrl, requestedUrl);
+  if (sig.redirectedToRoot) return false; // /careers -> / : the page moved/died
+  return sig.looksLikeCareersPage;
+}
+
 async function probeUrl(url: string): Promise<ProbeResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PER_CHECK_TIMEOUT_MS);
@@ -55,7 +77,13 @@ async function probeUrl(url: string): Promise<ProbeResult> {
     });
     // res.url is the post-redirect URL — record where we actually landed, not
     // the candidate we guessed, so repairs persist the real destination.
-    return { url: res.url || url, ok: res.ok, status: res.status };
+    const finalUrl = res.url || url;
+    if (!res.ok) return { url: finalUrl, ok: false, status: res.status };
+    if (PARKED_RE.test(finalUrl)) return { url: finalUrl, ok: false, status: res.status };
+    let html = "";
+    try { html = await res.text(); } catch { /* body read failed — treat as unverifiable */ }
+    if (!isCareersLanding(url, finalUrl, html)) return { url: finalUrl, ok: false, status: res.status };
+    return { url: finalUrl, ok: true, status: res.status };
   } catch {
     return { url, ok: false, status: null };
   } finally {
