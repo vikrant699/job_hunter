@@ -116,30 +116,14 @@ export async function processOnePosting(
       jdText: posting.jdText,
     });
   } catch (err) {
-    // Couldn't score even after the gate's retry (malformed model output). Don't
-    // silently drop — an unscored posting could be a real match. Surface it as a
-    // yellow "review manually" notification so recall isn't quietly lost.
-    // (Intentionally exempt from per-run dedup below — gate-errors are rare and
-    // we'd rather surface each one than risk collapsing a real match.)
-    let notifiedAt: string | null = null;
-    try {
-      await notifyPosting({
-        posting,
-        severity: "yellow",
-        matchScore: 0,
-        reason: "gate-error: couldn't score automatically — review manually",
-        yoeMin: null,
-        yoeMax: null,
-        fallbackCareersUrl: company.careersUrl,
-      });
-      notifiedAt = new Date().toISOString();
-      stats.postingsYellow++;
-    } catch (notifyErr) {
-      logger.error({ err: String(notifyErr), company: posting.companyName }, "gate-error notify failed");
-    }
+    // Couldn't score even after the gate's retry (malformed model output). A
+    // score-less posting is treated as 0 and NOT sent to Discord — surfacing
+    // every unparseable result would flood the feed with noise. We still store
+    // it with dropStage "gate-error" so the error rate stays auditable (e.g.
+    // the qwen "missing reason field" retries), without notifying anyone.
     logger.warn(
       { company: company.name, title: posting.jobTitle, err: String(err).slice(0, 120) },
-      "gate-error → yellow (manual review)",
+      "gate-error → stored, not notified",
     );
     writePostingResult(posting, {
       llmRelevant: 0,
@@ -148,7 +132,7 @@ export async function processOnePosting(
       yoeMin: null,
       yoeMax: null,
       dropStage: "gate-error",
-      notifiedAt,
+      notifiedAt: null,
     });
     return;
   }
