@@ -7,6 +7,7 @@ import {
 import type { AtsAdapter } from "../ats/types.js";
 import type { Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
+import { OllamaUnavailableError } from "../llm/client.js";
 import { toAdapterCompany } from "./index.js";
 import type { RunContext } from "./index.js";
 import { processOnePosting } from "./posting-pipeline.js";
@@ -56,6 +57,9 @@ async function processOneCompany(
   try {
     postings = await adapter.listPostings(adapterCompany);
   } catch (err) {
+    // Backend down (scrape adapters call the LLM shortlist) — abort, don't
+    // mark every company a fetch failure against a dead Ollama.
+    if (err instanceof OllamaUnavailableError) throw err;
     const msg = String(err);
     logger.warn({ company: company.name, slug: company.slug, err: msg }, "fetch failed");
     markFetchFailure(company.provider, company.slug, msg);
@@ -78,6 +82,8 @@ async function processOneCompany(
       try {
         await processOnePosting(adapter, adapterCompany, posting, company, stats);
       } catch (err) {
+        // Propagate a backend-down abort; only swallow per-posting errors.
+        if (err instanceof OllamaUnavailableError) throw err;
         logger.error(
           { company: company.name, externalId: posting.externalId, err: String(err) },
           "posting pipeline error",
