@@ -51,10 +51,13 @@ export function parseGateResponse(raw: string): GateResult {
 
   if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
     const p: { [k: string]: JsonValue } = parsed;
-    if (p["dealBreakerHit"] === "" || p["dealBreakerHit"] === "none" || p["dealBreakerHit"] === "null") {
+    // Treat absent (undefined) / empty / "none" / "null" as null — the model
+    // (esp. on the frontend prompt) sometimes OMITS these keys entirely, which
+    // would fail the required-but-nullable schema.
+    if (p["dealBreakerHit"] === undefined || p["dealBreakerHit"] === "" || p["dealBreakerHit"] === "none" || p["dealBreakerHit"] === "null") {
       p["dealBreakerHit"] = null;
     }
-    if (p["dealBreakerSeverity"] === "" || p["dealBreakerSeverity"] === "none" || p["dealBreakerSeverity"] === "null") {
+    if (p["dealBreakerSeverity"] === undefined || p["dealBreakerSeverity"] === "" || p["dealBreakerSeverity"] === "none" || p["dealBreakerSeverity"] === "null") {
       p["dealBreakerSeverity"] = null;
     }
     // If hit is null, severity must be null (model sometimes inverts this).
