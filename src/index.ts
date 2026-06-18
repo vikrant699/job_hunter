@@ -2,7 +2,7 @@ import "dotenv/config";
 import { logger } from "./logger.js";
 import { syncRegistryFromJson } from "./registry/companies.js";
 import { runProductionTick } from "./pipeline/index.js";
-import { runDiscovery, type DiscoveryResult } from "./discovery/run.js";
+import { runDiscovery } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 
@@ -15,41 +15,20 @@ function printUsage(): void {
 }
 
 async function runOnce(): Promise<void> {
+  // Discovery is intentionally NOT part of a regular run — it's a separate step
+  // (`npm run discover`) so nightly runs only fetch + filter + notify. The CSV
+  // report therefore carries no discovery section (discovery: null).
   const outcome = await runProductionTick();
-
-  let discovery: DiscoveryResult | null = null;
-  try {
-    logger.info("starting discovery");
-    discovery = await runDiscovery();
-    logger.info(
-      {
-        added: discovery.additions.length,
-        skipped: discovery.skipped.length,
-        braveQuotaUsed: `${discovery.braveQuotaUsed}/${discovery.braveQuotaCap}`,
-      },
-      "discovery complete",
-    );
-  } catch (err) {
-    logger.error({ err: String(err) }, "discovery threw; tick still completed");
-  }
 
   try {
     await emitDailyCsvs({
       tickStartedAt: outcome.startedAtIso,
       tickEndedAt: outcome.endedAtIso,
-      discovery,
+      discovery: null,
       stats: outcome.stats,
     });
   } catch (err) {
     logger.error({ err: String(err) }, "report emit threw");
-  }
-
-  if (discovery && discovery.additions.length > 0) {
-    try {
-      syncRegistryFromJson();
-    } catch (err) {
-      logger.warn({ err: String(err) }, "post-discovery registry resync failed");
-    }
   }
 }
 
