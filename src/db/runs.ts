@@ -2,11 +2,11 @@ import { type SQLInputValue } from "node:sqlite";
 import { db } from "./db.js";
 
 const insertRunStmt = db.prepare(`
-  INSERT INTO runs (kind, started_at) VALUES (:kind, :startedAt)
+  INSERT INTO runs (kind, profile_id, started_at) VALUES (:kind, :profileId, :startedAt)
 `);
 
-export function startRun(kind: "production" | "discovery"): number {
-  const result = insertRunStmt.run({ kind, startedAt: new Date().toISOString() });
+export function startRun(kind: "production" | "discovery", profileId: string): number {
+  const result = insertRunStmt.run({ kind, profileId, startedAt: new Date().toISOString() });
   return Number(result.lastInsertRowid);
 }
 
