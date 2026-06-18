@@ -228,6 +228,17 @@
     "evidence": "embedded ashby board (56 jobs); was llm-scrape"
   },
   {
+    "name": "Scribe",
+    "careers_url": "https://scribe.com/careers",
+    "source": "ashby",
+    "source_slug": "scribe",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · ScribeBengaluru, KA, IndiaScribe is an AI based Sales Development Representative that you can…"
+  },
+  {
     "name": "Sequence Finance",
     "careers_url": "https://jobs.ashbyhq.com/sequence",
     "source": "ashby",
@@ -374,6 +385,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.adityabirla.com/careers"
+  },
+  {
+    "name": "Able",
+    "careers_url": "https://ablejobs.co",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · AbleBengaluru, KA, IndiaIndia's Largest Placement Platform for Early Professionals"
   },
   {
     "name": "Accenture",
@@ -1140,7 +1161,7 @@
     "name": "Betterhalf",
     "careers_url": "https://betterhalf.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -1190,11 +1211,31 @@
     "evidence": "Careers moved to the company.bharatagri.com/career subdomain (old bharatagri.com/careers 404s); confirmed by multiple job aggregators."
   },
   {
+    "name": "BharatX",
+    "careers_url": "https://bharatx.tech",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · BharatXBengaluru, KA, IndiaEnable Buy-Now-Pay-Later in a White-Labelled Manner"
+  },
+  {
     "name": "Biconomy",
     "careers_url": "https://www.biconomy.io/careers",
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed"
+  },
+  {
+    "name": "Bikry",
+    "careers_url": "https://bikry.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · BikryNoida, UP, IndiaBikry: Helping SMB's in India go online"
   },
   {
     "name": "Bimaplan",
@@ -1205,6 +1246,16 @@
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
     "evidence": "YC India · BimaplanBengaluru, KA, IndiaAffordable insurance for the next billion Indians"
+  },
+  {
+    "name": "Binks",
+    "careers_url": "https://getbinks.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · BinksBengaluru, KA, IndiaA zero inventory, zero returns factory-to-consumer apparel company"
   },
   {
     "name": "Biocon",
@@ -1253,6 +1304,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "claude-research",
     "evidence": "BlackBuck (Zinka Logistics) has a dedicated careers portal at careers.blackbuck.com; the old blackbuck.com/careers.php is a JS-heavy page that fails Playwright scraping."
+  },
+  {
+    "name": "Blitzllama",
+    "careers_url": "https://blitzllama.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · BlitzllamaBengaluru, KA, IndiaA platform to collect and analyze in-product user feedback"
   },
   {
     "name": "Blue Star India",
@@ -1416,6 +1477,16 @@
     "evidence": "URL repaired via path-variant from https://www.browntape.com/careers/"
   },
   {
+    "name": "Bueno Finance",
+    "careers_url": "https://buenofinanceinc.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Bueno FinanceGurugram, HR, IndiaBuilding Chime for India"
+  },
+  {
     "name": "BulkMRO",
     "careers_url": "https://www.bulkmro.com/careers",
     "source": "custom",
@@ -1564,7 +1635,7 @@
     "name": "CashBook",
     "careers_url": "https://cashbook.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -1646,6 +1717,16 @@
     "discovered_via": "bulk-seed"
   },
   {
+    "name": "CheqUPI",
+    "careers_url": "https://cheq.money",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · CheqUPIBengaluru, KA, IndiaIndia's first UPI wallet for foreign nationals and NRIs"
+  },
+  {
     "name": "Chingari",
     "careers_url": "https://chingari.io/careers",
     "source": "custom",
@@ -1680,6 +1761,16 @@
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed"
+  },
+  {
+    "name": "Cityfurnish",
+    "careers_url": "https://cityfurnish.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · CityfurnishNew Delhi, DL, IndiaCityfurnish - Commitment-free furniture rentals for a better you!"
   },
   {
     "name": "Classplus",
@@ -1768,7 +1859,7 @@
     "name": "Codingal",
     "careers_url": "https://codingal.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -1957,6 +2048,16 @@
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed-2"
+  },
+  {
+    "name": "Cradle",
+    "careers_url": "https://cradlefinance.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · CradleBengaluru, KA, IndiaB2B payments network in India"
   },
   {
     "name": "Craze (crazehq.com)",
@@ -2208,6 +2309,16 @@
     "discovered_via": "bulk-seed"
   },
   {
+    "name": "Digi-Prex",
+    "careers_url": "https://digi-prex.com/careers",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "broken",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Digi-PrexHyderabad, Telangana, IndiaSubscription pharmacy for patients with chronic diseases"
+  },
+  {
     "name": "Digit Insurance",
     "careers_url": "https://www.godigit.com/careers",
     "source": "custom",
@@ -2242,6 +2353,16 @@
     "discovered_via": "bulk-seed-3"
   },
   {
+    "name": "Dockup",
+    "careers_url": "https://getdockup.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · DockupBengaluru, IndiaOn demand ephemeral environments to run manual and automated tests."
+  },
+  {
     "name": "MediBuddy",
     "careers_url": "https://medibuddy.hire.trakstar.com/",
     "source": "custom",
@@ -2249,6 +2370,26 @@
     "parsing_strategy": "llm-scrape",
     "discovered_via": "claude-research",
     "evidence": "DocsApp rebranded to MediBuddy; careers at careers.medibuddy.in, openings hosted on Trakstar (medibuddy.hire.trakstar.com)."
+  },
+  {
+    "name": "DocVita",
+    "careers_url": "https://docvita.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · DocVitaBengaluru, KA, IndiaTelehealth provider for India."
+  },
+  {
+    "name": "Dost Education",
+    "careers_url": "https://dosteducation.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Dost EducationDelhi, DL, IndiaGetting kids ready for school in India."
   },
   {
     "name": "Doubtnut",
@@ -2340,6 +2481,16 @@
     "discovered_via": "bulk-seed-2"
   },
   {
+    "name": "Dyte",
+    "careers_url": "https://dyte.io",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · DyteBengaluru, KA, IndiaReal-time audio & video SDKs, ready to launch 🚀"
+  },
+  {
     "name": "EarlySalary (Fibe)",
     "careers_url": "https://www.fibe.in/careers",
     "source": "custom",
@@ -2409,6 +2560,16 @@
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
+  },
+  {
+    "name": "Edyst",
+    "careers_url": "https://edyst.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · EdystHyderabad, Telangana, IndiaEdyst is a peer-to-peer online learning platform where students learn…"
   },
   {
     "name": "Eilla AI",
@@ -2517,11 +2678,31 @@
     "evidence": "URL repaired via path-variant from https://even.in/careers"
   },
   {
+    "name": "Exly",
+    "careers_url": "https://exlyapp.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · ExlyNew Delhi, DL, IndiaOne stop shop for creators to launch, manage & grow their knowledge…"
+  },
+  {
     "name": "Exotel",
     "careers_url": "https://exotel.com/careers/",
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed"
+  },
+  {
+    "name": "Explorex",
+    "careers_url": "https://explorex.co",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · ExplorexBengaluru, KA, IndiaEcosystem Platform for Restaurants in India"
   },
   {
     "name": "EY India",
@@ -2582,6 +2763,26 @@
     "source_slug": "fareye",
     "parsing_strategy": "llm-scrape",
     "evidence": "URL repaired via path-variant from https://www.fareye.com/careers/"
+  },
+  {
+    "name": "Farmako Healthcare",
+    "careers_url": "https://farmako.ai",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Farmako HealthcareGurugram, HR, IndiaIndia's fastest medicine delivery in just 30 minutes"
+  },
+  {
+    "name": "farmtheory",
+    "careers_url": "https://farmtheory.in",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · farmtheoryBengaluru, KA, IndiaIndia's first vegetable delivery service to restaurants with a hack"
   },
   {
     "name": "Fasal",
@@ -2680,7 +2881,7 @@
     "careers_url": "https://flatx.com/careers/",
     "source": "custom",
     "source_slug": "flatx",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://flatx.com/careers"
   },
@@ -2804,6 +3005,16 @@
     "source_slug": "full-creative-jr-operations-analyst",
     "parsing_strategy": "llm-scrape",
     "evidence": "URL repaired via path-variant from https://fullcreative.recruitee.com/o/jr-operations-analyst"
+  },
+  {
+    "name": "FunctionUp (FanPlay)",
+    "careers_url": "https://functionup.org",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · FunctionUp (FanPlay)Bengaluru, KA, IndiaA skill-tech platform that runs placement bootcamps"
   },
   {
     "name": "Future Group",
@@ -2949,6 +3160,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "denied",
     "reason": "superseded: fetched via darwinbox/gommt (ats-audit 2026-06-10)"
+  },
+  {
+    "name": "GoLorry",
+    "careers_url": "https://golorry.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · GoLorryHyderabad, Telangana, IndiaMobile marketplace for inter-city trucking in India"
   },
   {
     "name": "Goodspace",
@@ -3165,6 +3386,16 @@
     "evidence": "Brave found working careers page (was Error: llm-scrape fetch failed for heaps)"
   },
   {
+    "name": "Helloverify",
+    "careers_url": "https://helloverify.ae",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · HelloverifyNoida, UP, IndiaHelloverify is a background screening platform (Checkr for India)."
+  },
+  {
     "name": "Hero MotoCorp",
     "careers_url": "https://www.heromotocorp.com/en-in/careers.html",
     "source": "custom",
@@ -3228,6 +3459,16 @@
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed"
+  },
+  {
+    "name": "Hiration",
+    "careers_url": "https://hiration.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · HirationNew Delhi, DL, IndiaWe help job seekers quickly create resumes that get 2X more interviews"
   },
   {
     "name": "HirePro",
@@ -3540,6 +3781,16 @@
     "discovered_via": "bulk-seed-2"
   },
   {
+    "name": "Innov8",
+    "careers_url": "https://innov8.work",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Innov8New Delhi, DL, IndiaWe provide co-working offices to startups, freelancers and SMEs in…"
+  },
+  {
     "name": "Innovaccer",
     "careers_url": "https://innovaccer.com/careers",
     "source": "custom",
@@ -3677,7 +3928,7 @@
     "name": "Kaagaz",
     "careers_url": "https://kaagaz.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -3811,10 +4062,20 @@
     "evidence": "Brave found working careers page (was Error: llm-scrape fetch failed for koo: )"
   },
   {
+    "name": "Kosh",
+    "careers_url": "https://getkosh.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · KoshGurugram, HR, IndiaCreating Microfinance 2.0."
+  },
+  {
     "name": "Koshex",
     "careers_url": "https://koshex.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -4064,7 +4325,7 @@
     "careers_url": "https://loco.gg/about/careers",
     "source": "custom",
     "source_slug": "loco",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repaired via path-variant from https://loco.gg/careers"
   },
   {
@@ -4107,11 +4368,31 @@
     "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)"
   },
   {
+    "name": "Lokal",
+    "careers_url": "https://getlokalapp.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · LokalBengaluru, KA, IndiaLocal news, information and classifieds for India's small town users"
+  },
+  {
     "name": "Looker India (Google)",
     "careers_url": "https://careers.google.com/locations/india/",
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
+  },
+  {
+    "name": "LotusPay",
+    "careers_url": "https://lotuspay.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · LotusPayBengaluru, KA, IndiaRecurring payments solution for businesses in India."
   },
   {
     "name": "Lowe's India",
@@ -4360,7 +4641,7 @@
     "name": "marketfeed",
     "careers_url": "https://marketfeed.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -4476,6 +4757,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed",
     "evidence": "URL repaired via WebSearch: hosted on Trakstar"
+  },
+  {
+    "name": "MedPiper Technologies, Inc",
+    "careers_url": "https://medpiper.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · MedPiper Technologies, IncBengaluru, KA, IndiaInstant cash payouts for delayed flights"
   },
   {
     "name": "Meesho Supply",
@@ -4700,6 +4991,16 @@
     "discovered_via": "bulk-seed-2"
   },
   {
+    "name": "Morphle Labs",
+    "careers_url": "https://morphlelabs.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Morphle LabsBengaluru, KA, IndiaRobotic Automation for cancer diagnostics - Robotic Microscopes &…"
+  },
+  {
     "name": "Motilal Oswal Securities",
     "careers_url": "https://www.motilaloswal.com/careers",
     "source": "custom",
@@ -4804,6 +5105,16 @@
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed"
+  },
+  {
+    "name": "MyPetrolPump",
+    "careers_url": "https://mypetrolpump.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · MyPetrolPumpBengaluru, KA, IndiaOn demand fuel delivery service in India"
   },
   {
     "name": "MySivi",
@@ -5126,6 +5437,16 @@
     "evidence": "URL repaired via path-variant from https://getonecard.app/careers"
   },
   {
+    "name": "OneFin",
+    "careers_url": "https://onefin.in",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · OneFinBengaluru, KA, IndiaShopify for Financial Services"
+  },
+  {
     "name": "OnePlus India",
     "careers_url": "https://www.oneplus.in/careers",
     "source": "custom",
@@ -5196,6 +5517,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "claude-research",
     "evidence": "Optimizely careers live at careers.optimizely.com/viewalljobs/ (SAP SuccessFactors); India roles included."
+  },
+  {
+    "name": "Orange Health Labs",
+    "careers_url": "https://orangehealth.in",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Orange Health LabsBengaluru, KA, IndiaIndia's Fastest Diagnostics Service"
   },
   {
     "name": "Otipy",
@@ -5293,6 +5624,16 @@
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
+  },
+  {
+    "name": "Pay Swifter",
+    "careers_url": "https://payswifter.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Pay SwifterBengaluru, KA, IndiaStripe for Cannabis"
   },
   {
     "name": "PayCrunch",
@@ -5537,6 +5878,16 @@
     "source_slug": "plastics-for-change",
     "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repair 2026-06-05 (fix-url, high): plasticsforchange.com/careers -> 404. plasticsforchange.org/careers ->"
+  },
+  {
+    "name": "Playment",
+    "careers_url": "https://playment.io",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · PlaymentBengaluru, KA, IndiaMechanical Turk for enterprises."
   },
   {
     "name": "Plivo",
@@ -5891,7 +6242,7 @@
     "name": "Reclaim Protocol",
     "careers_url": "https://reclaim-protocol.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -6136,7 +6487,7 @@
     "name": "RocketSDR",
     "careers_url": "https://rocketsdr.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -6225,7 +6576,7 @@
     "name": "SalaryBox",
     "careers_url": "https://salarybox.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -6600,6 +6951,16 @@
     "evidence": "URL repaired via path-variant from https://www.sirionlabs.com/careers/"
   },
   {
+    "name": "Skill-lync",
+    "careers_url": "https://skill-lync.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Skill-lyncChennai, TN, IndiaOnline engineering college for India. Learn technical skills & get…"
+  },
+  {
     "name": "Skillshare India",
     "careers_url": "https://www.skillshare.com/careers",
     "source": "custom",
@@ -6808,6 +7169,16 @@
     "evidence": "URL repair 2026-06-05 (fix-url, medium): curl https://www.spencersretail.com/careers => HTTP 404 (registry URL "
   },
   {
+    "name": "Spenny",
+    "careers_url": "https://spennyapp.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · SpennyBengaluru, KA, IndiaAcorns for India. Every time you swipe you make a digital…"
+  },
+  {
     "name": "Spinach.ai",
     "careers_url": "https://www.spinach.io/about/careers",
     "source": "custom",
@@ -6929,6 +7300,26 @@
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "seed"
+  },
+  {
+    "name": "Statiq.",
+    "careers_url": "https://statiq.in",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Statiq.Gurugram, HR, IndiaIndia's Largest EV charging network"
+  },
+  {
+    "name": "StayQrious",
+    "careers_url": "https://stayqrious.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · StayQriousBengaluru, KA, IndiaStayQrious helps kids in India learn through online group classes,…"
   },
   {
     "name": "Stellapps Technologies",
@@ -7093,6 +7484,16 @@
     "evidence": "URL repair 2026-06-05 (fix-url, high): curl https://superkalam.com/ => HTTP 200; curl https://superkalam.com/"
   },
   {
+    "name": "Supr Daily",
+    "careers_url": "https://suprdaily.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Supr DailyBengaluru, KA, IndiaDaily grocery delivery service in India"
+  },
+  {
     "name": "Suryoday SFB",
     "careers_url": "https://www.suryodaybank.com/careers/",
     "source": "custom",
@@ -7189,6 +7590,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.tagbox.com/careers"
+  },
+  {
+    "name": "TagMango",
+    "careers_url": "https://tagmango.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · TagMangoKolkata, WB, IndiaMonetisation tool for the Indian creator economy"
   },
   {
     "name": "Talview",
@@ -7453,6 +7864,16 @@
     "source": "custom",
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2"
+  },
+  {
+    "name": "TechBiz",
+    "careers_url": "https://techbiz.app",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · TechBizNew Delhi, DL, IndiaMIS on mobile for SMB's in India"
   },
   {
     "name": "Teleperformance India",
@@ -7862,7 +8283,7 @@
     "name": "Unschool",
     "careers_url": "https://unschool.com/careers",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-12T04:52:00.920Z",
@@ -7894,6 +8315,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.urbancompany.com/about-us/careers"
+  },
+  {
+    "name": "UrbanKisaan",
+    "careers_url": "https://urbankisaan.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · UrbanKisaanHyderabad, Telangana, IndiaFoundation models and autonomous chambers for plant biology"
   },
   {
     "name": "UrbanPiper",
@@ -7987,6 +8418,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.vedantu.com/careers"
+  },
+  {
+    "name": "Verak",
+    "careers_url": "https://verak.in",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · VerakBengaluru, IndiaBetter Business Insurance for MSMEs in India"
   },
   {
     "name": "Verloop",
@@ -8286,6 +8727,16 @@
     "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)"
   },
   {
+    "name": "Wifi Dabba, Inc.",
+    "careers_url": "https://dabba.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Wifi Dabba, Inc.Bengaluru, KA, IndiaDecentralised broadband connectivity."
+  },
+  {
     "name": "Wiggles",
     "careers_url": "https://wigglespetresort.com/careers/",
     "source": "custom",
@@ -8441,6 +8892,16 @@
     "evidence": "Yatra.com official tech careers at tech.yatra.com (jobs at tech.yatra.com/jobs); old yatra.com/careers.html dead."
   },
   {
+    "name": "yBANQ",
+    "careers_url": "https://ybanq.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · yBANQBengaluru, KA, IndiayBANQ is building a Bill.com for India to simplify collections and…"
+  },
+  {
     "name": "Yellow.ai",
     "careers_url": "https://yellow.ai/careers",
     "source": "custom",
@@ -8584,6 +9045,16 @@
     "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.zestmoney.in/careers"
+  },
+  {
+    "name": "ZiffyHomes",
+    "careers_url": "https://ziffyhomes.com",
+    "source": "custom",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · ZiffyHomesGurugram, HR, IndiaZiffyHomes is managed corporate housing for white collar employees in…"
   },
   {
     "name": "zingbus",
@@ -10015,6 +10486,18 @@
     "evidence": "on greenhouse (324 jobs); was llm-scrape"
   },
   {
+    "name": "AccioJob",
+    "careers_url": "https://acciojob.com",
+    "source": "keka",
+    "source_slug": "acciojob",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "api_meta": {
+      "orgGuid": "7d86eeef-8f44-46cd-bc3a-2155e3ff042c"
+    },
+    "evidence": "yc-recovery: promoted to keka (0 jobs)"
+  },
+  {
     "name": "ClickPost",
     "careers_url": "https://clickpost.keka.com/careers/",
     "source": "keka",
@@ -10114,6 +10597,17 @@
     }
   },
   {
+    "name": "Inito",
+    "careers_url": "https://inito.com/careers",
+    "source": "keka",
+    "source_slug": "inito",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · InitoBengaluru, KA, IndiaEnabling better self care with at-home hormone tracking."
+  },
+  {
     "name": "Jupiter Money",
     "careers_url": "https://jupiter.keka.com/careers/",
     "source": "keka",
@@ -10171,6 +10665,20 @@
     "evidence": "keka (36 jobs)",
     "api_meta": {
       "orgGuid": "fa11c430-c96c-447f-9f68-d05ab3867c12"
+    }
+  },
+  {
+    "name": "Peoplebox.ai",
+    "careers_url": "https://peoplebox.com/careers",
+    "source": "keka",
+    "source_slug": "peoplebox",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "yc-india",
+    "discovered_at": "2026-06-18T00:08:26.924Z",
+    "evidence": "YC India · Peoplebox.aiBengaluru, IndiaAI talent platform to hire, manage, and grow your people",
+    "api_meta": {
+      "orgGuid": "d8f7ec60-2d2d-4056-a2ac-b3bbfbc29b01"
     }
   },
   {
