@@ -27,10 +27,11 @@ interface PostingResultPatch {
   notifiedAt: string | null;
 }
 
-function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch): void {
+function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch, profileId: string): void {
   updatePostingResult({
     provider: posting.provider,
     externalId: posting.externalId,
+    profileId,
     llmRelevant: patch.llmRelevant,
     llmReason: patch.llmReason,
     llmConfidence: patch.llmConfidence,
@@ -53,7 +54,7 @@ export async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  if (postingExists(posting.provider, posting.externalId)) return;
+  if (postingExists(posting.provider, posting.externalId, stats.profileId)) return;
 
   // Cross-run dedup: skip re-listings (same company/title/location notified before)
   // before spending gate + extract calls, since we'd only drop them at notify time.
@@ -92,7 +93,7 @@ export async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  const inserted = insertPostingIfNew(posting);
+  const inserted = insertPostingIfNew(posting, stats.profileId);
   if (!inserted) return; // race: another worker beat us; leave it for next tick
   stats.postingsNew++;
 
@@ -105,7 +106,7 @@ export async function processOnePosting(
       yoeMax: null,
       dropStage: "no-jd",
       notifiedAt: null,
-    });
+    }, stats.profileId);
     return;
   }
 
@@ -137,7 +138,7 @@ export async function processOnePosting(
       yoeMax: null,
       dropStage: "gate-error",
       notifiedAt: null,
-    });
+    }, stats.profileId);
     return;
   }
 
@@ -150,7 +151,7 @@ export async function processOnePosting(
       yoeMax: null,
       dropStage: "hard-deal-breaker",
       notifiedAt: null,
-    });
+    }, stats.profileId);
     return;
   }
 
@@ -179,7 +180,7 @@ export async function processOnePosting(
       yoeMax: extractResult?.yoeMax ?? null,
       dropStage: "silent",
       notifiedAt: null,
-    });
+    }, stats.profileId);
     return;
   }
 
@@ -195,7 +196,7 @@ export async function processOnePosting(
       yoeMax: extractResult?.yoeMax ?? null,
       dropStage: "duplicate",
       notifiedAt: null,
-    });
+    }, stats.profileId);
     return;
   }
   stats.seenNotifyKeys.add(dupKey);
@@ -238,5 +239,5 @@ export async function processOnePosting(
     yoeMax: extractResult?.yoeMax ?? null,
     dropStage: verdict.severity === "green" ? null : "yellow",
     notifiedAt,
-  });
+  }, stats.profileId);
 }
