@@ -40,6 +40,12 @@ export interface UserProfile {
   /** Discord webhook for THIS profile's notifications. Falls back to
    *  process.env.DISCORD_WEBHOOK_URL when unset. */
   webhookUrl?: string;
+  /** Per-profile relevance-gate prompt template (same {{placeholders}} as the
+   *  default in src/llm/prompts/gate.ts: resume, hardDealBreakers,
+   *  softDealBreakers, jobTitle, companyName, jdText). Lets a profile screen for
+   *  a different role family (e.g. frontend engineer vs data analyst). Falls
+   *  back to the global default when unset. */
+  gatePrompt?: string;
   /** Full resume text the relevance gate judges against. NOT set in this module:
    *  it is loaded at startup from config/resume.txt (generated once from
    *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
