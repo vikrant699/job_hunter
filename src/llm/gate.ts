@@ -82,7 +82,9 @@ export function parseGateResponse(raw: string): GateResult {
 }
 
 export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
-  const template = opts.promptTemplate ?? config.prompts.gate;
+  // Per-profile rubric (e.g. a frontend-engineer screen) overrides the global
+  // default (a data-analyst screen). Eval-harness override wins over both.
+  const template = opts.promptTemplate ?? profile.gatePrompt ?? config.prompts.gate;
   const prompt = render(template, {
     resume: profile.resumeText ?? "",
     hardDealBreakers: profile.hardDealBreakers,

@@ -39,6 +39,7 @@ export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 export const UserProfileSchema = z.object({
   id: z.string().optional(),
   webhookUrl: z.string().url().optional(),
+  gatePrompt: z.string().optional(),
   resumeText: z.string().optional(),
   hardDealBreakers: z.array(z.string()),
   softDealBreakers: z.array(z.string()),
