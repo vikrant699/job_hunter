@@ -3,8 +3,10 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const pdfPath = resolve(here, "../../config/resume.pdf");
-const txtPath = resolve(here, "../../config/resume.txt");
+const defaultDir = resolve(here, "../../config");
+function paths(baseDir: string): { pdf: string; txt: string } {
+  return { pdf: resolve(baseDir, "resume.pdf"), txt: resolve(baseDir, "resume.txt") };
+}
 
 /** Collapse PDF-extraction whitespace noise: normalize newlines, squeeze runs of
  *  spaces/tabs, trim each line, drop consecutive blank lines, trim ends. Idempotent. */
@@ -21,7 +23,8 @@ export function normalizeResumeText(raw: string): string {
 /** Extract config/resume.pdf -> normalized text, write config/resume.txt, return it.
  *  Throws if config/resume.pdf is absent. (unpdf imported lazily so it is not loaded
  *  on the hot path when config/resume.txt is already cached.) */
-export async function extractResume(): Promise<string> {
+export async function extractResume(baseDir: string = defaultDir): Promise<string> {
+  const { pdf: pdfPath, txt: txtPath } = paths(baseDir);
   if (!existsSync(pdfPath)) {
     throw new Error("config/resume.pdf not found - add your resume PDF at config/resume.pdf");
   }
@@ -38,9 +41,10 @@ export async function extractResume(): Promise<string> {
 /** The candidate resume text the relevance gate judges against: the cached
  *  config/resume.txt if present, else generated once from config/resume.pdf.
  *  Throws if neither exists - the bot must stop, there is nothing to match on. */
-export async function ensureResumeText(): Promise<string> {
+export async function ensureResumeText(baseDir: string = defaultDir): Promise<string> {
+  const { txt: txtPath } = paths(baseDir);
   if (existsSync(txtPath)) return readFileSync(txtPath, "utf-8");
-  return extractResume();
+  return extractResume(baseDir);
 }
 
 // `npm run extract-resume` forces a fresh extraction (e.g. after the PDF changes).
