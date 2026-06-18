@@ -26,13 +26,19 @@ const namedProfile = resolve(namedDir, "profile.ts");
 const defaultProfile = resolve(here, "../config/profile.ts");
 const examplePath = resolve(here, "../config/profile.example.ts");
 
-const userPath =
-  profileName !== "default" && existsSync(namedProfile) ? namedProfile
-  : existsSync(defaultProfile) ? defaultProfile
-  : examplePath;
-const resumeDir =
-  profileName !== "default" && existsSync(namedProfile) ? namedDir
-  : resolve(here, "../config");
+// Refuse to mislabel data: if a named profile was explicitly requested but its
+// config is missing, abort rather than silently scoring the DEFAULT resume and
+// stamping every row with the requested profile_id.
+if (profileName !== "default" && !existsSync(namedProfile)) {
+  process.stderr.write(
+    `[profile] --profile ${profileName} requested but config/profiles/${profileName}/profile.ts not found — aborting.\n`,
+  );
+  process.exit(1);
+}
+
+const useNamed = profileName !== "default";
+const userPath = useNamed ? namedProfile : existsSync(defaultProfile) ? defaultProfile : examplePath;
+const resumeDir = useNamed ? namedDir : resolve(here, "../config");
 const usingExample = userPath === examplePath;
 
 const ProfileModuleSchema = z.object({ profile: UserProfileSchema });
