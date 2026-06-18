@@ -5,6 +5,7 @@ import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
+import { profile } from "./profile.js";
 
 function printUsage(): void {
   console.log(`Usage: npm run <command>
@@ -24,6 +25,7 @@ async function runOnce(): Promise<void> {
     await emitDailyCsvs({
       tickStartedAt: outcome.startedAtIso,
       tickEndedAt: outcome.endedAtIso,
+      profileId: profile.id ?? "default",
       discovery: null,
       stats: outcome.stats,
     });
