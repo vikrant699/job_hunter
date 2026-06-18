@@ -37,6 +37,8 @@ export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 
 // Documented hand-edited contract is the UserProfile interface in types.ts; keep in sync.
 export const UserProfileSchema = z.object({
+  id: z.string().optional(),
+  webhookUrl: z.string().url().optional(),
   resumeText: z.string().optional(),
   hardDealBreakers: z.array(z.string()),
   softDealBreakers: z.array(z.string()),
