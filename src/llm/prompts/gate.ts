@@ -58,7 +58,7 @@ Do not cluster scores at 0.5 — commit up or down. When unsure but the role is 
 {"analysis":"A Senior Data Engineer building Spark/Airflow pipelines and cloud infra — data engineering, not analysis.","skillsMatch":0.15,"domainFit":0.4,"seniorityFit":0.5,"roleTypeMatch":0.1,"matchScore":0.1,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"Data engineering, not an analyst role."}
 {"analysis":"An FP&A / Financial Analyst role using Excel, SQL and reporting for business planning; adjacent to the candidate's analytics background and in-family.","skillsMatch":0.65,"domainFit":0.5,"seniorityFit":0.85,"roleTypeMatch":0.85,"matchScore":0.65,"dealBreakerHit":null,"dealBreakerSeverity":null,"reason":"In-family financial-analyst role with solid reporting overlap."}
 
-# Output (JSON only — no preamble, no markdown), keys in THIS order
+# Output — return ONE JSON object only (no preamble, no markdown, no code fence). ALL keys below are REQUIRED, especially "reason". Keys in THIS order:
 {
   "analysis":            "<1-2 sentences of reasoning>",
   "skillsMatch":         <0..1>,

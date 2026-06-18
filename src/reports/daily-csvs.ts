@@ -40,6 +40,7 @@ function classifyUnchecked(c: { status: string; parsingStrategy: string; lastErr
 export interface DailyReportInput {
   tickStartedAt: string;
   tickEndedAt: string;
+  profileId: string;
   discovery: DiscoveryResult | null;
   stats: {
     postingsSeen: number;
@@ -56,7 +57,7 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   const { tickStartedAt, tickEndedAt, discovery, stats } = input;
   const stamp = todayStamp(tickEndedAt);
 
-  const matchRows: MatchRow[] = listNotifiedPostingsSince(tickStartedAt);
+  const matchRows: MatchRow[] = listNotifiedPostingsSince(tickStartedAt, input.profileId);
 
   const all = selectAllCompanies();
   const companyRows: CompanyRow[] = [];

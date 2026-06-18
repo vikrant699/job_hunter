@@ -63,6 +63,13 @@ export function parseGateResponse(raw: string): GateResult {
     if (p["dealBreakerHit"] !== null && p["dealBreakerSeverity"] === null) {
       p["dealBreakerSeverity"] = "soft";
     }
+    // reason is display-only; the model sometimes omits it. Backfill from the
+    // analysis or a score string so a missing reason never fails validation.
+    if (typeof p["reason"] !== "string" || p["reason"] === "") {
+      const analysis = typeof p["analysis"] === "string" ? p["analysis"] : "";
+      const score = typeof p["matchScore"] === "number" ? p["matchScore"].toFixed(2) : "?";
+      p["reason"] = analysis !== "" ? analysis.slice(0, 200) : `auto: matchScore ${score}`;
+    }
     parsed = p;
   }
 
@@ -89,7 +96,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
   // wrapper key or a token runaway). A fresh generation usually fixes it, and a
   // dropped posting is a recall risk we can't afford.
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= 1; attempt++) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
     const raw = await generate(prompt, { format: "json", temperature: opts.temperature });
     try {
       return parseGateResponse(raw);

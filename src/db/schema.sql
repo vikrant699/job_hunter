@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS postings (
   jd_text        TEXT,
   posted_at      TEXT,
   discovered_at  TEXT    NOT NULL,
+  profile_id     TEXT    NOT NULL DEFAULT 'default',
   llm_relevant   INTEGER,
   llm_reason     TEXT,
   llm_confidence REAL,
@@ -41,7 +42,7 @@ CREATE TABLE IF NOT EXISTS postings (
   yoe_max        REAL,
   drop_stage     TEXT,
   notified_at    TEXT,
-  PRIMARY KEY (provider, external_id)
+  PRIMARY KEY (provider, external_id, profile_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_postings_company ON postings(provider, company_slug);
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS link_cache (
 CREATE TABLE IF NOT EXISTS runs (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   kind              TEXT NOT NULL,
+  profile_id        TEXT NOT NULL DEFAULT 'default',
   started_at        TEXT NOT NULL,
   ended_at          TEXT,
   companies_scanned INTEGER,
