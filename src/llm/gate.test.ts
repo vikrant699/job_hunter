@@ -54,3 +54,23 @@ test("parseGateResponse fills a fallback reason when the model omits it", () => 
   assert.equal(r.matchScore, 0.82);
   assert.ok(r.reason.length > 0, "reason should be backfilled, not empty");
 });
+
+test("parseGateResponse coerces an omitted dealBreakerSeverity (hit set) to soft", () => {
+  const raw = JSON.stringify({
+    analysis: "SDET role, not frontend.",
+    matchScore: 0.25,
+    dealBreakerHit: "Role focuses on SDET/DevOps rather than frontend UI.",
+    // dealBreakerSeverity intentionally absent
+    reason: "SDET, not frontend.",
+  });
+  const r = parseGateResponse(raw);
+  assert.equal(r.dealBreakerSeverity, "soft");
+  assert.equal(r.matchScore, 0.25);
+});
+
+test("parseGateResponse coerces both dealBreaker fields absent to null", () => {
+  const raw = JSON.stringify({ matchScore: 0.7, reason: "ok" });
+  const r = parseGateResponse(raw);
+  assert.equal(r.dealBreakerHit, null);
+  assert.equal(r.dealBreakerSeverity, null);
+});
