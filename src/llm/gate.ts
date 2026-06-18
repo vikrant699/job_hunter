@@ -96,7 +96,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
   // wrapper key or a token runaway). A fresh generation usually fixes it, and a
   // dropped posting is a recall risk we can't afford.
   let lastErr: unknown;
-  for (let attempt = 0; attempt <= 1; attempt++) {
+  for (let attempt = 0; attempt <= 2; attempt++) {
     const raw = await generate(prompt, { format: "json", temperature: opts.temperature });
     try {
       return parseGateResponse(raw);
