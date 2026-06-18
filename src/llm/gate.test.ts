@@ -41,3 +41,16 @@ test("passes a hard deal-breaker through unchanged", () => {
   assert.equal(g.dealBreakerHit, "staffing agency");
   assert.equal(g.dealBreakerSeverity, "hard");
 });
+
+test("parseGateResponse fills a fallback reason when the model omits it", () => {
+  const raw = JSON.stringify({
+    analysis: "Core SQL + dashboards analyst work.",
+    matchScore: 0.82,
+    dealBreakerHit: null,
+    dealBreakerSeverity: null,
+    // reason intentionally absent
+  });
+  const r = parseGateResponse(raw);
+  assert.equal(r.matchScore, 0.82);
+  assert.ok(r.reason.length > 0, "reason should be backfilled, not empty");
+});
