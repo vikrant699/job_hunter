@@ -12,6 +12,7 @@ import { notifyKey } from "../filter/dedup.js";
 import { notifySummary } from "../discord/notify.js";
 import { resolveAdapter } from "../ats/registry.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
+import { profile } from "../profile.js";
 import { processBucket } from "./scheduler.js";
 
 export interface RunContext {
@@ -27,6 +28,8 @@ export interface RunContext {
   priorNotifyKeys: Set<string>;
   /** keys notified in THIS run — within-run dedup at notify time. */
   seenNotifyKeys: Set<string>;
+  /** Which profile this run evaluates for — stamped on every posting/run row. */
+  profileId: string;
 }
 
 export function toAdapterCompany(c: Company): AdapterCompany {
@@ -60,14 +63,15 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   // gate-errors against a dead Ollama (the 2026-06-17 failure mode).
   await assertOllamaAvailable();
 
-  const runId = startRun("production");
+  const profileId = profile.id ?? "default";
+  const runId = startRun("production", profileId);
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
   // Pre-load every (company, title, location) we've already notified so a role
   // re-listed with a fresh requisition id isn't pinged again across runs (the
   // external_id dedup misses reposts; this catches them).
   const priorNotifyKeys = new Set<string>();
-  for (const r of selectNotifiedRoleKeys()) {
+  for (const r of selectNotifiedRoleKeys(profileId)) {
     priorNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
   }
   logger.info({ priorNotified: priorNotifyKeys.size }, "dedup: loaded prior-notified keys (cross-run)");
@@ -83,6 +87,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     errors: [],
     priorNotifyKeys,
     seenNotifyKeys: new Set(),
+    profileId,
   };
 
   const allCompanies = selectActiveCompanies();

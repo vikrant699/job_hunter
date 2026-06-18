@@ -8,20 +8,21 @@ import { db, queryAll } from "./db.js";
 
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
-    provider, external_id, company_slug, job_title, job_url, location,
+    provider, external_id, profile_id, company_slug, job_title, job_url, location,
     is_remote, jd_text, posted_at, discovered_at
   ) VALUES (
-    :provider, :externalId, :companySlug, :jobTitle, :jobUrl, :location,
+    :provider, :externalId, :profileId, :companySlug, :jobTitle, :jobUrl, :location,
     :isRemote, :jdText, :postedAt, :discoveredAt
   )
-  ON CONFLICT(provider, external_id) DO NOTHING
+  ON CONFLICT(provider, external_id, profile_id) DO NOTHING
 `);
 
 /** Returns true if the row was inserted (i.e. a new posting). */
-export function insertPostingIfNew(p: NormalizedPosting): boolean {
+export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boolean {
   const result = insertPostingStmt.run({
     provider: p.provider,
     externalId: p.externalId,
+    profileId,
     companySlug: p.companySlug,
     jobTitle: p.jobTitle,
     jobUrl: p.jobUrl,
@@ -35,11 +36,11 @@ export function insertPostingIfNew(p: NormalizedPosting): boolean {
 }
 
 const postingExistsStmt = db.prepare(`
-  SELECT 1 FROM postings WHERE provider = :provider AND external_id = :externalId LIMIT 1
+  SELECT 1 FROM postings WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId LIMIT 1
 `);
 
-export function postingExists(provider: Provider, externalId: string): boolean {
-  return postingExistsStmt.get({ provider, externalId }) !== undefined;
+export function postingExists(provider: Provider, externalId: string, profileId: string): boolean {
+  return postingExistsStmt.get({ provider, externalId, profileId }) !== undefined;
 }
 
 /* ===== selectNotifiedRoleKeys ===== */
@@ -54,7 +55,7 @@ const selectNotifiedRoleKeysStmt = db.prepare(`
   SELECT c.name AS company, p.job_title AS title, p.location AS location
   FROM postings p
   LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
-  WHERE p.notified_at IS NOT NULL AND p.notified_at >= :cutoff
+  WHERE p.notified_at IS NOT NULL AND p.notified_at >= :cutoff AND p.profile_id = :profileId
 `);
 
 // A role re-posted after this long is worth a fresh ping anyway, and the cutoff
@@ -66,13 +67,13 @@ const NOTIFY_DEDUP_WINDOW_DAYS = 180;
  * to dedupe re-listed roles ACROSS runs: a repost gets a fresh external_id, so
  * postingExists misses it, but the role is unchanged — we shouldn't ping it again.
  */
-export function selectNotifiedRoleKeys(): Array<{
+export function selectNotifiedRoleKeys(profileId: string): Array<{
   company: string | null;
   title: string | null;
   location: string | null;
 }> {
   const cutoff = new Date(Date.now() - NOTIFY_DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  return queryAll(selectNotifiedRoleKeysStmt, NotifiedRoleKeySchema, { cutoff });
+  return queryAll(selectNotifiedRoleKeysStmt, NotifiedRoleKeySchema, { cutoff, profileId });
 }
 
 /* ===== updatePostingResult ===== */
@@ -86,13 +87,14 @@ const updatePostingResultStmt = db.prepare(`
     yoe_max        = :yoeMax,
     drop_stage     = :dropStage,
     notified_at    = :notifiedAt
-  WHERE provider = :provider AND external_id = :externalId
+  WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
 `);
 
 export interface PostingResultUpdate {
   [key: string]: SQLInputValue;
   provider: Provider;
   externalId: string;
+  profileId: string;
   llmRelevant: number | null;
   llmReason: string | null;
   llmConfidence: number | null;
@@ -137,13 +139,15 @@ const listNotifiedPostingsSinceStmt = db.prepare(`
   WHERE p.discovered_at >= :since
     AND p.notified_at IS NOT NULL
     AND (p.drop_stage IS NULL OR p.drop_stage = 'yellow')
+    AND p.profile_id = :profileId
   ORDER BY CASE WHEN p.drop_stage IS NULL THEN 0 ELSE 1 END,
            p.llm_confidence DESC
 `);
 
-export function listNotifiedPostingsSince(sinceIso: string): NotifiedPosting[] {
+export function listNotifiedPostingsSince(sinceIso: string, profileId: string): NotifiedPosting[] {
   const rows = queryAll(listNotifiedPostingsSinceStmt, NotifiedPostingRowSchema, {
     since: sinceIso,
+    profileId,
   });
   return rows.map((r) => ({
     company: r.company ?? r.company_slug,

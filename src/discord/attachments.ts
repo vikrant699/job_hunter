@@ -1,5 +1,6 @@
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
+import { profile } from "../profile.js";
 
 const WEBHOOK_TIMEOUT_MS = 30_000;
 const WEBHOOK_MAX_429_RETRIES = 3;
@@ -135,7 +136,7 @@ export async function uploadDailyCsvs(
   payload: { embeds?: unknown[]; content?: string },
   files: AttachmentInput[]
 ): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = profile.webhookUrl ?? process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) {
     logger.info({ files: files.map((f) => f.filename), bytes: files.reduce((n, f) => n + f.content.length, 0) },
       "[csv mocked: DISCORD_WEBHOOK_URL not set]");

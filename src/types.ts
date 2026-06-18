@@ -34,6 +34,12 @@ export type AdapterCompany = Pick<Company, "provider" | "slug" | "name" | "caree
 // Runtime validator for this shape lives in schemas.ts (UserProfileSchema); keep them in sync.
 /** Everything personal about who you are and what roles you want. */
 export interface UserProfile {
+  /** Stable per-profile id — stamped onto every posting/run row. Defaults to
+   *  "default"; set by the loader from --profile, NOT hand-edited here. */
+  id?: string;
+  /** Discord webhook for THIS profile's notifications. Falls back to
+   *  process.env.DISCORD_WEBHOOK_URL when unset. */
+  webhookUrl?: string;
   /** Full resume text the relevance gate judges against. NOT set in this module:
    *  it is loaded at startup from config/resume.txt (generated once from
    *  config/resume.pdf). The bot stops if no resume PDF/text is present. */

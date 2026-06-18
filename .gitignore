@@ -34,3 +34,7 @@ Desktop.ini
 # local planning / working notes (never publish)
 docs/superpowers/
 docs/sqlite-to-postgres-migration.md
+
+# named multi-profile dirs (config/profiles/<name>/profile.ts + resume.*) — local only
+config/profiles/*
+!config/profiles/.gitkeep

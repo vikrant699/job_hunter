@@ -1,7 +1,12 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
+import { profile } from "../profile.js";
 import type { NormalizedPosting } from "../types.js";
+
+function resolveWebhookUrl(): string | undefined {
+  return profile.webhookUrl ?? process.env.DISCORD_WEBHOOK_URL;
+}
 
 export type DiscordSeverity = "green" | "yellow";
 
@@ -87,7 +92,7 @@ function fmtRelativeTime(iso: string | null): string {
 }
 
 export async function notifyPosting(input: NotifyInput): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = resolveWebhookUrl();
   const p = input.posting;
 
   const hasDirectLink = !!p.jobUrl && p.jobUrl.trim().length > 0;
@@ -154,7 +159,7 @@ export interface SummaryInput {
 }
 
 export async function notifySummary(input: SummaryInput): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = resolveWebhookUrl();
   if (!webhookUrl) {
     logger.info(input, "[summary mocked: DISCORD_WEBHOOK_URL not set]");
     return;
