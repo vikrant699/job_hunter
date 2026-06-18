@@ -12,6 +12,7 @@ import { notifyKey } from "../filter/dedup.js";
 import { checkTitle } from "../filter/title.js";
 import { runGate } from "../llm/gate.js";
 import { runExtract, type ExtractResult } from "../llm/extract.js";
+import { OllamaUnavailableError } from "../llm/client.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { notifyPosting } from "../discord/notify.js";
 import type { RunContext } from "./index.js";
@@ -116,6 +117,9 @@ export async function processOnePosting(
       jdText: posting.jdText,
     });
   } catch (err) {
+    // Backend down (not a per-posting failure) — abort the whole run rather
+    // than storing this and the next several thousand postings as gate-errors.
+    if (err instanceof OllamaUnavailableError) throw err;
     // Couldn't score even after the gate's retry (malformed model output). A
     // score-less posting is treated as 0 and NOT sent to Discord — surfacing
     // every unparseable result would flood the feed with noise. We still store
@@ -159,6 +163,7 @@ export async function processOnePosting(
     try {
       extractResult = await runExtract(posting.jdText);
     } catch (err) {
+      if (err instanceof OllamaUnavailableError) throw err;
       logger.warn({ company: company.name, err: String(err) }, "extract failed, continuing without YOE");
     }
   }

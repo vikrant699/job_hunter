@@ -4,6 +4,7 @@ import { syncRegistryFromJson } from "./registry/companies.js";
 import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery, type DiscoveryResult } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
+import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 
 function printUsage(): void {
   console.log(`Usage: npm run <command>
@@ -68,6 +69,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // A production tick needs the LLM backend — check it before the (~30s)
+  // registry sync so a down Ollama fails in seconds with a clear message.
+  // (runProductionTick re-checks, so programmatic callers stay protected too.)
+  if (once) {
+    await assertOllamaAvailable();
+  }
+
   syncRegistryFromJson();
 
   if (discover) {
@@ -84,6 +92,12 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  logger.error({ err: String(err) }, "fatal");
+  // The Ollama guard is an expected, actionable stop — log just the message
+  // (no stack noise) so the operator sees exactly what to fix.
+  if (err instanceof OllamaUnavailableError) {
+    logger.error(`aborting — ${err.message}`);
+  } else {
+    logger.error({ err: String(err) }, "fatal");
+  }
   process.exit(1);
 });

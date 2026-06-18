@@ -11,6 +11,7 @@ import type { AdapterCompany, Company } from "../types.js";
 import { notifyKey } from "../filter/dedup.js";
 import { notifySummary } from "../discord/notify.js";
 import { resolveAdapter } from "../ats/registry.js";
+import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
 import { processBucket } from "./scheduler.js";
 
 export interface RunContext {
@@ -54,6 +55,11 @@ export interface ProductionTickOutcome {
 }
 
 export async function runProductionTick(): Promise<ProductionTickOutcome> {
+  // Pre-flight: a production tick is useless without the LLM backend. Fail fast
+  // with an actionable message instead of churning the whole company list into
+  // gate-errors against a dead Ollama (the 2026-06-17 failure mode).
+  await assertOllamaAvailable();
+
   const runId = startRun("production");
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
@@ -106,9 +112,29 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     else buckets.set(key, { adapter, companies: [c], key });
   }
 
-  await Promise.all(
-    Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
-  );
+  try {
+    await Promise.all(
+      Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
+    );
+  } catch (err) {
+    if (err instanceof OllamaUnavailableError) {
+      // Backend died mid-run. Close out the run row with the abort reason so the
+      // partial run is recorded, then propagate to exit non-zero. We deliberately
+      // skip dormancy/discovery/summary — the data this run produced is suspect.
+      logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
+      finishRun({
+        id: runId,
+        endedAt: new Date().toISOString(),
+        companiesScanned: stats.companiesScanned,
+        postingsSeen: stats.postingsSeen,
+        postingsNew: stats.postingsNew,
+        postingsNotified: stats.postingsGreen + stats.postingsYellow,
+        candidatesAdded: null,
+        error: `aborted: ${err.message}`,
+      });
+    }
+    throw err;
+  }
 
   const parked = applyDormancy();
   if (parked > 0) {
