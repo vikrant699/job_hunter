@@ -3,6 +3,49 @@ import { config } from "../../config.js";
 import { profile } from "../../profile.js";
 import { logger } from "../../logger.js";
 import { fetchHtmlPlaywright } from "../../scraper/playwright.js";
+import { BROWSER_UA } from "../../util/user-agent.js";
+
+// Hosts that appear on a YC company page but are never the company's own site.
+const NON_WEBSITE_HOST_RE =
+  /(ycombinator|workatastartup|bookface|ycdn|twitter|x\.com|linkedin|github|youtube|youtu\.be|facebook|instagram|crunchbase|techcrunch|startupschool|medium\.com|google|gstatic|googleapis|apple\.com|schema\.org|w3\.org|gravatar|cloudfront|gumlet)/i;
+
+/**
+ * Extract a company's real website from its YC detail-page HTML. YC links the
+ * site several times (logo, header, "visit website"), so the most-frequent
+ * external non-social host is reliably the real domain. Returns null if none
+ * stands out — far better than fabricating `<slug>.com`, which is wrong for any
+ * company whose domain differs from its YC slug (dyte.io, getbinks.com, …).
+ */
+export function extractYcWebsite(html: string): string | null {
+  const $ = cheerio.load(html);
+  const freq = new Map<string, number>();
+  $("a[href]").each((_, el) => {
+    const href = $(el).attr("href") ?? "";
+    let u: URL;
+    try { u = new URL(href); } catch { return; }
+    if (u.protocol !== "https:" && u.protocol !== "http:") return;
+    const host = u.host.replace(/^www\./, "");
+    if (!host.includes(".") || NON_WEBSITE_HOST_RE.test(host)) return;
+    freq.set(host, (freq.get(host) ?? 0) + 1);
+  });
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [host, n] of freq) if (n > bestN) { best = host; bestN = n; }
+  return best ? `https://${best}` : null;
+}
+
+async function resolveYcWebsite(ycSlug: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.ycombinator.com/companies/${ycSlug}`, {
+      headers: { "User-Agent": BROWSER_UA },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) return null;
+    return extractYcWebsite(await res.text());
+  } catch {
+    return null;
+  }
+}
 
 // YC India directory scraper. The directory is a React SPA — Playwright
 // renders, then cheerio walks the company cards.
@@ -57,7 +100,10 @@ export async function runYcSource(): Promise<YcResult> {
   // Unique companies, not anchor elements — each card has 2-3 anchors.
   const cardsSeen = bestText.size;
 
-  const out: YcCandidate[] = [];
+  // Build the parsed-card list first (name + evidence + ycSlug), then resolve
+  // each company's real website from its YC detail page.
+  interface ParsedCard { ycSlug: string; name: string; evidence: string }
+  const cards: ParsedCard[] = [];
   for (const [ycSlug, text] of bestText) {
     if (!text || text.length < 3 || text.length > 300) continue;
 
@@ -72,16 +118,28 @@ export async function runYcSource(): Promise<YcResult> {
     const evidence = batchMatch
       ? `YC ${batchMatch[1]} · ${text.slice(0, 140)}`
       : `YC India · ${text.slice(0, 140)}`;
-
-    // Best-guess careers URL — the orchestrator probes and falls back to
-    // llm-scrape if it doesn't resolve.
-    const careersUrl = `https://${ycSlug}.com/careers`;
-
-    out.push({ name, careersUrl, source: "yc-india", evidence });
+    cards.push({ ycSlug, name, evidence });
   }
 
-  if (out.length > 0) {
-    logger.info({ candidates: out.length, cardsSeen }, "yc: India directory scanned");
+  // Resolve real websites concurrently. A card whose website can't be resolved
+  // is dropped rather than seeded with a fabricated `<slug>.com/careers` guess —
+  // that guess was wrong for most companies and produced dead/suspect entries.
+  const out: YcCandidate[] = [];
+  let unresolved = 0;
+  let cursor = 0;
+  const RESOLVE_CONCURRENCY = 6;
+  async function worker(): Promise<void> {
+    while (cursor < cards.length) {
+      const card = cards[cursor++]!;
+      const website = await resolveYcWebsite(card.ycSlug);
+      if (!website) { unresolved++; continue; }
+      out.push({ name: card.name, careersUrl: website, source: "yc-india", evidence: card.evidence });
+    }
+  }
+  await Promise.all(Array.from({ length: RESOLVE_CONCURRENCY }, () => worker()));
+
+  if (out.length > 0 || cardsSeen > 0) {
+    logger.info({ candidates: out.length, cardsSeen, unresolved }, "yc: India directory scanned");
   }
 
   return { candidates: out, cardsSeen, errors: [] };
