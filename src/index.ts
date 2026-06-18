@@ -8,10 +8,13 @@ import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { profile } from "./profile.js";
 
 function printUsage(): void {
-  console.log(`Usage: npm run <command>
+  console.log(`Usage: npm run <command> [-- --profile <name>]
 
-  once       Run a single production tick: fetch postings → filter → notify Discord
+  once       Run a single production tick for one profile: fetch → filter → notify
   discover   Run discovery only: pull new candidate companies from configured sources
+
+  --profile <name>   Use config/profiles/<name>/ (profile.ts + resume.pdf) and that
+                     profile's webhook. Omit for the default (config/profile.ts).
 `);
 }
 
