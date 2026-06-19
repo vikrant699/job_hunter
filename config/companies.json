@@ -10,17 +10,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Atomic Industries",
-    "careers_url": "https://jobs.ashbyhq.com/atomicindustries",
-    "source": "ashby",
-    "source_slug": "atomicindustries",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "mass-reprobe",
-    "evidence": "on ashby (14 jobs); was llm-scrape",
-    "category": "DeepTech-AI",
-    "employer_type": "product"
-  },
-  {
     "name": "Avalanche India",
     "careers_url": "https://jobs.ashbyhq.com/ava-labs",
     "source": "ashby",
@@ -464,17 +453,6 @@
     "employer_type": "product"
   },
   {
-    "name": "ABG Shipyard",
-    "careers_url": "https://careers.adityabirla.com/",
-    "source": "custom",
-    "source_slug": "abg-shipyard",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://www.adityabirla.com/careers",
-    "category": "Logistics-Mobility",
-    "employer_type": "product"
-  },
-  {
     "name": "Able",
     "careers_url": "https://ablejobs.co",
     "source": "custom",
@@ -651,16 +629,6 @@
     "discovered_at": "2026-06-12T04:52:00.920Z",
     "evidence": "YC India · Advantage ClubGurugram, HR, IndiaGlobal platform for employee engagement with rewards&flexible benefits",
     "category": "Consumer-Internet",
-    "employer_type": "product"
-  },
-  {
-    "name": "AeroPay",
-    "careers_url": "https://aeropay.zohorecruit.com/jobs/Careers",
-    "source": "custom",
-    "source_slug": "aeropay",
-    "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repaired via brave-search from https://aeropay.com/careers",
-    "category": "Fintech",
     "employer_type": "product"
   },
   {
@@ -932,17 +900,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Anveya",
-    "careers_url": "https://anveya.com/pages/careers",
-    "source": "custom",
-    "source_slug": "anveya",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "Apna Mart",
     "careers_url": "https://apna.co/jobs/apna_mart-jobs",
     "source": "custom",
@@ -1066,17 +1023,6 @@
     "employer_type": "service"
   },
   {
-    "name": "Atlas SkillTech",
-    "careers_url": "https://www.atlasuniversity.edu.in/careers/",
-    "source": "custom",
-    "source_slug": "atlas-skilltech",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "brave-ats-repair",
-    "evidence": "Brave found working careers page (was Error: llm-scrape fetch failed for atlas)",
-    "category": "Edtech",
-    "employer_type": "product"
-  },
-  {
     "name": "Atlassian",
     "careers_url": "https://www.atlassian.com/company/careers",
     "source": "custom",
@@ -1122,16 +1068,6 @@
     "parsing_strategy": "llm-scrape",
     "evidence": "URL repaired via path-variant from https://www.aujas.com/careers",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Aukera Diamonds",
-    "careers_url": "https://careers.aukera.in/",
-    "source": "custom",
-    "source_slug": "aukera-diamonds",
-    "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repaired via path-variant from https://aukera.in/pages/careers",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -1278,15 +1214,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Bajaj Holdings",
-    "careers_url": "https://www.bajajauto.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed-2",
-    "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
     "name": "Bandhan Bank",
     "careers_url": "https://www.bandhanbank.com/careers",
     "source": "custom",
@@ -1347,17 +1274,6 @@
     "discovered_via": "claude-research",
     "evidence": "Official Bayer India careers now at /en-in/careers (old /en/careers 404'd); global job search runs on talent.bayer.com / jobs.bayer.com.",
     "category": "Enterprise-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Beardo",
-    "careers_url": "https://beardo.in/careers",
-    "source": "custom",
-    "source_slug": "beardo",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "reverted bad url-repair (homepage/404/wrong-host)",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -1708,15 +1624,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Boldfit",
-    "careers_url": "https://www.boldfit.in/pages/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed-3",
-    "category": "Healthtech",
-    "employer_type": "product"
-  },
-  {
     "name": "Bolna AI",
     "careers_url": "https://jobs.gem.com/bolna",
     "source": "custom",
@@ -1725,17 +1632,6 @@
     "discovered_via": "claude-research",
     "evidence": "India voice-AI company (YC F25); official job board hosted on Gem at jobs.gem.com/bolna (Gem not a supported ATS), bolna.ai/careers itself is unreachable.",
     "category": "DeepTech-AI",
-    "employer_type": "product"
-  },
-  {
-    "name": "Bombay Hemp Company",
-    "careers_url": "https://www.boheco.org/pages/careers",
-    "source": "custom",
-    "source_slug": "bombay-hemp-company",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
@@ -1839,17 +1735,6 @@
     "discovered_via": "bulk-seed",
     "category": "E-commerce-D2C",
     "employer_type": "product"
-  },
-  {
-    "name": "Business Analyst - Chennai - bright river careers - Recruitee",
-    "careers_url": "https://recruitee.com/",
-    "source": "custom",
-    "source_slug": "business-analyst-chennai-bright-river-careers-recruitee",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://brightriver.recruitee.com/o/devops-engineer-netherlands-2",
-    "category": "Staffing-Services",
-    "employer_type": "service"
   },
   {
     "name": "BusinessOnBot",
@@ -1970,15 +1855,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Carbon Crusader",
-    "careers_url": "https://carboncrusader.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed-3",
-    "category": "DeepTech-AI",
-    "employer_type": "product"
-  },
-  {
     "name": "CarDekho",
     "careers_url": "https://careers.cardekho.com/",
     "source": "custom",
@@ -2062,17 +1938,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.cdac.in/index.aspx?id=careers",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Cellogen Therapeutics",
-    "careers_url": "https://www.cellogentherapeutics.com/careers.php",
-    "source": "custom",
-    "source_slug": "cellogen-therapeutics",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "careers.php loads with a 'Current Openings' form (Junior/Senior Research Fellow); old URL omitted the .php extension.",
-    "category": "Healthtech",
     "employer_type": "product"
   },
   {
@@ -2236,17 +2101,6 @@
     "status": "denied",
     "reason": "superseded: fetched via darwinbox/clevertap (ats-audit 2026-06-10)",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Climate Pledge India",
-    "careers_url": "https://portfoliojobs.theclimatepledge.com/jobs",
-    "source": "custom",
-    "source_slug": "climate-pledge-india",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "The Climate Pledge (Amazon initiative) hosts its live careers job board at portfoliojobs.theclimatepledge.com; the old theclimatepledge.com/careers path is gone.",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -2444,17 +2298,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed-3",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "CORE",
-    "careers_url": "https://core.co.in/More/Careers",
-    "source": "custom",
-    "source_slug": "core",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "brave-ats-repair",
-    "evidence": "Brave found working careers page (was Error: llm-scrape fetch failed for core:)",
-    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -3176,17 +3019,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Eilla AI",
-    "careers_url": "https://eilla.ai/careers",
-    "source": "custom",
-    "source_slug": "eilla-ai",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "DeepTech-AI",
-    "employer_type": "product"
-  },
-  {
     "name": "Ekam Health",
     "careers_url": "https://ekamhealth.com/careers",
     "source": "custom",
@@ -3358,17 +3190,6 @@
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed",
     "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
-    "name": "FactoryOS",
-    "careers_url": "https://www.factory-os.com/careers/",
-    "source": "custom",
-    "source_slug": "factoryos",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://www.factory-os.com/careers",
-    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -4181,17 +4002,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Heyday",
-    "careers_url": "https://www.heyday.xyz/careers/",
-    "source": "custom",
-    "source_slug": "heyday",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://www.heyday.xyz/careers",
-    "category": "Healthtech",
-    "employer_type": "product"
-  },
-  {
     "name": "HGS India",
     "careers_url": "https://careers.joinhgs.com/careers",
     "source": "custom",
@@ -4283,15 +4093,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://joy.hrone.cloud/career-portal",
     "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "HRX",
-    "careers_url": "https://www.hrxbrand.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -4406,17 +4207,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://ideaforgetech.com/careers",
     "category": "DeepTech-AI",
-    "employer_type": "product"
-  },
-  {
-    "name": "ideaForge’s Board Greenlights Plans To",
-    "careers_url": "https://ideaforgesboardgreenlightsplansto.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "inc42-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "inc42-funding: ideaForge’s Board Greenlights Plans To Raise ₹500 Cr",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -4574,18 +4364,6 @@
     "parsing_strategy": "llm-scrape",
     "discovered_via": "bulk-seed-2",
     "category": "Enterprise-GCC",
-    "employer_type": "service"
-  },
-  {
-    "name": "Innov8",
-    "careers_url": "https://innov8.work",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "discovered_via": "yc-india",
-    "discovered_at": "2026-06-18T00:08:26.924Z",
-    "evidence": "YC India · Innov8New Delhi, DL, IndiaWe provide co-working offices to startups, freelancers and SMEs in…",
-    "category": "Staffing-Services",
     "employer_type": "service"
   },
   {
@@ -4842,15 +4620,6 @@
     "reason": "Was on Lever; slug no longer responds. Awaits llm-scrape (Phase 6).",
     "discovered_via": "seed",
     "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Khethworks",
-    "careers_url": "https://khethworks.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -5266,17 +5035,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Loka Living",
-    "careers_url": "https://lokaliving.com/pages/careers",
-    "source": "custom",
-    "source_slug": "loka-living",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "Lokal",
     "careers_url": "https://getlokalapp.com",
     "source": "custom",
@@ -5485,17 +5243,6 @@
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed",
-    "category": "Consumer-Internet",
-    "employer_type": "product"
-  },
-  {
-    "name": "Mahindra Lifespace",
-    "careers_url": "https://www.mahindralifespaces.com/career/",
-    "source": "custom",
-    "source_slug": "mahindra-lifespace",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "mahindralifespaces.com/career/ (singular) loads with dynamic role listings; old /careers path was wrong.",
     "category": "Consumer-Internet",
     "employer_type": "product"
   },
@@ -6006,17 +5753,6 @@
     "employer_type": "product"
   },
   {
-    "name": "MOKOBARA",
-    "careers_url": "https://www.mokobara.com/careers",
-    "source": "custom",
-    "source_slug": "mokobara",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "reverted bad url-repair (homepage/404/wrong-host)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "Monday.com India",
     "careers_url": "https://monday.com/careers/",
     "source": "custom",
@@ -6195,18 +5931,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed",
     "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "MyPetrolPump",
-    "careers_url": "https://mypetrolpump.com",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "discovered_via": "yc-india",
-    "discovered_at": "2026-06-18T00:08:26.924Z",
-    "evidence": "YC India · MyPetrolPumpBengaluru, KA, IndiaOn demand fuel delivery service in India",
-    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
@@ -6834,18 +6558,6 @@
     "employer_type": "service"
   },
   {
-    "name": "Pay Swifter",
-    "careers_url": "https://payswifter.com",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "yc-india",
-    "discovered_at": "2026-06-18T00:08:26.924Z",
-    "evidence": "YC India · Pay SwifterBengaluru, KA, IndiaStripe for Cannabis",
-    "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
     "name": "PayCrunch",
     "careers_url": "https://paycrunch.com/careers",
     "source": "custom",
@@ -6994,28 +6706,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Petstop",
-    "careers_url": "https://www.petstop.in/careers",
-    "source": "custom",
-    "source_slug": "petstop",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "reverted bad url-repair (homepage/404/wrong-host)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
-    "name": "Phab",
-    "careers_url": "https://phab.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "inc42-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "inc42-funding: Hocco Cofounder’s D2C Healthy Snacking Brand Phab Nets $4 Mn",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
     "name": "Pharmeasy",
     "careers_url": "https://pharmeasy.in/careers",
     "source": "custom",
@@ -7024,17 +6714,6 @@
     "status": "denied",
     "reason": "superseded: fetched via darwinbox/myhr (ats-audit 2026-06-10)",
     "category": "Healthtech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Phool",
-    "careers_url": "https://phool.co/pages/career",
-    "source": "custom",
-    "source_slug": "phool",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Phool (Kanpur Flowercycling) careers page lives at phool.co/pages/career (singular 'career'); old /pages/careers 404'd. Page is a placeholder pointing to contact.",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -7057,17 +6736,6 @@
     "discovered_via": "claude-research",
     "evidence": "PW careers live on the careers.pw.live subdomain (the pw.live/careers path 404s).",
     "category": "Edtech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Physis Capital announces final",
-    "careers_url": "https://physiscapitalannouncesfinal.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "yourstory-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "yourstory-funding: Physis Capital announces final close of maiden Rs 400 crore fund",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -7140,16 +6808,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Plastics for Change",
-    "careers_url": "https://plasticsforchange.zohorecruit.in/jobs/Careers",
-    "source": "custom",
-    "source_slug": "plastics-for-change",
-    "parsing_strategy": "playwright-llm-scrape",
-    "evidence": "URL repair 2026-06-05 (fix-url, high): plasticsforchange.com/careers -> 404. plasticsforchange.org/careers ->",
-    "category": "Other",
-    "employer_type": "product"
-  },
-  {
     "name": "Playment",
     "careers_url": "https://playment.io",
     "source": "custom",
@@ -7169,15 +6827,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repaired via path-variant from https://www.plivo.com/careers/",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Plum Goodness",
-    "careers_url": "https://plumgoodness.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -7259,17 +6908,6 @@
     "tenant_url": "https://polycab.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds polycab.darwinbox.in; tenant verified live; converted from scrape.",
     "category": "Enterprise-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Pomp Cosmetics",
-    "careers_url": "https://shop.pomp.co.in/pages/careers",
-    "source": "custom",
-    "source_slug": "pomp-cosmetics",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -7377,17 +7015,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Product Analyst",
-    "careers_url": "https://recruitee.com/",
-    "source": "custom",
-    "source_slug": "product-analyst",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://livtech.recruitee.com/o/product-analyst",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
     "name": "PropertyPistol",
     "careers_url": "https://www.propertypistol.com/careers",
     "source": "custom",
@@ -7426,17 +7053,6 @@
     "discovered_via": "seed",
     "category": "Staffing-Services",
     "employer_type": "service"
-  },
-  {
-    "name": "Python Developer (Remote) | Monks",
-    "careers_url": "https://boards.greenhouse.io/monks/jobs/5972048004",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "brave-search",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "Brave: \"site:boards.greenhouse.io \"India\"\" → Python Developer (Remote) | Monks",
-    "category": "Other",
-    "employer_type": "product"
   },
   {
     "name": "Pyxida AI",
@@ -7624,17 +7240,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Recurrent Ventures",
-    "careers_url": "https://www.gainsight.com/careers/",
-    "source": "custom",
-    "source_slug": "recurrent-ventures",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "403-to-playwright",
-    "evidence": "bot-blocked on plain fetch (403); switched to headless-browser render",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
     "name": "Recykal",
     "careers_url": "https://recykal.com/work-with-us",
     "source": "custom",
@@ -7685,17 +7290,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repair 2026-06-05 (fix-url, medium): curl https://refrens.com/careers returned HTTP 404. The main refrens.c",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Regional Partner Manager - India | Wiz",
-    "careers_url": "https://boards.greenhouse.io/wizinc/jobs/4617868006",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "brave-search",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "Brave: \"site:boards.greenhouse.io \"India\"\" → Regional Partner Manager - India | Wiz Careers",
-    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -8161,17 +7755,6 @@
     "employer_type": "product"
   },
   {
-    "name": "SEDEMAC’s Strong Q4, Cellogen",
-    "careers_url": "https://www.sedemac.com/careers/",
-    "source": "custom",
-    "source_slug": "sedemac-s-strong-q4-cellogen",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://www.sedemac.com/careers",
-    "category": "Other",
-    "employer_type": "product"
-  },
-  {
     "name": "Sendinblue (Brevo)",
     "careers_url": "https://www.brevo.com/careers/",
     "source": "custom",
@@ -8183,17 +7766,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Senior Accounting Specialist - Chennai, Tamil Nadu, India",
-    "careers_url": "https://boards.greenhouse.io/toast/jobs/7247382",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "brave-search",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "Brave: \"site:boards.greenhouse.io \"India\"\" → Senior Accounting Specialist - Chennai, Tamil Nadu, India",
-    "category": "Staffing-Services",
-    "employer_type": "service"
-  },
-  {
     "name": "Rubrik",
     "careers_url": "https://boards.greenhouse.io/rubrik",
     "source": "greenhouse",
@@ -8203,17 +7775,6 @@
     "evidence": "greenhouse 'rubrik' (112 total; 16 India); fixed malformed registry name.",
     "source_slug": "rubrik",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Sennheiser India",
-    "careers_url": "https://www.sennheiser.com/en-de",
-    "source": "custom",
-    "source_slug": "sennheiser-india",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://en-de.sennheiser.com/career",
-    "category": "Semiconductor-Hardware",
     "employer_type": "product"
   },
   {
@@ -8566,17 +8127,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Slurrp Farm",
-    "careers_url": "https://slurrpfarm.com/collections/shop-all",
-    "source": "custom",
-    "source_slug": "slurrp-farm",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://slurrpfarm.com/careers",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "smallcase",
     "careers_url": "https://careers.smallcase.com/",
     "source": "custom",
@@ -8835,17 +8385,6 @@
     "discovered_via": "claude-research",
     "evidence": "Official careers at /career (singular, not /careers); page is live (returns 403 to bots) per search confirmation.",
     "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
-    "name": "Sr. IT Automation Engineer - Remote - India",
-    "careers_url": "https://boards.greenhouse.io/samsara/jobs/7382432",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "brave-search",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "Brave: \"site:boards.greenhouse.io \"India\"\" → Sr. IT Automation Engineer - Remote - India",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -9670,17 +9209,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Helios Lifestyle (Emami-owned)",
-    "careers_url": "https://www.naukri.com/jobs-in-india",
-    "source": "custom",
-    "source_slug": "the-man-company",
-    "parsing_strategy": "playwright-llm-scrape",
-    "status": "candidate",
-    "evidence": "URL repaired via path-variant from https://www.naukri.com/the-man-company-jobs",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "The Souled Store",
     "careers_url": "https://www.thesouledstore.com/careers/",
     "source": "custom",
@@ -9730,17 +9258,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://tickertape.freshteam.com/jobs",
     "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Tiea Connectors",
-    "careers_url": "https://tieaconnectors.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "yourstory-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "yourstory-funding: Tiea Connectors raises Rs 77 Cr in Series A led by IvyCap Ventures",
-    "category": "Other",
     "employer_type": "product"
   },
   {
@@ -9920,15 +9437,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.treebohotels.com/careers",
     "category": "Consumer-Internet",
-    "employer_type": "product"
-  },
-  {
-    "name": "Treehouse India",
-    "careers_url": "https://teamtreehouse.com/jobs",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed-2",
-    "category": "Edtech",
     "employer_type": "product"
   },
   {
@@ -10225,17 +9733,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Vanguard Marks Down Ola, Agilitas",
-    "careers_url": "https://vanguardmarksdownolaagilitas.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "inc42-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "inc42-funding: Vanguard Marks Down Ola, Agilitas Bags $24 Mn & More",
-    "category": "Other",
-    "employer_type": "product"
-  },
-  {
     "name": "Vauld",
     "careers_url": "https://www.vauld.com/careers",
     "source": "custom",
@@ -10331,15 +9828,6 @@
     "employer_type": "product"
   },
   {
-    "name": "VictorOps India",
-    "careers_url": "https://www.splunk.com/en_us/careers.html",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "bulk-seed",
-    "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
     "name": "Vijay Sales",
     "careers_url": "https://www.vijaysales.com/careers",
     "source": "custom",
@@ -10406,15 +9894,6 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed",
     "category": "Logistics-Mobility",
-    "employer_type": "product"
-  },
-  {
-    "name": "Voltas Beko",
-    "careers_url": "https://www.voltasbeko.com/careers",
-    "source": "custom",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "bulk-seed-2",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -10648,17 +10127,6 @@
     "employer_type": "product"
   },
   {
-    "name": "WickedGud",
-    "careers_url": "https://www.wickedgud.com/careers",
-    "source": "custom",
-    "source_slug": "wickedgud",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "Wifi Dabba, Inc.",
     "careers_url": "https://dabba.com",
     "source": "custom",
@@ -10779,17 +10247,6 @@
     "employer_type": "product"
   },
   {
-    "name": "Wow Tea",
-    "careers_url": "https://wowtea.in/pages/careers",
-    "source": "custom",
-    "source_slug": "wow-tea",
-    "parsing_strategy": "llm-scrape",
-    "discovered_via": "unscannable-no-careers-page",
-    "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
-    "category": "E-commerce-D2C",
-    "employer_type": "product"
-  },
-  {
     "name": "Writesonic",
     "careers_url": "https://writesonic.com/careers",
     "source": "custom",
@@ -10839,17 +10296,6 @@
     "status": "candidate",
     "evidence": "URL repaired via path-variant from https://www.xpressbees.com/careers",
     "category": "Logistics-Mobility",
-    "employer_type": "product"
-  },
-  {
-    "name": "XYXX",
-    "careers_url": "https://xyxxcrew.com/pages/careers",
-    "source": "custom",
-    "source_slug": "xyxx",
-    "parsing_strategy": "playwright-llm-scrape",
-    "discovered_via": "claude-research",
-    "evidence": "Official careers page is xyxxcrew.com/pages/careers (input used /careers); Shopify-hosted JS page for the Surat-based menswear brand XYXX Apparels.",
-    "category": "E-commerce-D2C",
     "employer_type": "product"
   },
   {
@@ -12400,17 +11846,6 @@
     "discovered_via": "claude-research",
     "evidence": "greenhouse (27 jobs)",
     "category": "Edtech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Levitate",
-    "careers_url": "https://boards.greenhouse.io/levitate",
-    "source": "greenhouse",
-    "source_slug": "levitate",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "mass-reprobe",
-    "evidence": "on greenhouse (10 jobs); was llm-scrape",
-    "category": "DeepTech-AI",
     "employer_type": "product"
   },
   {
