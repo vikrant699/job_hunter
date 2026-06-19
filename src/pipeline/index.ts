@@ -10,6 +10,7 @@ import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company } from "../types.js";
 import { notifyKey } from "../filter/dedup.js";
 import { notifySummary } from "../discord/notify.js";
+import { startProgressHeartbeat } from "../discord/progress.js";
 import { resolveAdapter } from "../ats/registry.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
 import { profile } from "../profile.js";
@@ -30,6 +31,10 @@ export interface RunContext {
   seenNotifyKeys: Set<string>;
   /** Which profile this run evaluates for — stamped on every posting/run row. */
   profileId: string;
+  /** bucketKey -> {total, scanned} for the live progress heartbeat. Seeded before
+   *  processing; `scanned` bumped per company in the scheduler. Drives the
+   *  per-strategy breakdown and the overall scanned/total counts. */
+  bucketProgress: Map<string, { total: number; scanned: number }>;
 }
 
 export function toAdapterCompany(c: Company): AdapterCompany {
@@ -88,6 +93,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     priorNotifyKeys,
     seenNotifyKeys: new Set(),
     profileId,
+    bucketProgress: new Map(),
   };
 
   const allCompanies = selectActiveCompanies();
@@ -117,6 +123,14 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     else buckets.set(key, { adapter, companies: [c], key });
   }
 
+  // Seed per-bucket progress, then start the 15-min heartbeat. The interval reads
+  // the live `stats` object; it's unref()'d and cleared in finally so it never
+  // keeps the process alive or fires after the run returns.
+  for (const b of buckets.values()) {
+    stats.bucketProgress.set(b.key, { total: b.companies.length, scanned: 0 });
+  }
+  const stopHeartbeat = startProgressHeartbeat({ stats, startedAt, profileId });
+
   try {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
@@ -139,6 +153,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       });
     }
     throw err;
+  } finally {
+    stopHeartbeat();
   }
 
   const parked = applyDormancy();
