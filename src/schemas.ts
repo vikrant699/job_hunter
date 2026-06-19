@@ -32,6 +32,10 @@ export const RegistryEntrySchema = z.object({
   tenant_url: z.string().url().optional(),
   /** Adapter-specific tokens persisted as JSON (keka orgGuid, eightfold domain, oracle siteNumber). */
   api_meta: z.record(z.string()).optional(),
+  /** Sector taxonomy (Phase 3 categorization, 2026-06-19). Curated; reporting + gate domain context. */
+  category: z.string().optional(),
+  /** product (kept) vs service (staffing/consultancy/IT-services — excluded). */
+  employer_type: z.enum(["product", "service"]).optional(),
 });
 export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 

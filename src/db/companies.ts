@@ -129,6 +129,16 @@ export function selectAllCompanies(): Company[] {
   return queryAll(selectAllCompaniesStmt, CompanyDbRowSchema).map(rowToCompany);
 }
 
+const deleteCompanyStmt = db.prepare(`
+  DELETE FROM companies WHERE provider = :provider AND slug = :slug
+`);
+
+/** Remove a company row. Used by registry sync to prune rows no longer in the
+ *  source-of-truth JSON (e.g. after a removal or a provider/slug conversion). */
+export function deleteCompany(provider: Provider, slug: string): void {
+  deleteCompanyStmt.run({ provider, slug });
+}
+
 const markFetchSuccessStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at      = :now,

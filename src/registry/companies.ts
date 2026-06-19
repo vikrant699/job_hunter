@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { upsertCompany } from "../db/index.js";
+import { upsertCompany, selectAllCompanies, deleteCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
@@ -28,7 +28,7 @@ function readRegistryFile(path: string): RegistryEntry[] {
   return result.data;
 }
 
-export function syncRegistryFromJson(): { synced: number; denied: number; registryPath: string } {
+export function syncRegistryFromJson(): { synced: number; denied: number; pruned: number; registryPath: string } {
   const path = resolve(process.cwd(), config.storage.registryPath);
   const entries = readRegistryFile(path);
 
@@ -64,6 +64,18 @@ export function syncRegistryFromJson(): { synced: number; denied: number; regist
     });
   }
 
-  logger.info({ registryPath: path, count: merged.size, denied }, "registry synced");
-  return { synced: merged.size, denied, registryPath: path };
+  // Prune DB rows no longer in the source-of-truth JSON. Without this, a removed
+  // company — or one whose (provider,slug) changed on conversion (e.g. custom →
+  // darwinbox) — leaves a stale row the scheduler would still scrape.
+  const valid = new Set(merged.keys());
+  let pruned = 0;
+  for (const c of selectAllCompanies()) {
+    if (!valid.has(`${c.provider}::${c.slug}`)) {
+      deleteCompany(c.provider, c.slug);
+      pruned++;
+    }
+  }
+
+  logger.info({ registryPath: path, count: merged.size, denied, pruned }, "registry synced");
+  return { synced: merged.size, denied, pruned, registryPath: path };
 }
