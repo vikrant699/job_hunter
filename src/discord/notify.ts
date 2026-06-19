@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { sleep } from "../util/sleep.js";
 import { profile } from "../profile.js";
+import { postWebhookJson } from "./webhook.js";
 import type { NormalizedPosting } from "../types.js";
 
 function resolveWebhookUrl(): string | undefined {
@@ -12,49 +12,6 @@ export type DiscordSeverity = "green" | "yellow";
 
 const COLOR_GREEN = 0x2ecc71;
 const COLOR_YELLOW = 0xf1c40f;
-const WEBHOOK_TIMEOUT_MS = 15_000;
-const WEBHOOK_MAX_429_RETRIES = 3;
-
-async function postWebhook(url: string, body: unknown): Promise<void> {
-  for (let attempt = 0; attempt <= WEBHOOK_MAX_429_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (err) {
-      // Timeout abort or transient network failure — retry like a 429 rather
-      // than losing the notification to a single blip.
-      if (attempt < WEBHOOK_MAX_429_RETRIES) {
-        logger.warn({ attempt, err: String(err).slice(0, 120) }, "Discord webhook fetch failed; retrying");
-        await sleep(1000 * (attempt + 1));
-        continue;
-      }
-      throw err;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (res.status === 429 && attempt < WEBHOOK_MAX_429_RETRIES) {
-      const retryAfter = Number(res.headers.get("retry-after") ?? "1");
-      const waitMs = Math.min(Math.max(retryAfter, 0.25) * 1000, 30_000);
-      logger.warn({ retryAfter, attempt }, "Discord 429; backing off");
-      await sleep(waitMs);
-      continue;
-    }
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Discord ${res.status}: ${text.slice(0, 200)}`);
-    }
-    return;
-  }
-  throw new Error("Discord 429 retries exhausted");
-}
 
 export interface NotifyInput {
   posting: NormalizedPosting;
@@ -141,7 +98,7 @@ export async function notifyPosting(input: NotifyInput): Promise<void> {
     footer: { text: `${p.provider}/${p.companySlug}  ·  score: ${input.matchScore.toFixed(2)}` },
   };
 
-  await postWebhook(webhookUrl, { embeds: [embed] });
+  await postWebhookJson(webhookUrl, { embeds: [embed] });
 }
 
 export interface SummaryInput {
@@ -202,5 +159,5 @@ export async function notifySummary(input: SummaryInput): Promise<void> {
     timestamp: new Date().toISOString(),
   };
 
-  await postWebhook(webhookUrl, { embeds: [embed] });
+  await postWebhookJson(webhookUrl, { embeds: [embed] });
 }

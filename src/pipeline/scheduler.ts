@@ -24,12 +24,17 @@ export async function processBucket(
   const cap = config.fetch.concurrencyPerProvider;
   let cursor = 0;
 
+  const progress = stats.bucketProgress.get(bucketKey);
+
   async function worker(): Promise<void> {
     while (cursor < companies.length) {
       const idx = cursor++;
       const company = companies[idx];
       if (!company) return;
       await processOneCompany(adapter, company, stats);
+      // Count every company worked (fetched or denylist-skipped) so the bucket's
+      // scanned reaches its total — this drives the progress heartbeat.
+      if (progress) progress.scanned++;
       if (config.fetch.interCallDelayMs > 0) {
         await new Promise((r) => setTimeout(r, config.fetch.interCallDelayMs));
       }
