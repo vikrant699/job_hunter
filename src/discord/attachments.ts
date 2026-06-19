@@ -116,21 +116,6 @@ export function buildSearchedCsv(
   );
 }
 
-/** Build the "discovery this run" CSV (additions + skips combined). */
-export function buildDiscoveryCsv(rows: ReadonlyArray<{
-  outcome: "added" | "skipped";
-  name: string;
-  careersUrl: string;
-  source: string;
-  strategy: string;
-  detail: string;
-}>): string {
-  return buildCsv(
-    ["Outcome", "Company", "Careers URL", "Source", "Strategy", "Detail"],
-    rows.map((r) => [r.outcome, r.name, r.careersUrl, r.source, r.strategy, r.detail])
-  );
-}
-
 /** Convenience: post to the configured DISCORD_WEBHOOK_URL with files. */
 export async function uploadDailyCsvs(
   payload: { embeds?: unknown[]; content?: string },
