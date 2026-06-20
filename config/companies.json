@@ -2022,17 +2022,6 @@
     "employer_type": "service"
   },
   {
-    "name": "Coinbase",
-    "careers_url": "https://boards.greenhouse.io/coinbase",
-    "source": "greenhouse",
-    "source_slug": "coinbase",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse 'coinbase' live again (101 jobs, 4 remote-India incl. Eng Manager/SWE); converted from stale custom llm-scrape.",
-    "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
     "name": "CoinDCX",
     "careers_url": "https://coindcx.com/career",
     "source": "custom",
@@ -4556,18 +4545,6 @@
     "employer_type": "service"
   },
   {
-    "name": "Lattice Semiconductor India",
-    "careers_url": "https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers",
-    "source": "workday",
-    "parsing_strategy": "ats-api",
-    "source_slug": "latticesemi",
-    "tenant_url": "https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers",
-    "discovered_via": "claude-research",
-    "evidence": "workday cxs latticesemi/latticesemiconductorscareers (25 India).",
-    "category": "Semiconductor-Hardware",
-    "employer_type": "product"
-  },
-  {
     "name": "Layer Design",
     "careers_url": "https://www.layer.team/careers",
     "source": "custom",
@@ -5257,7 +5234,7 @@
     "careers_url": "https://mekr.com/careers",
     "source": "custom",
     "source_slug": "mekr",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "unscannable-no-careers-page",
     "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
     "category": "Product-SaaS",
@@ -6038,20 +6015,6 @@
     "employer_type": "service"
   },
   {
-    "name": "Open",
-    "careers_url": "https://openfinancial.keka.com/careers",
-    "source": "keka",
-    "source_slug": "openfinancial",
-    "parsing_strategy": "ats-api",
-    "evidence": "keka openfinancial embed board (1 job, India).",
-    "api_meta": {
-      "orgGuid": "161570d3-d2be-4e8c-b233-d006f70cd371"
-    },
-    "discovered_via": "claude-research",
-    "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
     "name": "Open Financial",
     "careers_url": "https://careers.open.money/",
     "source": "custom",
@@ -6574,18 +6537,6 @@
     "discovered_via": "unscannable-no-careers-page",
     "evidence": "no scrapeable official careers page found (recruits via LinkedIn/Naukri/email or unconfirmed identity)",
     "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Polycab India",
-    "careers_url": "https://polycab.darwinbox.in/ms/candidate/careers",
-    "source": "darwinbox",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "source_slug": "polycab",
-    "tenant_url": "https://polycab.darwinbox.in/ms/candidate/careers",
-    "evidence": "careers page embeds polycab.darwinbox.in; tenant verified live; converted from scrape.",
-    "category": "Enterprise-GCC",
     "employer_type": "product"
   },
   {
@@ -7411,18 +7362,6 @@
     "discovered_via": "spa-to-playwright",
     "evidence": "SPA careers page (cheerio saw too few links); switched to headless-browser render",
     "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Rubrik",
-    "careers_url": "https://boards.greenhouse.io/rubrik",
-    "source": "greenhouse",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "greenhouse 'rubrik' (112 total; 16 India); fixed malformed registry name.",
-    "source_slug": "rubrik",
-    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -10021,7 +9960,7 @@
     "name": "ZiffyHomes",
     "careers_url": "https://ziffyhomes.com",
     "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "status": "candidate",
     "discovered_via": "yc-india",
     "discovered_at": "2026-06-18T00:08:26.924Z",
@@ -10209,13 +10148,13 @@
     "name": "axio",
     "careers_url": "https://axiofinance.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "axiofinance",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "axiofinance",
-    "tenant_url": "https://axiofinance.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds axiofinance.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://axiofinance.darwinbox.in/ms/candidate/careers",
     "category": "Fintech",
     "employer_type": "product"
   },
@@ -10259,13 +10198,13 @@
     "name": "CarDekho",
     "careers_url": "https://cardekho.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "cardekho",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "cardekho",
-    "tenant_url": "https://cardekho.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds cardekho.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://cardekho.darwinbox.in/ms/candidate/careers",
     "category": "Logistics-Mobility",
     "employer_type": "product"
   },
@@ -10373,13 +10312,13 @@
     "name": "Games24x7",
     "careers_url": "https://games24x7.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "games24x7",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "games24x7",
-    "tenant_url": "https://games24x7.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds games24x7.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://games24x7.darwinbox.in/ms/candidate/careers",
     "category": "Gaming",
     "employer_type": "product"
   },
@@ -10399,13 +10338,13 @@
     "name": "Digit Insurance",
     "careers_url": "https://godigit.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "godigit",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "godigit",
-    "tenant_url": "https://godigit.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds godigit.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://godigit.darwinbox.in/ms/candidate/careers",
     "category": "BFSI-GCC",
     "employer_type": "product"
   },
@@ -10413,13 +10352,13 @@
     "name": "Goibibo",
     "careers_url": "https://gommt.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "gommt",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "gommt",
-    "tenant_url": "https://gommt.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds gommt.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://gommt.darwinbox.in/ms/candidate/careers",
     "category": "E-commerce-D2C",
     "employer_type": "product"
   },
@@ -10561,13 +10500,13 @@
     "name": "Mad Street Den",
     "careers_url": "https://msd.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "msd",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "msd",
-    "tenant_url": "https://msd.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds msd.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://msd.darwinbox.in/ms/candidate/careers",
     "category": "DeepTech-AI",
     "employer_type": "product"
   },
@@ -10641,27 +10580,39 @@
     "name": "Pixxel",
     "careers_url": "https://pixxel.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "pixxel",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "pixxel",
-    "tenant_url": "https://pixxel.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds pixxel.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://pixxel.darwinbox.in/ms/candidate/careers",
     "category": "DeepTech-AI",
+    "employer_type": "product"
+  },
+  {
+    "name": "Polycab India",
+    "careers_url": "https://polycab.darwinbox.in/ms/candidate/careers",
+    "source": "darwinbox",
+    "source_slug": "polycab",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "careers page embeds polycab.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://polycab.darwinbox.in/ms/candidate/careers",
+    "category": "Enterprise-GCC",
     "employer_type": "product"
   },
   {
     "name": "Rapido",
     "careers_url": "https://rapido.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "rapido",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "rapido",
-    "tenant_url": "https://rapido.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds rapido.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://rapido.darwinbox.in/ms/candidate/careers",
     "category": "Logistics-Mobility",
     "employer_type": "product"
   },
@@ -10669,13 +10620,13 @@
     "name": "RED.Health",
     "careers_url": "https://redhealth.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "redhealth",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "redhealth",
-    "tenant_url": "https://redhealth.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds redhealth.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://redhealth.darwinbox.in/ms/candidate/careers",
     "category": "Healthtech",
     "employer_type": "product"
   },
@@ -10695,13 +10646,13 @@
     "name": "Skoda India",
     "careers_url": "https://skoda-vw.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "skoda-vw",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "skoda-vw",
-    "tenant_url": "https://skoda-vw.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds skoda-vw.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://skoda-vw.darwinbox.in/ms/candidate/careers",
     "category": "Semiconductor-Hardware",
     "employer_type": "product"
   },
@@ -10723,13 +10674,13 @@
     "name": "Shoppers Stop",
     "careers_url": "https://ss-people.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "ss-people",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "ss-people",
-    "tenant_url": "https://ss-people.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds ss-people.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://ss-people.darwinbox.in/ms/candidate/careers",
     "category": "E-commerce-D2C",
     "employer_type": "product"
   },
@@ -10737,13 +10688,13 @@
     "name": "Subex",
     "careers_url": "https://subex.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "subex",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "subex",
-    "tenant_url": "https://subex.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds subex.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://subex.darwinbox.in/ms/candidate/careers",
     "category": "Product-SaaS",
     "employer_type": "product"
   },
@@ -10787,13 +10738,13 @@
     "name": "Unacademy Group",
     "careers_url": "https://unacademy.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "unacademy",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "unacademy",
-    "tenant_url": "https://unacademy.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds unacademy.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://unacademy.darwinbox.in/ms/candidate/careers",
     "category": "Edtech",
     "employer_type": "product"
   },
@@ -10815,13 +10766,13 @@
     "name": "Vivriti Capital",
     "careers_url": "https://vivriti.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "vivriti",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "vivriti",
-    "tenant_url": "https://vivriti.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds vivriti.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://vivriti.darwinbox.in/ms/candidate/careers",
     "category": "Fintech",
     "employer_type": "product"
   },
@@ -10829,13 +10780,13 @@
     "name": "Zydus Lifesciences",
     "careers_url": "https://zydusgroup.darwinbox.in/ms/candidate/careers",
     "source": "darwinbox",
+    "source_slug": "zydusgroup",
     "parsing_strategy": "ats-api",
     "status": "candidate",
     "discovered_via": "claude-research",
     "discovered_at": "2026-06-10",
-    "source_slug": "zydusgroup",
-    "tenant_url": "https://zydusgroup.darwinbox.in/ms/candidate/careers",
     "evidence": "careers page embeds zydusgroup.darwinbox.in; tenant verified live; converted from scrape.",
+    "tenant_url": "https://zydusgroup.darwinbox.in/ms/candidate/careers",
     "category": "BFSI-GCC",
     "employer_type": "product"
   },
@@ -11024,6 +10975,17 @@
     "discovered_via": "claude-research",
     "evidence": "greenhouse (34 jobs)",
     "category": "DevTools-Infra",
+    "employer_type": "product"
+  },
+  {
+    "name": "Coinbase",
+    "careers_url": "https://boards.greenhouse.io/coinbase",
+    "source": "greenhouse",
+    "source_slug": "coinbase",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse 'coinbase' live again (101 jobs, 4 remote-India incl. Eng Manager/SWE); converted from stale custom llm-scrape.",
+    "category": "Fintech",
     "employer_type": "product"
   },
   {
@@ -11431,6 +11393,17 @@
     "employer_type": "product"
   },
   {
+    "name": "Okta",
+    "careers_url": "https://boards.greenhouse.io/okta",
+    "source": "greenhouse",
+    "source_slug": "okta",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse boards-api 'okta' live (361 jobs, 98 in India — Bengaluru eng incl. 'Engineering Architect - DX/AX/UX').",
+    "category": "DevTools-Infra",
+    "employer_type": "product"
+  },
+  {
     "name": "PagerDuty India",
     "careers_url": "https://boards.greenhouse.io/pagerduty",
     "source": "greenhouse",
@@ -11539,6 +11512,29 @@
     "employer_type": "product"
   },
   {
+    "name": "Rubrik",
+    "careers_url": "https://boards.greenhouse.io/rubrik",
+    "source": "greenhouse",
+    "source_slug": "rubrik",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "discovered_at": "2026-06-04T22:12:51.899Z",
+    "evidence": "greenhouse 'rubrik' (112 total; 16 India); fixed malformed registry name.",
+    "category": "DevTools-Infra",
+    "employer_type": "product"
+  },
+  {
+    "name": "Samsara",
+    "careers_url": "https://boards.greenhouse.io/samsara",
+    "source": "greenhouse",
+    "source_slug": "samsara",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse 'samsara' live (308 total; ~7 India — Bengaluru incl. Senior Full Stack Developer).",
+    "category": "Logistics-Mobility",
+    "employer_type": "product"
+  },
+  {
     "name": "Scale AI",
     "careers_url": "https://scale.com/careers",
     "source": "greenhouse",
@@ -11623,6 +11619,28 @@
     "evidence": "embedded greenhouse board (63 jobs); was llm-scrape",
     "category": "Product-SaaS",
     "employer_type": "product"
+  },
+  {
+    "name": "Tekion",
+    "careers_url": "https://boards.greenhouse.io/tekion",
+    "source": "greenhouse",
+    "source_slug": "tekion",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse boards-api 'tekion' live (48 jobs, 37 in India incl. Bengaluru frontend/integration roles). Also on ashby 'tekion' (~47, overlapping) — chose greenhouse to avoid duplicate postings (cleaner locations, no dupes).",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
+    "name": "Thoughtworks",
+    "careers_url": "https://boards.greenhouse.io/thoughtworks",
+    "source": "greenhouse",
+    "source_slug": "thoughtworks",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse boards-api 'thoughtworks' live (70 jobs, 4 in India incl. 'Lead Developer (Python, React, AWS)' Hyderabad). smartrecruiters Thoughtworks/Thoughtworks2 empty.",
+    "category": "Staffing-Services",
+    "employer_type": "service"
   },
   {
     "name": "Twilio India",
@@ -11931,6 +11949,20 @@
     "employer_type": "product"
   },
   {
+    "name": "Open",
+    "careers_url": "https://openfinancial.keka.com/careers",
+    "source": "keka",
+    "source_slug": "openfinancial",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "keka openfinancial embed board (1 job, India).",
+    "api_meta": {
+      "orgGuid": "161570d3-d2be-4e8c-b233-d006f70cd371"
+    },
+    "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
     "name": "Peoplebox.ai",
     "careers_url": "https://peoplebox.com/careers",
     "source": "keka",
@@ -12041,6 +12073,17 @@
     "discovered_via": "mass-reprobe",
     "evidence": "on lever (1 jobs); was llm-scrape",
     "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Dun & Bradstreet",
+    "careers_url": "https://jobs.lever.co/dnb",
+    "source": "lever",
+    "source_slug": "dnb",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "lever 'dnb' live (99 total; 29 India — Delhi/Mumbai/Hyderabad/Bengaluru/Chennai/Ahmedabad incl. Gen AI/Data Engineer).",
+    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -12426,6 +12469,21 @@
     "employer_type": "product"
   },
   {
+    "name": "Icertis",
+    "careers_url": "https://iaaviz.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Jobs-at-Icertis/",
+    "source": "oracle",
+    "source_slug": "icertis",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "oracle HCM iaaviz siteNumber=1 (37 reqs; 18 India — Pune DevOps/AI/ML eng).",
+    "tenant_url": "https://iaaviz.fa.ocs.oraclecloud.com",
+    "api_meta": {
+      "siteNumber": "1"
+    },
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "Honeywell Aerospace India",
     "careers_url": "https://icfcjb.fa.ocs.oraclecloud.com",
     "source": "oracle",
@@ -12656,6 +12714,17 @@
     "evidence": "embedded smartrecruiters board (2018 jobs); was llm-scrape",
     "category": "Enterprise-GCC",
     "employer_type": "service"
+  },
+  {
+    "name": "Nielsen",
+    "careers_url": "https://careers.smartrecruiters.com/TheNielsenCompany",
+    "source": "smartrecruiters",
+    "source_slug": "TheNielsenCompany",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "smartrecruiters 'TheNielsenCompany' live (147 total; 57 India per country=in facet).",
+    "category": "Consumer-Internet",
+    "employer_type": "product"
   },
   {
     "name": "SciSpace (Typeset)",
@@ -13139,6 +13208,30 @@
     "employer_type": "service"
   },
   {
+    "name": "Amadeus",
+    "careers_url": "https://amadeus.wd502.myworkdayjobs.com/JOBS",
+    "source": "workday",
+    "source_slug": "amadeus",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs amadeus/JOBS (131 total; 21 India — Bangalore/Pune SW eng).",
+    "tenant_url": "https://amadeus.wd502.myworkdayjobs.com/JOBS",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
+    "name": "Applied Materials",
+    "careers_url": "https://amat.wd1.myworkdayjobs.com/External",
+    "source": "workday",
+    "source_slug": "amat",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs amat/External live (1894 total; ~181 India — Bangalore/Chennai/Pune SW + HW eng).",
+    "tenant_url": "https://amat.wd1.myworkdayjobs.com/External",
+    "category": "Semiconductor-Hardware",
+    "employer_type": "product"
+  },
+  {
     "name": "Maxim Integrated India",
     "careers_url": "https://analogdevices.wd1.myworkdayjobs.com/External",
     "source": "workday",
@@ -13148,6 +13241,30 @@
     "evidence": "embedded workday board (941 jobs); was llm-scrape",
     "tenant_url": "https://analogdevices.wd1.myworkdayjobs.com/External",
     "category": "Semiconductor-Hardware",
+    "employer_type": "product"
+  },
+  {
+    "name": "AT&T",
+    "careers_url": "https://att.wd1.myworkdayjobs.com/ATTGeneral",
+    "source": "workday",
+    "source_slug": "att",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs att/ATTGeneral live (1008 total; ~28 India — Bengaluru/Hyderabad/Chennai, Java/cyber/ServiceNow).",
+    "tenant_url": "https://att.wd1.myworkdayjobs.com/ATTGeneral",
+    "category": "Other",
+    "employer_type": "product"
+  },
+  {
+    "name": "Autodesk",
+    "careers_url": "https://autodesk.wd1.myworkdayjobs.com/Ext",
+    "source": "workday",
+    "source_slug": "autodesk",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs autodesk/Ext live (663 jobs total; India incl. Bengaluru/Pune SW eng, QA, support).",
+    "tenant_url": "https://autodesk.wd1.myworkdayjobs.com/Ext",
+    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -13280,6 +13397,18 @@
     "employer_type": "service"
   },
   {
+    "name": "Broadridge",
+    "careers_url": "https://broadridge.wd5.myworkdayjobs.com/Careers",
+    "source": "workday",
+    "source_slug": "broadridge",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs broadridge/Careers live (243 total; ~32 India — Bengaluru/Hyderabad eng incl. AI/ML).",
+    "tenant_url": "https://broadridge.wd5.myworkdayjobs.com/Careers",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "Browserstack Enterprise",
     "careers_url": "https://browserstack.wd3.myworkdayjobs.com/External",
     "source": "workday",
@@ -13327,6 +13456,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Cigna",
+    "careers_url": "https://cigna.wd5.myworkdayjobs.com/cignacareers",
+    "source": "workday",
+    "source_slug": "cigna",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs cigna/cignacareers (649 total; 265 India — Hyderabad/Bangalore Evernorth tech).",
+    "tenant_url": "https://cigna.wd5.myworkdayjobs.com/cignacareers",
+    "category": "Healthtech",
+    "employer_type": "product"
+  },
+  {
     "name": "Citi India",
     "careers_url": "https://jobs.citi.com/",
     "source": "workday",
@@ -13335,6 +13476,18 @@
     "discovered_via": "seed",
     "tenant_url": "https://citi.wd5.myworkdayjobs.com/2",
     "category": "BFSI-GCC",
+    "employer_type": "product"
+  },
+  {
+    "name": "Cloudera",
+    "careers_url": "https://cloudera.wd5.myworkdayjobs.com/External_Career",
+    "source": "workday",
+    "source_slug": "cloudera",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs cloudera/External_Career live (100 total; ~10 India — Bangalore/Chennai SW eng Go/Java/QE).",
+    "tenant_url": "https://cloudera.wd5.myworkdayjobs.com/External_Career",
+    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -13358,6 +13511,18 @@
     "discovered_via": "seed",
     "tenant_url": "https://coke.wd1.myworkdayjobs.com/coca-cola-careers",
     "category": "E-commerce-D2C",
+    "employer_type": "product"
+  },
+  {
+    "name": "Comcast",
+    "careers_url": "https://comcast.wd5.myworkdayjobs.com/Comcast_Careers",
+    "source": "workday",
+    "source_slug": "comcast",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs comcast/Comcast_Careers live (852 total; ~62 India — Chennai/Bangalore eng incl. ML/SDET).",
+    "tenant_url": "https://comcast.wd5.myworkdayjobs.com/Comcast_Careers",
+    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
@@ -13406,6 +13571,30 @@
     "employer_type": "product"
   },
   {
+    "name": "FIS",
+    "careers_url": "https://fis.wd5.myworkdayjobs.com/SearchJobs",
+    "source": "workday",
+    "source_slug": "fis",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs fis/SearchJobs live (315 jobs total; ~62 India — Pune/Bangalore/Chennai/Hyderabad/Mumbai).",
+    "tenant_url": "https://fis.wd5.myworkdayjobs.com/SearchJobs",
+    "category": "BFSI-GCC",
+    "employer_type": "product"
+  },
+  {
+    "name": "Fiserv",
+    "careers_url": "https://fiserv.wd5.myworkdayjobs.com/EXT",
+    "source": "workday",
+    "source_slug": "fiserv",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs fiserv/EXT live (426 jobs total; ~22 India — Bengaluru/Pune/Noida/Chennai).",
+    "tenant_url": "https://fiserv.wd5.myworkdayjobs.com/EXT",
+    "category": "BFSI-GCC",
+    "employer_type": "product"
+  },
+  {
     "name": "Junglee Games",
     "careers_url": "https://flutterbe.wd3.myworkdayjobs.com/Junglee_Games",
     "source": "workday",
@@ -13441,6 +13630,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Gartner",
+    "careers_url": "https://gartner.wd5.myworkdayjobs.com/EXT",
+    "source": "workday",
+    "source_slug": "gartner",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs gartner/EXT live (794 jobs total; ~40 India/Gurgaon incl. 'Senior Software Engineer (Frontend - React)').",
+    "tenant_url": "https://gartner.wd5.myworkdayjobs.com/EXT",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "Genesys India",
     "careers_url": "https://genesys.wd1.myworkdayjobs.com/Genesys",
     "source": "workday",
@@ -13464,6 +13665,18 @@
     "employer_type": "product"
   },
   {
+    "name": "GlobalFoundries",
+    "careers_url": "https://globalfoundries.wd1.myworkdayjobs.com/External",
+    "source": "workday",
+    "source_slug": "globalfoundries",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs globalfoundries/External live (674 total; ~103 India — Bengaluru/Pune/Kolkata eng incl. Java full-stack).",
+    "tenant_url": "https://globalfoundries.wd1.myworkdayjobs.com/External",
+    "category": "Semiconductor-Hardware",
+    "employer_type": "product"
+  },
+  {
     "name": "Pratt & Whitney India",
     "careers_url": "https://globalhr.wd5.myworkdayjobs.com/REC_RTX_Ext_Gateway",
     "source": "workday",
@@ -13484,6 +13697,18 @@
     "discovered_via": "seed",
     "tenant_url": "https://gsk.wd5.myworkdayjobs.com/gskcareers",
     "category": "Healthtech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Guidewire",
+    "careers_url": "https://guidewire.wd5.myworkdayjobs.com/External",
+    "source": "workday",
+    "source_slug": "guidewire",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs guidewire/External live (166 total; ~62 India — Bangalore SW eng).",
+    "tenant_url": "https://guidewire.wd5.myworkdayjobs.com/External",
+    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -13521,7 +13746,7 @@
     "employer_type": "product"
   },
   {
-    "name": "Star India",
+    "name": "JioStar",
     "careers_url": "https://jiostar.wd102.myworkdayjobs.com/JioStar",
     "source": "workday",
     "source_slug": "jiostar",
@@ -13541,6 +13766,18 @@
     "discovered_via": "seed",
     "tenant_url": "https://jj.wd5.myworkdayjobs.com/jj",
     "category": "Healthtech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Lattice Semiconductor India",
+    "careers_url": "https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers",
+    "source": "workday",
+    "source_slug": "latticesemi",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs latticesemi/latticesemiconductorscareers (25 India).",
+    "tenant_url": "https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers",
+    "category": "Semiconductor-Hardware",
     "employer_type": "product"
   },
   {
@@ -13811,6 +14048,18 @@
     "employer_type": "product"
   },
   {
+    "name": "LexisNexis Risk (RELX)",
+    "careers_url": "https://relx.wd3.myworkdayjobs.com/RiskSolutions",
+    "source": "workday",
+    "source_slug": "relx",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs relx/RiskSolutions live (193 total; ~39 India — Chennai/Mumbai/Gurgaon SW eng + data science).",
+    "tenant_url": "https://relx.wd3.myworkdayjobs.com/RiskSolutions",
+    "category": "Enterprise-GCC",
+    "employer_type": "product"
+  },
+  {
     "name": "Roche India",
     "careers_url": "https://roche.wd3.myworkdayjobs.com/roche-ext",
     "source": "workday",
@@ -13820,6 +14069,18 @@
     "evidence": "ATS redirect flagged in run logs (workday)",
     "tenant_url": "https://roche.wd3.myworkdayjobs.com/roche-ext",
     "category": "Healthtech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Sabre",
+    "careers_url": "https://sabre.wd1.myworkdayjobs.com/SabreJobs",
+    "source": "workday",
+    "source_slug": "sabre",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs sabre/SabreJobs (158 total; 62 India — Bengaluru/Mumbai SW eng).",
+    "tenant_url": "https://sabre.wd1.myworkdayjobs.com/SabreJobs",
+    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -13866,6 +14127,18 @@
     "discovered_via": "seed",
     "tenant_url": "https://salesforce.wd12.myworkdayjobs.com/Slack",
     "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
+    "name": "S&P Global",
+    "careers_url": "https://spgi.wd5.myworkdayjobs.com/SPGI_Careers",
+    "source": "workday",
+    "source_slug": "spgi",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs spgi/SPGI_Careers live (205 jobs total; ~35 India — Hyderabad/Gurugram/Mumbai/Ahmedabad/Bengaluru analytics+eng).",
+    "tenant_url": "https://spgi.wd5.myworkdayjobs.com/SPGI_Careers",
+    "category": "BFSI-GCC",
     "employer_type": "product"
   },
   {
@@ -13928,6 +14201,30 @@
     "employer_type": "product"
   },
   {
+    "name": "Temenos",
+    "careers_url": "https://temenos.wd103.myworkdayjobs.com/Temenoscareers",
+    "source": "workday",
+    "source_slug": "temenos",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs temenos/Temenoscareers live (61 total; ~27 India — Hyderabad/Bangalore/Chennai SW eng).",
+    "tenant_url": "https://temenos.wd103.myworkdayjobs.com/Temenoscareers",
+    "category": "Enterprise-GCC",
+    "employer_type": "product"
+  },
+  {
+    "name": "Thomson Reuters",
+    "careers_url": "https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site",
+    "source": "workday",
+    "source_slug": "thomsonreuters",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs thomsonreuters/External_Career_Site live (502 jobs total; ~63 India — Bangalore/Hyderabad eng incl. 'Senior Software Engineer - AI').",
+    "tenant_url": "https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site",
+    "category": "Enterprise-GCC",
+    "employer_type": "product"
+  },
+  {
     "name": "Trend Micro India",
     "careers_url": "https://trendmicro.wd3.myworkdayjobs.com/External",
     "source": "workday",
@@ -13964,6 +14261,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Verizon",
+    "careers_url": "https://verizon.wd12.myworkdayjobs.com/verizon-careers",
+    "source": "workday",
+    "source_slug": "verizon",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs verizon/verizon-careers live (1168 total; ~50 India — Hyderabad/Chennai/Bengaluru eng).",
+    "tenant_url": "https://verizon.wd12.myworkdayjobs.com/verizon-careers",
+    "category": "BFSI-GCC",
+    "employer_type": "product"
+  },
+  {
     "name": "Visa India",
     "careers_url": "https://corporate.visa.com/en/careers.html",
     "source": "workday",
@@ -13986,6 +14295,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Western Union",
+    "careers_url": "https://westernunion.wd5.myworkdayjobs.com/WesternUnionJobs",
+    "source": "workday",
+    "source_slug": "westernunion",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "claude-research",
+    "evidence": "workday cxs westernunion/WesternUnionJobs live (81 total; ~8 India — Pune eng/architecture).",
+    "tenant_url": "https://westernunion.wd5.myworkdayjobs.com/WesternUnionJobs",
+    "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
     "name": "Wells Fargo India",
     "careers_url": "https://www.wellsfargojobs.com/",
     "source": "workday",
@@ -14005,327 +14326,6 @@
     "discovered_via": "seed",
     "tenant_url": "https://workday.wd5.myworkdayjobs.com/Workday",
     "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Tekion",
-    "careers_url": "https://boards.greenhouse.io/tekion",
-    "source": "greenhouse",
-    "source_slug": "tekion",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse boards-api 'tekion' live (48 jobs, 37 in India incl. Bengaluru frontend/integration roles). Also on ashby 'tekion' (~47, overlapping) — chose greenhouse to avoid duplicate postings (cleaner locations, no dupes).",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Thoughtworks",
-    "careers_url": "https://boards.greenhouse.io/thoughtworks",
-    "source": "greenhouse",
-    "source_slug": "thoughtworks",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse boards-api 'thoughtworks' live (70 jobs, 4 in India incl. 'Lead Developer (Python, React, AWS)' Hyderabad). smartrecruiters Thoughtworks/Thoughtworks2 empty.",
-    "category": "Staffing-Services",
-    "employer_type": "service"
-  },
-  {
-    "name": "Okta",
-    "careers_url": "https://boards.greenhouse.io/okta",
-    "source": "greenhouse",
-    "source_slug": "okta",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse boards-api 'okta' live (361 jobs, 98 in India — Bengaluru eng incl. 'Engineering Architect - DX/AX/UX').",
-    "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Autodesk",
-    "careers_url": "https://autodesk.wd1.myworkdayjobs.com/Ext",
-    "source": "workday",
-    "source_slug": "autodesk",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://autodesk.wd1.myworkdayjobs.com/Ext",
-    "evidence": "workday cxs autodesk/Ext live (663 jobs total; India incl. Bengaluru/Pune SW eng, QA, support).",
-    "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Gartner",
-    "careers_url": "https://gartner.wd5.myworkdayjobs.com/EXT",
-    "source": "workday",
-    "source_slug": "gartner",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://gartner.wd5.myworkdayjobs.com/EXT",
-    "evidence": "workday cxs gartner/EXT live (794 jobs total; ~40 India/Gurgaon incl. 'Senior Software Engineer (Frontend - React)').",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "S&P Global",
-    "careers_url": "https://spgi.wd5.myworkdayjobs.com/SPGI_Careers",
-    "source": "workday",
-    "source_slug": "spgi",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://spgi.wd5.myworkdayjobs.com/SPGI_Careers",
-    "evidence": "workday cxs spgi/SPGI_Careers live (205 jobs total; ~35 India — Hyderabad/Gurugram/Mumbai/Ahmedabad/Bengaluru analytics+eng).",
-    "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Fiserv",
-    "careers_url": "https://fiserv.wd5.myworkdayjobs.com/EXT",
-    "source": "workday",
-    "source_slug": "fiserv",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://fiserv.wd5.myworkdayjobs.com/EXT",
-    "evidence": "workday cxs fiserv/EXT live (426 jobs total; ~22 India — Bengaluru/Pune/Noida/Chennai).",
-    "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "FIS",
-    "careers_url": "https://fis.wd5.myworkdayjobs.com/SearchJobs",
-    "source": "workday",
-    "source_slug": "fis",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://fis.wd5.myworkdayjobs.com/SearchJobs",
-    "evidence": "workday cxs fis/SearchJobs live (315 jobs total; ~62 India — Pune/Bangalore/Chennai/Hyderabad/Mumbai).",
-    "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Thomson Reuters",
-    "careers_url": "https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site",
-    "source": "workday",
-    "source_slug": "thomsonreuters",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site",
-    "evidence": "workday cxs thomsonreuters/External_Career_Site live (502 jobs total; ~63 India — Bangalore/Hyderabad eng incl. 'Senior Software Engineer - AI').",
-    "category": "Enterprise-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Verizon",
-    "careers_url": "https://verizon.wd12.myworkdayjobs.com/verizon-careers",
-    "source": "workday",
-    "source_slug": "verizon",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://verizon.wd12.myworkdayjobs.com/verizon-careers",
-    "evidence": "workday cxs verizon/verizon-careers live (1168 total; ~50 India — Hyderabad/Chennai/Bengaluru eng).",
-    "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "AT&T",
-    "careers_url": "https://att.wd1.myworkdayjobs.com/ATTGeneral",
-    "source": "workday",
-    "source_slug": "att",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://att.wd1.myworkdayjobs.com/ATTGeneral",
-    "evidence": "workday cxs att/ATTGeneral live (1008 total; ~28 India — Bengaluru/Hyderabad/Chennai, Java/cyber/ServiceNow).",
-    "category": "Other",
-    "employer_type": "product"
-  },
-  {
-    "name": "Comcast",
-    "careers_url": "https://comcast.wd5.myworkdayjobs.com/Comcast_Careers",
-    "source": "workday",
-    "source_slug": "comcast",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://comcast.wd5.myworkdayjobs.com/Comcast_Careers",
-    "evidence": "workday cxs comcast/Comcast_Careers live (852 total; ~62 India — Chennai/Bangalore eng incl. ML/SDET).",
-    "category": "Consumer-Internet",
-    "employer_type": "product"
-  },
-  {
-    "name": "LexisNexis Risk (RELX)",
-    "careers_url": "https://relx.wd3.myworkdayjobs.com/RiskSolutions",
-    "source": "workday",
-    "source_slug": "relx",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://relx.wd3.myworkdayjobs.com/RiskSolutions",
-    "evidence": "workday cxs relx/RiskSolutions live (193 total; ~39 India — Chennai/Mumbai/Gurgaon SW eng + data science).",
-    "category": "Enterprise-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Western Union",
-    "careers_url": "https://westernunion.wd5.myworkdayjobs.com/WesternUnionJobs",
-    "source": "workday",
-    "source_slug": "westernunion",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://westernunion.wd5.myworkdayjobs.com/WesternUnionJobs",
-    "evidence": "workday cxs westernunion/WesternUnionJobs live (81 total; ~8 India — Pune eng/architecture).",
-    "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Broadridge",
-    "careers_url": "https://broadridge.wd5.myworkdayjobs.com/Careers",
-    "source": "workday",
-    "source_slug": "broadridge",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://broadridge.wd5.myworkdayjobs.com/Careers",
-    "evidence": "workday cxs broadridge/Careers live (243 total; ~32 India — Bengaluru/Hyderabad eng incl. AI/ML).",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Cloudera",
-    "careers_url": "https://cloudera.wd5.myworkdayjobs.com/External_Career",
-    "source": "workday",
-    "source_slug": "cloudera",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://cloudera.wd5.myworkdayjobs.com/External_Career",
-    "evidence": "workday cxs cloudera/External_Career live (100 total; ~10 India — Bangalore/Chennai SW eng Go/Java/QE).",
-    "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Guidewire",
-    "careers_url": "https://guidewire.wd5.myworkdayjobs.com/External",
-    "source": "workday",
-    "source_slug": "guidewire",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://guidewire.wd5.myworkdayjobs.com/External",
-    "evidence": "workday cxs guidewire/External live (166 total; ~62 India — Bangalore SW eng).",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Temenos",
-    "careers_url": "https://temenos.wd103.myworkdayjobs.com/Temenoscareers",
-    "source": "workday",
-    "source_slug": "temenos",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://temenos.wd103.myworkdayjobs.com/Temenoscareers",
-    "evidence": "workday cxs temenos/Temenoscareers live (61 total; ~27 India — Hyderabad/Bangalore/Chennai SW eng).",
-    "category": "Enterprise-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "Applied Materials",
-    "careers_url": "https://amat.wd1.myworkdayjobs.com/External",
-    "source": "workday",
-    "source_slug": "amat",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://amat.wd1.myworkdayjobs.com/External",
-    "evidence": "workday cxs amat/External live (1894 total; ~181 India — Bangalore/Chennai/Pune SW + HW eng).",
-    "category": "Semiconductor-Hardware",
-    "employer_type": "product"
-  },
-  {
-    "name": "GlobalFoundries",
-    "careers_url": "https://globalfoundries.wd1.myworkdayjobs.com/External",
-    "source": "workday",
-    "source_slug": "globalfoundries",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://globalfoundries.wd1.myworkdayjobs.com/External",
-    "evidence": "workday cxs globalfoundries/External live (674 total; ~103 India — Bengaluru/Pune/Kolkata eng incl. Java full-stack).",
-    "category": "Semiconductor-Hardware",
-    "employer_type": "product"
-  },
-  {
-    "name": "Dun & Bradstreet",
-    "careers_url": "https://jobs.lever.co/dnb",
-    "source": "lever",
-    "source_slug": "dnb",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "lever 'dnb' live (99 total; 29 India — Delhi/Mumbai/Hyderabad/Bengaluru/Chennai/Ahmedabad incl. Gen AI/Data Engineer).",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Nielsen",
-    "careers_url": "https://careers.smartrecruiters.com/TheNielsenCompany",
-    "source": "smartrecruiters",
-    "source_slug": "TheNielsenCompany",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "smartrecruiters 'TheNielsenCompany' live (147 total; 57 India per country=in facet).",
-    "category": "Consumer-Internet",
-    "employer_type": "product"
-  },
-  {
-    "name": "Samsara",
-    "careers_url": "https://boards.greenhouse.io/samsara",
-    "source": "greenhouse",
-    "source_slug": "samsara",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse 'samsara' live (308 total; ~7 India — Bengaluru incl. Senior Full Stack Developer).",
-    "category": "Logistics-Mobility",
-    "employer_type": "product"
-  },
-  {
-    "name": "Sabre",
-    "careers_url": "https://sabre.wd1.myworkdayjobs.com/SabreJobs",
-    "source": "workday",
-    "source_slug": "sabre",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://sabre.wd1.myworkdayjobs.com/SabreJobs",
-    "evidence": "workday cxs sabre/SabreJobs (158 total; 62 India — Bengaluru/Mumbai SW eng).",
-    "category": "DevTools-Infra",
-    "employer_type": "product"
-  },
-  {
-    "name": "Amadeus",
-    "careers_url": "https://amadeus.wd502.myworkdayjobs.com/JOBS",
-    "source": "workday",
-    "source_slug": "amadeus",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://amadeus.wd502.myworkdayjobs.com/JOBS",
-    "evidence": "workday cxs amadeus/JOBS (131 total; 21 India — Bangalore/Pune SW eng).",
-    "category": "Product-SaaS",
-    "employer_type": "product"
-  },
-  {
-    "name": "Cigna",
-    "careers_url": "https://cigna.wd5.myworkdayjobs.com/cignacareers",
-    "source": "workday",
-    "source_slug": "cigna",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://cigna.wd5.myworkdayjobs.com/cignacareers",
-    "evidence": "workday cxs cigna/cignacareers (649 total; 265 India — Hyderabad/Bangalore Evernorth tech).",
-    "category": "Healthtech",
-    "employer_type": "product"
-  },
-  {
-    "name": "Icertis",
-    "careers_url": "https://iaaviz.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Jobs-at-Icertis/",
-    "source": "oracle",
-    "source_slug": "icertis",
-    "parsing_strategy": "ats-api",
-    "discovered_via": "claude-research",
-    "tenant_url": "https://iaaviz.fa.ocs.oraclecloud.com",
-    "api_meta": {
-      "siteNumber": "1"
-    },
-    "evidence": "oracle HCM iaaviz siteNumber=1 (37 reqs; 18 India — Pune DevOps/AI/ML eng).",
-    "category": "Product-SaaS",
     "employer_type": "product"
   }
 ]
