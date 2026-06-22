@@ -3074,13 +3074,15 @@
   },
   {
     "name": "FirstClub",
-    "careers_url": "https://firstclub.com/careers",
-    "source": "custom",
-    "parsing_strategy": "llm-scrape",
+    "careers_url": "https://firstclub.greythr.com/hire/jobs/",
+    "source": "greythr",
+    "source_slug": "firstclub",
+    "parsing_strategy": "ats-api",
+    "tenant_url": "https://firstclub.greythr.com",
     "discovered_via": "inc42-funding",
     "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "inc42-funding: FirstClub Nets $55 Mn To Expand Store Footprint, Widen Product Range",
-    "category": "Fintech",
+    "evidence": "greytHR board (firstclub.greythr.com); POST /hire/api/career/published_jobs/ → 18 jobs. Was custom llm-scrape on firstclub.com/careers (wrong page).",
+    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
