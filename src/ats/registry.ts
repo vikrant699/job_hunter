@@ -11,6 +11,7 @@ import { eightfoldAdapter } from "./eightfold.js";
 import { oracleAdapter } from "./oracle.js";
 import { phenomAdapter } from "./phenom.js";
 import { darwinboxAdapter } from "./darwinbox.js";
+import { greythrAdapter } from "./greythr.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -26,6 +27,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   oracle: oracleAdapter,
   phenom: phenomAdapter,
   darwinbox: darwinboxAdapter,
+  greythr: greythrAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

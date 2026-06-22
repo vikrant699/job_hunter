@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const ProviderSchema = z.enum([
   "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "custom",
+  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "greythr", "custom",
 ]);
 export type Provider = z.infer<typeof ProviderSchema>;
 
