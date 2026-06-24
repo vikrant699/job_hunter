@@ -3,6 +3,7 @@ import { atsFetchJson, atsFetchText } from "../ats/http.js";
 import { extractKekaOrgGuid, kekaEmbedUrl } from "../ats/keka.js";
 import { phenomAdapter } from "../ats/phenom.js";
 import { darwinboxAdapter } from "../ats/darwinbox.js";
+import { greythrAdapter } from "../ats/greythr.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -176,6 +177,18 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           apiMeta: null,
         };
         const postings = await darwinboxAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "greythr": {
+        const company: AdapterCompany = {
+          provider: "greythr",
+          slug: c.slug,
+          name: c.slug,
+          careersUrl: c.url,
+          tenantUrl: c.url,
+          apiMeta: null,
+        };
+        const postings = await greythrAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:

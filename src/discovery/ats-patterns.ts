@@ -16,7 +16,7 @@ export type AtsProvider =
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
-  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox";
+  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -45,6 +45,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   oracle:         { hasAdapter: true,  canValidate: false },
   keka:           { hasAdapter: true,  canValidate: false },
   darwinbox:      { hasAdapter: true,  canValidate: true  },
+  greythr:        { hasAdapter: true,  canValidate: true  },
 } as const;
 
 interface PatternDef {
@@ -244,6 +245,18 @@ const PATTERNS: PatternDef[] = [
       const u = safeUrl(m);
       const slug = u?.host.split(".")[0];
       return slug ? { url: `https://${u!.host}`, slug } : null;
+    },
+  },
+  {
+    provider: "greythr",
+    // <tenant>.greythr.com/hire/... public recruitment board.
+    re: /https?:\/\/[a-z0-9-]+\.greythr\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      // www.greythr.com is the vendor's own marketing/careers site, not a tenant.
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/hire/jobs/`, slug };
     },
   },
 ] as const;
