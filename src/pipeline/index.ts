@@ -9,7 +9,6 @@ import {
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company } from "../types.js";
 import { notifyKey } from "../filter/dedup.js";
-import { notifySummary } from "../discord/notify.js";
 import { startProgressHeartbeat } from "../discord/progress.js";
 import { resolveAdapter } from "../ats/registry.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
@@ -52,11 +51,13 @@ export interface ProductionTickOutcome {
   startedAtIso: string;
   endedAtIso: string;
   stats: {
+    companiesScanned: number;
     postingsSeen: number;
     postingsNew: number;
     postingsGreen: number;
     postingsYellow: number;
     postingsTitleDenied: number;
+    postingsDuplicated: number;
     errors: string[];
     durationMs: number;
   };
@@ -176,19 +177,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     error: errorBlob,
   });
 
-  await notifySummary({
-    kind: "production",
-    companiesScanned: stats.companiesScanned,
-    postingsSeen: stats.postingsSeen,
-    postingsNew: stats.postingsNew,
-    postingsGreen: stats.postingsGreen,
-    postingsYellow: stats.postingsYellow,
-    postingsTitleDenied: stats.postingsTitleDenied,
-    postingsDuplicated: stats.postingsDuplicated,
-    durationMs: endedAt - startedAt,
-    errors: stats.errors,
-  });
-
+  // The single end-of-run Discord message is the daily report (embed + CSV),
+  // emitted by the caller via emitDailyCsvs — no separate summary embed.
   logger.info(
     {
       companies: stats.companiesScanned,
@@ -208,11 +198,13 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     startedAtIso,
     endedAtIso: new Date(endedAt).toISOString(),
     stats: {
+      companiesScanned: stats.companiesScanned,
       postingsSeen: stats.postingsSeen,
       postingsNew: stats.postingsNew,
       postingsGreen: stats.postingsGreen,
       postingsYellow: stats.postingsYellow,
       postingsTitleDenied: stats.postingsTitleDenied,
+      postingsDuplicated: stats.postingsDuplicated,
       errors: stats.errors,
       durationMs: endedAt - startedAt,
     },

@@ -75,11 +75,13 @@ export interface DailyReportInput {
   profileId: string;
   discovery: DiscoveryResult | null;
   stats: {
+    companiesScanned: number;
     postingsSeen: number;
     postingsNew: number;
     postingsGreen: number;
     postingsYellow: number;
     postingsTitleDenied: number;
+    postingsDuplicated: number;
     errors: string[];
     durationMs: number;
   };
@@ -123,21 +125,28 @@ export async function emitDailyCsvs(input: DailyReportInput): Promise<void> {
   interface DiscordEmbed { title: string; color: number; timestamp: string; fields: EmbedField[] }
 
   const embed: DiscordEmbed = {
-    title: `${config.discord.titlePrefix} daily report`,
+    title: `${config.discord.titlePrefix} run complete`,
     color: stats.errors.length > 0 ? 0xe67e22 : 0x2ecc71,
     timestamp: tickEndedAt,
     fields: [
+      { name: "Companies scanned", value: String(stats.companiesScanned), inline: true },
+      { name: "Postings seen", value: String(stats.postingsSeen), inline: true },
+      { name: "New postings", value: String(stats.postingsNew), inline: true },
+      { name: "Green",  value: String(stats.postingsGreen),  inline: true },
+      { name: "Yellow", value: String(stats.postingsYellow), inline: true },
       { name: "Matches", value: String(matchRows.length), inline: true },
       { name: "Needs attention", value: String(companyRows.length), inline: true },
       { name: "Duration", value: `${Math.round(stats.durationMs / 1000)}s`, inline: true },
-      { name: "Postings seen", value: String(stats.postingsSeen), inline: true },
-      { name: "Green",  value: String(stats.postingsGreen),  inline: true },
-      { name: "Yellow", value: String(stats.postingsYellow), inline: true },
     ],
   };
   if (stats.postingsTitleDenied > 0) {
     embed.fields.push(
       { name: "Title-denied", value: String(stats.postingsTitleDenied), inline: true }
+    );
+  }
+  if (stats.postingsDuplicated > 0) {
+    embed.fields.push(
+      { name: "Duplicates suppressed", value: String(stats.postingsDuplicated), inline: true }
     );
   }
   if (discovery) {
