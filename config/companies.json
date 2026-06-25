@@ -2569,7 +2569,7 @@
     "careers_url": "https://medibuddy.hire.trakstar.com/",
     "source": "custom",
     "source_slug": "docsapp",
-    "parsing_strategy": "llm-scrape",
+    "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "claude-research",
     "evidence": "DocsApp rebranded to MediBuddy; careers at careers.medibuddy.in, openings hosted on Trakstar (medibuddy.hire.trakstar.com).",
     "category": "Healthtech",
@@ -3070,19 +3070,6 @@
     "discovered_via": "bulk-seed-2",
     "evidence": "URL repaired via WebSearch: new fino.bank.in domain",
     "category": "BFSI-GCC",
-    "employer_type": "product"
-  },
-  {
-    "name": "FirstClub",
-    "careers_url": "https://firstclub.greythr.com/hire/jobs/",
-    "source": "greythr",
-    "source_slug": "firstclub",
-    "parsing_strategy": "ats-api",
-    "tenant_url": "https://firstclub.greythr.com",
-    "discovered_via": "inc42-funding",
-    "discovered_at": "2026-06-04T22:12:51.899Z",
-    "evidence": "greytHR board (firstclub.greythr.com); POST /hire/api/career/published_jobs/ → 18 jobs. Was custom llm-scrape on firstclub.com/careers (wrong page).",
-    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
@@ -11708,6 +11695,19 @@
     "discovered_via": "mass-reprobe",
     "evidence": "on greenhouse (324 jobs); was llm-scrape",
     "category": "DevTools-Infra",
+    "employer_type": "product"
+  },
+  {
+    "name": "FirstClub",
+    "careers_url": "https://firstclub.greythr.com/hire/jobs/",
+    "source": "greythr",
+    "source_slug": "firstclub",
+    "parsing_strategy": "ats-api",
+    "discovered_via": "inc42-funding",
+    "discovered_at": "2026-06-04T22:12:51.899Z",
+    "evidence": "greytHR board (firstclub.greythr.com); POST /hire/api/career/published_jobs/ → 18 jobs. Was custom llm-scrape on firstclub.com/careers (wrong page).",
+    "tenant_url": "https://firstclub.greythr.com",
+    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
