@@ -4,9 +4,10 @@ A personal job-hunting bot. It pulls postings from a list of companies you care 
 filters them against your resume and deal-breakers, and pings the good matches to a
 Discord channel.
 
-You run it by hand with `npm run once` whenever you want a sweep. A single run takes
-roughly 10 to 20 minutes for a registry of a few hundred companies, most of which is
-waiting on the local LLM.
+You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
+~1,300-company registry takes several hours — most of it waiting on the local LLM and on
+slow JavaScript-rendered careers pages. Incremental runs (most postings already seen and
+deduped from earlier runs) finish much faster.
 
 ## What it needs
 
@@ -21,6 +22,9 @@ waiting on the local LLM.
   use a different model, set `OLLAMA_MODEL` (and `OLLAMA_NUM_CTX` for the context size).
 - Your resume as a PDF at `config/resume.pdf` (see Getting started).
 - A Discord webhook URL (Channel settings, Integrations, Webhooks, New Webhook).
+- Optionally, a second Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for mid-run
+  progress heartbeats, posted every 15 minutes while a run is in flight. Leave unset to
+  skip (progress is logged instead).
 - Optionally, a [Brave Search](https://brave.com/search/api/) API key, used only by the
   discovery flow that finds new companies. The free tier covers it.
 
@@ -51,12 +55,19 @@ Three things to set up:
 `config/profile.ts`, `config/resume.pdf`, `config/resume.txt`, and `.env` are all
 gitignored, so they stay on your machine.
 
+**Multiple profiles.** To run more than one search (e.g. two people, or two role
+families), put each under `config/profiles/<name>/profile.ts` with its own `resume.pdf`,
+and run `npm run once -- --profile <name>`. Each profile can set its own `webhookUrl`
+and even its own relevance-gate prompt (`gatePrompt`); postings and runs are stamped
+per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (the
+"default" profile). The whole `config/profiles/` tree is gitignored.
+
 ## Commands
 
 | | |
 |---|---|
-| `npm run once` | The main thing. One full sweep: fetch postings, filter, notify Discord, run discovery, upload a daily CSV report. |
-| `npm run discover` | Discovery only. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
+| `npm run once` | The main thing. One full sweep: fetch postings, filter, notify Discord, post an end-of-run report + CSV. Add `-- --profile <name>` for a named profile. Does **not** run discovery. |
+| `npm run discover` | Discovery only — a separate step. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
 | `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
@@ -90,12 +101,21 @@ the posting against your full resume text. The verdict is tri-state: green if th
 score clears your threshold with no soft hits, yellow for borderline matches or soft
 hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow both go
 to Discord with different sidebar colors. Silent drops are still logged to the SQLite
-DB so you can audit later.
+DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` — titles
+that are floored to yellow instead of silenced even at a low score (for a rare
+sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
 
-Every run ends with a CSV bundle posted to Discord. `searched-<date>.csv` has one
-row per matched posting (job title, link, score, green/yellow tier, reason) followed
-by one row per company that errored or was skipped, with the reason to fix. A second
-file, `discovery-<date>.csv`, shows up only if discovery turned anything up.
+Every run ends with a single Discord message: a "run complete" embed (companies
+scanned, postings seen, new postings, green/yellow counts, duration, and any errors)
+with `searched-<date>.csv` attached. That CSV has one row per matched posting (job
+title, link, score, green/yellow tier, reason) followed by one row per company that
+errored, is stuck on `manual`, or looks like a silently-failing scrape (a fragile
+scraper that returned zero) — each with the reason to fix.
+
+While a run is in flight, a progress heartbeat is posted every 15 minutes to the
+separate `DISCORD_PROGRESS_WEBHOOK_URL` channel (companies scanned out of total, jobs
+seen, jobs relevant, and a per-strategy breakdown) so you can watch a long run without
+tailing logs.
 
 ## The registry and adding a company
 
@@ -135,6 +155,7 @@ config/
   companies.json         the company registry (single source of truth)
   profile.ts             your deal-breakers + filters + locations    (gitignored)
   profile.example.ts     template; loader falls back to it
+  profiles/<name>/       named profiles (profile.ts + resume.pdf)     (gitignored)
   resume.pdf             your resume PDF                             (gitignored)
   resume.txt             extracted resume text the gate judges on    (gitignored)
 data/                    SQLite DB + caches                          (gitignored)
@@ -149,8 +170,8 @@ src/
   discovery/             YC + RSS + Brave sources; ats-patterns + ats-validate
   filter/                location / title / denylist / verdict
   llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
-  discord/               webhook + attachments uploader
-  reports/               end-of-run CSV builder
+  discord/               webhook helper + match/summary notifier + progress heartbeat + CSV uploader
+  reports/               end-of-run report + CSV builder
   registry/              loads and validates config/companies.json into the companies table
   scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
   util/                  shared helpers: semaphore, user-agent, slug, json
@@ -159,7 +180,8 @@ src/
   pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts
   config.ts              tunable knobs (workers, LLM model, discovery settings, ...)
   types.ts               shared TypeScript types
-  profile.ts             loads config/profile.ts and attaches resume text
+  schemas.ts             zod schemas (providers, registry entry, user profile)
+  profile.ts             loads the selected profile and attaches resume text
   logger.ts              pino logger setup
   index.ts               CLI entry point
 ```
@@ -178,8 +200,13 @@ simplest existing example. The contract:
 After writing the adapter:
 
 1. Register it in `src/ats/registry.ts` under `ATS_ADAPTERS`.
-2. Add the provider name to the `Provider` union in `src/types.ts`.
-3. Add it to the zod enum in `src/registry/companies.ts`.
+2. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` — the
+   `Provider` type is inferred from it, so that one edit covers both the type and the
+   runtime validation the registry loader runs.
+
+The supported providers today: greenhouse, lever, ashby, smartrecruiters, workday,
+workable, oracle, keka, eightfold, phenom, darwinbox, greythr (plus `custom` for
+llm-scrape / playwright-llm-scrape).
 
 ## A few things to know
 
