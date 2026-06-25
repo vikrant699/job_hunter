@@ -61,6 +61,7 @@ export const UserProfileSchema = z.object({
     rejectRegions: z.array(z.string()).optional(),
   }),
   titleDenyPatterns: z.array(z.instanceof(RegExp)).readonly(),
+  neverSilenceTitlePatterns: z.array(z.instanceof(RegExp)).readonly().optional(),
   servicesDenylist: z.object({
     slugFragments: z.array(z.string()),
     namePatterns: z.array(z.instanceof(RegExp)).readonly(),

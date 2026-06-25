@@ -169,7 +169,7 @@ export async function processOnePosting(
     }
   }
 
-  const verdict = classifyVerdict(gateResult, extractResult);
+  const verdict = classifyVerdict(gateResult, extractResult, posting.jobTitle);
 
   if (verdict.severity === "silent") {
     writePostingResult(posting, {

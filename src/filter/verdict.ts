@@ -26,12 +26,25 @@ export interface VerdictDetail {
  */
 export const SILENT_SCORE_FLOOR = 0.65;
 
-export function classifyVerdict(gate: GateResult, extract: ExtractResult | null): VerdictDetail {
+export function classifyVerdict(
+  gate: GateResult,
+  extract: ExtractResult | null,
+  jobTitle?: string,
+): VerdictDetail {
   if (gate.dealBreakerSeverity === "hard") {
     return { severity: "silent", reason: gate.dealBreakerHit ?? "hard-deal-breaker" };
   }
 
   if (gate.matchScore < SILENT_SCORE_FLOOR) {
+    // A priority-title role (e.g. React Native for a frontend dev) is floored to
+    // yellow instead of silenced — unless it's over the hard YOE cap (still silent).
+    const overYoeCap =
+      extract !== null && extract.yoeMin !== null && extract.yoeMin >= profile.filters.hardYoeCap;
+    const priorityTitle =
+      !!jobTitle && (profile.neverSilenceTitlePatterns?.some((re) => re.test(jobTitle)) ?? false);
+    if (priorityTitle && !overYoeCap) {
+      return { severity: "yellow", reason: `priority-title, borderline score (${gate.matchScore.toFixed(2)})` };
+    }
     return { severity: "silent", reason: `score-too-low (${gate.matchScore.toFixed(2)})` };
   }
 

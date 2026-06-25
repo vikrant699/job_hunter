@@ -80,6 +80,12 @@ export interface UserProfile {
   };
   /** Cheap regex pre-filter on job titles. A match means "skip before LLM call". */
   titleDenyPatterns: readonly RegExp[];
+  /** Title patterns that must NEVER be silently dropped. When a posting's title
+   *  matches one of these and its score is below the silent floor — but it is NOT
+   *  a hard deal-breaker and NOT over the hard YOE cap — it is floored to yellow so
+   *  it always surfaces for review. For a rare sub-specialty worth eyeballing even
+   *  at a borderline score (e.g. React Native for a frontend engineer). */
+  neverSilenceTitlePatterns?: readonly RegExp[];
   servicesDenylist: {
     /** Slug fragments — if the company slug contains any of these, deny. */
     slugFragments: string[];
