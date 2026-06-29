@@ -13,7 +13,7 @@ service, single user.
 
 | Command | What it does |
 |---|---|
-| `npm run once` | One full sweep: fetch, filter, score, notify, discovery, daily CSV report. |
+| `npm run once` | One full sweep: fetch, filter, score, notify, daily CSV report. Does NOT run discovery (that is a separate `npm run discover`). Add `-- --profile <name>` for a named profile. |
 | `npm run discover` | Discovery only (find new companies; does not touch postings). |
 | `npm test` | Run the test suite (`node:test`). |
 | `npm run typecheck` | `tsc --noEmit`. |
@@ -69,14 +69,16 @@ src/
   llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extract-text-jobs.ts,
                  render.ts; prompts/ holds the prompt strings (gate, shortlist, extract)
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), posting-pipeline.ts
-  reports/     daily-csvs.ts          discord/  attachments.ts (CSV+upload), notify.ts
+  reports/     daily-csvs.ts          discord/  attachments.ts (CSV+upload), notify.ts,
+                 webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat)
   registry/    companies.ts (syncs config/companies.json into the DB)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
   util/        semaphore, user-agent, slug, json (JsonValue)
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
   config.ts profile.ts logger.ts index.ts
-config/        companies.json (registry source of truth); profile.ts, resume.* (gitignored)
+config/        companies.json (registry source of truth); profile.ts, resume.* (gitignored);
+                 profiles/<name>/ (named multi-profile dirs: profile.ts + resume.*, gitignored)
 eval/          offline gate-replay harness (NOT shipped, not in the bot's runtime graph)
 scripts/       ops/maintenance CLIs (NOT shipped)
 data/          SQLite DB + caches (gitignored)
