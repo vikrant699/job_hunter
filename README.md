@@ -9,6 +9,27 @@ You run it by hand with `npm run once` whenever you want a sweep. A full sweep o
 slow JavaScript-rendered careers pages. Incremental runs (most postings already seen and
 deduped from earlier runs) finish much faster.
 
+## What it looks like
+
+Matches arrive in Discord as embeds, color-coded by confidence: green for a strong
+match, yellow for borderline (here, slightly over the years-of-experience cap). Each
+card shows the role, location, YOE, a one-line "why it matched", and the relevance score.
+
+| Strong match (green) | Borderline (yellow) |
+|---|---|
+| ![Green match embed](screenshots/green.png) | ![Yellow match embed](screenshots/yellow.png) |
+
+While a run is in flight, an optional progress heartbeat posts every 15 minutes to a
+separate channel: how far along it is, jobs seen and relevant so far, and a per-strategy
+breakdown.
+
+![Mid-run progress heartbeat embed](screenshots/status_check.png)
+
+At the end of every run it posts a single summary embed (companies scanned, postings
+seen, green/yellow counts, duration, and any errors) with the matches CSV attached:
+
+![End-of-run summary embed](screenshots/summary.png)
+
 ## What it needs
 
 - Node 22 or newer (uses the built-in `node:sqlite`).
