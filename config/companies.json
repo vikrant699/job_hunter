@@ -1,179 +1,5 @@
 [
   {
-    "name": "DevRev",
-    "source_slug": "devrev",
-    "parsing_strategy": "ats-api",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse 'devrev' (34 jobs); design-led dev CRM/support SaaS.",
-    "category": "DevTools-Infra",
-    "employer_type": "product",
-    "careers_url": "https://boards.greenhouse.io/devrev",
-    "source": "greenhouse"
-  },
-  {
-    "name": "Atomicwork",
-    "source_slug": "atomicwork",
-    "parsing_strategy": "ats-api",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "greenhouse 'atomicwork' (27 jobs); design-led ITSM/AI SaaS, Bengaluru.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://boards.greenhouse.io/atomicwork",
-    "source": "greenhouse"
-  },
-  {
-    "name": "Pocket FM",
-    "source_slug": "pocketfm",
-    "parsing_strategy": "ats-api",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "lever 'pocketfm'; audio-series consumer app.",
-    "category": "Consumer-Internet",
-    "employer_type": "product",
-    "careers_url": "https://jobs.lever.co/pocketfm",
-    "source": "lever"
-  },
-  {
-    "name": "Zluri",
-    "source_slug": "zluri",
-    "parsing_strategy": "ats-api",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "keka embed (8 jobs); SaaS-management platform, Bengaluru.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://zluri.keka.com/careers/",
-    "source": "keka",
-    "api_meta": {
-      "orgGuid": "ed2b6b25-be74-43f1-9a38-c3bf27b9146c"
-    }
-  },
-  {
-    "name": "GoKwik",
-    "source_slug": "gokwik",
-    "parsing_strategy": "ats-api",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "keka embed (10 jobs); e-commerce checkout/conversion SaaS, Gurugram.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://gokwik.keka.com/careers/",
-    "source": "keka",
-    "api_meta": {
-      "orgGuid": "19d678f6-8b79-4532-a5f0-d57b593a822e"
-    }
-  },
-  {
-    "name": "Zolve",
-    "source_slug": "zolve",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "cross-border neobank, design-led; careers.zolve.com (SPA).",
-    "category": "Fintech",
-    "employer_type": "product",
-    "careers_url": "https://careers.zolve.com",
-    "source": "custom"
-  },
-  {
-    "name": "Dezerv",
-    "source_slug": "dezerv",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "wealth-management fintech, design-led; SPA careers.",
-    "category": "Fintech",
-    "employer_type": "product",
-    "careers_url": "https://www.dezerv.in/careers/",
-    "source": "custom"
-  },
-  {
-    "name": "Rocketium",
-    "source_slug": "rocketium",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "creative-automation SaaS (design-led); SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://rocketium.com/careers",
-    "source": "custom"
-  },
-  {
-    "name": "Spendflo",
-    "source_slug": "spendflo",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "SaaS procurement/spend platform; SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://www.spendflo.com/careers",
-    "source": "custom"
-  },
-  {
-    "name": "Animaker",
-    "source_slug": "animaker",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "animation/video-creation tool (frontend-heavy); SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://www.animaker.com/jobs",
-    "source": "custom"
-  },
-  {
-    "name": "Airmeet",
-    "source_slug": "airmeet",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "virtual-events SaaS (frontend-heavy); SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://www.airmeet.com/careers",
-    "source": "custom"
-  },
-  {
-    "name": "Fyle",
-    "source_slug": "fyle",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "expense-management SaaS; SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://www.fylehq.com/company/team/join",
-    "source": "custom"
-  },
-  {
-    "name": "Fynd",
-    "source_slug": "fynd",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "retail-commerce platform (Pixelbin image SaaS); SPA careers.",
-    "category": "Product-SaaS",
-    "employer_type": "product",
-    "careers_url": "https://www.fynd.com/careers",
-    "source": "custom"
-  },
-  {
-    "name": "Kuku FM",
-    "source_slug": "kukufm",
-    "parsing_strategy": "llm-scrape",
-    "status": "candidate",
-    "discovered_via": "claude-research",
-    "evidence": "audio-series consumer app; SPA careers.",
-    "category": "Consumer-Internet",
-    "employer_type": "product",
-    "careers_url": "https://kuku.app/careers/",
-    "source": "custom"
-  },
-  {
     "name": "Atlan",
     "careers_url": "https://atlan.com/careers/",
     "source": "ashby",
@@ -736,6 +562,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Airmeet",
+    "careers_url": "https://www.airmeet.com/careers",
+    "source": "custom",
+    "source_slug": "airmeet",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "virtual-events SaaS (frontend-heavy); SPA careers.",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "Ajio",
     "careers_url": "https://www.ajio.com/help/Careers",
     "source": "custom",
@@ -906,6 +744,18 @@
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "bulk-seed-2",
     "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Animaker",
+    "careers_url": "https://www.animaker.com/jobs",
+    "source": "custom",
+    "source_slug": "animaker",
+    "parsing_strategy": "llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "animation/video-creation tool (frontend-heavy); SPA careers.",
+    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -2642,6 +2492,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Dezerv",
+    "careers_url": "https://www.dezerv.in/careers/",
+    "source": "custom",
+    "source_slug": "dezerv",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "wealth-management fintech, design-led; SPA careers.",
+    "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
     "name": "Dhan Parent",
     "careers_url": "https://dhanparent.com/careers",
     "source": "custom",
@@ -3444,6 +3306,30 @@
     "discovered_at": "2026-06-18T00:08:26.924Z",
     "evidence": "YC India · FunctionUp (FanPlay)Bengaluru, KA, IndiaA skill-tech platform that runs placement bootcamps",
     "category": "Edtech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Fyle",
+    "careers_url": "https://www.fylehq.com/company/team/join",
+    "source": "custom",
+    "source_slug": "fyle",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "expense-management SaaS; SPA careers.",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
+    "name": "Fynd",
+    "careers_url": "https://www.fynd.com/careers",
+    "source": "custom",
+    "source_slug": "fynd",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "retail-commerce platform (Pixelbin image SaaS); SPA careers.",
+    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -4676,6 +4562,18 @@
     "discovered_via": "claude-research",
     "evidence": "krutrim.ai is dead (connection refused); company now at olakrutrim.com but with no dedicated careers page (hires via LinkedIn/Instahyre).",
     "category": "DeepTech-AI",
+    "employer_type": "product"
+  },
+  {
+    "name": "Kuku FM",
+    "careers_url": "https://kuku.app/careers/",
+    "source": "custom",
+    "source_slug": "kukufm",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "audio-series consumer app; SPA careers.",
+    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
@@ -7257,6 +7155,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Rocketium",
+    "careers_url": "https://rocketium.com/careers",
+    "source": "custom",
+    "source_slug": "rocketium",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "creative-automation SaaS (design-led); SPA careers.",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "RocketSDR",
     "careers_url": "https://rocketsdr.com/careers",
     "source": "custom",
@@ -8018,6 +7928,18 @@
     "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repair 2026-06-05 (fix-url, medium): curl https://www.spencersretail.com/careers => HTTP 404 (registry URL ",
     "category": "E-commerce-D2C",
+    "employer_type": "product"
+  },
+  {
+    "name": "Spendflo",
+    "careers_url": "https://www.spendflo.com/careers",
+    "source": "custom",
+    "source_slug": "spendflo",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "SaaS procurement/spend platform; SPA careers.",
+    "category": "Product-SaaS",
     "employer_type": "product"
   },
   {
@@ -10204,6 +10126,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Zolve",
+    "careers_url": "https://careers.zolve.com",
+    "source": "custom",
+    "source_slug": "zolve",
+    "parsing_strategy": "playwright-llm-scrape",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "cross-border neobank, design-led; careers.zolve.com (SPA).",
+    "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
     "name": "Zoom India",
     "careers_url": "https://careers.zoom.us/",
     "source": "custom",
@@ -11087,6 +11021,18 @@
     "employer_type": "product"
   },
   {
+    "name": "Atomicwork",
+    "careers_url": "https://boards.greenhouse.io/atomicwork",
+    "source": "greenhouse",
+    "source_slug": "atomicwork",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse 'atomicwork' (27 jobs); design-led ITSM/AI SaaS, Bengaluru.",
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "BlueStone",
     "careers_url": "https://boards.greenhouse.io/bluestone",
     "source": "greenhouse",
@@ -11239,6 +11185,18 @@
     "discovered_at": "2026-06-04T22:12:51.899Z",
     "evidence": "Brave: \"site:boards.greenhouse.io \"India\"\" → Job Application for Software Engineer - Python Developer - AA&I at Definitive He",
     "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
+    "name": "DevRev",
+    "careers_url": "https://boards.greenhouse.io/devrev",
+    "source": "greenhouse",
+    "source_slug": "devrev",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "greenhouse 'devrev' (34 jobs); design-led dev CRM/support SaaS.",
+    "category": "DevTools-Infra",
     "employer_type": "product"
   },
   {
@@ -11986,6 +11944,21 @@
     "employer_type": "product"
   },
   {
+    "name": "GoKwik",
+    "careers_url": "https://gokwik.keka.com/careers/",
+    "source": "keka",
+    "source_slug": "gokwik",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "keka embed (10 jobs); e-commerce checkout/conversion SaaS, Gurugram.",
+    "api_meta": {
+      "orgGuid": "19d678f6-8b79-4532-a5f0-d57b593a822e"
+    },
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "Keka HR",
     "careers_url": "https://hr.keka.com/careers/",
     "source": "keka",
@@ -12219,6 +12192,21 @@
     "employer_type": "product"
   },
   {
+    "name": "Zluri",
+    "careers_url": "https://zluri.keka.com/careers/",
+    "source": "keka",
+    "source_slug": "zluri",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "keka embed (8 jobs); SaaS-management platform, Bengaluru.",
+    "api_meta": {
+      "orgGuid": "ed2b6b25-be74-43f1-9a38-c3bf27b9146c"
+    },
+    "category": "Product-SaaS",
+    "employer_type": "product"
+  },
+  {
     "name": "100ms",
     "careers_url": "https://jobs.lever.co/100ms",
     "source": "lever",
@@ -12368,6 +12356,18 @@
     "discovered_via": "page-detect",
     "evidence": "embedded lever board (1 jobs); was llm-scrape",
     "category": "Fintech",
+    "employer_type": "product"
+  },
+  {
+    "name": "Pocket FM",
+    "careers_url": "https://jobs.lever.co/pocketfm",
+    "source": "lever",
+    "source_slug": "pocketfm",
+    "parsing_strategy": "ats-api",
+    "status": "candidate",
+    "discovered_via": "claude-research",
+    "evidence": "lever 'pocketfm'; audio-series consumer app.",
+    "category": "Consumer-Internet",
     "employer_type": "product"
   },
   {
