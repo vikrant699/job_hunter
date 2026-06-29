@@ -3138,16 +3138,6 @@
     "employer_type": "product"
   },
   {
-    "name": "FIX Analyst, Client Onboarding - FlexTrade",
-    "careers_url": "https://flextrade.recruitee.com/careers",
-    "source": "custom",
-    "source_slug": "fix-analyst-client-onboarding-flextrade",
-    "parsing_strategy": "llm-scrape",
-    "evidence": "URL repaired via path-variant from https://flextrade.recruitee.com/o/fix-analyst-client-onboarding",
-    "category": "Fintech",
-    "employer_type": "product"
-  },
-  {
     "name": "FlatX",
     "careers_url": "https://flatx.com/careers/",
     "source": "custom",
@@ -3287,10 +3277,10 @@
     "employer_type": "service"
   },
   {
-    "name": "FULL Creative - Jr Operations Analyst",
+    "name": "FULL Creative",
     "careers_url": "https://fullcreative.recruitee.com/careers",
     "source": "custom",
-    "source_slug": "full-creative-jr-operations-analyst",
+    "source_slug": "fullcreative",
     "parsing_strategy": "llm-scrape",
     "evidence": "URL repaired via path-variant from https://fullcreative.recruitee.com/o/jr-operations-analyst",
     "category": "Staffing-Services",
@@ -3354,8 +3344,8 @@
     "employer_type": "product"
   },
   {
-    "name": "Gain.pro - Private Equity Intelligence Analyst - India",
-    "careers_url": "https://gainpro.recruitee.com/o/private-equity-intelligence-analyst-india-bangalore",
+    "name": "Gain.pro",
+    "careers_url": "https://gainpro.recruitee.com/",
     "source": "custom",
     "parsing_strategy": "playwright-llm-scrape",
     "discovered_via": "brave-search",
@@ -9372,10 +9362,10 @@
     "employer_type": "product"
   },
   {
-    "name": "Verve - Demand Operations Analyst (Remote, India)",
+    "name": "Verve",
     "careers_url": "https://vervegroup.recruitee.com/",
     "source": "custom",
-    "source_slug": "verve-demand-operations-analyst-remote-india",
+    "source_slug": "verve",
     "parsing_strategy": "playwright-llm-scrape",
     "evidence": "URL repair 2026-06-05 (fix-url, high): curl -sL -A Mozilla https://vervegroup.recruitee.com/ -> HTTP 200. Web",
     "category": "Other",
@@ -11164,8 +11154,8 @@
     "employer_type": "product"
   },
   {
-    "name": "Job Application for Research Engineer, India at DeepMind",
-    "careers_url": "https://boards.greenhouse.io/deepmind/jobs/6269789",
+    "name": "DeepMind",
+    "careers_url": "https://boards.greenhouse.io/deepmind",
     "source": "greenhouse",
     "source_slug": "deepmind",
     "parsing_strategy": "ats-api",
@@ -11383,8 +11373,8 @@
     "employer_type": "product"
   },
   {
-    "name": "Job Application for Data Analyst (India) at Karat",
-    "careers_url": "https://boards.greenhouse.io/karat/jobs/7785527002",
+    "name": "Karat",
+    "careers_url": "https://boards.greenhouse.io/karat",
     "source": "greenhouse",
     "source_slug": "karat",
     "parsing_strategy": "ats-api",
