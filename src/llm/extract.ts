@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
 import { config } from "../config.js";
 import { render } from "./render.js";
-import { generate } from "./client.js";
+import { generate, generateOnce } from "./client.js";
 import { logger } from "../logger.js";
 
 export const ExtractResultSchema = z.object({
@@ -45,11 +45,16 @@ function parseExtractResponse(raw: string): ExtractResult {
 export async function runExtract(jdText: string): Promise<ExtractResult> {
   const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
 
-  // One retry on parse failure, mirroring runGate: a fresh generation usually
+  // One re-ask on parse failure, mirroring runGate: a fresh generation usually
   // fixes malformed JSON, and a failed extract degrades YOE classification.
+  //
+  // Worst case: 3 HTTP calls from the first attempt's generate() (transport
+  // retries) + 1 from the generateOnce() re-ask = 4, not 6.
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 1; attempt++) {
-    const raw = await generate(prompt, { format: "json" });
+    const raw = attempt === 0
+      ? await generate(prompt, { format: "json" })
+      : await generateOnce(prompt, { format: "json" });
     try {
       return parseExtractResponse(raw);
     } catch (err) {

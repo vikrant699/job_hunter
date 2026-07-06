@@ -117,6 +117,45 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
   }
 }
 
+// Shared post-failure bookkeeping for both generate() (after its retries are
+// exhausted) and generateOnce() (after its single attempt fails): trips the
+// breaker once enough *consecutive* connection failures pile up so the run
+// aborts instead of silently producing thousands of gate-errors against a
+// dead backend. Throws — never returns normally.
+function recordFailureAndThrow(lastErr: unknown): never {
+  if (isConnectionError(lastErr)) {
+    consecutiveConnFailures++;
+    if (consecutiveConnFailures >= MAX_CONSECUTIVE_CONN_FAILURES) {
+      throw new OllamaUnavailableError(
+        `Ollama appears down: ${consecutiveConnFailures} consecutive connection failures. ` +
+          `Last error: ${String(lastErr).slice(0, 160)}`,
+      );
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/**
+ * Exactly one attempt — no transport-retry loop. Still goes through the
+ * semaphore/timeout in once() and still participates in the consecutive-
+ * connection-failure breaker (a success resets the counter; a connection-
+ * shaped failure increments it and can still trip OllamaUnavailableError).
+ *
+ * Intended for re-ask attempts after a parse failure (see gate.ts/extract.ts):
+ * a malformed-JSON response needs a fresh generation, not another 3-call
+ * transport-retry cascade layered on top of the first attempt's own retries.
+ */
+export async function generateOnce(prompt: string, opts: GenerateOpts = {}): Promise<string> {
+  try {
+    const out = await once(prompt, opts);
+    consecutiveConnFailures = 0; // a success means the backend is alive
+    return out;
+  } catch (err) {
+    logger.warn({ err: String(err) }, "ollama generate (single-shot) failed");
+    return recordFailureAndThrow(err);
+  }
+}
+
 export async function generate(prompt: string, opts: GenerateOpts = {}): Promise<string> {
   let lastErr: unknown;
   for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
@@ -135,14 +174,5 @@ export async function generate(prompt: string, opts: GenerateOpts = {}): Promise
   // All retries exhausted. If this looks like the backend being down (not a
   // one-off bad response), trip the breaker once enough calls fail in a row so
   // the run aborts instead of silently producing thousands of gate-errors.
-  if (isConnectionError(lastErr)) {
-    consecutiveConnFailures++;
-    if (consecutiveConnFailures >= MAX_CONSECUTIVE_CONN_FAILURES) {
-      throw new OllamaUnavailableError(
-        `Ollama appears down: ${consecutiveConnFailures} consecutive connection failures. ` +
-          `Last error: ${String(lastErr).slice(0, 160)}`,
-      );
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  return recordFailureAndThrow(lastErr);
 }
