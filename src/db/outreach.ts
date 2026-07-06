@@ -119,6 +119,19 @@ export function selectOutreachByStatus(status: OutreachStatus, profileId?: strin
   return rows.map(rowToOutreach);
 }
 
+const selectOutreachSentTabStmt = db.prepare(`
+  SELECT * FROM outreach
+  WHERE status IN ('sent', 'bounced', 'verified')
+  ORDER BY sent_at DESC
+`);
+
+/** Every outreach row that has moved past 'draft' (sent, bounced, or
+ *  verified), across ALL profiles, newest sent_at first. Feeds the Sent
+ *  sheet-tab projection, which shows global state rather than one profile. */
+export function selectOutreachSentTab(): OutreachRow[] {
+  return queryAll(selectOutreachSentTabStmt, OutreachRowSchema).map(rowToOutreach);
+}
+
 // Patch semantics: COALESCE falls back to the existing column value whenever the
 // caller passes null for a field it isn't updating. This means a genuine "clear
 // this field back to null" is not expressible through this function — none of

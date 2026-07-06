@@ -6,7 +6,8 @@ import { runDiscovery } from "./discovery/run.js";
 import { emitDailyCsvs } from "./reports/daily-csvs.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
-import { runOutreach } from "./outreach/run.js";
+import { runOutreach, istDate } from "./outreach/run.js";
+import { projectToSheet } from "./outreach/sheet-sync.js";
 import { profile } from "./profile.js";
 
 function printUsage(): void {
@@ -29,6 +30,7 @@ async function runOnce(): Promise<void> {
 
   try {
     await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: null });
+    await projectToSheet(profileId, undefined, istDate(new Date()));
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
       // Scrape results are already saved — a stale/revoked Google token must
