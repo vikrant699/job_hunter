@@ -41,17 +41,17 @@ const userPath = useNamed ? namedProfile : existsSync(defaultProfile) ? defaultP
 const resumeDir = useNamed ? namedDir : resolve(here, "../config");
 const usingExample = userPath === examplePath;
 
-// If matchThreshold sits at or below the silent floor, the yellow band inverts:
-// classifyVerdict would silently drop everything below the floor (correct) but
-// then treat matchThreshold as unreachable-or-below-floor, so nothing above the
-// floor is ever classified green either. Fail loudly at load time instead of
-// producing a run that silences (almost) everything.
+// If matchThreshold sits at or below the silent floor, the yellow band vanishes:
+// classifyVerdict silently drops everything below the floor, and everything that
+// survives already clears matchThreshold — every notification comes out green and
+// the borderline tier stops existing. Fail loudly at load time instead of quietly
+// degrading the triage signal.
 export function assertMatchThresholdAboveFloor(matchThreshold: number): void {
   if (matchThreshold <= SILENT_SCORE_FLOOR) {
     throw new Error(
       `[profile] filters.matchThreshold (${matchThreshold}) must be greater than ` +
-        `SILENT_SCORE_FLOOR (${SILENT_SCORE_FLOOR}) — otherwise the yellow band inverts and green ` +
-        "verdicts become unreachable. Raise matchThreshold above the floor in your profile config.",
+        `SILENT_SCORE_FLOOR (${SILENT_SCORE_FLOOR}) — otherwise the yellow band vanishes and every ` +
+        "notification is green. Raise matchThreshold above the floor in your profile config.",
     );
   }
 }
