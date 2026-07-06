@@ -26,6 +26,25 @@ export const CompanyStatusSchema = z.enum([
 ]);
 export type CompanyStatus = z.infer<typeof CompanyStatusSchema>;
 
+/** Recruiter verification status. GLOBAL (not per-profile): once a contact is
+ *  verified or bounces, that holds across every profile that might reach out. */
+export const RecruiterStatusSchema = z.enum(["unverified", "verified", "bounced"]);
+export type RecruiterStatus = z.infer<typeof RecruiterStatusSchema>;
+
+/** Recruiter row provenance. */
+export const RecruiterSourceSchema = z.enum(["raw-csv", "manual-sheet"]);
+export type RecruiterSource = z.infer<typeof RecruiterSourceSchema>;
+
+/** Lifecycle of an outreach attempt (one Gmail draft to one recruiter). */
+export const OutreachStatusSchema = z.enum(["draft", "discarded", "sent", "bounced", "verified"]);
+export type OutreachStatus = z.infer<typeof OutreachStatusSchema>;
+
+/** Why a matched posting did NOT get a draft. */
+export const UndraftedReasonSchema = z.enum([
+  "no_contact", "cooldown", "bounced_contact", "draft_discarded",
+]);
+export type UndraftedReason = z.infer<typeof UndraftedReasonSchema>;
+
 /** Registry entry as stored in JSON (seed or discovery-written working file). */
 export const RegistryEntrySchema = z.object({
   name: z.string().min(1),
