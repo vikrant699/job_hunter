@@ -15,6 +15,7 @@
     "repair-urls": "tsx scripts/repair-urls-tool.ts",
     "extract-resume": "tsx src/tools/extract-resume.ts",
     "google-auth": "tsx scripts/google-auth.ts",
+    "bootstrap-sheet": "tsx scripts/bootstrap-sheet.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"eval/**/*.test.ts\"",
     "eval": "tsx eval/replay.ts",

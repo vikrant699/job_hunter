@@ -19,6 +19,8 @@ service, single user.
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm run lint` | `eslint .` (enforces the type-hygiene rules below). |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. |
+| `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
+| `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data + Companies, writes headers. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
 | `npm run probe \| verify \| scrape \| repair-urls` | Ops/maintenance CLIs under `scripts/`. |
 
@@ -66,12 +68,17 @@ src/
                  behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
   discovery/   sources/ (brave, rss, yc); ats-patterns + ats-validate; run.ts; json-writer.ts
   filter/      location, title, denylist, verdict
+  google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
+                 fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
   llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extract-text-jobs.ts,
                  render.ts; prompts/ holds the prompt strings (gate, shortlist, extract)
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), posting-pipeline.ts
   reports/     daily-csvs.ts          discord/  attachments.ts (CSV+upload), notify.ts,
                  webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat)
-  registry/    companies.ts (syncs config/companies.json into the DB)
+  outreach/    tabs.ts (spreadsheet tab header contracts; more modules landing with
+                 the outreach pipeline)
+  registry/    companies.ts (syncs config/companies.json into the DB); sheet-codec.ts
+                 (Companies-tab row <-> RegistryEntry codec)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
   util/        semaphore, user-agent, slug, json (JsonValue)
   schemas.ts   zod schemas + their inferred types
@@ -104,6 +111,10 @@ data/          SQLite DB + caches (gitignored)
 ## Environment
 
 - **Node 22+** required (uses the built-in `node:sqlite`, an experimental module).
+- **Google APIs (outreach)**: `.env` needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+  (Desktop-app OAuth client; consent screen in Testing mode means refresh tokens die
+  ~weekly - the bot's pre-flight guard names the renew command) and
+  `GOOGLE_SPREADSHEET_ID`. Per-profile tokens live at `data/google-token-<name>.json`.
 - **Ollama** runs locally with `qwen3.5:9b` pulled; the relevance "gate" judges each posting
   against the full resume text from `config/resume.txt` (generated once from `config/resume.pdf`;
   the bot stops if neither exists).
