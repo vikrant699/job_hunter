@@ -90,4 +90,31 @@ export const config = {
       directoryUrl: "https://www.ycombinator.com/companies?regions=India",
     },
   },
+
+  google: {
+    spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID ?? "",
+    /** Per-profile token written by scripts/google-auth.ts. */
+    tokenPathFor: (profileId: string) => `data/google-token-${profileId}.json`,
+    scopes: [
+      "https://www.googleapis.com/auth/gmail.compose",
+      "https://www.googleapis.com/auth/gmail.readonly",
+      "https://www.googleapis.com/auth/spreadsheets",
+    ],
+    tabs: {
+      rawData: "Raw Data",
+      recruiters: "Recruiters List",
+      drafts: "Drafts",
+      sent: "Sent",
+      undrafted: "Undrafted",
+      companies: "Companies",
+    },
+  },
+
+  outreach: {
+    cooldownDays: 30,
+    verifyAfterHours: 24,
+    draftSeverities: ["green", "yellow"],
+    templatePath: "config/outreach-template.md",
+    attachResume: true,
+  },
 } as const;
