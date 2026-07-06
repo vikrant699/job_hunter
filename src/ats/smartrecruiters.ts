@@ -89,6 +89,8 @@ export const smartRecruitersAdapter: AtsAdapter = {
         }
 
         const items = parsed.data.content.map((p) => normalize(company, p));
+        // total-based stop was added during the paginate() migration — this tenant
+        // previously relied on short-page detection only, `totalFound` went unused.
         const total = typeof parsed.data.totalFound === "number" ? parsed.data.totalFound : null;
         return { items, total };
       },
