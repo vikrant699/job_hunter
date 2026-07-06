@@ -74,6 +74,12 @@ export const UserProfileSchema = z.object({
   webhookUrl: z.string().url().optional(),
   gatePrompt: z.string().optional(),
   resumeText: z.string().optional(),
+  /** Free-text pitch inserted into the outreach email template. Optional. */
+  profilePitch: z.string().optional(),
+  /** Display name for outreach email signatures. Falls back to the profile id when unset. */
+  senderName: z.string().optional(),
+  /** Links appended to the outreach email signature (portfolio, LinkedIn, etc). */
+  senderLinks: z.array(z.string()).optional(),
   hardDealBreakers: z.array(z.string()),
   softDealBreakers: z.array(z.string()),
   filters: z.object({

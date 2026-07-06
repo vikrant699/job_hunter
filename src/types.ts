@@ -50,6 +50,15 @@ export interface UserProfile {
    *  it is loaded at startup from config/resume.txt (generated once from
    *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
   resumeText?: string;
+  /** Free-text pitch inserted into the outreach email template
+   *  ({{profile_pitch}}). Omit for no pitch paragraph. */
+  profilePitch?: string;
+  /** Display name used in outreach email subjects/signatures. Falls back to
+   *  the profile id ({@link UserProfile.id}) when unset. */
+  senderName?: string;
+  /** Links appended to the outreach email signature (portfolio, LinkedIn,
+   *  GitHub, etc). Joined with " | " on one line; omit for none. */
+  senderLinks?: string[];
   hardDealBreakers: string[];
   softDealBreakers: string[];
   filters: {
