@@ -185,8 +185,9 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     error: errorBlob,
   });
 
-  // The single end-of-run Discord message is the daily report (embed + CSV),
-  // emitted by the caller via emitDailyCsvs — no separate summary embed.
+  // The single end-of-run Discord message is the status embed, posted by the
+  // caller via postRunStatus after the outreach stage runs — no separate
+  // per-tick summary embed here.
   logger.info(
     {
       companies: stats.companiesScanned,

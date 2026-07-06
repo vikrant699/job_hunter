@@ -14,7 +14,6 @@ import { runGate } from "../llm/gate.js";
 import { runExtract, type ExtractResult } from "../llm/extract.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
-import { notifyPosting } from "../discord/notify.js";
 import type { RunContext } from "./index.js";
 
 interface PostingResultPatch {
@@ -234,35 +233,19 @@ export async function processOnePosting(
   }
   stats.seenNotifyKeys.add(dupKey);
 
-  let notifiedAt: string | null = null;
-  try {
-    await notifyPosting({
-      posting,
+  const notifiedAt: string = new Date().toISOString();
+  if (verdict.severity === "green") stats.postingsGreen++;
+  else stats.postingsYellow++;
+  bumpMatched(posting.provider, posting.companySlug);
+  logger.info(
+    {
+      company: posting.companyName,
+      title: posting.jobTitle,
       severity: verdict.severity,
-      matchScore: gateResult.matchScore,
-      reason: verdict.reason,
-      yoeMin: extractResult?.yoeMin ?? null,
-      yoeMax: extractResult?.yoeMax ?? null,
-      fallbackCareersUrl: company.careersUrl,
-    });
-    notifiedAt = new Date().toISOString();
-    if (verdict.severity === "green") stats.postingsGreen++;
-    else stats.postingsYellow++;
-    bumpMatched(posting.provider, posting.companySlug);
-    logger.info(
-      {
-        company: posting.companyName,
-        title: posting.jobTitle,
-        severity: verdict.severity,
-        score: gateResult.matchScore,
-      },
-      `${verdict.severity} → Discord`,
-    );
-  } catch (err) {
-    const msg = String(err);
-    logger.error({ err: msg, company: posting.companyName, title: posting.jobTitle }, "Discord notify failed");
-    stats.errors.push(`discord ${company.slug}#${posting.externalId}: ${msg.slice(0, 100)}`);
-  }
+      score: gateResult.matchScore,
+    },
+    `${verdict.severity} → outreach`,
+  );
 
   writePostingResult(
     posting,
