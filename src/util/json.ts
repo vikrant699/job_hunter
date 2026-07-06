@@ -38,8 +38,10 @@ export function parseJsonOrThrow(raw: string, label: string): JsonValue {
 /**
  * Return the value at `key` if it is a plain JSON object (not an array or
  * null), else null. Omit `key` to narrow `node` itself instead of a property
- * of it. Used to narrow nested ATS API responses one level at a time without
- * repeating the typeof/Array.isArray dance at every level.
+ * of it — call as `getObj(x)` (no key) to re-narrow `x` itself, used after
+ * pulling a value out of a JsonValue. Used to narrow nested ATS API responses
+ * one level at a time without repeating the typeof/Array.isArray dance at
+ * every level.
  */
 export function getObj(node: JsonValue | undefined | null, key?: string): Record<string, JsonValue> | null {
   const target = key === undefined ? node : (typeof node === "object" && node !== null && !Array.isArray(node) ? node[key] : undefined);

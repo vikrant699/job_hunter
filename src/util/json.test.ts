@@ -37,3 +37,16 @@ test("getObj returns null when node itself is null or undefined", () => {
   assert.equal(getObj(null, "foo"), null);
   assert.equal(getObj(undefined, "foo"), null);
 });
+
+test("getObj with no key returns the same object when passed a plain object", () => {
+  const obj = { bar: 1 };
+  assert.equal(getObj(obj), obj);
+});
+
+test("getObj with no key returns null when passed an array", () => {
+  assert.equal(getObj([1, 2, 3]), null);
+});
+
+test("getObj with no key returns null when passed a scalar", () => {
+  assert.equal(getObj("x"), null);
+});
