@@ -3,11 +3,11 @@ import { logger } from "./logger.js";
 import { syncRegistryFromJson } from "./registry/companies.js";
 import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery } from "./discovery/run.js";
-import { emitDailyCsvs } from "./reports/daily-csvs.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
-import { runOutreach, istDate } from "./outreach/run.js";
+import { runOutreach, istDate, type RunOutreachResult } from "./outreach/run.js";
 import { projectToSheet } from "./outreach/sheet-sync.js";
+import { postRunStatus } from "./discord/status.js";
 import { profile } from "./profile.js";
 
 function printUsage(): void {
@@ -23,34 +23,31 @@ function printUsage(): void {
 
 async function runOnce(): Promise<void> {
   // Discovery is intentionally NOT part of a regular run — it's a separate step
-  // (`npm run discover`) so nightly runs only fetch + filter + notify. The CSV
-  // report therefore carries no discovery section (discovery: null).
+  // (`npm run discover`) so nightly runs only fetch + filter + notify.
   const outcome = await runProductionTick();
   const profileId = profile.id ?? "default";
 
+  let outreachResult: RunOutreachResult | null = null;
+  let outreachError: string | null = null;
   try {
-    await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: null });
+    outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: null });
     await projectToSheet(profileId, undefined, istDate(new Date()));
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
       // Scrape results are already saved — a stale/revoked Google token must
       // not crash the process. Log the exact renewal command and move on.
       logger.error({ err: err.message }, "outreach skipped — Google auth expired");
+      outreachError = err.message;
     } else {
       logger.error({ err: String(err) }, "outreach stage threw");
+      outreachError = String(err);
     }
   }
 
   try {
-    await emitDailyCsvs({
-      tickStartedAt: outcome.startedAtIso,
-      tickEndedAt: outcome.endedAtIso,
-      profileId,
-      discovery: null,
-      stats: outcome.stats,
-    });
+    await postRunStatus({ profileId, stats: outcome.stats, outreach: outreachResult, outreachError });
   } catch (err) {
-    logger.error({ err: String(err) }, "report emit threw");
+    logger.error({ err: String(err) }, "status post threw");
   }
 }
 

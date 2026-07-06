@@ -37,8 +37,8 @@ export interface UserProfile {
   /** Stable per-profile id — stamped onto every posting/run row. Defaults to
    *  "default"; set by the loader from --profile, NOT hand-edited here. */
   id?: string;
-  /** Discord webhook for THIS profile's notifications. Falls back to
-   *  process.env.DISCORD_WEBHOOK_URL when unset. */
+  /** legacy, unread — per-match Discord notify is gone (matches become Gmail
+   *  drafts + sheet rows). Kept so existing profiles don't fail validation. */
   webhookUrl?: string;
   /** Per-profile relevance-gate prompt template (same {{placeholders}} as the
    *  default in src/llm/prompts/gate.ts: resume, hardDealBreakers,
