@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJson } from "./browser-fetch.js";
@@ -112,13 +112,12 @@ export const darwinboxAdapter: AtsAdapter = {
     // Confirmed live: detail.message = { job: [{...fields, jd: "<html>"}], isSaved: bool }
     // "jd" is the primary key; tolerate flat-object fallback for other tenants.
     const parseResult = JsonValueSchema.safeParse(raw);
-    const rawVal: JsonValue = parseResult.success ? parseResult.data : null;
-    const rawObj = typeof rawVal === "object" && rawVal !== null && !Array.isArray(rawVal) ? rawVal : null;
-    const msg = typeof rawObj?.["message"] === "object" && rawObj["message"] !== null && !Array.isArray(rawObj["message"]) ? rawObj["message"] : null;
-    const msgObj = msg ?? rawObj ?? {};
+    const rawVal: JsonValue | null = parseResult.success ? parseResult.data : null;
+    const rawObj = getObj(rawVal);
+    const msgObj = getObj(rawVal, "message") ?? rawObj ?? {};
     const jobArr = msgObj["job"];
     const jobArrItem = Array.isArray(jobArr) ? jobArr[0] : null;
-    const jobObj = typeof jobArrItem === "object" && jobArrItem !== null && !Array.isArray(jobArrItem) ? jobArrItem : msgObj;
+    const jobObj = getObj(jobArrItem) ?? msgObj;
     const jdRaw = jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "";
     const jd = typeof jdRaw === "string" ? jdRaw : "";
     // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;).

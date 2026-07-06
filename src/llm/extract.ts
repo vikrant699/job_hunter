@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
 import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate } from "./client.js";
@@ -29,13 +29,7 @@ function normalize(parsed: JsonValue): JsonValue {
 }
 
 function parseExtractResponse(raw: string): ExtractResult {
-  let parsed: JsonValue;
-  try {
-    parsed = JsonValueSchema.parse(JSON.parse(raw));
-  } catch (err) {
-    logger.warn({ raw: raw.slice(0, 500) }, "extract JSON.parse failed");
-    throw new Error(`extract output not JSON: ${err}`);
-  }
+  const parsed: JsonValue = parseJsonOrThrow(raw, "extract");
 
   const result = ExtractResultSchema.safeParse(normalize(parsed));
   if (!result.success) {

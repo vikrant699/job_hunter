@@ -4,7 +4,7 @@ import { profile } from "../profile.js";
 import { render } from "./render.js";
 import { generate } from "./client.js";
 import { logger } from "../logger.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
 
 
 export const GateResultSchema = z.object({
@@ -41,13 +41,7 @@ export interface RunGateOptions {
  * JSON or schema violations (and logs the offending payload before throwing).
  */
 export function parseGateResponse(raw: string): GateResult {
-  let parsed: JsonValue;
-  try {
-    parsed = JsonValueSchema.parse(JSON.parse(raw));
-  } catch (err) {
-    logger.warn({ raw: raw.slice(0, 500) }, "gate JSON.parse failed");
-    throw new Error(`gate output not JSON: ${err}`);
-  }
+  let parsed: JsonValue = parseJsonOrThrow(raw, "gate");
 
   if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
     const p: { [k: string]: JsonValue } = parsed;

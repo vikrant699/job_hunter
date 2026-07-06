@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
@@ -36,14 +36,12 @@ export function extractPhenomDdo(html: string): unknown | null {
 /** Pull jobs[] + totalHits from a parsed ddo (tolerant of both key shapes). */
 export function phenomJobsFrom(ddo: unknown): { jobs: unknown[]; totalHits: number } {
   const parseResult = JsonValueSchema.safeParse(ddo);
-  const d: JsonValue = parseResult.success ? parseResult.data : null;
-  const obj = typeof d === "object" && d !== null && !Array.isArray(d) ? d : null;
-  const node = (obj?.["eagerLoadRefineSearch"] ?? obj?.["refineSearch"]);
-  const nodeObj = typeof node === "object" && node !== null && !Array.isArray(node) ? node : null;
-  const nodeData = typeof nodeObj?.["data"] === "object" && nodeObj["data"] !== null && !Array.isArray(nodeObj["data"]) ? nodeObj["data"] : null;
+  const d: JsonValue | null = parseResult.success ? parseResult.data : null;
+  const nodeObj = getObj(d, "eagerLoadRefineSearch") ?? getObj(d, "refineSearch");
+  const nodeData = getObj(nodeObj, "data");
   const jobs = nodeData?.["jobs"];
   const jobsArr = Array.isArray(jobs) ? jobs : [];
-  const nodeCounts = typeof nodeData?.["counts"] === "object" && nodeData["counts"] !== null && !Array.isArray(nodeData["counts"]) ? nodeData["counts"] : null;
+  const nodeCounts = getObj(nodeData, "counts");
   const totalHits = Number(nodeObj?.["totalHits"] ?? nodeCounts?.["totalHits"] ?? jobsArr.length);
   return { jobs: jobsArr, totalHits };
 }

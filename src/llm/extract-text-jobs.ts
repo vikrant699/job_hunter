@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate } from "./client.js";
 import { logger } from "../logger.js";
+import { parseJsonOrThrow } from "../util/json.js";
 
 /** Per-element tolerant shape for body-text job items. */
 export const TextJobSchema = z.object({
@@ -77,13 +78,7 @@ export async function runShortlistFromText(input: RunShortlistFromTextInput): Pr
   });
   const raw = await generate(prompt, { format: "json" });
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    logger.warn({ raw: raw.slice(0, 400) }, "shortlistFromText JSON.parse failed");
-    throw new Error(`shortlistFromText output not JSON: ${err}`);
-  }
+  const parsed = parseJsonOrThrow(raw, "shortlistFromText");
   const result = JobsArraySchema.safeParse(parsed);
   if (!result.success) {
     logger.warn(

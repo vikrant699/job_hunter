@@ -4,6 +4,7 @@ import { render } from "./render.js";
 import { generate } from "./client.js";
 import { logger } from "../logger.js";
 import type { CandidateLink } from "../scraper/cheerio.js";
+import { parseJsonOrThrow } from "../util/json.js";
 
 const ShortlistItemSchema = z.object({
   url: z.string().url(),
@@ -77,13 +78,7 @@ export async function runShortlist(input: RunShortlistInput): Promise<ShortlistI
 
   const raw = await generate(prompt, { format: "json" });
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    logger.warn({ raw: raw.slice(0, 500) }, "shortlist JSON.parse failed");
-    throw new Error(`shortlist output not JSON: ${err}`);
-  }
+  const parsed = parseJsonOrThrow(raw, "shortlist");
 
   const result = JobsArraySchema.safeParse(parsed);
   if (!result.success) {
