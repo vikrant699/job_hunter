@@ -1,6 +1,7 @@
 import { profile } from "../profile.js";
 import type { GateResult } from "../llm/gate.js";
 import type { ExtractResult } from "../llm/extract.js";
+import { SILENT_SCORE_FLOOR } from "../schemas.js";
 
 /**
  * Tri-state verdict.
@@ -23,8 +24,9 @@ export interface VerdictDetail {
  * the 0.4-0.65 band was ~76% of yellow notifications and almost entirely noise.
  * Replayed against that run: costs 3 of 30 former greens (scored 0.6-0.65).
  * Borderline 0.65-matchThreshold is yellow; >= matchThreshold (0.8) is green.
+ * Defined in schemas.ts (see there for why) and re-exported here for back-compat.
  */
-export const SILENT_SCORE_FLOOR = 0.65;
+export { SILENT_SCORE_FLOOR };
 
 export function classifyVerdict(
   gate: GateResult,

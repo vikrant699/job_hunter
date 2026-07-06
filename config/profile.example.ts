@@ -46,7 +46,9 @@ export const profile: UserProfile = {
     candidateYoe: 4.5,
     hardYoeCap: 6,
     yoeAcceptUnspecified: false,
-    matchThreshold: 0.6,
+    // Must stay above SILENT_SCORE_FLOOR (0.65, see src/filter/verdict.ts) or the
+    // yellow band inverts and profile load will refuse to start.
+    matchThreshold: 0.8,
   },
 
   location: {

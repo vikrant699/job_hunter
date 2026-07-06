@@ -23,6 +23,8 @@ export interface RunContext {
   postingsYellow: number;
   postingsTitleDenied: number;
   postingsDuplicated: number;
+  /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
+  jdFetchFailed: number;
   errors: string[];
   /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */
   priorNotifyKeys: Set<string>;
@@ -58,6 +60,7 @@ export interface ProductionTickOutcome {
     postingsYellow: number;
     postingsTitleDenied: number;
     postingsDuplicated: number;
+    jdFetchFailed: number;
     errors: string[];
     durationMs: number;
   };
@@ -90,6 +93,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsYellow: 0,
     postingsTitleDenied: 0,
     postingsDuplicated: 0,
+    jdFetchFailed: 0,
     errors: [],
     priorNotifyKeys,
     seenNotifyKeys: new Set(),
@@ -105,7 +109,11 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       c.parsingStrategy === "playwright-llm-scrape",
   );
   logger.info(
-    { total: allCompanies.length, fetchable: companies.length },
+    {
+      total: allCompanies.length,
+      fetchable: companies.length,
+      excluded: allCompanies.length - companies.length,
+    },
     "production tick: companies loaded",
   );
 
@@ -188,6 +196,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       yellow: stats.postingsYellow,
       titleDenied: stats.postingsTitleDenied,
       duplicated: stats.postingsDuplicated,
+      jdFetchFailed: stats.jdFetchFailed,
       errors: stats.errors.length,
       durationMs: endedAt - startedAt,
     },
@@ -205,6 +214,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       postingsYellow: stats.postingsYellow,
       postingsTitleDenied: stats.postingsTitleDenied,
       postingsDuplicated: stats.postingsDuplicated,
+      jdFetchFailed: stats.jdFetchFailed,
       errors: stats.errors,
       durationMs: endedAt - startedAt,
     },
