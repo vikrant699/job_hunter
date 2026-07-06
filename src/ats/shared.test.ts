@@ -5,6 +5,7 @@ import {
   unixToIso,
   parsePostedOn,
   paginate,
+  INTER_PAGE_DELAY_MS,
 } from "./shared.js";
 
 // helper: days between a past ISO string and now
@@ -73,6 +74,7 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 2,
+      interPageDelayMs: 0,
       fetchPage: async (offset) => {
         const page = pages[calls];
         calls++;
@@ -90,6 +92,7 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 2,
+      interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
         // Every page is "full" (length === pageSize) so only the total check
@@ -110,6 +113,7 @@ describe("paginate", () => {
       company: "acme",
       pageSize: 1,
       maxPages: 3,
+      interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
         return { items: [calls], total: null };
@@ -143,6 +147,7 @@ describe("paginate", () => {
       // Phenom-style: server may cap a page below pageSize without that
       // meaning "last page" — only a zero-item page or reaching total stops it.
       shortPageEndsPagination: false,
+      interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
         // server caps each page at 3 items even though pageSize is 5 —
@@ -162,6 +167,7 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 3,
+      interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
         // Server returns 3 raw records each page, but one per page gets
@@ -183,6 +189,7 @@ describe("paginate", () => {
       company: "acme",
       pageSize: 5,
       shortPageEndsPagination: false,
+      interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
         if (calls === 1) return { items: [1, 2, 3], total: null };
@@ -223,5 +230,31 @@ describe("paginate", () => {
     });
     assert.deepEqual(result, [1, 2]);
     assert.equal(calls, 1);
+  });
+
+  it("defaults interPageDelayMs to INTER_PAGE_DELAY_MS when omitted", async () => {
+    assert.equal(INTER_PAGE_DELAY_MS, 150);
+    let calls = 0;
+    const start = Date.now();
+    // Deliberately omits interPageDelayMs to exercise the real default — the
+    // only test in this suite that pays the actual politeness delay (one
+    // inter-page sleep), so it stays a single short page pair.
+    const result = await paginate<number>({
+      provider: "test",
+      company: "acme",
+      pageSize: 1,
+      fetchPage: async () => {
+        calls++;
+        if (calls === 1) return { items: [1], total: null };
+        return { items: [], total: null };
+      },
+    });
+    const elapsed = Date.now() - start;
+    assert.deepEqual(result, [1]);
+    assert.equal(calls, 2);
+    assert.ok(
+      elapsed >= INTER_PAGE_DELAY_MS,
+      `expected at least one ${INTER_PAGE_DELAY_MS}ms inter-page delay, took ${elapsed}ms`,
+    );
   });
 });

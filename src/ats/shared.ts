@@ -20,6 +20,21 @@ export function warnDeepPagination(provider: string, slug: string, pagesDone: nu
 
 const DEFAULT_MAX_PAGES = 200;
 
+/**
+ * Result of fetching one page: its items and, if known, the total item count
+ * reported by the API. `rawCount`, if given, is the number of records the
+ * server actually returned before any adapter-side filtering (e.g. Phenom
+ * drops postings with no stable id) — pagination advances and short-page
+ * detection use this instead of `items.length` so filtered-out records don't
+ * cause the next page to be re-fetched at the wrong offset. Defaults to
+ * `items.length`.
+ */
+export interface PaginatePage<T> {
+  items: T[];
+  total: number | null;
+  rawCount?: number;
+}
+
 export interface PaginateOpts<T> {
   /** Adapter name, used only for the deep-pagination warn log line. */
   provider: string;
@@ -38,15 +53,17 @@ export interface PaginateOpts<T> {
    */
   shortPageEndsPagination?: boolean;
   /**
-   * Fetch one page at the given offset (0-based, page-th call). Return its
-   * items and, if known, the total item count reported by the API.
-   * `rawCount`, if given, is the number of records the server actually
-   * returned before any adapter-side filtering (e.g. Phenom drops postings
-   * with no stable id) — pagination advances and short-page detection use
-   * this instead of `items.length` so filtered-out records don't cause the
-   * next page to be re-fetched at the wrong offset. Defaults to `items.length`.
+   * Delay between page fetches, in ms. Defaults to `INTER_PAGE_DELAY_MS`.
+   * Tests pass 0 to avoid paying the real politeness delay; adapters should
+   * leave this unset so production behavior is unchanged.
    */
-  fetchPage: (offset: number, page: number) => Promise<{ items: T[]; total: number | null; rawCount?: number }>;
+  interPageDelayMs?: number;
+  /**
+   * Fetch one page at the given offset (0-based, page-th call). Return its
+   * items and, if known, the total item count reported by the API. See
+   * `PaginatePage` for field semantics.
+   */
+  fetchPage: (offset: number, page: number) => Promise<PaginatePage<T>>;
 }
 
 /**
@@ -61,6 +78,7 @@ export interface PaginateOpts<T> {
 export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
   const shortPageEndsPagination = opts.shortPageEndsPagination ?? true;
+  const interPageDelayMs = opts.interPageDelayMs ?? INTER_PAGE_DELAY_MS;
   const out: T[] = [];
   let offset = 0;
   let total: number | null = null;
@@ -80,7 +98,7 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     if (total !== null && offset >= total) break;
 
     warnDeepPagination(opts.provider, opts.company, page + 1, out.length);
-    await sleep(INTER_PAGE_DELAY_MS);
+    await sleep(interPageDelayMs);
   }
 
   return out;
