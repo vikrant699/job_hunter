@@ -1,9 +1,9 @@
 // src/ats/darwinbox.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeDarwinbox, darwinboxTenantBase } from "./darwinbox.js";
+import { normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages } from "./darwinbox.js";
 import type { DarwinboxJob } from "./darwinbox.js";
-import type { AdapterCompany } from "../types.js";
+import type { AdapterCompany, NormalizedPosting } from "../types.js";
 
 const company: AdapterCompany = {
   provider: "darwinbox", slug: "emeritus", name: "Emeritus",
@@ -33,4 +33,37 @@ test("normalizeDarwinbox maps fields, prefers title, converts epoch", () => {
 test("normalizeDarwinbox falls back to designation when title empty", () => {
   const p = normalizeDarwinbox(company, { ...job, title: "" });
   assert.equal(p.jobTitle, "Team Leader");
+});
+
+function page(jobs: DarwinboxJob[]) {
+  return { status: "ok", message: { jobscount: null, jobs } };
+}
+
+test("mergeDarwinboxPages accumulates valid pages in order", () => {
+  const out: NormalizedPosting[] = [];
+  mergeDarwinboxPages(company, out, [page([job]), page([{ ...job, id: "2" }])], 2);
+  assert.deepEqual(out.map((p) => p.externalId), ["a66faa21bc4531", "2"]);
+});
+
+test("mergeDarwinboxPages stops once total is reached", () => {
+  const out: NormalizedPosting[] = [];
+  mergeDarwinboxPages(company, out, [page([job]), page([{ ...job, id: "2" }])], 1);
+  assert.deepEqual(out.map((p) => p.externalId), ["a66faa21bc4531"]);
+});
+
+test("mergeDarwinboxPages stops on an empty page", () => {
+  const out: NormalizedPosting[] = [];
+  mergeDarwinboxPages(company, out, [page([]), page([{ ...job, id: "2" }])], 5);
+  assert.deepEqual(out, []);
+});
+
+test("mergeDarwinboxPages throws (not warn+truncate) on a mid-pagination schema mismatch", () => {
+  const out: NormalizedPosting[] = [{ ...normalizeDarwinbox(company, job) }];
+  assert.throws(
+    () => mergeDarwinboxPages(company, out, [{ status: "ok", message: { jobs: "not-an-array" } }], 5),
+    /darwinbox: page schema mismatch mid-pagination for emeritus/,
+  );
+  // Must not silently keep only the partial list — the throw happens before
+  // any further mutation from this malformed page.
+  assert.equal(out.length, 1);
 });

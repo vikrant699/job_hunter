@@ -4,7 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { paginate } from "./shared.js";
 
 // SmartRecruiters public Posting API.
 //   list:   GET api.smartrecruiters.com/v1/companies/<slug>/postings (paginated)
@@ -69,34 +69,30 @@ export const smartRecruitersAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const slug = company.slug;
-    const out: NormalizedPosting[] = [];
-    let offset = 0;
 
-    for (let page = 0; ; page++) {
-      const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=${PAGE_LIMIT}&offset=${offset}`;
+    return paginate<NormalizedPosting>({
+      provider: "smartrecruiters",
+      company: slug,
+      pageSize: PAGE_LIMIT,
+      fetchPage: async (offset) => {
+        const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=${PAGE_LIMIT}&offset=${offset}`;
 
-      const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
+        const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
 
-      const parsed = ListResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        logger.warn(
-          { slug, issues: parsed.error.issues.slice(0, 2) },
-          "smartrecruiters list schema mismatch"
-        );
-        throw new Error(`smartrecruiters list response failed schema for ${slug}`);
-      }
+        const parsed = ListResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+          logger.warn(
+            { slug, issues: parsed.error.issues.slice(0, 2) },
+            "smartrecruiters list schema mismatch"
+          );
+          throw new Error(`smartrecruiters list response failed schema for ${slug}`);
+        }
 
-      for (const p of parsed.data.content) {
-        out.push(normalize(company, p));
-      }
-
-      if (parsed.data.content.length < PAGE_LIMIT) break;
-      offset += PAGE_LIMIT;
-      warnDeepPagination("smartrecruiters", slug, page + 1, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
+        const items = parsed.data.content.map((p) => normalize(company, p));
+        const total = typeof parsed.data.totalFound === "number" ? parsed.data.totalFound : null;
+        return { items, total };
+      },
+    });
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

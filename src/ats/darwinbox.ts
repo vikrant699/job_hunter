@@ -48,6 +48,34 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
 const CAREERS_PATH = "/ms/candidate/careers";
 const API = (page: number) => `/ms/candidateapi/job?page=${page}&companyId=main`;
 
+/**
+ * Accumulate already-fetched darwinbox list pages (page 2+) into `out`,
+ * mutating it in place. Stops early on an empty page or once `total` is
+ * reached. Throws — rather than warning and truncating — on a schema
+ * mismatch, since a silent `break` here would return a partial list that
+ * looks complete (page 1 already throws loudly on the same mismatch, so a
+ * mid-stream one must too).
+ */
+export function mergeDarwinboxPages(
+  company: AdapterCompany,
+  out: NormalizedPosting[],
+  results: unknown[],
+  total: number,
+): void {
+  for (const raw of results) {
+    const parsed = ListSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error(
+        `darwinbox: page schema mismatch mid-pagination for ${company.slug} ` +
+        `(fetched ${out.length}/${total} so far): ${JSON.stringify(parsed.error.issues.slice(0, 2))}`,
+      );
+    }
+    if (parsed.data.message.jobs.length === 0) break;
+    for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
+    if (out.length >= total) break;
+  }
+}
+
 export const darwinboxAdapter: AtsAdapter = {
   provider: "darwinbox",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
@@ -71,21 +99,7 @@ export const darwinboxAdapter: AtsAdapter = {
       if (pagesNeeded >= 2) {
         const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2));
         const results = await browserFetchJson(careersUrl, remainingApis);
-        for (const raw of results) {
-          const parsed = ListSchema.safeParse(raw);
-          if (!parsed.success) {
-            // Don't silently truncate the remaining pages — page 1 throws loudly
-            // on schema mismatch, so a mid-stream one deserves at least a warn.
-            logger.warn(
-              { slug: company.slug, fetched: out.length, total, issues: parsed.error.issues.slice(0, 2) },
-              "darwinbox: page schema mismatch mid-pagination; truncating",
-            );
-            break;
-          }
-          if (parsed.data.message.jobs.length === 0) break;
-          for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
-          if (out.length >= total) break;
-        }
+        mergeDarwinboxPages(company, out, results, total);
       }
     }
     return out;
