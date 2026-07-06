@@ -13,3 +13,17 @@ export function resolveSlug(entry: {
     return entry.source_slug;
   return kebabCase(entry.name);
 }
+
+/**
+ * The dedup/merge/prune key used across the registry pipeline:
+ * `${source}::${resolveSlug(entry)}`. Centralized so json-writer's dedup,
+ * registry/companies.ts's merge map, and its prune-diff all agree on identity
+ * (previously each derived this independently and could drift).
+ */
+export function registryKey(entry: {
+  name: string;
+  source?: string | null;
+  source_slug?: string | null;
+}): string {
+  return `${entry.source ?? "custom"}::${resolveSlug(entry)}`;
+}
