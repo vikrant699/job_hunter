@@ -5,7 +5,7 @@ filters them against your resume and deal-breakers, and pings the good matches t
 Discord channel.
 
 You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
-~1,300-company registry takes several hours — most of it waiting on the local LLM and on
+~1,300-company registry takes several hours - most of it waiting on the local LLM and on
 slow JavaScript-rendered careers pages. Incremental runs (most postings already seen and
 deduped from earlier runs) finish much faster.
 
@@ -88,7 +88,7 @@ per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (th
 | | |
 |---|---|
 | `npm run once` | The main thing. One full sweep: fetch postings, filter, notify Discord, post an end-of-run report + CSV. Add `-- --profile <name>` for a named profile. Does **not** run discovery. |
-| `npm run discover` | Discovery only — a separate step. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
+| `npm run discover` | Discovery only - a separate step. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
 | `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
@@ -122,7 +122,7 @@ the posting against your full resume text. The verdict is tri-state: green if th
 score clears your threshold with no soft hits, yellow for borderline matches or soft
 hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow both go
 to Discord with different sidebar colors. Silent drops are still logged to the SQLite
-DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` — titles
+DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` - titles
 that are floored to yellow instead of silenced even at a low score (for a rare
 sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
 
@@ -131,7 +131,7 @@ scanned, postings seen, new postings, green/yellow counts, duration, and any err
 with `searched-<date>.csv` attached. That CSV has one row per matched posting (job
 title, link, score, green/yellow tier, reason) followed by one row per company that
 errored, is stuck on `manual`, or looks like a silently-failing scrape (a fragile
-scraper that returned zero) — each with the reason to fix.
+scraper that returned zero) - each with the reason to fix.
 
 While a run is in flight, a progress heartbeat is posted every 15 minutes to the
 separate `DISCORD_PROGRESS_WEBHOOK_URL` channel (companies scanned out of total, jobs
@@ -221,7 +221,7 @@ simplest existing example. The contract:
 After writing the adapter:
 
 1. Register it in `src/ats/registry.ts` under `ATS_ADAPTERS`.
-2. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` — the
+2. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` - the
    `Provider` type is inferred from it, so that one edit covers both the type and the
    runtime validation the registry loader runs.
 

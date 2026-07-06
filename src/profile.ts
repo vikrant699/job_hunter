@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { UserProfileSchema } from "./schemas.js";
+import { UserProfileSchema, SILENT_SCORE_FLOOR } from "./schemas.js";
 import type { UserProfile } from "./types.js";
 import { ensureResumeText } from "./tools/extract-resume.js";
 
@@ -41,8 +41,25 @@ const userPath = useNamed ? namedProfile : existsSync(defaultProfile) ? defaultP
 const resumeDir = useNamed ? namedDir : resolve(here, "../config");
 const usingExample = userPath === examplePath;
 
+// If matchThreshold sits at or below the silent floor, the yellow band inverts:
+// classifyVerdict would silently drop everything below the floor (correct) but
+// then treat matchThreshold as unreachable-or-below-floor, so nothing above the
+// floor is ever classified green either. Fail loudly at load time instead of
+// producing a run that silences (almost) everything.
+export function assertMatchThresholdAboveFloor(matchThreshold: number): void {
+  if (matchThreshold <= SILENT_SCORE_FLOOR) {
+    throw new Error(
+      `[profile] filters.matchThreshold (${matchThreshold}) must be greater than ` +
+        `SILENT_SCORE_FLOOR (${SILENT_SCORE_FLOOR}) — otherwise the yellow band inverts and green ` +
+        "verdicts become unreachable. Raise matchThreshold above the floor in your profile config.",
+    );
+  }
+}
+
 const ProfileModuleSchema = z.object({ profile: UserProfileSchema });
 const mod = ProfileModuleSchema.parse(await import(pathToFileURL(userPath).href));
+assertMatchThresholdAboveFloor(mod.profile.filters.matchThreshold);
+
 const resumeText = await ensureResumeText(resumeDir);
 export const profile: UserProfile = { ...mod.profile, id: profileName, resumeText };
 

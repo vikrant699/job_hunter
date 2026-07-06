@@ -15,6 +15,7 @@ function ctxWith(
     postingsYellow: 0,
     postingsTitleDenied: 0,
     postingsDuplicated: 0,
+    jdFetchFailed: 0,
     errors: [],
     priorNotifyKeys: new Set(),
     seenNotifyKeys: new Set(),

@@ -1,5 +1,5 @@
 import { profile } from "../profile.js";
-import { NOISE_DENYLIST_SLUGS } from "./noise-denylist.js";
+import { NOISE_DENYLIST_SLUGS, isNoiseSlug } from "./noise-denylist.js";
 
 /**
  * Cheap pre-filter: is this company on the user's services/staffing denylist, or
@@ -10,9 +10,8 @@ export function isDeniedCompany(name: string, slug: string): { denied: boolean; 
   const slugLc = slug.toLowerCase();
 
   // Confirmed-noise removals — block re-discovery of companies we deleted.
-  const noise = NOISE_DENYLIST_SLUGS[slugLc];
-  if (noise) {
-    return { denied: true, reason: `noise:${noise}` };
+  if (isNoiseSlug(slugLc)) {
+    return { denied: true, reason: `noise:${NOISE_DENYLIST_SLUGS[slugLc]}` };
   }
 
   for (const frag of profile.servicesDenylist.slugFragments) {

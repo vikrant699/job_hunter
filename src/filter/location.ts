@@ -16,7 +16,6 @@ export interface LocationConfig {
 
 export interface LocationCheck {
   accept: boolean;
-  isRemoteInRegion: boolean;
   reason: string;
 }
 
@@ -69,30 +68,26 @@ export function checkLocation(
   cfg: LocationConfig = profile.location,
 ): LocationCheck {
   if (!location) {
-    return { accept: false, isRemoteInRegion: false, reason: "no-location" };
+    return { accept: false, reason: "no-location" };
   }
   const lc = location.toLowerCase();
   const re = compile(cfg);
 
   if (re.reject.test(lc)) {
-    return { accept: false, isRemoteInRegion: false, reason: "geo-rejected" };
+    return { accept: false, reason: "geo-rejected" };
   }
   // Foreign place name rejects only when no in-region signal sits beside it —
   // multi-location postings ("Bengaluru, India; New York, NY") must survive.
   if (re.rejectRegions.test(lc) && !(re.city.test(lc) || re.country.test(lc))) {
-    return { accept: false, isRemoteInRegion: false, reason: "geo-rejected" };
+    return { accept: false, reason: "geo-rejected" };
   }
   if (re.remote.test(lc)) {
-    return { accept: true, isRemoteInRegion: true, reason: "remote-accept" };
+    return { accept: true, reason: "remote-accept" };
   }
   if (re.country.test(lc) || re.city.test(lc)) {
-    return {
-      accept: true,
-      isRemoteInRegion: isRemote,
-      reason: isRemote ? "in-region-remote" : "in-region",
-    };
+    return { accept: true, reason: isRemote ? "in-region-remote" : "in-region" };
   }
-  return { accept: false, isRemoteInRegion: false, reason: "out-of-region" };
+  return { accept: false, reason: "out-of-region" };
 }
 
 /**
@@ -116,22 +111,22 @@ export function checkLocationFromText(
   const t = (title ?? "").toLowerCase();
   const head = (jdText ?? "").slice(0, 2000).toLowerCase();
   if (!t.trim() && !head.trim()) {
-    return { accept: true, isRemoteInRegion: false, reason: "no-text-defer" };
+    return { accept: true, reason: "no-text-defer" };
   }
   const both = `${t}\n${head}`;
   const re = compile(cfg);
 
   if (re.reject.test(both)) {
-    return { accept: false, isRemoteInRegion: false, reason: "geo-rejected" };
+    return { accept: false, reason: "geo-rejected" };
   }
   if (re.rejectRegions.test(t) && !(re.country.test(t) || re.city.test(t))) {
-    return { accept: false, isRemoteInRegion: false, reason: "geo-rejected-title" };
+    return { accept: false, reason: "geo-rejected-title" };
   }
   if (re.remote.test(both)) {
-    return { accept: true, isRemoteInRegion: true, reason: "remote-accept-text" };
+    return { accept: true, reason: "remote-accept-text" };
   }
   if (re.country.test(both) || re.city.test(both)) {
-    return { accept: true, isRemoteInRegion: false, reason: "in-region-text" };
+    return { accept: true, reason: "in-region-text" };
   }
-  return { accept: true, isRemoteInRegion: false, reason: "unknown-defer" };
+  return { accept: true, reason: "unknown-defer" };
 }

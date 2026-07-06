@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/**
+ * Lower bound below which we treat the gate's match score as noise and silently
+ * drop the posting (see classifyVerdict in filter/verdict.ts). Lives here (a
+ * neutral, import-free module) rather than in verdict.ts so profile.ts can
+ * validate `filters.matchThreshold` against it at load time without creating a
+ * profile.ts <-> verdict.ts import cycle (verdict.ts imports profile.ts for
+ * filter config). verdict.ts re-exports this constant for back-compat.
+ */
+export const SILENT_SCORE_FLOOR = 0.65;
+
 export const ProviderSchema = z.enum([
   "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
   "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "greythr", "custom",

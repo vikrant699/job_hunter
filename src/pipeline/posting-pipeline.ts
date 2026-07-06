@@ -79,6 +79,7 @@ export async function processOnePosting(
     try {
       posting.jdText = await adapter.fetchJd(adapterCompany, posting);
     } catch (err) {
+      stats.jdFetchFailed++;
       logger.warn(
         { company: company.name, externalId: posting.externalId, err: String(err) },
         "fetchJd failed; skipping",
