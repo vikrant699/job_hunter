@@ -16,8 +16,12 @@ interface WorkdayUrlPartsForFacet {
 function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
   if (typeof node !== "object" || node === null || Array.isArray(node)) return null;
 
-  // Pick the most specific param name available on THIS node.
-  const paramRaw = node["facetParameter"] ?? node["id"];
+  // Pick the most specific param name available on THIS node. `nodeId` is the
+  // facet-node's own id (e.g. "Country_Region") — a fallback only used when
+  // the node has no explicit facetParameter; distinct from the leaf value id
+  // (valueId, below) which identifies the specific facet *value* to select.
+  const nodeId = node["id"];
+  const paramRaw = node["facetParameter"] ?? nodeId;
   const param = typeof paramRaw === "string" ? paramRaw : null;
 
   const valuesRaw = node["values"];
@@ -30,13 +34,13 @@ function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
     for (const v of valuesRaw) {
       if (typeof v !== "object" || v === null || Array.isArray(v)) continue;
       const descriptor = v["descriptor"];
-      const id = v["id"];
+      const valueId = v["id"];
       if (
         typeof descriptor === "string" &&
-        typeof id === "string" &&
+        typeof valueId === "string" &&
         /^\s*india\s*$/i.test(descriptor)
       ) {
-        return { param, uuid: id };
+        return { param, uuid: valueId };
       }
     }
   }

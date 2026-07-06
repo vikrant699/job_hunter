@@ -5,7 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { REMOTE_RE, paginate } from "./shared.js";
 
 // Oracle HCM Cloud Recruiting (CE) public REST API:
 //   list:   <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitions
@@ -50,31 +50,28 @@ export const oracleAdapter: AtsAdapter = {
   provider: "oracle",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const { base, site } = parts(company);
-    const out: NormalizedPosting[] = [];
-    let offset = 0;
-    let total: number | null = null;
-    for (let page = 0; ; page++) {
-      const url =
-        `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
-        `?onlyData=true&expand=requisitionList.secondaryLocations` +
-        `&finder=findReqs;siteNumber=${encodeURIComponent(site)}&limit=${PAGE}&offset=${offset}`;
-      const raw = await atsFetchJson(url, { provider: "oracle" });
-      const parsed = ListSchema.safeParse(raw);
-      if (!parsed.success) {
-        logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "oracle list schema mismatch");
-        throw new Error(`oracle list failed schema for ${company.slug}`);
-      }
-      const item = parsed.data.items[0];
-      const reqs = item?.requisitionList ?? [];
-      for (const r of reqs) out.push(normalizeOracle(company, r));
-      if (total === null && typeof item?.TotalJobsCount === "number") total = item.TotalJobsCount;
-      if (reqs.length < PAGE) break;
-      offset += PAGE;
-      if (total !== null && offset >= total) break;
-      warnDeepPagination("oracle", company.slug, page + 1, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "oracle",
+      company: company.slug,
+      pageSize: PAGE,
+      fetchPage: async (offset) => {
+        const url =
+          `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
+          `?onlyData=true&expand=requisitionList.secondaryLocations` +
+          `&finder=findReqs;siteNumber=${encodeURIComponent(site)}&limit=${PAGE}&offset=${offset}`;
+        const raw = await atsFetchJson(url, { provider: "oracle" });
+        const parsed = ListSchema.safeParse(raw);
+        if (!parsed.success) {
+          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "oracle list schema mismatch");
+          throw new Error(`oracle list failed schema for ${company.slug}`);
+        }
+        const item = parsed.data.items[0];
+        const reqs = item?.requisitionList ?? [];
+        const items = reqs.map((r) => normalizeOracle(company, r));
+        const total = typeof item?.TotalJobsCount === "number" ? item.TotalJobsCount : null;
+        return { items, total };
+      },
+    });
   },
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const { base, site } = parts(company);

@@ -4,7 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, parsePostedOn, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
 import { discoverIndiaFacet } from "./workday-facet.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
@@ -74,8 +74,9 @@ export const workdayAdapter: AtsAdapter = {
     const listUrl = `${parts.cxsBase}/jobs`;
 
     // Probe for an India country facet. Most tenants expose it; legacy ones may
-    // not — in that case we paginate unfiltered and the downstream location
-    // filter handles India detection from the locationsText.
+    // not — in that case we paginate unfiltered (bounded by the pagination cap
+    // below) and the downstream location filter handles India detection from
+    // the locationsText.
     const indiaFacet = await discoverIndiaFacet(parts);
     const appliedFacets: Record<string, string[]> = indiaFacet
       ? { [indiaFacet.param]: [indiaFacet.uuid] }
@@ -92,46 +93,35 @@ export const workdayAdapter: AtsAdapter = {
       );
     }
 
-    const out: NormalizedPosting[] = [];
-    let offset = 0;
-    let totalReported: number | null = null;
+    // Caterpillar (and some others) report `total` correctly only on the
+    // first page; `paginate` latches the first non-zero value it sees and
+    // uses it to terminate even when later pages keep returning PAGE_LIMIT
+    // jobs past the real end.
+    return paginate<NormalizedPosting>({
+      provider: "workday",
+      company: company.slug,
+      pageSize: PAGE_LIMIT,
+      fetchPage: async (offset) => {
+        const data = await atsFetchJson(listUrl, {
+          method: "POST",
+          body: { appliedFacets, limit: PAGE_LIMIT, offset, searchText: "" },
+          provider: "workday",
+        });
 
-    for (let page = 0; ; page++) {
-      const data = await atsFetchJson(listUrl, {
-        method: "POST",
-        body: { appliedFacets, limit: PAGE_LIMIT, offset, searchText: "" },
-        provider: "workday",
-      });
+        const parsed = WorkdayListResponseSchema.safeParse(data);
+        if (!parsed.success) {
+          logger.warn(
+            { company: company.slug, issues: parsed.error.issues.slice(0, 2) },
+            "workday list schema mismatch"
+          );
+          throw new Error(`workday list response failed schema for ${company.slug}`);
+        }
 
-      const parsed = WorkdayListResponseSchema.safeParse(data);
-      if (!parsed.success) {
-        logger.warn(
-          { company: company.slug, issues: parsed.error.issues.slice(0, 2) },
-          "workday list schema mismatch"
-        );
-        throw new Error(`workday list response failed schema for ${company.slug}`);
-      }
-
-      for (const j of parsed.data.jobPostings) {
-        out.push(normalizeListing(company, parts, j));
-      }
-
-      // Caterpillar (and some others) report `total` correctly only on the
-      // first page. Capture once, then use it to terminate even when later
-      // pages keep returning PAGE_LIMIT jobs past the real end.
-      if (totalReported === null && typeof parsed.data.total === "number" && parsed.data.total > 0) {
-        totalReported = parsed.data.total;
-      }
-
-      if (parsed.data.jobPostings.length === 0) break;
-      if (parsed.data.jobPostings.length < PAGE_LIMIT) break;
-      offset += PAGE_LIMIT;
-      if (totalReported !== null && offset >= totalReported) break;
-      warnDeepPagination("workday", company.slug, page + 1, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
+        const items = parsed.data.jobPostings.map((j) => normalizeListing(company, parts, j));
+        const total = typeof parsed.data.total === "number" && parsed.data.total > 0 ? parsed.data.total : null;
+        return { items, total };
+      },
+    });
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

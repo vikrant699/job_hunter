@@ -5,7 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, unixToIso, sleep, warnDeepPagination, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 
 // Eightfold public API:
 //   list:   GET <host>/api/apply/v2/jobs?domain=<domain>&start=&num=   -> {positions[],count}
@@ -45,26 +45,23 @@ export const eightfoldAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const host = hostOf(company);
     const domain = domainOf(company);
-    const out: NormalizedPosting[] = [];
-    let start = 0;
-    let total: number | null = null;
-    for (let page = 0; ; page++) {
-      const url = `https://${host}/api/apply/v2/jobs?domain=${encodeURIComponent(domain)}&start=${start}&num=${PAGE}&sort_by=relevance`;
-      const raw = await atsFetchJson(url, { provider: "eightfold" });
-      const parsed = ListSchema.safeParse(raw);
-      if (!parsed.success) {
-        logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "eightfold list schema mismatch");
-        throw new Error(`eightfold list failed schema for ${company.slug}`);
-      }
-      for (const p of parsed.data.positions) out.push(normalizeEightfold(company, p));
-      if (total === null && typeof parsed.data.count === "number") total = parsed.data.count;
-      if (parsed.data.positions.length < PAGE) break;
-      start += PAGE;
-      if (total !== null && start >= total) break;
-      warnDeepPagination("eightfold", company.slug, page + 1, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "eightfold",
+      company: company.slug,
+      pageSize: PAGE,
+      fetchPage: async (start) => {
+        const url = `https://${host}/api/apply/v2/jobs?domain=${encodeURIComponent(domain)}&start=${start}&num=${PAGE}&sort_by=relevance`;
+        const raw = await atsFetchJson(url, { provider: "eightfold" });
+        const parsed = ListSchema.safeParse(raw);
+        if (!parsed.success) {
+          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "eightfold list schema mismatch");
+          throw new Error(`eightfold list failed schema for ${company.slug}`);
+        }
+        const items = parsed.data.positions.map((p) => normalizeEightfold(company, p));
+        const total = typeof parsed.data.count === "number" ? parsed.data.count : null;
+        return { items, total };
+      },
+    });
   },
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const host = hostOf(company);

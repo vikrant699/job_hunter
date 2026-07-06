@@ -5,7 +5,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { REMOTE_RE, paginate } from "./shared.js";
 
 const PAGE = 50;
 
@@ -68,34 +68,36 @@ export const phenomAdapter: AtsAdapter = {
   provider: "phenom",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     if (!company.tenantUrl) throw new Error(`phenom requires tenant_url (search URL) for ${company.slug}`);
-    const out: NormalizedPosting[] = [];
-    let from = 0;
-    let total: number | null = null;
-    for (let page = 0; ; page++) {
-      const sep = company.tenantUrl.includes("?") ? "&" : "?";
-      const url = `${company.tenantUrl}${sep}from=${from}&size=${PAGE}`;
-      const html = await atsFetchText(url, { provider: "phenom" });
-      const ddo = extractPhenomDdo(html);
-      if (!ddo) {
-        if (page === 0) throw new Error(`phenom: no phApp.ddo island for ${company.slug}`);
-        break;
-      }
-      const { jobs, totalHits } = phenomJobsFrom(ddo);
-      for (const raw of jobs) {
-        const parsed = PhenomJobSchema.safeParse(raw);
-        // Skip postings with no stable id — they'd collide on the
-        // (provider, external_id) dedup key as empty strings.
-        if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
-          out.push(normalizePhenom(company, parsed.data));
+    const tenantUrl = company.tenantUrl;
+
+    return paginate<NormalizedPosting>({
+      provider: "phenom",
+      company: company.slug,
+      pageSize: PAGE,
+      // The server may cap a page below `size` without that meaning "last
+      // page" — only a zero-item page or reaching `totalHits` ends pagination.
+      shortPageEndsPagination: false,
+      fetchPage: async (from, page) => {
+        const sep = tenantUrl.includes("?") ? "&" : "?";
+        const url = `${tenantUrl}${sep}from=${from}&size=${PAGE}`;
+        const html = await atsFetchText(url, { provider: "phenom" });
+        const ddo = extractPhenomDdo(html);
+        if (!ddo) {
+          if (page === 0) throw new Error(`phenom: no phApp.ddo island for ${company.slug}`);
+          return { items: [], total: null };
         }
-      }
-      if (total === null) total = totalHits;
-      if (jobs.length === 0) break;
-      from += jobs.length;          // advance by actual count (server may cap size)
-      if (total !== null && from >= total) break; // strict null-check: total=0 must still bound the loop
-      if (page > 200) break;        // safety
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-    return out;
+        const { jobs, totalHits } = phenomJobsFrom(ddo);
+        const items: NormalizedPosting[] = [];
+        for (const raw of jobs) {
+          const parsed = PhenomJobSchema.safeParse(raw);
+          // Skip postings with no stable id — they'd collide on the
+          // (provider, external_id) dedup key as empty strings.
+          if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
+            items.push(normalizePhenom(company, parsed.data));
+          }
+        }
+        return { items, total: totalHits, rawCount: jobs.length };
+      },
+    });
   },
 };
