@@ -10,6 +10,7 @@
  * into ats-api vs llm-scrape strategies.
  */
 import { config } from "../src/config.js";
+import { probeWithTimeout } from "../src/util/probe.js";
 
 const PROBES: Array<{ provider: string; url: (slug: string) => string }> = [
   {
@@ -27,28 +28,17 @@ const PROBES: Array<{ provider: string; url: (slug: string) => string }> = [
 ];
 
 async function probeUrl(url: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8_000);
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (!res.ok) return false;
-      // Validate response body looks right — some boards return 200 with empty/redirect.
-      const text = await res.text();
-      if (text.length < 10) return false;
-      // Quick sniff for a real job board response (avoid HTML error pages).
-      const lc = text.slice(0, 200).toLowerCase();
-      if (lc.includes("<!doctype") || lc.includes("<html")) return false;
-      return true;
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    return false;
-  }
+  const res = await probeWithTimeout(url, {
+    timeoutMs: 8_000,
+    headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
+  });
+  if (!res.ok) return false;
+  // Validate response body looks right — some boards return 200 with empty/redirect.
+  if (res.body.length < 10) return false;
+  // Quick sniff for a real job board response (avoid HTML error pages).
+  const lc = res.body.slice(0, 200).toLowerCase();
+  if (lc.includes("<!doctype") || lc.includes("<html")) return false;
+  return true;
 }
 
 export function slugVariants(name: string): string[] {

@@ -6,6 +6,7 @@ import { analyzeCareersPage } from "../src/scraper/page-signals.js";
 import type { Company } from "../src/types.js";
 import type { RegistryEntry } from "../src/schemas.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
+import { probeWithTimeout } from "../src/util/probe.js";
 
 // Manual URL-repair (npm run repair-urls). For every company whose last
 // fetch failed with a "URL looks wrong" error, tries same-origin path
@@ -62,33 +63,23 @@ function isCareersLanding(requestedUrl: string, finalUrl: string, html: string):
 }
 
 async function probeUrl(url: string): Promise<ProbeResult> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PER_CHECK_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent": BROWSER_UA,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    });
-    // res.url is the post-redirect URL — record where we actually landed, not
-    // the candidate we guessed, so repairs persist the real destination.
-    const finalUrl = res.url || url;
-    if (!res.ok) return { url: finalUrl, ok: false, status: res.status };
-    if (PARKED_RE.test(finalUrl)) return { url: finalUrl, ok: false, status: res.status };
-    let html = "";
-    try { html = await res.text(); } catch { /* body read failed — treat as unverifiable */ }
-    if (!isCareersLanding(url, finalUrl, html)) return { url: finalUrl, ok: false, status: res.status };
-    return { url: finalUrl, ok: true, status: res.status };
-  } catch {
-    return { url, ok: false, status: null };
-  } finally {
-    clearTimeout(timer);
-  }
+  const res = await probeWithTimeout(url, {
+    timeoutMs: PER_CHECK_TIMEOUT_MS,
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  // A status of 0 means the request itself failed (network/timeout/abort).
+  if (res.status === 0) return { url, ok: false, status: null };
+  // res.finalUrl is the post-redirect URL — record where we actually landed,
+  // not the candidate we guessed, so repairs persist the real destination.
+  const finalUrl = res.finalUrl;
+  if (!res.ok) return { url: finalUrl, ok: false, status: res.status };
+  if (PARKED_RE.test(finalUrl)) return { url: finalUrl, ok: false, status: res.status };
+  if (!isCareersLanding(url, finalUrl, res.body)) return { url: finalUrl, ok: false, status: res.status };
+  return { url: finalUrl, ok: true, status: res.status };
 }
 
 // Distinguishes a "fixable URL" error from "site up but bot-blocked us" —

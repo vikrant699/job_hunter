@@ -6,6 +6,7 @@ import { config } from "../src/config.js";
 import { RegistryEntrySchema, type RegistryEntry } from "../src/schemas.js";
 import { probeOne } from "./slug-probe.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
+import { probeWithTimeout } from "../src/util/probe.js";
 
 interface Probe {
   url: string;
@@ -53,53 +54,30 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
 }
 
 async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          "User-Agent": BROWSER_UA,
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-        },
-        redirect: "follow",
-        signal: controller.signal,
-      });
-      // ok (2xx, post-redirect) or 403 = page exists but bot-blocks GETs.
-      // 404/410 means the careers page is actually gone — that's the point
-      // of this script, so don't paper over it.
-      return res.ok || res.status === 403;
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    return false;
-  }
+  const res = await probeWithTimeout(url, {
+    timeoutMs,
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+  });
+  // ok (2xx, post-redirect) or 403 = page exists but bot-blocks GETs.
+  // 404/410 means the careers page is actually gone — that's the point
+  // of this script, so don't paper over it.
+  return res.ok || res.status === 403;
 }
 
 async function probeAtsBody(url: string): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10_000);
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-        signal: controller.signal,
-      });
-      if (!res.ok) return false;
-      const text = await res.text();
-      if (text.length < 10) return false;
-      const lc = text.slice(0, 200).toLowerCase();
-      if (lc.includes("<!doctype") || lc.includes("<html")) return false;
-      return true;
-    } finally {
-      clearTimeout(timer);
-    }
-  } catch {
-    return false;
-  }
+  const res = await probeWithTimeout(url, {
+    timeoutMs: 10_000,
+    headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
+  });
+  if (!res.ok) return false;
+  if (res.body.length < 10) return false;
+  const lc = res.body.slice(0, 200).toLowerCase();
+  if (lc.includes("<!doctype") || lc.includes("<html")) return false;
+  return true;
 }
 
 async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result> {
