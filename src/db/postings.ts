@@ -2,6 +2,7 @@ import { type SQLInputValue } from "node:sqlite";
 import { z } from "zod";
 import type { NormalizedPosting } from "../types.js";
 import type { Provider } from "../schemas.js";
+import { ProviderSchema } from "../schemas.js";
 import { db, queryAll } from "./db.js";
 
 /* ===== Statements ===== */
@@ -156,5 +157,65 @@ export function listNotifiedPostingsSince(sinceIso: string, profileId: string): 
     score: r.llm_confidence,
     tier: r.drop_stage === "yellow" ? "yellow" : "green",
     reason: r.llm_reason ?? "",
+  }));
+}
+
+/* ===== selectNotifiedPostingsSince ===== */
+
+const SeveritySchema = z.enum(["green", "yellow"]);
+export type OutreachSeverity = z.infer<typeof SeveritySchema>;
+
+const OutreachNotifiedPostingRowSchema = z.object({
+  provider: ProviderSchema,
+  company: z.string().nullable(),
+  company_slug: z.string(),
+  job_title: z.string().nullable(),
+  job_url: z.string(),
+  location: z.string().nullable(),
+  llm_confidence: z.number().nullable(),
+  drop_stage: z.string().nullable(),
+});
+
+export interface OutreachNotifiedPosting {
+  provider: Provider;
+  company: string;
+  companySlug: string;
+  jobTitle: string;
+  jobUrl: string;
+  location: string | null;
+  llmConfidence: number | null;
+  severity: OutreachSeverity;
+}
+
+// Notified postings for outreach: drop_stage NULL -> green, drop_stage 'yellow'
+// -> yellow (the only two drop_stage values a notified row can carry). Company
+// DISPLAY name comes from a join since postings only stores the slug.
+const selectNotifiedPostingsSinceStmt = db.prepare(`
+  SELECT p.provider, c.name AS company, p.company_slug, p.job_title, p.job_url,
+         p.location, p.llm_confidence, p.drop_stage
+  FROM postings p
+  LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
+  WHERE p.notified_at IS NOT NULL
+    AND p.notified_at >= :sinceIso
+    AND p.profile_id = :profileId
+`);
+
+/** Every posting notified since `sinceIso` for `profileId`, joined to the
+ *  company's display name (falls back to the slug when no company row
+ *  exists). Feeds the post-run outreach draft stage. */
+export function selectNotifiedPostingsSince(sinceIso: string, profileId: string): OutreachNotifiedPosting[] {
+  const rows = queryAll(selectNotifiedPostingsSinceStmt, OutreachNotifiedPostingRowSchema, {
+    sinceIso,
+    profileId,
+  });
+  return rows.map((r) => ({
+    provider: r.provider,
+    company: r.company ?? r.company_slug,
+    companySlug: r.company_slug,
+    jobTitle: r.job_title ?? "",
+    jobUrl: r.job_url,
+    location: r.location,
+    llmConfidence: r.llm_confidence,
+    severity: r.drop_stage === "yellow" ? "yellow" : "green",
   }));
 }

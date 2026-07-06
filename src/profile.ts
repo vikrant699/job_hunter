@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
@@ -62,6 +62,11 @@ assertMatchThresholdAboveFloor(mod.profile.filters.matchThreshold);
 
 const resumeText = await ensureResumeText(resumeDir);
 export const profile: UserProfile = { ...mod.profile, id: profileName, resumeText };
+
+/** Absolute path to this profile's resume PDF (config/resume.pdf for the
+ *  default profile, config/profiles/<name>/resume.pdf for a named one).
+ *  Same base directory ensureResumeText already used for resume.txt. */
+export const resumePdfPath: string = join(resumeDir, "resume.pdf");
 
 if (usingExample) {
   // Logged before pino is fully configured — use stderr so it's visible even
