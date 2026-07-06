@@ -140,6 +140,28 @@ test("re-sync never un-verifies or wipes verified_at for a contact already marke
   assert.equal(row.status, "bounced");
 });
 
+test("a bounced contact still present in the manual Recruiters List tab is NOT resurrected to verified", async () => {
+  const email = uniqueEmail("bounced-manual");
+  const readTab = mkReadTab({
+    [config.google.tabs.recruiters]: [
+      ["Company", "Name", "Phone", "Email", "Source", "Verified On", "Registry Slug"],
+      ["Zombie Corp", "Zed", "", email, "", "", ""],
+    ],
+    [config.google.tabs.rawData]: [["company", "email", "contact_name", "alt_names", "flags", "seen"]],
+  });
+
+  await syncContactsFromSheet("default", { readTab });
+  const bouncedAt = new Date().toISOString();
+  setRecruiterStatus(email, "bounced", bouncedAt);
+
+  // The stale manual row re-imports as 'verified' — bounced must win.
+  await syncContactsFromSheet("default", { readTab });
+
+  const row = selectAllRecruiters().find((r) => r.email === email);
+  assert.ok(row);
+  assert.equal(row.status, "bounced");
+});
+
 test("syncContactsFromSheet returns 0/0 for header-only tabs", async () => {
   const readTab = mkReadTab({
     [config.google.tabs.recruiters]: [["Company", "Name", "Phone", "Email", "Source", "Verified On", "Registry Slug"]],

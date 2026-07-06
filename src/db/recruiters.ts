@@ -58,12 +58,15 @@ function rowToRecruiter(r: RecruiterDbRow): RecruiterRow {
 
 /* ===== Statements ===== */
 
-// Upsert never DOWNGRADES bot-managed fields: status only moves to the incoming
-// value when the incoming status is NOT 'unverified' (i.e. a plain re-import,
-// which always proposes 'unverified' for raw-csv or 'verified' for manual-sheet,
-// can upgrade unverified -> verified/bounced-preserving but never overwrite an
-// existing verified/bounced row back down to unverified). verified_at follows
-// the same rule so a re-import can't wipe the original verification timestamp.
+// Upsert never DOWNGRADES bot-managed fields. Two rules, in priority order:
+//   1. 'bounced' is terminal against imports — a dead address stays dead even if
+//      it still sits in the manual Recruiters List tab (which imports rows as
+//      'verified'; without this rule the next sync would resurrect it and the
+//      bot would draft to a known-bouncing mailbox). Only setRecruiterStatus
+//      (the verify pipeline) can move a row out of 'bounced'.
+//   2. An incoming 'unverified' (raw-csv re-import) never overwrites an existing
+//      verified/bounced status.
+// verified_at follows the same rules so re-imports can't wipe the timestamp.
 const upsertRecruiterStmt = db.prepare(`
   INSERT INTO recruiters (
     email, company, company_norm, alt_names_norm, contact_name, phone,
@@ -82,10 +85,12 @@ const upsertRecruiterStmt = db.prepare(`
     registry_provider = excluded.registry_provider,
     registry_slug     = excluded.registry_slug,
     status            = CASE
+                           WHEN recruiters.status = 'bounced' THEN recruiters.status
                            WHEN excluded.status = 'unverified' THEN recruiters.status
                            ELSE excluded.status
                          END,
     verified_at       = CASE
+                           WHEN recruiters.status = 'bounced' THEN recruiters.verified_at
                            WHEN excluded.status = 'unverified' THEN recruiters.verified_at
                            ELSE excluded.verified_at
                          END
@@ -108,8 +113,9 @@ export interface UpsertRecruiterInput {
 }
 
 /** Insert or refresh a recruiter contact. Never downgrades `status`/`verified_at`
- *  on re-import: an incoming 'unverified' status leaves an existing verified or
- *  bounced row's status (and verified_at) untouched. All other fields refresh. */
+ *  on re-import: an existing 'bounced' row keeps its status even against an
+ *  incoming 'verified' (stale manual-sheet row), and an incoming 'unverified'
+ *  never overwrites verified/bounced. All other fields refresh. */
 export function upsertRecruiter(row: UpsertRecruiterInput): void {
   upsertRecruiterStmt.run({ ...row, email: row.email.toLowerCase() });
 }
