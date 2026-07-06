@@ -36,8 +36,17 @@ export async function atsFetchJson(
   }
 }
 
-/** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
-export async function atsFetchText(url: string, opts: { provider?: string } = {}): Promise<string> {
+export interface AtsFetchedHtml {
+  finalUrl: string;
+  html: string;
+}
+
+/**
+ * Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom),
+ * also capturing the post-redirect URL. Same timeout/UA/error semantics as
+ * atsFetchJson.
+ */
+export async function atsFetchHtml(url: string, opts: { provider?: string } = {}): Promise<AtsFetchedHtml> {
   const provider = opts.provider ?? "ats";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
@@ -48,8 +57,15 @@ export async function atsFetchText(url: string, opts: { provider?: string } = {}
       signal: controller.signal,
     });
     if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
-    return await res.text();
+    const html = await res.text();
+    return { finalUrl: res.url || url, html };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
+export async function atsFetchText(url: string, opts: { provider?: string } = {}): Promise<string> {
+  const { html } = await atsFetchHtml(url, opts);
+  return html;
 }
