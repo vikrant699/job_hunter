@@ -8,6 +8,7 @@ import {
   insertUndrafted,
   selectUndraftedByRun,
   selectUndraftedByRunDate,
+  selectOutreachSentTab,
 } from "./outreach.js";
 
 function mkEmail(tag: string): string {
@@ -157,4 +158,31 @@ test("selectUndraftedByRunDate filters by run_date and profile_id", () => {
   const rows = selectUndraftedByRunDate(runDate, "profX");
   assert.ok(rows.some((r) => r.company === "DateFilter Co"));
   assert.ok(!rows.some((r) => r.company === "OtherProfile Co"));
+});
+
+test("selectOutreachSentTab returns sent/bounced/verified rows across all profiles, newest sent_at first", () => {
+  const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const older = new Date(Date.now() - 20_000).toISOString();
+  const newer = new Date(Date.now() - 5_000).toISOString();
+  const newest = new Date().toISOString();
+
+  const idDraft = insertOutreach(baseRow({ recruiterEmail: mkEmail(`sent-tab-draft-${tag}`), status: "draft" }));
+  const idSent = insertOutreach(
+    baseRow({ recruiterEmail: mkEmail(`sent-tab-sent-${tag}`), status: "sent", profileId: `sent-tab-${tag}` }),
+  );
+  updateOutreachStatus({ id: idSent, status: "sent", sentAt: older });
+  const idBounced = insertOutreach(
+    baseRow({ recruiterEmail: mkEmail(`sent-tab-bounced-${tag}`), status: "bounced", profileId: `sent-tab-${tag}` }),
+  );
+  updateOutreachStatus({ id: idBounced, status: "bounced", sentAt: newest });
+  const idVerified = insertOutreach(
+    baseRow({ recruiterEmail: mkEmail(`sent-tab-verified-${tag}`), status: "verified", profileId: `sent-tab-${tag}` }),
+  );
+  updateOutreachStatus({ id: idVerified, status: "verified", sentAt: newer });
+
+  const rows = selectOutreachSentTab();
+  const ours = rows.filter((r) => r.id === idSent || r.id === idBounced || r.id === idVerified);
+  assert.equal(ours.length, 3);
+  assert.deepEqual(ours.map((r) => r.id), [idBounced, idVerified, idSent]);
+  assert.ok(!rows.some((r) => r.id === idDraft));
 });

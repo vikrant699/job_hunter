@@ -45,6 +45,11 @@ export const UndraftedReasonSchema = z.enum([
 ]);
 export type UndraftedReason = z.infer<typeof UndraftedReasonSchema>;
 
+/** Outreach-relevant posting severity (the only two tiers a notified posting
+ *  can carry: drop_stage NULL -> green, drop_stage 'yellow' -> yellow). */
+export const SeveritySchema = z.enum(["green", "yellow"]);
+export type Severity = z.infer<typeof SeveritySchema>;
+
 /** Registry entry as stored in JSON (seed or discovery-written working file). */
 export const RegistryEntrySchema = z.object({
   name: z.string().min(1),

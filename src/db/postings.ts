@@ -1,7 +1,7 @@
 import { type SQLInputValue } from "node:sqlite";
 import { z } from "zod";
 import type { NormalizedPosting } from "../types.js";
-import type { Provider } from "../schemas.js";
+import type { Provider, Severity } from "../schemas.js";
 import { ProviderSchema } from "../schemas.js";
 import { db, queryAll } from "./db.js";
 
@@ -162,9 +162,6 @@ export function listNotifiedPostingsSince(sinceIso: string, profileId: string): 
 
 /* ===== selectNotifiedPostingsSince ===== */
 
-const SeveritySchema = z.enum(["green", "yellow"]);
-export type OutreachSeverity = z.infer<typeof SeveritySchema>;
-
 const OutreachNotifiedPostingRowSchema = z.object({
   provider: ProviderSchema,
   company: z.string().nullable(),
@@ -184,7 +181,7 @@ export interface OutreachNotifiedPosting {
   jobUrl: string;
   location: string | null;
   llmConfidence: number | null;
-  severity: OutreachSeverity;
+  severity: Severity;
 }
 
 // Notified postings for outreach: drop_stage NULL -> green, drop_stage 'yellow'
