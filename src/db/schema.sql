@@ -75,3 +75,54 @@ CREATE TABLE IF NOT EXISTS runs (
   candidates_added  INTEGER,
   error             TEXT
 );
+
+CREATE TABLE IF NOT EXISTS recruiters (
+  email             TEXT PRIMARY KEY,          -- lowercased
+  company           TEXT NOT NULL,
+  company_norm      TEXT NOT NULL,
+  alt_names_norm    TEXT,                      -- ';'-joined normalized alt names
+  contact_name      TEXT,
+  phone             TEXT,
+  source            TEXT NOT NULL,             -- 'raw-csv' | 'manual-sheet'
+  registry_provider TEXT,
+  registry_slug     TEXT,
+  status            TEXT NOT NULL DEFAULT 'unverified',  -- unverified|verified|bounced (GLOBAL)
+  verified_at       TEXT,
+  imported_at       TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recruiters_company ON recruiters(company_norm);
+
+CREATE TABLE IF NOT EXISTS outreach (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id        TEXT NOT NULL DEFAULT 'default',
+  recruiter_email   TEXT NOT NULL,
+  company_name      TEXT NOT NULL,
+  roles_json        TEXT NOT NULL,             -- [{title, jobUrl, severity, score}]
+  run_id            INTEGER,
+  run_date          TEXT NOT NULL,             -- YYYY-MM-DD (IST)
+  gmail_draft_id    TEXT,
+  gmail_thread_id   TEXT,
+  gmail_message_id  TEXT,
+  status            TEXT NOT NULL DEFAULT 'draft', -- draft|discarded|sent|bounced|verified
+  drafted_at        TEXT NOT NULL,
+  sent_at           TEXT,
+  verified_at       TEXT,
+  last_checked_at   TEXT,
+  failure_detail    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outreach_status ON outreach(status);
+CREATE INDEX IF NOT EXISTS idx_outreach_cooldown ON outreach(recruiter_email, profile_id, drafted_at);
+
+CREATE TABLE IF NOT EXISTS undrafted (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id TEXT NOT NULL DEFAULT 'default',
+  run_id     INTEGER,
+  run_date   TEXT NOT NULL,
+  company    TEXT NOT NULL,
+  job_title  TEXT NOT NULL,
+  location   TEXT,
+  job_url    TEXT NOT NULL,
+  severity   TEXT NOT NULL,
+  score      REAL,
+  reason     TEXT NOT NULL  -- no_contact|cooldown|bounced_contact|draft_discarded
+);
