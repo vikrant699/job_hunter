@@ -42,6 +42,51 @@ function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatc
   });
 }
 
+/**
+ * A posting dropped before or during LLM scoring: llmRelevant is always 0,
+ * yoeMin/yoeMax are null unless an extract result is supplied, and it was
+ * never notified. Covers the no-jd, gate-error, hard-deal-breaker, and silent
+ * drop stages, which all share this shape and differ only in reason/
+ * confidence/dropStage/yoe.
+ */
+export function droppedResult(
+  llmReason: string,
+  dropStage: string,
+  opts: { llmConfidence?: number | null; yoeMin?: number | null; yoeMax?: number | null } = {},
+): PostingResultPatch {
+  return {
+    llmRelevant: 0,
+    llmReason,
+    llmConfidence: opts.llmConfidence ?? null,
+    yoeMin: opts.yoeMin ?? null,
+    yoeMax: opts.yoeMax ?? null,
+    dropStage,
+    notifiedAt: null,
+  };
+}
+
+/**
+ * A posting that reached a verdict (green/yellow) and either got deduped
+ * against an already-notified role this run, or was itself notified (or
+ * attempted-and-failed to notify). llmRelevant is 1 only for green.
+ */
+export function verdictResult(
+  severity: "green" | "yellow",
+  llmReason: string,
+  llmConfidence: number | null,
+  opts: { yoeMin?: number | null; yoeMax?: number | null; dropStage?: string | null; notifiedAt?: string | null } = {},
+): PostingResultPatch {
+  return {
+    llmRelevant: severity === "green" ? 1 : 0,
+    llmReason,
+    llmConfidence,
+    yoeMin: opts.yoeMin ?? null,
+    yoeMax: opts.yoeMax ?? null,
+    dropStage: opts.dropStage ?? null,
+    notifiedAt: opts.notifiedAt ?? null,
+  };
+}
+
 export async function processOnePosting(
   adapter: AtsAdapter,
   adapterCompany: AdapterCompany,
@@ -99,15 +144,7 @@ export async function processOnePosting(
   stats.postingsNew++;
 
   if (!posting.jdText) {
-    writePostingResult(posting, {
-      llmRelevant: 0,
-      llmReason: "no-jd",
-      llmConfidence: null,
-      yoeMin: null,
-      yoeMax: null,
-      dropStage: "no-jd",
-      notifiedAt: null,
-    }, stats.profileId);
+    writePostingResult(posting, droppedResult("no-jd", "no-jd"), stats.profileId);
     return;
   }
 
@@ -131,28 +168,22 @@ export async function processOnePosting(
       { company: company.name, title: posting.jobTitle, err: String(err).slice(0, 120) },
       "gate-error → stored, not notified",
     );
-    writePostingResult(posting, {
-      llmRelevant: 0,
-      llmReason: `gate-error: ${String(err).slice(0, 120)}`,
-      llmConfidence: null,
-      yoeMin: null,
-      yoeMax: null,
-      dropStage: "gate-error",
-      notifiedAt: null,
-    }, stats.profileId);
+    writePostingResult(
+      posting,
+      droppedResult(`gate-error: ${String(err).slice(0, 120)}`, "gate-error"),
+      stats.profileId,
+    );
     return;
   }
 
   if (gateResult.dealBreakerSeverity === "hard") {
-    writePostingResult(posting, {
-      llmRelevant: 0,
-      llmReason: gateResult.dealBreakerHit ?? "hard-deal-breaker",
-      llmConfidence: gateResult.matchScore,
-      yoeMin: null,
-      yoeMax: null,
-      dropStage: "hard-deal-breaker",
-      notifiedAt: null,
-    }, stats.profileId);
+    writePostingResult(
+      posting,
+      droppedResult(gateResult.dealBreakerHit ?? "hard-deal-breaker", "hard-deal-breaker", {
+        llmConfidence: gateResult.matchScore,
+      }),
+      stats.profileId,
+    );
     return;
   }
 
@@ -173,15 +204,15 @@ export async function processOnePosting(
   const verdict = classifyVerdict(gateResult, extractResult, posting.jobTitle);
 
   if (verdict.severity === "silent") {
-    writePostingResult(posting, {
-      llmRelevant: 0,
-      llmReason: verdict.reason,
-      llmConfidence: gateResult.matchScore,
-      yoeMin: extractResult?.yoeMin ?? null,
-      yoeMax: extractResult?.yoeMax ?? null,
-      dropStage: "silent",
-      notifiedAt: null,
-    }, stats.profileId);
+    writePostingResult(
+      posting,
+      droppedResult(verdict.reason, "silent", {
+        llmConfidence: gateResult.matchScore,
+        yoeMin: extractResult?.yoeMin ?? null,
+        yoeMax: extractResult?.yoeMax ?? null,
+      }),
+      stats.profileId,
+    );
     return;
   }
 
@@ -189,15 +220,16 @@ export async function processOnePosting(
   // can't both notify the same role.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
-    writePostingResult(posting, {
-      llmRelevant: verdict.severity === "green" ? 1 : 0,
-      llmReason: `duplicate: ${verdict.reason}`,
-      llmConfidence: gateResult.matchScore,
-      yoeMin: extractResult?.yoeMin ?? null,
-      yoeMax: extractResult?.yoeMax ?? null,
-      dropStage: "duplicate",
-      notifiedAt: null,
-    }, stats.profileId);
+    writePostingResult(
+      posting,
+      verdictResult(verdict.severity, `duplicate: ${verdict.reason}`, gateResult.matchScore, {
+        yoeMin: extractResult?.yoeMin ?? null,
+        yoeMax: extractResult?.yoeMax ?? null,
+        dropStage: "duplicate",
+        notifiedAt: null,
+      }),
+      stats.profileId,
+    );
     return;
   }
   stats.seenNotifyKeys.add(dupKey);
@@ -232,13 +264,14 @@ export async function processOnePosting(
     stats.errors.push(`discord ${company.slug}#${posting.externalId}: ${msg.slice(0, 100)}`);
   }
 
-  writePostingResult(posting, {
-    llmRelevant: verdict.severity === "green" ? 1 : 0,
-    llmReason: verdict.reason,
-    llmConfidence: gateResult.matchScore,
-    yoeMin: extractResult?.yoeMin ?? null,
-    yoeMax: extractResult?.yoeMax ?? null,
-    dropStage: verdict.severity === "green" ? null : "yellow",
-    notifiedAt,
-  }, stats.profileId);
+  writePostingResult(
+    posting,
+    verdictResult(verdict.severity, verdict.reason, gateResult.matchScore, {
+      yoeMin: extractResult?.yoeMin ?? null,
+      yoeMax: extractResult?.yoeMax ?? null,
+      dropStage: verdict.severity === "green" ? null : "yellow",
+      notifiedAt,
+    }),
+    stats.profileId,
+  );
 }

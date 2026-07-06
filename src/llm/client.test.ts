@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { config } from "../config.js";
-import { isConnectionError, OllamaUnavailableError, assertOllamaAvailable } from "./client.js";
+import { isConnectionError, OllamaUnavailableError, assertOllamaAvailable, generateOnce } from "./client.js";
 
 test("isConnectionError flags backend-down signatures", () => {
   for (const e of [
@@ -62,6 +62,35 @@ test("assertOllamaAvailable throws when the model is not pulled", async () => {
   );
   try {
     await assert.rejects(assertOllamaAvailable(), OllamaUnavailableError);
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("generateOnce makes exactly one HTTP call and returns the response on success", async () => {
+  let calls = 0;
+  stubFetch(async () => {
+    calls++;
+    return new Response(JSON.stringify({ response: "ok" }), { status: 200 });
+  });
+  try {
+    const out = await generateOnce("prompt");
+    assert.equal(out, "ok");
+    assert.equal(calls, 1);
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("generateOnce does not retry on failure (single attempt only)", async () => {
+  let calls = 0;
+  stubFetch(async () => {
+    calls++;
+    throw new TypeError("fetch failed");
+  });
+  try {
+    await assert.rejects(generateOnce("prompt"));
+    assert.equal(calls, 1);
   } finally {
     restoreFetch();
   }

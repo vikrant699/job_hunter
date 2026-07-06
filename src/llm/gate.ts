@@ -2,7 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { profile } from "../profile.js";
 import { render } from "./render.js";
-import { generate } from "./client.js";
+import { generate, generateOnce } from "./client.js";
 import { logger } from "../logger.js";
 import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
 
@@ -91,12 +91,20 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
     jdText: input.jdText.slice(0, config.llm.jdMaxChars),
   });
 
-  // One retry on parse failure: the model occasionally emits malformed JSON (a
-  // wrapper key or a token runaway). A fresh generation usually fixes it, and a
-  // dropped posting is a recall risk we can't afford.
+  // Up to 2 re-asks on parse failure: the model occasionally emits malformed
+  // JSON (a wrapper key or a token runaway). A fresh generation usually fixes
+  // it, and a dropped posting is a recall risk we can't afford.
+  //
+  // Worst case call count: the first attempt goes through generate(), which
+  // itself retries transport errors (config.llm.maxRetries=2 -> up to 3 HTTP
+  // calls). Each re-ask after a *parse* failure uses generateOnce() (exactly
+  // 1 HTTP call each) instead of another full transport-retry cascade, so the
+  // worst case here is 3 + 1 + 1 = 5 HTTP calls, not 9.
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 2; attempt++) {
-    const raw = await generate(prompt, { format: "json", temperature: opts.temperature });
+    const raw = attempt === 0
+      ? await generate(prompt, { format: "json", temperature: opts.temperature })
+      : await generateOnce(prompt, { format: "json", temperature: opts.temperature });
     try {
       return parseGateResponse(raw);
     } catch (err) {
