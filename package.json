@@ -14,6 +14,7 @@
     "scrape": "tsx scripts/scrape-probe.ts",
     "repair-urls": "tsx scripts/repair-urls-tool.ts",
     "extract-resume": "tsx src/tools/extract-resume.ts",
+    "google-auth": "tsx scripts/google-auth.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"eval/**/*.test.ts\"",
     "eval": "tsx eval/replay.ts",
