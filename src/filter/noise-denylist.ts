@@ -149,6 +149,31 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "ngc": "no India SWE/data evidence 2026-06-19 (Northrop Grumman India)",
   "northrop-grumman-india": "no India SWE/data evidence 2026-06-19 (Northrop Grumman India)",
   "reply-io-india": "no India SWE/data evidence 2026-06-19 (Reply.io India)",
+  // Wave 5 (2026-07-01): broken-companies repair - confirmed defunct / acquired / parked domain
+  "camp-k12": "defunct - edtech shut down (confirmed 2026-06-05, still dead 2026-07-01)",
+  "waycool-foods": "defunct - WayCool under NCLT insolvency; careers.waycool.in dead",
+  "trell": "defunct - social-commerce app shut down; trell.co careers dead",
+  "locale-ai": "defunct - locale.ai unresolvable/dead",
+  "marketo-india": "acquired by Adobe; hires via Adobe India (workday ats-api) - exact dup",
+  "mfine-acquired-by-lifecell": "Mfine acquired by LifeCell; careers.lifecell.in dead (ECONNREFUSED)",
+  "playment": "acquired by TELUS International; playment.io redirects to telusinternational.com",
+  "mech-mocha": "defunct - mechmocha.com domain parked for sale (hugedomains.com)",
+  "yenmo": "defunct - yenmo.com domain parked for sale (hugedomains.com)",
+  "retape": "defunct - retape.com domain parked for sale (hugedomains.com)",
+  "nykaa-fashion": "exact duplicate of nykaa (both careers URLs redirect to nykaa.com/who_are_we)",
+  // Wave 6 (2026-07-01): broken-repair research pass - confirmed defunct/acquired/mis-seed
+  "better-opinions": "defunct - prediction market shut down 2023",
+  "edyst": "defunct - edtech platform discontinued (shutdown notice on site)",
+  "able": "acquired by Instawork (Aug 2024); no own careers board",
+  "cradle": "Cradle Finance (India) dormant/dead - ~2 employees, domain unresolvable",
+  "digi-prex": "domain parked for sale (hugedomains.com) - defunct",
+  "sigmamind-ai": "DNS-dead obscure micro-startup (mis-seed)",
+  "slidely-ai": "DNS-dead obscure micro-startup (mis-seed)",
+  "rehook-ai": "DNS-dead obscure micro-startup (mis-seed)",
+  "rivia-ai": "DNS-dead obscure micro-startup (mis-seed)",
+  "superapi": "DNS-dead obscure micro-startup (mis-seed)",
+  "swadesi-way": "DNS-dead obscure micro-startup (mis-seed)",
+  "tilt": "DNS-dead junk domain (mis-seed)",
 };
 
 /** True if this slug is on the confirmed-noise denylist. */
