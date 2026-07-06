@@ -2,6 +2,7 @@ import { z } from "zod";
 import { config } from "../../config.js";
 import { logger } from "../../logger.js";
 import { getBraveQuotaUsed, incrementBraveQuota } from "../../db/index.js";
+import { hostMatchesName } from "../host-match.js";
 
 // Brave Search API. Quota tracked in the brave_quota table; halts when within
 // `monthlyBuffer` of cap.
@@ -118,22 +119,9 @@ export function isCareerShaped(url: URL): boolean {
   return false;
 }
 
-// Filters out aggregator / VC-portfolio pages that mention the company name
-// but aren't on the company's own domain. Tokens <4 chars are skipped to
-// avoid acronym false positives.
-export function hostMatchesName(host: string, name: string): boolean {
-  const hostLower = host.toLowerCase().replace(/^www\./, "");
-  const tokens = name.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t.length >= 4);
-  // For very short names like "MPL" / "ABB", fall back to a 3-char prefix check
-  if (tokens.length === 0) {
-    const compact = name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    return compact.length >= 3 && hostLower.includes(compact);
-  }
-  return tokens.some((t) => hostLower.includes(t));
-}
+// hostMatchesName moved to ../host-match.js (shared with rss.ts); re-exported
+// here so existing importers (url-repair.ts) are unaffected.
+export { hostMatchesName };
 
 // Shared with URL-repair so both call sites consume from one quota budget.
 export interface BraveSearchResult {

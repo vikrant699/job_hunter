@@ -46,6 +46,20 @@ test("appendToRegistry skips duplicates by key", () => {
   assert.equal(r.skippedDuplicates, 1);
 });
 
+test("appendToRegistry throws on corrupt JSON rather than silently treating it as empty", () => {
+  const f = tmpFile();
+  writeFileSync(f, "{not valid json", "utf8");
+  assert.throws(() => appendToRegistry([E("custom", "a", "A")], f));
+  // The corrupt file must be left untouched — no atomic overwrite happened.
+  assert.equal(readFileSync(f, "utf8"), "{not valid json");
+});
+
+test("appendToRegistry throws when the file is valid JSON but fails the registry schema", () => {
+  const f = tmpFile();
+  writeFileSync(f, JSON.stringify([{ name: "Missing required fields" }]), "utf8");
+  assert.throws(() => appendToRegistry([E("custom", "a", "A")], f));
+});
+
 test("updateRegistryStrategy patches only parsing_strategy, leaves other fields", () => {
   const f = tmpFile();
   upsertRegistry([{ ...E("custom", "spa-co", "Spa Co"), evidence: "seed note" }], f);

@@ -2,6 +2,7 @@ import * as cheerio from "cheerio";
 import { config } from "../../config.js";
 import { logger } from "../../logger.js";
 import { fetchHtml } from "../../scraper/cheerio.js";
+import { hostMatchesName } from "../host-match.js";
 
 // Funding-announcement feeds. Companies that just raised money are usually
 // actively hiring. We pull names from the headline + the company website
@@ -93,10 +94,12 @@ async function findCompanyWebsite(articleUrl: string, companyName: string): Prom
       return;
     }
     const text = $(el).text().trim().toLowerCase();
-    const hostLower = abs.host.toLowerCase().replace(/^www\./, "");
     const anchorMatchesName = tokens.some((t) => text.includes(t)) || text === nameLower;
-    const hostMatchesName = tokens.some((t) => hostLower.includes(t));
-    if (anchorMatchesName || hostMatchesName) {
+    // Bug fix: this used to be a weaker inline check with no token-length
+    // filter, so 2-letter tokens (e.g. from short company names) could
+    // false-match unrelated hosts. Now shares brave.ts's stronger
+    // implementation (>=4-char tokens, 3-char prefix fallback for short names).
+    if (anchorMatchesName || hostMatchesName(abs.host, companyName)) {
       bestUrl = `${abs.protocol}//${abs.host}`;
     }
   });

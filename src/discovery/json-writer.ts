@@ -3,25 +3,31 @@ import { resolve } from "node:path";
 import { config } from "../config.js";
 import type { RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
-import { kebabCase } from "../util/slug.js";
-
-function entryKey(e: { source?: string; source_slug?: string | null; name: string }): string {
-  const slug = e.source_slug && e.source_slug.length > 0 ? e.source_slug : kebabCase(e.name);
-  return `${e.source ?? "custom"}::${slug}`;
-}
+import { kebabCase, registryKey as entryKey } from "../util/slug.js";
 
 function registryPath(): string {
   return resolve(process.cwd(), config.storage.registryPath);
 }
 
+// Loud on corrupt/invalid content: callers atomically overwrite this file, so
+// silently mapping a malformed byte to [] would let one bad write destroy the
+// whole registry. A genuinely missing file (fresh checkout, first run) is the
+// only case allowed to mean "empty". Mirrors readRegistryFile in
+// src/registry/companies.ts.
 function readJsonArray(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
+  const raw = readFileSync(path, "utf-8");
+  let parsed: unknown;
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
-    return Array.isArray(parsed) ? RegistryEntrySchema.array().parse(parsed) : [];
-  } catch {
-    return [];
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`registry file ${path} is not valid JSON: ${err}`);
   }
+  const result = RegistryEntrySchema.array().safeParse(parsed);
+  if (!result.success) {
+    throw new Error(`registry file ${path} failed validation: ${result.error.issues.slice(0, 5).map((i) => i.message).join("; ")}`);
+  }
+  return result.data;
 }
 
 /** Stable order so discovery/repair edits produce small, readable git diffs. */
@@ -108,4 +114,6 @@ export function knownCompanyNames(filePath: string = registryPath()): Set<string
   return new Set(readJsonArray(filePath).map((e) => kebabCase(e.name)));
 }
 
+// entryKey retained as the public name (run.ts imports it); it is now a thin
+// alias for the shared util/slug.ts#registryKey used across the registry pipeline.
 export { entryKey, kebabCase };
