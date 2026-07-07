@@ -75,6 +75,11 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
 
   const all = selectAllCompanies();
   assert.ok(all.some((c) => c.slug === `${tag}-good`));
+
+  // The cache snapshot is skipped too: the offline fallback trusts the cache
+  // with prune enabled, so a partial snapshot would prune quarantined-row
+  // companies on a later offline run.
+  assert.ok(!existsSync(cachePath), "cache must NOT be written when rows were quarantined");
 });
 
 test("syncRegistryFromSheet: sheet read throws -> falls back to the cache with source 'cache'", async () => {

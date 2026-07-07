@@ -100,7 +100,15 @@ export async function syncRegistryFromSheet(
   }
   const result = syncEntries(entries, { prune: invalidRows.length === 0 });
 
-  writeAtomic(deps.cachePath, entries);
+  // Snapshot ONLY fully-valid syncs: the offline fallback path trusts the
+  // cache with prune enabled, so a partial snapshot (quarantined rows missing)
+  // would let a later offline run prune companies that still exist on the
+  // sheet but had a cell typo at snapshot time.
+  if (invalidRows.length === 0) {
+    writeAtomic(deps.cachePath, entries);
+  } else {
+    logger.warn({ cachePath: deps.cachePath }, "registry sync: cache snapshot skipped (invalid rows present)");
+  }
 
   logger.info({ ...result, source: "sheet", invalidRowCount: invalidRows.length }, "registry synced");
   return { source: "sheet", invalidRows, ...result };
