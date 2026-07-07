@@ -8,15 +8,28 @@ import {
   insertUndrafted as insertUndraftedDefault,
   type OutreachRow, type UpdateOutreachStatusInput, type InsertUndraftedInput,
 } from "../db/outreach.js";
-import { setRecruiterStatus as setRecruiterStatusDefault } from "../db/recruiters.js";
+import { selectAllRecruiters, setRecruiterStatus as setRecruiterStatusDefault } from "../db/recruiters.js";
+import { readTab as readTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
 import { parseRoles } from "./roles.js";
-import type { OutreachStatus, RecruiterStatus } from "../schemas.js";
+import { istDate } from "./run.js";
+import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../schemas.js";
 
 /** Converts an ISO timestamp to integer epoch SECONDS. Gmail's `after:` search
  *  operator takes seconds, not milliseconds — passing ms silently returns a
  *  query anchored decades in the future and matches nothing. */
 export function epochSeconds(iso: string): number {
   return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+/** Minimal recruiter lookup verify.ts needs — avoids pulling the full
+ *  RecruiterRow shape (and its DB-column zod schema) into this module. */
+export interface VerifyRecruiterLookup {
+  email: string;
+  company: string;
+  contactName: string | null;
+  phone: string | null;
+  source: RecruiterSource;
+  registrySlug: string | null;
 }
 
 export interface VerifyDeps {
@@ -27,10 +40,16 @@ export interface VerifyDeps {
   updateOutreachStatus: (input: UpdateOutreachStatusInput) => void;
   insertUndrafted: (row: InsertUndraftedInput) => void;
   setRecruiterStatus: (email: string, status: RecruiterStatus, atIso: string) => void;
+  lookupRecruiter: (email: string) => VerifyRecruiterLookup | null;
+  readTab: (profileId: string, tab: string) => Promise<string[][]>;
+  appendRows: (profileId: string, tab: string, rows: string[][]) => Promise<void>;
   now: () => Date;
 }
 
 function defaultDeps(): VerifyDeps {
+  // Deferred imports for readTab/appendRows/lookupRecruiter keep verify.ts's
+  // dependency surface identical to run.ts's pattern (thin wrappers around the
+  // real modules), assembled lazily so tests never need the real Google client.
   return {
     selectOutreachByStatus: selectOutreachByStatusDefault,
     getDraft: getDraftDefault,
@@ -39,8 +58,32 @@ function defaultDeps(): VerifyDeps {
     updateOutreachStatus: updateOutreachStatusDefault,
     insertUndrafted: insertUndraftedDefault,
     setRecruiterStatus: setRecruiterStatusDefault,
+    lookupRecruiter: defaultLookupRecruiter,
+    readTab: defaultReadTab,
+    appendRows: defaultAppendRows,
     now: () => new Date(),
   };
+}
+
+function defaultLookupRecruiter(email: string): VerifyRecruiterLookup | null {
+  const row = selectAllRecruiters().find((r) => r.email === email.toLowerCase());
+  if (!row) return null;
+  return {
+    email: row.email,
+    company: row.company,
+    contactName: row.contactName,
+    phone: row.phone,
+    source: row.source,
+    registrySlug: row.registrySlug,
+  };
+}
+
+function defaultReadTab(profileId: string, tab: string): Promise<string[][]> {
+  return readTabDefault(profileId, tab);
+}
+
+function defaultAppendRows(profileId: string, tab: string, rows: string[][]): Promise<void> {
+  return appendRowsDefault(profileId, tab, rows);
 }
 
 export interface VerifyOptions {
@@ -228,6 +271,7 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
 
   let bounced = 0;
   let verified = 0;
+  const newlyVerifiedRawCsv: OutreachRow[] = [];
 
   const sentRows = deps.selectOutreachByStatus("sent", profileId);
   for (const row of sentRows) {
@@ -240,8 +284,70 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
       continue;
     }
     if (outcome === "bounced") bounced++;
-    else if (outcome === "verified") verified++;
+    else if (outcome === "verified") {
+      verified++;
+      newlyVerifiedRawCsv.push(row);
+    }
+  }
+
+  if (newlyVerifiedRawCsv.length > 0) {
+    await promoteNewlyVerified(deps, profileId, newlyVerifiedRawCsv, now);
   }
 
   return { checkedDrafts, sent, discarded, bounced, verified };
+}
+
+/** Splits "Company/Email" style cells the same way contacts.ts does, so the
+ *  dedup set matches whatever's already on the tab regardless of how many
+ *  emails share one row. */
+function splitTabEmails(cell: string): string[] {
+  return cell
+    .split(/[/,]/)
+    .map((e) => e.trim().toLowerCase())
+    .filter((e) => e.length > 0);
+}
+
+const RECRUITERS_LIST_EMAIL_COL = 3;
+
+/**
+ * After a verify pass, any recruiter this pass newly marked 'verified' whose
+ * source is 'raw-csv' (i.e. it came from the bot-owned Raw Data tab, never
+ * hand-entered on the manual Recruiters List tab) gets appended to the
+ * Recruiters List tab if not already present there — so a human reviewing
+ * that tab sees every contact the bot has actually confirmed reachable.
+ */
+async function promoteNewlyVerified(deps: VerifyDeps, profileId: string, newlyVerified: OutreachRow[], now: Date): Promise<void> {
+  const candidates = newlyVerified
+    .map((row) => deps.lookupRecruiter(row.recruiterEmail))
+    .filter((r): r is VerifyRecruiterLookup => r !== null && r.source === "raw-csv");
+  if (candidates.length === 0) return;
+
+  const existingRows = await deps.readTab(profileId, config.google.tabs.recruiters);
+  const existingEmails = new Set<string>();
+  for (const row of existingRows.slice(1)) {
+    for (const email of splitTabEmails(row[RECRUITERS_LIST_EMAIL_COL] ?? "")) {
+      existingEmails.add(email);
+    }
+  }
+
+  const seenThisPass = new Set<string>();
+  const rowsToAppend: string[][] = [];
+  for (const c of candidates) {
+    const email = c.email.toLowerCase();
+    if (existingEmails.has(email) || seenThisPass.has(email)) continue;
+    seenThisPass.add(email);
+    rowsToAppend.push([
+      c.company,
+      c.contactName ?? "",
+      c.phone ?? "",
+      email,
+      "job-hunter-bot",
+      istDate(now),
+      c.registrySlug ?? "",
+    ]);
+  }
+
+  if (rowsToAppend.length > 0) {
+    await deps.appendRows(profileId, config.google.tabs.recruiters, rowsToAppend);
+  }
 }

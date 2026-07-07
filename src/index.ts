@@ -6,6 +6,7 @@ import { runDiscovery } from "./discovery/run.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
 import { runOutreach, type RunOutreachResult } from "./outreach/run.js";
+import { runVerify, type VerifyResult } from "./outreach/verify.js";
 import { projectToSheet } from "./outreach/sheet-sync.js";
 import { postRunStatus } from "./discord/status.js";
 import { profile } from "./profile.js";
@@ -27,9 +28,14 @@ async function runOnce(): Promise<void> {
   const outcome = await runProductionTick();
   const profileId = profile.id ?? "default";
 
+  let verifyResult: VerifyResult | null = null;
   let outreachResult: RunOutreachResult | null = null;
   let outreachError: string | null = null;
   try {
+    // Verify runs FIRST: yesterday's bounces must set the recruiter's status
+    // to 'bounced' before today's runOutreach does its contact matching, or a
+    // known-dead address would get drafted to again.
+    verifyResult = await runVerify({ profileId, runId: outcome.runId });
     outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
     await projectToSheet(profileId, undefined, outcome.runId);
   } catch (err) {
@@ -45,7 +51,7 @@ async function runOnce(): Promise<void> {
   }
 
   try {
-    await postRunStatus({ profileId, stats: outcome.stats, outreach: outreachResult, outreachError });
+    await postRunStatus({ profileId, stats: outcome.stats, outreach: outreachResult, outreachError, verify: verifyResult });
   } catch (err) {
     logger.error({ err: String(err) }, "status post threw");
   }

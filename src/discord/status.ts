@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { postWebhookJson } from "./webhook.js";
 import type { ProductionTickOutcome } from "../pipeline/index.js";
+import type { VerifyResult } from "../outreach/verify.js";
 
 const COLOR_GREEN = 0x2ecc71;
 const COLOR_ORANGE = 0xe67e22;
@@ -17,6 +18,7 @@ export interface StatusInput {
   stats: ProductionTickOutcome["stats"];
   outreach: OutreachSummary | null;
   outreachError: string | null;
+  verify: VerifyResult | null;
 }
 
 interface StatusEmbedField { name: string; value: string; inline: boolean }
@@ -43,6 +45,16 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     { name: "JD fetch failed", value: String(stats.jdFetchFailed), inline: true },
     { name: "Errors", value: String(stats.errors.length), inline: true },
   ];
+
+  if (input.verify) {
+    fields.push({
+      name: "Verify",
+      value:
+        `checked ${input.verify.checkedDrafts}, sent ${input.verify.sent}, ` +
+        `discarded ${input.verify.discarded}, bounced ${input.verify.bounced}, verified ${input.verify.verified}`,
+      inline: false,
+    });
+  }
 
   if (input.outreach) {
     fields.push(

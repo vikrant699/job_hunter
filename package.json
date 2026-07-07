@@ -16,6 +16,7 @@
     "extract-resume": "tsx src/tools/extract-resume.ts",
     "google-auth": "tsx scripts/google-auth.ts",
     "bootstrap-sheet": "tsx scripts/bootstrap-sheet.ts",
+    "verify-outreach": "tsx scripts/verify-outreach.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./test-setup.mjs --import tsx --test \"src/**/*.test.ts\" \"eval/**/*.test.ts\"",
     "eval": "tsx eval/replay.ts",
