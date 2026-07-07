@@ -7,7 +7,8 @@ import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
 import { runShortlistFromText } from "../llm/extract-text-jobs.js";
 import { getLinkCache, setLinkCache, updateParsingStrategy, markUrlSuspect, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../discovery/ats.js";
-import { updateRegistryStrategy } from "../discovery/json-writer.js";
+import { updateRegistryStrategy } from "../discovery/registry-writer.js";
+import { profile } from "../profile.js";
 import { extractJsonLdJobs } from "./json-ld.js";
 import { analyzeCareersPage } from "./page-signals.js";
 import { htmlToText } from "../ats/html-text.js";
@@ -150,13 +151,19 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
       if (spaSentinel && candidates.length <= SPA_SENTINEL_THRESHOLD) {
         flagIfSuspectUrl();
         // Act on the recommendation instead of just logging it: flip the
-        // strategy in the DB (this run's state) AND the registry file (the
+        // strategy in the DB (this run's state) AND the Companies tab (the
         // source of truth — sync would revert a DB-only flip next run).
         // Next run fetches this company through headless chromium.
         updateParsingStrategy(company.provider, company.slug, "playwright-llm-scrape");
-        const inRegistry = updateRegistryStrategy(
-          company.provider, company.slug, company.name, "playwright-llm-scrape",
-        );
+        const inRegistry = await updateRegistryStrategy(
+          company.provider, company.slug, company.name, "playwright-llm-scrape", profile.id ?? "default",
+        ).catch((err: unknown) => {
+          logger.warn(
+            { company: company.slug, err: String(err).slice(0, 160) },
+            `${tag}: Companies-tab strategy flip failed (DB flip already applied) — will retry next zero-yield hit`,
+          );
+          return false;
+        });
         logger.warn(
           { company: company.slug, candidates: candidates.length, careersUrl: company.careersUrl, inRegistry },
           `${tag}: too few candidate links — auto-flipped strategy to playwright-llm-scrape`,

@@ -1,10 +1,13 @@
 // src/discovery/json-writer.test.ts
+// upsertRegistry is the last json-writer export still on a live write path
+// (scripts/url-repair.ts, until that ops script's own cutover). Discovery and
+// the SPA-sentinel strategy flip moved to registry-writer.ts (sheet-backed).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { upsertRegistry, appendToRegistry, updateRegistryStrategy } from "./json-writer.js";
+import { upsertRegistry } from "./json-writer.js";
 import type { RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
 
@@ -38,38 +41,16 @@ test("upsertRegistry replaces an existing key idempotently", () => {
   assert.equal(arr[0]!.careers_url, "https://new");
 });
 
-test("appendToRegistry skips duplicates by key", () => {
-  const f = tmpFile();
-  appendToRegistry([E("custom", "a", "A")], f);
-  const r = appendToRegistry([E("custom", "a", "A"), E("custom", "b", "B")], f);
-  assert.equal(r.written, 1);
-  assert.equal(r.skippedDuplicates, 1);
-});
-
-test("appendToRegistry throws on corrupt JSON rather than silently treating it as empty", () => {
+test("upsertRegistry throws on corrupt JSON rather than silently treating it as empty", () => {
   const f = tmpFile();
   writeFileSync(f, "{not valid json", "utf8");
-  assert.throws(() => appendToRegistry([E("custom", "a", "A")], f));
+  assert.throws(() => upsertRegistry([E("custom", "a", "A")], f));
   // The corrupt file must be left untouched — no atomic overwrite happened.
   assert.equal(readFileSync(f, "utf8"), "{not valid json");
 });
 
-test("appendToRegistry throws when the file is valid JSON but fails the registry schema", () => {
+test("upsertRegistry throws when the file is valid JSON but fails the registry schema", () => {
   const f = tmpFile();
   writeFileSync(f, JSON.stringify([{ name: "Missing required fields" }]), "utf8");
-  assert.throws(() => appendToRegistry([E("custom", "a", "A")], f));
-});
-
-test("updateRegistryStrategy patches only parsing_strategy, leaves other fields", () => {
-  const f = tmpFile();
-  upsertRegistry([{ ...E("custom", "spa-co", "Spa Co"), evidence: "seed note" }], f);
-  const flipped = updateRegistryStrategy("custom", "spa-co", "Spa Co", "playwright-llm-scrape", f);
-  assert.equal(flipped, true);
-  const arr = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(f, "utf8")));
-  assert.equal(arr[0]!.parsing_strategy, "playwright-llm-scrape");
-  assert.equal(arr[0]!.evidence, "seed note"); // untouched
-  // Second flip to the same value is a no-op.
-  assert.equal(updateRegistryStrategy("custom", "spa-co", "Spa Co", "playwright-llm-scrape", f), false);
-  // Unknown key does not write.
-  assert.equal(updateRegistryStrategy("custom", "missing", "Missing", "playwright-llm-scrape", f), false);
+  assert.throws(() => upsertRegistry([E("custom", "a", "A")], f));
 });

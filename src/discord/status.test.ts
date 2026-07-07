@@ -26,6 +26,7 @@ test("buildStatusEmbed includes the profile id in the title", () => {
     outreach: { draftsCreated: 3, undrafted: 1, companiesMatched: 2 },
     outreachError: null,
     verify: null,
+    registry: null,
   });
   assert.match(embed.title, /vikrant/);
   assert.match(embed.title, /run complete/);
@@ -38,6 +39,7 @@ test("buildStatusEmbed surfaces companies/postings/green/yellow/jdFetchFailed/er
     outreach: { draftsCreated: 3, undrafted: 1, companiesMatched: 2 },
     outreachError: null,
     verify: null,
+    registry: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Companies scanned"], "100");
@@ -56,6 +58,7 @@ test("buildStatusEmbed surfaces drafts created / undrafted counts and a spreadsh
     outreach: { draftsCreated: 7, undrafted: 4, companiesMatched: 5 },
     outreachError: null,
     verify: null,
+    registry: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Drafts created"], "7");
@@ -72,6 +75,7 @@ test("buildStatusEmbed shows an outreach-error field instead of drafts/undrafted
     outreach: null,
     outreachError: "Google auth expired",
     verify: null,
+    registry: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Outreach error"], "Google auth expired");
@@ -86,6 +90,7 @@ test("buildStatusEmbed renders a compact Verify field when a verify result is pr
     outreach: null,
     outreachError: null,
     verify: { checkedDrafts: 3, sent: 1, discarded: 1, bounced: 1, verified: 2 },
+    registry: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.match(byName["Verify"] ?? "", /checked 3/);
@@ -102,7 +107,47 @@ test("buildStatusEmbed omits the Verify field when verify is null", () => {
     outreach: { draftsCreated: 1, undrafted: 0, companiesMatched: 1 },
     outreachError: null,
     verify: null,
+    registry: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Verify"], undefined);
+});
+
+test("buildStatusEmbed renders a Registry field with source and invalid-row count when present", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: { source: "sheet", invalidRows: 2 },
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.match(byName["Registry"] ?? "", /sheet/);
+  assert.match(byName["Registry"] ?? "", /2/);
+});
+
+test("buildStatusEmbed omits the Registry field when registry is null", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Registry"], undefined);
+});
+
+test("buildStatusEmbed marks the embed orange when the registry sync fell back to the cache", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: { draftsCreated: 1, undrafted: 0, companiesMatched: 1 },
+    outreachError: null,
+    verify: null,
+    registry: { source: "cache", invalidRows: 0 },
+  });
+  assert.equal(embed.color, 0xe67e22);
 });

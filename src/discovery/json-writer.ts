@@ -54,23 +54,6 @@ export function writeAtomic(path: string, entries: RegistryEntry[]): void {
   catch (err) { try { unlinkSync(tmp); } catch { /* ignore */ } throw err; }
 }
 
-export function appendToRegistry(
-  newEntries: RegistryEntry[], filePath: string = registryPath(),
-): { written: number; skippedDuplicates: number; path: string } {
-  const existing = readJsonArray(filePath);
-  const known = new Set(existing.map(entryKey));
-  const toAdd: RegistryEntry[] = [];
-  let skippedDuplicates = 0;
-  for (const e of newEntries) {
-    const k = entryKey(e);
-    if (known.has(k)) { skippedDuplicates++; continue; }
-    known.add(k); toAdd.push(e);
-  }
-  if (toAdd.length === 0) return { written: 0, skippedDuplicates, path: filePath };
-  writeAtomic(filePath, sortEntries([...existing, ...toAdd]));
-  return { written: toAdd.length, skippedDuplicates, path: filePath };
-}
-
 export function upsertRegistry(
   entries: RegistryEntry[], filePath: string = registryPath(),
 ): { replaced: number; added: number; path: string } {
@@ -89,37 +72,3 @@ export function upsertRegistry(
   return { replaced, added, path: filePath };
 }
 
-/**
- * Patch one entry's parsing_strategy in place (other fields untouched).
- * Used by the SPA sentinel to make its llm-scrape -> playwright-llm-scrape
- * recommendation stick — a DB-only flip would be reverted by the next
- * syncRegistryFromJson. Returns false when no entry matches the key.
- */
-export function updateRegistryStrategy(
-  source: string,
-  sourceSlug: string,
-  name: string,
-  strategy: RegistryEntry["parsing_strategy"],
-  filePath: string = registryPath(),
-): boolean {
-  const existing = readJsonArray(filePath);
-  const key = entryKey({ source, source_slug: sourceSlug, name });
-  const idx = existing.findIndex((e) => entryKey(e) === key);
-  const entry = idx >= 0 ? existing[idx] : undefined;
-  if (!entry || entry.parsing_strategy === strategy) return false;
-  entry.parsing_strategy = strategy;
-  writeAtomic(filePath, sortEntries(existing));
-  return true;
-}
-
-export function knownEntryKeys(filePath: string = registryPath()): Set<string> {
-  return new Set(readJsonArray(filePath).map(entryKey));
-}
-
-export function knownCompanyNames(filePath: string = registryPath()): Set<string> {
-  return new Set(readJsonArray(filePath).map((e) => kebabCase(e.name)));
-}
-
-// entryKey retained as the public name (run.ts imports it); it is now a thin
-// alias for the shared util/slug.ts#registryKey used across the registry pipeline.
-export { entryKey, kebabCase };
