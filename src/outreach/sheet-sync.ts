@@ -1,25 +1,10 @@
-import { z } from "zod";
 import { config } from "../config.js";
 import { rewriteTab as rewriteTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
 import { selectOutreachByStatus, selectOutreachSentTab, type OutreachRow } from "../db/outreach.js";
 import { selectUndraftedByRun, type UndraftedRow } from "../db/outreach.js";
 import { logger } from "../logger.js";
 import { DRAFTS_HEADER, SENT_HEADER, UNDRAFTED_HEADER } from "./tabs.js";
-import { SeveritySchema } from "../schemas.js";
-
-const RoleEntrySchema = z.object({
-  title: z.string(),
-  jobUrl: z.string(),
-  severity: SeveritySchema,
-  score: z.number().nullable(),
-});
-type RoleEntry = z.infer<typeof RoleEntrySchema>;
-
-const RolesJsonSchema = z.array(RoleEntrySchema);
-
-function parseRoles(rolesJson: string): RoleEntry[] {
-  return RolesJsonSchema.parse(JSON.parse(rolesJson));
-}
+import { parseRoles, type RoleEntry } from "./roles.js";
 
 function rolesCell(roles: RoleEntry[]): string {
   return roles.map((r) => `${r.title} — ${r.jobUrl}`).join("\n");
