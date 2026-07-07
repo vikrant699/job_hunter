@@ -139,11 +139,16 @@ const setRecruiterStatusStmt = db.prepare(`
     status      = :status,
     verified_at = CASE WHEN :status = 'verified' THEN :atIso ELSE verified_at END
   WHERE email = :email
+    AND NOT (status = 'bounced' AND :status = 'verified')
 `);
 
 /** Sets a recruiter's global status. `verified_at` is stamped only when the new
  *  status is 'verified'; transitioning to 'unverified' or 'bounced' leaves any
- *  existing verified_at as-is (it records the original verification time). */
+ *  existing verified_at as-is (it records the original verification time).
+ *  bounced -> verified is REFUSED: with per-profile mailboxes, one profile's
+ *  24h-clean window can elapse after another profile's send already bounced,
+ *  and a verified overwrite would put a dead address back into rotation (and
+ *  onto the Recruiters List tab via promotion). Dead is dead. */
 export function setRecruiterStatus(email: string, status: RecruiterStatus, atIso: string): void {
   setRecruiterStatusStmt.run({ email: email.toLowerCase(), status, atIso });
 }

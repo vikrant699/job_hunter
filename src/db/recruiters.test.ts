@@ -222,3 +222,18 @@ test("setRecruiterStatus sets verified_at only when status is verified", () => {
   assert.ok(row);
   assert.equal(row.status, "bounced");
 });
+
+test("setRecruiterStatus refuses bounced -> verified (dead is dead)", () => {
+  const email = `terminal-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+  upsertRecruiter({
+    email, company: "Dead Co", companyNorm: "dead", altNamesNorm: null,
+    contactName: null, phone: null, source: "raw-csv", registryProvider: null,
+    registrySlug: null, status: "unverified", verifiedAt: null,
+    importedAt: new Date().toISOString(),
+  });
+  setRecruiterStatus(email, "bounced", new Date().toISOString());
+  setRecruiterStatus(email, "verified", new Date().toISOString());
+  const row = selectAllRecruiters().find((r) => r.email === email);
+  assert.ok(row);
+  assert.equal(row.status, "bounced");
+});

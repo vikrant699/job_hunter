@@ -44,7 +44,7 @@ function harness(opts: {
   getMessageMetadata?: VerifyDeps["getMessageMetadata"];
   now?: () => Date;
   readTab?: VerifyDeps["readTab"];
-  recruitersByEmail?: Record<string, { source: RecruiterSource; company: string; contactName: string | null; phone: string | null; registrySlug: string | null }>;
+  recruitersByEmail?: Record<string, { source: RecruiterSource; company: string; contactName: string | null; phone: string | null; registrySlug: string | null; status?: RecruiterStatus }>;
 } = {}): Harness {
   const statusUpdates: UpdateOutreachStatusInput[] = [];
   const undrafted: InsertUndraftedInput[] = [];
@@ -80,6 +80,7 @@ function harness(opts: {
         contactName: found.contactName,
         phone: found.phone,
         source: found.source,
+        status: found.status ?? "verified",
         registrySlug: found.registrySlug,
       };
     },
@@ -281,4 +282,17 @@ test("runVerify: only rows for the given profileId are checked (selectOutreachBy
 
   await runVerify({ profileId: "vikrant", runId: null, deps });
   assert.equal(passedProfileId, "vikrant");
+});
+
+test("promotion skips a recruiter whose LIVE status is bounced (guard against cross-profile resurrection)", async () => {
+  const { deps, appended } = harness({
+    sentRows: [mkRow({ id: 71, status: "sent", sentAt: "2026-07-01T00:00:00.000Z", recruiterEmail: "dead@zombie.co" })],
+    now: () => new Date("2026-07-05T00:00:00.000Z"),
+    recruitersByEmail: {
+      "dead@zombie.co": { source: "raw-csv", company: "Zombie Co", contactName: null, phone: null, registrySlug: null, status: "bounced" },
+    },
+  });
+  const result = await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(result.verified, 1); // the OUTREACH row verifies (24h clean for this profile)
+  assert.equal(appended.length, 0, "but the globally-bounced recruiter must NOT be promoted");
 });
