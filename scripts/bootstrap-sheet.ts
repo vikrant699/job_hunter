@@ -55,14 +55,19 @@ async function main(): Promise<void> {
   await ensureTabs(profileId, [t.rawData, t.drafts, t.sent, t.undrafted, t.companies]);
   console.log(`tabs before: ${before.join(" | ")}`);
 
-  // Raw Data: the cleaned recruiter contact dump (committed for reproducibility).
+  // Raw Data: the cleaned recruiter contact dump (local-only, never committed —
+  // the live tab is the source once seeded, so a fresh clone skips this step).
   const csvPath = resolve(process.cwd(), "config/recruiters-raw.csv");
-  const csvRows = parseCsv(readFileSync(csvPath, "utf-8").replace(/^﻿/, ""));
-  const [csvHeader, ...contactRows] = csvRows;
-  if (!csvHeader || csvHeader.join(",") !== RAW_DATA_HEADER.join(",")) {
-    throw new Error(`config/recruiters-raw.csv header mismatch: ${(csvHeader ?? []).join(",")}`);
+  if (existsSync(csvPath)) {
+    const csvRows = parseCsv(readFileSync(csvPath, "utf-8").replace(/^﻿/, ""));
+    const [csvHeader, ...contactRows] = csvRows;
+    if (!csvHeader || csvHeader.join(",") !== RAW_DATA_HEADER.join(",")) {
+      throw new Error(`config/recruiters-raw.csv header mismatch: ${(csvHeader ?? []).join(",")}`);
+    }
+    await seedIfEmpty(profileId, t.rawData, RAW_DATA_HEADER, contactRows);
+  } else {
+    console.log(`${t.rawData}: no local csv at ${csvPath} — leaving as-is`);
   }
-  await seedIfEmpty(profileId, t.rawData, RAW_DATA_HEADER, contactRows);
 
   // Companies: seed from the local cache if one exists (e.g. a re-bootstrap
   // against a fresh spreadsheet). On a brand-new setup with no cache yet,
