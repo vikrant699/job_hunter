@@ -108,6 +108,18 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   const deps: RunOutreachDeps = { ...defaultDeps(), ...options.deps };
   const { profileId, sinceIso, runId } = options;
 
+  // profileId selects the Gmail TOKEN, but the sender identity (name, pitch,
+  // resume) comes from the process-wide loaded profile module. If they diverge
+  // (e.g. a script passing profileId "vikrant" without --profile vikrant), the
+  // drafts would carry the wrong person's name and resume on the wrong mailbox.
+  const loadedProfileId = profile.id ?? "default";
+  if (profileId !== loadedProfileId) {
+    throw new Error(
+      `outreach: profileId "${profileId}" does not match the loaded profile "${loadedProfileId}" ` +
+        `— run with --profile ${profileId} so identity and Gmail token agree`,
+    );
+  }
+
   await deps.syncContacts(profileId);
 
   const allNotified = deps.selectNotifiedPostingsSince(sinceIso, profileId);
