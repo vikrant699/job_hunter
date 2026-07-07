@@ -48,7 +48,11 @@ export const config = {
   },
 
   storage: {
-    dbPath: "data/job_hunter.db",
+    /** Overridable so the test runner points at a throwaway DB (test-setup.mjs).
+     *  Tests used to write fixture rows into the production DB — harmless while
+     *  nothing projected DB state outward, but the outreach sheet-sync now
+     *  mirrors outreach tables onto the user's real Google Sheet. */
+    dbPath: process.env.JOB_HUNTER_DB_PATH ?? "data/job_hunter.db",
     registryPath: "config/companies.json",
     postingRetentionDays: 90,
   },
