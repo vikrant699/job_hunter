@@ -296,3 +296,37 @@ test("promotion skips a recruiter whose LIVE status is bounced (guard against cr
   assert.equal(result.verified, 1); // the OUTREACH row verifies (24h clean for this profile)
   assert.equal(appended.length, 0, "but the globally-bounced recruiter must NOT be promoted");
 });
+
+test("a recently-discarded row with a late-appearing sent hit is recovered to sent", async () => {
+  const discardedRow = mkRow({ id: 88, status: "discarded", draftedAt: "2026-07-05T00:00:00.000Z" });
+  const { deps, statusUpdates } = harness({
+    searchMessages: async () => [{ id: "late-1", threadId: "t-late" }],
+    getMessageMetadata: async () => ({ snippet: "", internalDate: 1783400000000 }),
+    now: () => new Date("2026-07-07T00:00:00.000Z"),
+  });
+  const baseSelect = deps.selectOutreachByStatus;
+  deps.selectOutreachByStatus = (status, profileId) =>
+    status === "discarded" ? [discardedRow] : baseSelect(status, profileId);
+
+  const result = await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(result.sent, 1);
+  const update = statusUpdates.find((u) => u.id === 88);
+  assert.ok(update);
+  assert.equal(update.status, "sent");
+  assert.equal(update.gmailMessageId, "late-1");
+});
+
+test("an OLD discarded row is not re-checked (outside the recheck window)", async () => {
+  const discardedRow = mkRow({ id: 89, status: "discarded", draftedAt: "2026-01-01T00:00:00.000Z" });
+  const { deps, statusUpdates } = harness({
+    searchMessages: async () => [{ id: "x", threadId: "t" }],
+    now: () => new Date("2026-07-07T00:00:00.000Z"),
+  });
+  const baseSelect = deps.selectOutreachByStatus;
+  deps.selectOutreachByStatus = (status, profileId) =>
+    status === "discarded" ? [discardedRow] : baseSelect(status, profileId);
+
+  const result = await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(result.sent, 0);
+  assert.equal(statusUpdates.find((u) => u.id === 89), undefined);
+});
