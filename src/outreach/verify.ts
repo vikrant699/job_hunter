@@ -14,6 +14,10 @@ import { parseRoles } from "./roles.js";
 import { istDate } from "./run.js";
 import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../schemas.js";
 
+/** How far back the verify pass re-checks 'discarded' rows for a late-indexed
+ *  sent message (see the recovery loop in runVerify). */
+const DISCARDED_RECHECK_DAYS = 14;
+
 /** Converts an ISO timestamp to integer epoch SECONDS. Gmail's `after:` search
  *  operator takes seconds, not milliseconds — passing ms silently returns a
  *  query anchored decades in the future and matches nothing. */
@@ -272,6 +276,35 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
     checkedDrafts++;
     if (outcome === "sent") sent++;
     else if (outcome === "discarded") discarded++;
+  }
+
+  // Recovery pass for recently-discarded rows: Gmail's search index can lag a
+  // just-sent message (observed live 2026-07-07: a sent self-mail visible to
+  // one search call was absent from an identical call seconds later), which
+  // misclassifies a sent draft as discarded. Discarded is otherwise a dead end,
+  // so re-check recent ones for a late-appearing sent hit and recover them.
+  const recheckCutoffMs = now.getTime() - DISCARDED_RECHECK_DAYS * 24 * 3_600_000;
+  const discardedRows = deps.selectOutreachByStatus("discarded", profileId);
+  for (const row of discardedRows) {
+    if (new Date(row.draftedAt).getTime() < recheckCutoffMs) continue;
+    try {
+      const hits = await deps.searchMessages(profileId, sentSearchQuery(row.recruiterEmail, row.draftedAt));
+      if (hits.length === 0) continue;
+      const newest = await newestMessage(deps, profileId, hits);
+      if (newest === null) continue;
+      deps.updateOutreachStatus({
+        id: row.id,
+        status: "sent",
+        sentAt: new Date(newest.internalDate).toISOString(),
+        gmailMessageId: newest.id,
+        lastCheckedAt: nowIso,
+      });
+      logger.info({ outreachId: row.id, recruiter: row.recruiterEmail }, "verify: discarded row recovered to sent (late search hit)");
+      sent++;
+    } catch (err) {
+      if (err instanceof GoogleAuthExpiredError) throw err;
+      logger.error({ err: String(err), outreachId: row.id }, "verify: discarded recheck failed; continuing");
+    }
   }
 
   let bounced = 0;
