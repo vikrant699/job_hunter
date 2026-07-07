@@ -38,18 +38,47 @@ function defaultDeps(): RegistryWriterDeps {
 /** Decode the tab's data rows, ignoring any that fail validation — callers of
  *  this module only need the identity/lookup surface (keys, names, cells),
  *  not a full quarantine report (that lives in sheet-registry.ts). A row that
- *  fails to decode simply can't collide with a new addition by key. */
-function decodeValidRows(rows: string[][]): RegistryEntry[] {
+ *  fails to decode simply can't collide with a new addition by key.
+ *  `allValid` reports whether ANY row was dropped — cache mirroring must skip
+ *  partial decodes (same rule as sheet-registry.ts: the offline fallback
+ *  prunes from the cache, so a partial snapshot would delete quarantined
+ *  companies on a later offline run). */
+function decodeValidRows(rows: string[][]): { entries: RegistryEntry[]; allValid: boolean } {
   const entries: RegistryEntry[] = [];
+  let allValid = true;
   for (const row of rows.slice(1)) {
     const result = rowToEntry(row);
     if (result.ok) entries.push(result.entry);
+    else allValid = false;
   }
-  return entries;
+  return { entries, allValid };
 }
 
-function mirrorToCache(cachePath: string, entries: RegistryEntry[]): void {
+function mirrorToCache(cachePath: string, entries: RegistryEntry[], allValid: boolean): void {
+  if (!allValid) {
+    logger.warn({ cachePath }, "registry-writer: cache mirror skipped (tab has invalid rows)");
+    return;
+  }
   writeAtomic(cachePath, entries);
+}
+
+/** Locate the sheet row (1-based, header-inclusive) and decoded entry for a
+ *  registry key. Tracks the RAW row index separately from the valid-entries
+ *  array so rows that fail validation above the match can't misalign it. */
+function locateEntryRow(
+  rows: string[][],
+  key: string,
+): { sheetRow: number; entry: RegistryEntry } | null {
+  const dataRows = rows.slice(1);
+  for (let i = 0; i < dataRows.length; i++) {
+    const row = dataRows[i];
+    if (!row) continue;
+    const result = rowToEntry(row);
+    if (result.ok && entryKey(result.entry) === key) {
+      return { sheetRow: i + 2, entry: result.entry };
+    }
+  }
+  return null;
 }
 
 export interface AppendResult {
@@ -68,7 +97,7 @@ export async function appendToRegistry(
   deps: RegistryWriterDeps = defaultDeps(),
 ): Promise<AppendResult> {
   const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  const existing = decodeValidRows(rows);
+  const { entries: existing, allValid } = decodeValidRows(rows);
   const known = new Set(existing.map(entryKey));
 
   const toAdd: RegistryEntry[] = [];
@@ -83,8 +112,40 @@ export async function appendToRegistry(
   if (toAdd.length === 0) return { written: 0, skippedDuplicates };
 
   await deps.appendRows(profileId, config.google.tabs.companies, toAdd.map(entryToRow));
-  mirrorToCache(deps.cachePath, [...existing, ...toAdd]);
+  mirrorToCache(deps.cachePath, [...existing, ...toAdd], allValid);
   return { written: toAdd.length, skippedDuplicates };
+}
+
+/**
+ * Patch arbitrary fields of one registry entry in place on the Companies tab
+ * (full-row rewrite at the located row, other rows untouched), mirroring the
+ * cache. Used by the URL-repair flow to apply careers_url fixes directly to
+ * the source of truth. Returns false when no row matches the key.
+ */
+export async function updateRegistryEntry(
+  key: { source: string; source_slug?: string | null; name: string },
+  patch: Partial<RegistryEntry>,
+  profileId: string,
+  deps: RegistryWriterDeps = defaultDeps(),
+): Promise<boolean> {
+  const rows = await deps.readTab(profileId, config.google.tabs.companies);
+  const located = locateEntryRow(rows, entryKey(key));
+  if (!located) return false;
+
+  const updated: RegistryEntry = { ...located.entry, ...patch };
+  const lastCol = String.fromCharCode(64 + REGISTRY_COLUMNS.length); // 14 cols -> "N"
+  await deps.updateRange(
+    profileId,
+    `${config.google.tabs.companies}!A${located.sheetRow}:${lastCol}${located.sheetRow}`,
+    [entryToRow(updated)],
+  );
+
+  const { entries, allValid } = decodeValidRows(rows);
+  const idx = entries.findIndex((e) => entryKey(e) === entryKey(key));
+  if (idx >= 0) entries[idx] = updated;
+  mirrorToCache(deps.cachePath, entries, allValid);
+  logger.info({ key: entryKey(key), patch: Object.keys(patch) }, "registry-writer: entry updated on the Companies tab");
+  return true;
 }
 
 /**
@@ -102,32 +163,9 @@ export async function updateRegistryStrategy(
   deps: RegistryWriterDeps = defaultDeps(),
 ): Promise<boolean> {
   const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  const key = entryKey({ source, source_slug: sourceSlug, name });
-
-  let matchIndex = -1;
-  const entries: RegistryEntry[] = [];
-  const dataRows = rows.slice(1);
-  for (let i = 0; i < dataRows.length; i++) {
-    const row = dataRows[i];
-    if (!row) continue;
-    const result = rowToEntry(row);
-    if (!result.ok) continue;
-    entries.push(result.entry);
-    if (matchIndex < 0 && entryKey(result.entry) === key) matchIndex = i;
-  }
-
-  if (matchIndex < 0) return false;
-  const current = entries[matchIndex];
-  if (!current || current.parsing_strategy === strategy) return false;
-
-  const sheetRow = matchIndex + 2; // +1 for header, +1 for 1-based sheet rows
-  const colLetter = String.fromCharCode(65 + REGISTRY_COLUMNS.indexOf("parsing_strategy"));
-  await deps.updateRange(profileId, `${config.google.tabs.companies}!${colLetter}${sheetRow}`, [[strategy]]);
-
-  entries[matchIndex] = { ...current, parsing_strategy: strategy };
-  mirrorToCache(deps.cachePath, entries);
-  logger.info({ source, sourceSlug, strategy }, "registry-writer: parsing_strategy flipped on the Companies tab");
-  return true;
+  const located = locateEntryRow(rows, entryKey({ source, source_slug: sourceSlug, name }));
+  if (!located || located.entry.parsing_strategy === strategy) return false;
+  return updateRegistryEntry({ source, source_slug: sourceSlug, name }, { parsing_strategy: strategy }, profileId, deps);
 }
 
 /** Known (source,slug) keys, read straight from the tab. */
@@ -136,7 +174,7 @@ export async function knownEntryKeys(
   deps: RegistryWriterDeps = defaultDeps(),
 ): Promise<Set<string>> {
   const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  return new Set(decodeValidRows(rows).map(entryKey));
+  return new Set(decodeValidRows(rows).entries.map(entryKey));
 }
 
 /** Known company names (kebab-cased), read straight from the tab. */
@@ -145,7 +183,7 @@ export async function knownCompanyNames(
   deps: RegistryWriterDeps = defaultDeps(),
 ): Promise<Set<string>> {
   const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  return new Set(decodeValidRows(rows).map((e) => kebabCase(e.name)));
+  return new Set(decodeValidRows(rows).entries.map((e) => kebabCase(e.name)));
 }
 
 export { entryKey, kebabCase };

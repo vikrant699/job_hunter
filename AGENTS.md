@@ -27,7 +27,8 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data (and Companies from the local cache, if one exists), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
-| `npm run probe \| verify \| scrape \| repair-urls` | Ops/maintenance CLIs under `scripts/`. |
+| `npm run repair-urls` | Probe broken careers URLs and report proposed fixes (dry run). Add `-- --apply --profile <name>` to write fixes straight to the Companies tab (cache mirrored, url_suspect cleared). |
+| `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
 
 ## Before you commit (non-negotiable)
 

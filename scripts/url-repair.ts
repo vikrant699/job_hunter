@@ -1,5 +1,6 @@
 import { logger } from "../src/logger.js";
-import { selectAllCompanies } from "../src/db/index.js";
+import { selectAllCompanies, clearUrlSuspect } from "../src/db/index.js";
+import { updateRegistryEntry } from "../src/discovery/registry-writer.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
 import { analyzeCareersPage } from "../src/scraper/page-signals.js";
 import type { Company } from "../src/types.js";
@@ -11,9 +12,10 @@ import { probeWithTimeout } from "../src/util/probe.js";
 // variants AND (with quota left) a Brave Search lookup. Conservative —
 // never removes entries; ones still broken stay in the registry.
 //
-// Preview-only: the Companies tab (not config/companies.json) is the
-// registry source of truth, and this script has no sheet-write wiring —
-// it reports proposed fixes; apply them by hand in the tab.
+// Dry-run by default (report only). With opts.apply, each fix is written
+// straight to the Companies tab (the registry source of truth) via
+// updateRegistryEntry, the local cache is mirrored, and the DB url_suspect
+// flag is cleared so the company isn't re-targeted next run.
 
 const PER_CHECK_TIMEOUT_MS = 8_000;
 const REPAIR_CONCURRENCY = 4;
@@ -168,6 +170,8 @@ export interface UrlRepairResult {
   fixes: Array<{ name: string; oldUrl: string; newUrl: string; via: "path-variant" | "brave-search" }>;
   stillBroken: Array<{ name: string; careersUrl: string; lastError: string | null }>;
   braveQueriesUsed: number;
+  /** Fixes actually written to the Companies tab (0 on dry runs). */
+  applied: number;
   errors: string[];
 }
 
@@ -178,6 +182,9 @@ const MAX_BRAVE_REPAIR_QUERIES = 15;
 export interface RepairOptions {
   /** Only attempt repair on these names (case-insensitive exact match). */
   onlyNames?: string[];
+  /** When set, fixes are WRITTEN to the Companies tab using this profile's
+   *  Google token (plus cache mirror + DB url_suspect clear). Absent = dry run. */
+  apply?: { profileId: string };
 }
 
 export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRepairResult> {
@@ -194,7 +201,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
   if (targets.length === 0) {
     return {
       attempted: 0, fixed: 0, fixedByPathVariant: 0, fixedByBraveSearch: 0,
-      fixes: [], stillBroken: [], braveQueriesUsed: 0, errors: [],
+      fixes: [], stillBroken: [], braveQueriesUsed: 0, applied: 0, errors: [],
     };
   }
 
@@ -219,16 +226,37 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
   let fixedByBraveSearch = 0;
   let braveQueriesUsed = 0;
 
-  // Preview-only: record the proposed fix for the report. No DB or registry
-  // write — apply proposed fixes by hand in the Companies tab.
-  function recordFix(company: Company, newUrl: string, via: "path-variant" | "brave-search"): void {
+  let applied = 0;
+
+  // Records the proposed fix for the report; with opts.apply it ALSO writes
+  // the new careers_url straight to the Companies tab (the registry source of
+  // truth), mirrors the local cache, and clears the DB's url_suspect flag so
+  // the company isn't re-targeted next run. The DB's own careers_url refreshes
+  // at the next sheet sync.
+  async function recordFix(company: Company, newUrl: string, via: "path-variant" | "brave-search"): Promise<void> {
     fixes.push({ name: company.name, oldUrl: company.careersUrl, newUrl, via });
+    if (!opts.apply) return;
+    try {
+      const updated = await updateRegistryEntry(
+        { source: company.provider, source_slug: company.slug, name: company.name },
+        { careers_url: newUrl },
+        opts.apply.profileId,
+      );
+      if (updated) {
+        clearUrlSuspect(company.provider, company.slug);
+        applied++;
+      } else {
+        errors.push(`apply (${company.name}): no Companies-tab row for ${company.provider}::${company.slug}`);
+      }
+    } catch (err) {
+      errors.push(`apply (${company.name}): ${String(err).slice(0, 120)}`);
+    }
   }
 
   // Phase A: free path-variant probing.
   for (const r of results) {
     if (r.newUrl) {
-      recordFix(r.company, r.newUrl, "path-variant");
+      await recordFix(r.company, r.newUrl, "path-variant");
       fixedByPathVariant++;
     } else {
       stillBroken.push({ name: r.company.name, careersUrl: r.company.careersUrl, lastError: r.company.lastError });
@@ -254,7 +282,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
       const found = await findUrlViaBraveSearch(company);
       if (found.queried) braveQueriesUsed++;
       if (found.url) {
-        recordFix(company, found.url, "brave-search");
+        await recordFix(company, found.url, "brave-search");
         fixedByBraveSearch++;
       } else {
         phaseBStillBroken.push(broken);
@@ -276,6 +304,7 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
     fixes,
     stillBroken,
     braveQueriesUsed,
+    applied,
     errors,
   };
 }
