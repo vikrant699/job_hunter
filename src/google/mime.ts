@@ -29,10 +29,17 @@ function isAscii(s: string): boolean {
   return /^[\x00-\x7f]*$/.test(s);
 }
 
-/** RFC 2047 "B" (base64) encoded-word, used when the subject has non-ASCII chars. */
+/**
+ * RFC 2047 "B" (base64) encoded-word, used when the subject has non-ASCII chars.
+ * Control characters (CR/LF above all) are stripped FIRST regardless of ASCII-ness:
+ * subject text is built from scraped company names, and a CRLF smuggled through
+ * an ASCII subject would otherwise inject arbitrary headers (e.g. a Bcc:) into
+ * the raw RFC 5322 message.
+ */
 function encodeSubject(subject: string): string {
-  if (isAscii(subject)) return subject;
-  return `=?UTF-8?B?${Buffer.from(subject, "utf-8").toString("base64")}?=`;
+  const sanitized = subject.replace(/[\x00-\x1f\x7f]+/g, " ");
+  if (isAscii(sanitized)) return sanitized;
+  return `=?UTF-8?B?${Buffer.from(sanitized, "utf-8").toString("base64")}?=`;
 }
 
 /** Wrap a base64 string into CRLF-joined lines of at most `BASE64_LINE_LENGTH` chars. */

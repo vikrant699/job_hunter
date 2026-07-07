@@ -3,7 +3,7 @@ import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { profile, resumePdfPath } from "../profile.js";
 import { syncContactsFromSheet } from "./contacts.js";
-import { findContacts, type IneligibleReason } from "./match.js";
+import { findContacts, normalizeCompanyName, type IneligibleReason } from "./match.js";
 import { loadTemplate as loadTemplateDefault, renderDraft, type OutreachTemplate } from "./template.js";
 import { buildDraftMime } from "../google/mime.js";
 import { createDraft as createDraftDefault, type CreatedDraft } from "../google/gmail.js";
@@ -74,17 +74,25 @@ interface CompanyGroup {
   postings: OutreachNotifiedPosting[];
 }
 
-function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
+/** Groups by NORMALIZED company name, not the raw display string: the registry
+ *  carries near-duplicate entries under different providers ("Wipro" vs "Wipro
+ *  Limited", "Zoho" vs "Zoho Corporation") whose postings must land in ONE
+ *  group, or the same recruiter would get two drafts in a single run. The
+ *  display name shown in the email is the first spelling seen. */
+export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
   const order: string[] = [];
-  const groups = new Map<string, OutreachNotifiedPosting[]>();
+  const groups = new Map<string, { companyName: string; postings: OutreachNotifiedPosting[] }>();
   for (const p of postings) {
-    if (!groups.has(p.company)) {
-      groups.set(p.company, []);
-      order.push(p.company);
+    const key = normalizeCompanyName(p.company);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.postings.push(p);
+    } else {
+      groups.set(key, { companyName: p.company, postings: [p] });
+      order.push(key);
     }
-    groups.get(p.company)!.push(p);
   }
-  return order.map((companyName) => ({ companyName, postings: groups.get(companyName)! }));
+  return order.map((key) => groups.get(key)!);
 }
 
 /** Reason to record on the undrafted row for a company with zero eligible
@@ -134,6 +142,11 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   let draftsCreated = 0;
   let undraftedCount = 0;
   let companiesMatched = 0;
+  // Belt-and-braces against duplicate drafts within one run: normalized
+  // grouping merges same-company groups, but two DIFFERENT companies can still
+  // resolve to the same recruiter (alt-name matches on agency contacts). The
+  // in-DB cooldown only reflects committed pre-run state, so track in-run too.
+  const draftedThisRun = new Set<string>();
 
   for (const group of groupByCompany(eligiblePostings)) {
     const { eligible, ineligible } = findContacts({
@@ -174,6 +187,14 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
     }
 
     for (const recruiter of eligible) {
+      if (draftedThisRun.has(recruiter.email)) {
+        logger.info(
+          { recruiter: recruiter.email, company: group.companyName },
+          "outreach: already drafted this run for another company; skipping",
+        );
+        continue;
+      }
+
       const rendered = renderDraft({
         template,
         contactName: recruiter.contactName,
@@ -191,8 +212,22 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         attachment: resolveResumeAttachment(),
       });
 
+      let created: CreatedDraft;
       try {
-        const created = await deps.createDraft(profileId, mime);
+        created = await deps.createDraft(profileId, mime);
+      } catch (err) {
+        if (err instanceof GoogleAuthExpiredError) throw err;
+        logger.error(
+          { err: String(err), company: group.companyName, recruiter: recruiter.email },
+          "outreach: draft creation failed; continuing with remaining contacts",
+        );
+        continue;
+      }
+      // The Gmail draft now exists — record that BEFORE the DB write so a
+      // failed insert can't lead to a second draft to the same person.
+      draftedThisRun.add(recruiter.email);
+
+      try {
         deps.insertOutreach({
           profileId,
           recruiterEmail: recruiter.email,
@@ -212,10 +247,15 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         });
         draftsCreated++;
       } catch (err) {
-        if (err instanceof GoogleAuthExpiredError) throw err;
+        // The draft EXISTS in Gmail but has no DB row: it won't appear on the
+        // Drafts tab and records no cooldown. Log loudly with the draft id so
+        // a human can reconcile (delete the draft or re-run once fixed).
         logger.error(
-          { err: String(err), company: group.companyName, recruiter: recruiter.email },
-          "outreach: draft creation failed; continuing with remaining contacts",
+          {
+            err: String(err), company: group.companyName, recruiter: recruiter.email,
+            gmailDraftId: created.draftId,
+          },
+          "outreach: ORPHAN DRAFT — created in Gmail but DB record failed; not tracked on the sheet",
         );
       }
     }

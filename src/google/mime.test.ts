@@ -56,6 +56,19 @@ test("buildDraftMime: ASCII-only subject is not encoded", () => {
   assert.equal(subjectLine, "Subject: Plain Subject");
 });
 
+test("buildDraftMime: CRLF/control chars in the subject cannot inject headers", () => {
+  const mime = buildDraftMime({
+    to: "a@example.com",
+    subject: "Application for X @ Acme\r\nBcc: attacker@evil.com",
+    bodyText: "hi",
+  });
+  const lines = mime.split("\r\n");
+  assert.ok(!lines.some((l) => l.startsWith("Bcc:")), "injected Bcc header must not exist");
+  const subjectLine = lines.find((l) => l.startsWith("Subject:"));
+  assert.ok(subjectLine);
+  assert.match(subjectLine, /attacker@evil\.com/, "payload stays inert inside the single Subject line");
+});
+
 test("buildDraftMime: with attachment produces multipart/mixed with exactly two boundary delimiters and one closing delimiter", () => {
   const mime = buildDraftMime({
     to: "a@example.com",

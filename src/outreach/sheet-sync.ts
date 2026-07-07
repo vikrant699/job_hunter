@@ -2,7 +2,8 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { rewriteTab as rewriteTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
 import { selectOutreachByStatus, selectOutreachSentTab, type OutreachRow } from "../db/outreach.js";
-import { selectUndraftedByRunDate, type UndraftedRow } from "../db/outreach.js";
+import { selectUndraftedByRun, type UndraftedRow } from "../db/outreach.js";
+import { logger } from "../logger.js";
 import { DRAFTS_HEADER, SENT_HEADER, UNDRAFTED_HEADER } from "./tabs.js";
 import { SeveritySchema } from "../schemas.js";
 
@@ -100,22 +101,26 @@ function undraftedRow(row: UndraftedRow): string[] {
  * Projects the current outreach DB state into the bot-managed sheet tabs:
  *   - Drafts: full rewrite, ALL profiles' status='draft' rows (global view).
  *   - Sent: full rewrite, ALL profiles' sent/bounced/verified rows, newest first.
- *   - Undrafted: APPEND only, current run's rows (never rewritten — history stays).
+ *   - Undrafted: APPEND only, scoped to THIS run's rows by runId (never by
+ *     calendar date — two runs on the same IST day would re-append the first
+ *     run's rows and duplicate them on the tab, since append never dedups).
  *
  * `profileId` addresses which profile's Google credentials make the API calls
  * (Sheets access is per-profile-token), not which rows are included.
  */
-export async function projectToSheet(profileId: string, deps: SheetSyncDeps = defaultDeps(), runDate?: string): Promise<void> {
+export async function projectToSheet(profileId: string, deps: SheetSyncDeps = defaultDeps(), runId?: number | null): Promise<void> {
   const drafts = selectOutreachByStatus("draft").map(draftRow);
   await deps.rewriteTab(profileId, config.google.tabs.drafts, [...DRAFTS_HEADER], drafts);
 
   const sent = selectOutreachSentTab().map(sentRow);
   await deps.rewriteTab(profileId, config.google.tabs.sent, [...SENT_HEADER], sent);
 
-  if (runDate) {
-    const undrafted = selectUndraftedByRunDate(runDate, profileId).map(undraftedRow);
+  if (runId !== undefined && runId !== null) {
+    const undrafted = selectUndraftedByRun(runId).map(undraftedRow);
     if (undrafted.length > 0) {
       await deps.appendRows(profileId, config.google.tabs.undrafted, undrafted);
     }
+  } else {
+    logger.warn("sheet-sync: no runId — skipping Undrafted append (rows stay in DB only)");
   }
 }
