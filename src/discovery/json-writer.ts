@@ -41,7 +41,13 @@ function sortEntries(entries: RegistryEntry[]): RegistryEntry[] {
   });
 }
 
-function writeAtomic(path: string, entries: RegistryEntry[]): void {
+/**
+ * Atomically overwrite `path` with `entries` (write to a temp file, then
+ * rename). Exported for reuse by sheet-registry.ts's cache snapshot writes —
+ * same crash-safety requirement (a snapshot write must never leave a
+ * half-written data/registry-cache.json behind).
+ */
+export function writeAtomic(path: string, entries: RegistryEntry[]): void {
   const tmp = `${path}.tmp-${process.pid}`;
   writeFileSync(tmp, JSON.stringify(entries, null, 2), "utf-8");
   try { renameSync(tmp, path); }
