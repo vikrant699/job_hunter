@@ -5,9 +5,11 @@ Guidance for AI agents (and humans) working in this repo. Read this before makin
 ## What this is
 
 A personal job-hunting bot. It pulls postings from a registry of companies, filters them
-against the user's resume and deal-breakers, scores each with a local LLM, and notifies the
-good matches to Discord. It is run by hand (`npm run once`), not on a schedule. Not a public
-service, single user.
+against the user's resume and deal-breakers, scores each with a local LLM, then drafts
+outreach emails to matching companies' recruiters in the profile's Gmail account (drafts
+only - a human reviews and sends) and projects the draft/sent/undrafted lifecycle to a
+Google Sheet. Discord carries only run status (progress heartbeats + one end-of-run embed).
+It is run by hand (`npm run once`), not on a schedule. Not a public service, single user.
 
 ## Commands
 
@@ -73,14 +75,17 @@ src/
   llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extract-text-jobs.ts,
                  render.ts; prompts/ holds the prompt strings (gate, shortlist, extract)
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), posting-pipeline.ts
-  reports/     daily-csvs.ts          discord/  attachments.ts (CSV+upload), notify.ts,
-                 webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat)
-  outreach/    tabs.ts (spreadsheet tab header contracts; more modules landing with
-                 the outreach pipeline)
+  discord/     webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat),
+                 status.ts (single end-of-run status embed; the progress channel is the
+                 ONLY Discord surface - no per-posting pings, no per-profile webhooks)
+  outreach/    match.ts (company normalizer + contact matcher), contacts.ts (sheet ->
+                 recruiters-table sync), template.ts (+ config/outreach-template.md),
+                 run.ts (post-run Gmail draft stage), sheet-sync.ts (DB -> tab
+                 projection), tabs.ts (tab header contracts)
   registry/    companies.ts (syncs config/companies.json into the DB); sheet-codec.ts
                  (Companies-tab row <-> RegistryEntry codec)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
-  util/        semaphore, user-agent, slug, json (JsonValue)
+  util/        semaphore, user-agent, slug, json (JsonValue), csv (escape/build), probe
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
   config.ts profile.ts logger.ts index.ts
