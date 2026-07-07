@@ -29,6 +29,10 @@ export interface VerifyRecruiterLookup {
   contactName: string | null;
   phone: string | null;
   source: RecruiterSource;
+  /** LIVE status at lookup time — promotion re-checks it because
+   *  setRecruiterStatus refuses bounced->verified, so an outreach row that
+   *  came back 'verified' can still belong to a globally-bounced recruiter. */
+  status: RecruiterStatus;
   registrySlug: string | null;
 }
 
@@ -74,6 +78,7 @@ function defaultLookupRecruiter(email: string): VerifyRecruiterLookup | null {
     contactName: row.contactName,
     phone: row.phone,
     source: row.source,
+    status: row.status,
     registrySlug: row.registrySlug,
   };
 }
@@ -319,7 +324,7 @@ const RECRUITERS_LIST_EMAIL_COL = 3;
 async function promoteNewlyVerified(deps: VerifyDeps, profileId: string, newlyVerified: OutreachRow[], now: Date): Promise<void> {
   const candidates = newlyVerified
     .map((row) => deps.lookupRecruiter(row.recruiterEmail))
-    .filter((r): r is VerifyRecruiterLookup => r !== null && r.source === "raw-csv");
+    .filter((r): r is VerifyRecruiterLookup => r !== null && r.source === "raw-csv" && r.status === "verified");
   if (candidates.length === 0) return;
 
   const existingRows = await deps.readTab(profileId, config.google.tabs.recruiters);
