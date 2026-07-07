@@ -32,8 +32,10 @@ Desktop.ini
 *.tmp-*
 
 # local planning / working notes (never publish)
-docs/superpowers/
-docs/sqlite-to-postgres-migration.md
+docs/
+
+# recruiter contact dump (personal data, local-only; live Raw Data tab is the source)
+config/recruiters-raw.csv
 
 # named multi-profile dirs (config/profiles/<name>/profile.ts + resume.*) — local only
 config/profiles/*
