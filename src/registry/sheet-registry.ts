@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { readTab as defaultReadTab } from "../google/sheets.js";
 import type { RegistryEntry } from "../schemas.js";
-import { writeAtomic } from "../discovery/json-writer.js";
+import { writeAtomic } from "../util/registry-file.js";
 import { readRegistryFile, syncEntries } from "./companies.js";
 import { rowToEntry } from "./sheet-codec.js";
 

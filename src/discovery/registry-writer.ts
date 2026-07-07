@@ -5,14 +5,14 @@ import { readTab as defaultReadTab, appendRows as defaultAppendRows, updateRange
 import type { RegistryEntry } from "../schemas.js";
 import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "../registry/sheet-codec.js";
 import { readRegistryFile } from "../registry/companies.js";
-import { writeAtomic } from "./json-writer.js";
+import { writeAtomic } from "../util/registry-file.js";
 import { registryKey as entryKey, kebabCase } from "../util/slug.js";
 
 /**
- * Registry-mutation surface for discovery/runtime callers, reimplemented
- * against the Companies TAB (source of truth) instead of config/companies.json.
- * Every write also mirrors into data/registry-cache.json so the local cache
- * stays a faithful snapshot for the offline fallback in sheet-registry.ts.
+ * Registry-mutation surface for discovery/runtime callers, writing against
+ * the Companies tab (the registry source of truth). Every write also mirrors
+ * into data/registry-cache.json so the local cache stays a faithful snapshot
+ * for the offline fallback in sheet-registry.ts.
  */
 
 export interface RegistryWriterDeps {

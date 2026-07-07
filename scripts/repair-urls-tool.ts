@@ -1,6 +1,6 @@
-/** Probe failed-URL companies, try path variants + Brave Search, and optionally write fixes. */
+/** Probe failed-URL companies, try path variants + Brave Search, and report proposed fixes. */
 import "dotenv/config";
-import { syncRegistryFromJson } from "../src/registry/companies.js";
+import { syncRegistryFromSheet } from "../src/registry/sheet-registry.js";
 import { repairBrokenUrls } from "./url-repair.js";
 
 function parseArgs(): { dryRun: boolean; onlyNames: string[] } {
@@ -18,16 +18,25 @@ function parseArgs(): { dryRun: boolean; onlyNames: string[] } {
 async function main(): Promise<void> {
   const { dryRun, onlyNames } = parseArgs();
 
-  syncRegistryFromJson();
+  if (!dryRun) {
+    console.error(
+      "repair-urls-tool: --apply is deprecated now that the Companies tab (not config/companies.json) " +
+        "is the registry source of truth. Run without --apply to see proposed fixes, then edit the " +
+        "careers_url cell for each affected row in the Companies tab by hand.",
+    );
+    process.exit(1);
+  }
 
-  console.log("\n=== URL Repair " + (dryRun ? "(DRY RUN — no changes will be written)" : "(APPLYING)") + " ===");
+  await syncRegistryFromSheet("default");
+
+  console.log("\n=== URL Repair (DRY RUN — no changes will be written; edit the Companies tab by hand) ===");
   if (onlyNames.length > 0) console.log(`Limited to: ${onlyNames.join(", ")}`);
   console.log();
 
-  const r = await repairBrokenUrls({ dryRun, onlyNames: onlyNames.length > 0 ? onlyNames : undefined });
+  const r = await repairBrokenUrls({ onlyNames: onlyNames.length > 0 ? onlyNames : undefined });
 
   console.log(`Attempted:           ${r.attempted}`);
-  console.log(`Would fix (or did):  ${r.fixed}  (path-variant: ${r.fixedByPathVariant}, brave: ${r.fixedByBraveSearch})`);
+  console.log(`Would fix:           ${r.fixed}  (path-variant: ${r.fixedByPathVariant}, brave: ${r.fixedByBraveSearch})`);
   console.log(`Still broken:        ${r.stillBroken.length}`);
   console.log(`Brave queries used:  ${r.braveQueriesUsed}`);
   console.log();
@@ -55,17 +64,7 @@ async function main(): Promise<void> {
     console.log();
   }
 
-  if (dryRun) {
-    console.log("Dry run — nothing was written.");
-    console.log("To apply ALL proposed fixes:");
-    console.log("  npm run repair-urls -- --apply");
-    console.log("To apply only specific entries:");
-    console.log("  npm run repair-urls -- --apply 'MPL,Moglix,Amazon'");
-  } else {
-    console.log(r.fixes.length > 0
-      ? `Applied ${r.fixes.length} fixes to data/companies.json + DB.`
-      : "No fixes to apply.");
-  }
+  console.log("Nothing was written. Apply proposed fixes by editing careers_url in the Companies tab.");
 }
 
 main().catch((err) => { console.error(`repair-urls-tool failed: ${err}`); process.exit(1); });

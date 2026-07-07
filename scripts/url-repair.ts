@@ -1,10 +1,8 @@
 import { logger } from "../src/logger.js";
-import { selectAllCompanies, upsertCompany, clearUrlSuspect } from "../src/db/index.js";
-import { upsertRegistry } from "../src/discovery/json-writer.js";
+import { selectAllCompanies } from "../src/db/index.js";
 import { searchBrave, shouldSkipHost, isCareerShaped, hostMatchesName } from "../src/discovery/sources/brave.js";
 import { analyzeCareersPage } from "../src/scraper/page-signals.js";
 import type { Company } from "../src/types.js";
-import type { RegistryEntry } from "../src/schemas.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
 import { probeWithTimeout } from "../src/util/probe.js";
 
@@ -12,6 +10,10 @@ import { probeWithTimeout } from "../src/util/probe.js";
 // fetch failed with a "URL looks wrong" error, tries same-origin path
 // variants AND (with quota left) a Brave Search lookup. Conservative —
 // never removes entries; ones still broken stay in the registry.
+//
+// Preview-only: the Companies tab (not config/companies.json) is the
+// registry source of truth, and this script has no sheet-write wiring —
+// it reports proposed fixes; apply them by hand in the tab.
 
 const PER_CHECK_TIMEOUT_MS = 8_000;
 const REPAIR_CONCURRENCY = 4;
@@ -174,8 +176,6 @@ export interface UrlRepairResult {
 const MAX_BRAVE_REPAIR_QUERIES = 15;
 
 export interface RepairOptions {
-  /** Find fixes but don't persist — used by the CLI for the review pass. */
-  dryRun?: boolean;
   /** Only attempt repair on these names (case-insensitive exact match). */
   onlyNames?: string[];
 }
@@ -214,44 +214,15 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
 
   const fixes: UrlRepairResult["fixes"] = [];
   const stillBroken: UrlRepairResult["stillBroken"] = [];
-  const newEntries: RegistryEntry[] = [];
   const errors: string[] = [];
   let fixedByPathVariant = 0;
   let fixedByBraveSearch = 0;
   let braveQueriesUsed = 0;
 
-  // Side effects skipped under dryRun so the CLI can preview proposed fixes.
+  // Preview-only: record the proposed fix for the report. No DB or registry
+  // write — apply proposed fixes by hand in the Companies tab.
   function recordFix(company: Company, newUrl: string, via: "path-variant" | "brave-search"): void {
     fixes.push({ name: company.name, oldUrl: company.careersUrl, newUrl, via });
-    if (opts.dryRun) return;
-    newEntries.push({
-      name: company.name,
-      careers_url: newUrl,
-      source: company.provider,
-      source_slug: company.slug,
-      parsing_strategy: company.parsingStrategy,
-      status: company.status === "broken" ? "candidate" : company.status,
-      tenant_url: company.tenantUrl ?? undefined,
-      evidence: `URL repaired via ${via} from ${company.careersUrl}`,
-    });
-    try {
-      upsertCompany({
-        provider: company.provider,
-        slug: company.slug,
-        name: company.name,
-        careersUrl: newUrl,
-        parsingStrategy: company.parsingStrategy,
-        status: company.status === "broken" ? "candidate" : company.status,
-        denyReason: company.denyReason,
-        discoveredVia: company.discoveredVia,
-        tenantUrl: company.tenantUrl,
-        apiMeta: company.apiMeta ? JSON.stringify(company.apiMeta) : null,
-        discoveredAt: company.discoveredAt,
-      });
-      clearUrlSuspect(company.provider, company.slug);
-    } catch (err) {
-      errors.push(`db-update-on-repair (${company.name}): ${String(err).slice(0, 120)}`);
-    }
   }
 
   // Phase A: free path-variant probing.
@@ -296,20 +267,6 @@ export async function repairBrokenUrls(opts: RepairOptions = {}): Promise<UrlRep
   // Replace stillBroken with post-Phase-B survivors
   stillBroken.length = 0;
   stillBroken.push(...phaseBStillBroken);
-
-  // Single atomic upsert — seed entries get overridden via the working
-  // overlay (working > seed in syncRegistryFromJson).
-  if (newEntries.length > 0) {
-    try {
-      const r = upsertRegistry(newEntries);
-      logger.info(
-        { fixed: fixes.length, replaced: r.replaced, added: r.added },
-        "url-repair: working registry updated",
-      );
-    } catch (err) {
-      errors.push(`registry-write: ${String(err).slice(0, 160)}`);
-    }
-  }
 
   return {
     attempted: targets.length,

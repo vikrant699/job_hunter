@@ -93,7 +93,7 @@ per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (th
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
 | `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
-| `npm run repair-urls` | Dry-runs URL repair on companies whose last fetch failed with a 404 or DNS error. Pass `--apply` to write the fixes. |
+| `npm run repair-urls` | Previews URL repair fixes for companies whose last fetch failed with a 404 or DNS error. Reports proposed fixes only; apply them by hand in the Companies tab. |
 | `npm run eval` | Replays a labelled eval dataset through the gate and prints accuracy stats. |
 | `npm run lint` | `eslint .` |
 | `npm run typecheck` | `tsc --noEmit`. |
@@ -140,30 +140,27 @@ tailing logs.
 
 ## The registry and adding a company
 
-The company registry is a single git-tracked file, `config/companies.json`. It is the
-one source of truth; the bot syncs it into the SQLite `companies` table on each run,
-and discovery and repair write new or corrected entries back to it. An ATS entry looks
-like:
+The company registry is the Companies tab of your outreach Google Sheet. It is the one
+source of truth; the bot syncs it into the SQLite `companies` table on each run, and
+discovery writes new entries back to it. `data/registry-cache.json` is a bot-maintained
+local snapshot of the tab, used only as an offline fallback when the sheet is
+unreachable - it is not itself a source of truth, and it is not git-tracked. An ATS
+entry's columns look like (see `src/registry/sheet-codec.ts` for the exact column order):
 
-```json
-{
-  "name": "Acme",
-  "careers_url": "https://acme.example.com/careers",
-  "source": "greenhouse",
-  "source_slug": "acme",
-  "parsing_strategy": "ats-api"
-}
-```
+| name | careers_url | source | source_slug | parsing_strategy |
+|---|---|---|---|---|
+| Acme | https://acme.example.com/careers | greenhouse | acme | ats-api |
 
-Before adding, run `npm run probe -- acme` to find out which ATS hosts their board. If
-none of the supported ATSes match, set `source: "custom"` and
-`parsing_strategy: "llm-scrape"`. If the careers page is a JavaScript-rendered SPA, use
+Before adding, run `npm run probe -- acme` to find out which ATS hosts their board, and
+check the tab first - the company may already be present under a non-obvious slug. If
+none of the supported ATSes match, set `source` to `custom` and `parsing_strategy` to
+`llm-scrape`. If the careers page is a JavaScript-rendered SPA, use
 `playwright-llm-scrape` instead.
 
-Workday entries need one extra field, the tenant URL:
+Workday entries need one extra column, the tenant URL:
 
-```json
-"tenant_url": "https://acme.wd1.myworkdayjobs.com/External"
+```
+tenant_url: https://acme.wd1.myworkdayjobs.com/External
 ```
 
 Workday has no directory of tenants, so finding these means hunting around the
@@ -173,13 +170,12 @@ company's careers page until you spot a `myworkdayjobs.com` link.
 
 ```
 config/
-  companies.json         the company registry (single source of truth)
   profile.ts             your deal-breakers + filters + locations    (gitignored)
   profile.example.ts     template; loader falls back to it
   profiles/<name>/       named profiles (profile.ts + resume.pdf)     (gitignored)
   resume.pdf             your resume PDF                             (gitignored)
   resume.txt             extracted resume text the gate judges on    (gitignored)
-data/                    SQLite DB + caches                          (gitignored)
+data/                    SQLite DB, registry-cache.json, other caches (gitignored)
 eval/                    offline gate-replay harness (replay.ts, dataset, metrics)
 scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
                            scrape-probe, repair-urls-tool, url-repair
@@ -188,14 +184,17 @@ src/
                            to adapters; workday-facet.ts for faceted Workday search
   db/                    per-table modules (companies, postings, runs, quota, ...)
                            behind a barrel index.ts
-  discovery/             YC + RSS + Brave sources; ats-patterns + ats-validate
+  discovery/             YC + RSS + Brave sources; ats-patterns + ats-validate;
+                           registry-writer.ts writes new entries to the Companies tab
   filter/                location / title / denylist / verdict
   llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
   discord/               webhook helper + match/summary notifier + progress heartbeat + CSV uploader
   reports/               end-of-run report + CSV builder
-  registry/              loads and validates config/companies.json into the companies table
+  registry/              sheet-registry.ts syncs the Companies tab (with a
+                           registry-cache.json fallback) into the companies table;
+                           sheet-codec.ts converts between tab rows and RegistryEntry
   scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
-  util/                  shared helpers: semaphore, user-agent, slug, json
+  util/                  shared helpers: semaphore, user-agent, slug, json, registry-file
   tools/
     extract-resume.ts    PDF-to-text extraction (run via npm run extract-resume)
   pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts

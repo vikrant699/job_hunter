@@ -1,6 +1,7 @@
 /**
- * Confirmed-NOISE denylist. Companies here were REMOVED from config/companies.json
- * because they meet the strict noise bar (see docs/superpowers/plans/2026-06-19-
+ * Confirmed-NOISE denylist. Companies here were REMOVED from the registry
+ * (formerly config/companies.json, now the Companies tab) because they meet
+ * the strict noise bar (see docs/superpowers/plans/2026-06-19-
  * registry-expansion-denoise-categorize.md §9): they (i) never hire tech in India
  * and never will, (ii) are not a tech employer at all, or are defunct / mis-seeded
  * / exact duplicates. `isDeniedCompany` checks this so the discovery queue can

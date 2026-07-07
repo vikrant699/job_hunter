@@ -24,7 +24,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run lint` | `eslint .` (enforces the type-hygiene rules below). |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. |
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
-| `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data + Companies, writes headers. |
+| `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data (and Companies from the local cache, if one exists), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
 | `npm run probe \| verify \| scrape \| repair-urls` | Ops/maintenance CLIs under `scripts/`. |
@@ -71,7 +71,7 @@ src/
                  unixToIso, parsePostedOn); html-text.ts; workday-facet.ts; types.ts (AtsAdapter)
   db/          per-table modules (companies, postings, runs, quota, link-cache, api-meta)
                  behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
-  discovery/   sources/ (brave, rss, yc); ats-patterns + ats-validate; run.ts; json-writer.ts
+  discovery/   sources/ (brave, rss, yc); ats-patterns + ats-validate; run.ts; registry-writer.ts
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
@@ -88,15 +88,17 @@ src/
                  raw-csv recruiter promotion onto the Recruiters List tab),
                  roles.ts (shared roles_json schema), sheet-sync.ts (DB -> tab
                  projection), tabs.ts (tab header contracts)
-  registry/    companies.ts (syncs config/companies.json into the DB); sheet-codec.ts
-                 (Companies-tab row <-> RegistryEntry codec)
+  registry/    sheet-registry.ts (syncs the Companies tab, with a registry-cache.json
+                 fallback, into the DB); companies.ts (shared upsert+prune core, JSON
+                 file reader for the cache); sheet-codec.ts (Companies-tab row <->
+                 RegistryEntry codec)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
   util/        semaphore, user-agent, slug, json (JsonValue), csv (escape/build), probe
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
   config.ts profile.ts logger.ts index.ts
-config/        companies.json (registry source of truth); profile.ts, resume.* (gitignored);
-                 profiles/<name>/ (named multi-profile dirs: profile.ts + resume.*, gitignored)
+config/        profile.ts, resume.* (gitignored); profiles/<name>/ (named multi-profile
+                 dirs: profile.ts + resume.*, gitignored)
 eval/          offline gate-replay harness (NOT shipped, not in the bot's runtime graph)
 scripts/       ops/maintenance CLIs (NOT shipped)
 data/          SQLite DB + caches (gitignored)
@@ -104,9 +106,11 @@ data/          SQLite DB + caches (gitignored)
 
 ## Conventions
 
-- **Registry is `config/companies.json`**, the single source of truth. It is synced into the
-  SQLite `companies` table each run; the DB is a derived cache. To add/remove a company, edit
-  the JSON (and check it isn't already present under a non-obvious slug), not the DB.
+- **Registry is the Companies tab of the outreach spreadsheet**, the single source of truth.
+  It is synced into the SQLite `companies` table each run; the DB is a derived cache.
+  `data/registry-cache.json` is a bot-maintained local snapshot/fallback used only when the
+  sheet is unreachable, not itself a source of truth. To add/remove a company, edit the tab
+  (and check it isn't already present under a non-obvious slug), not the DB or the cache file.
 - **New ATS adapter:** implement the `AtsAdapter` interface, register it in `src/ats/registry.ts`,
   and add fixture tests. Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`, `unixToIso`,
   `buildLocationString`-style helpers from `src/ats/shared.ts` rather than re-rolling them.
