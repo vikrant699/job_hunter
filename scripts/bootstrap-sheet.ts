@@ -2,7 +2,9 @@
  * One-time (idempotent) bootstrap of the outreach spreadsheet:
  *   - creates the bot-managed tabs (Raw Data, Drafts, Sent, Undrafted, Companies)
  *   - uploads config/recruiters-raw.csv into Raw Data (only when the tab is empty)
- *   - uploads config/companies.json into Companies (only when the tab is empty)
+ *   - uploads data/registry-cache.json into Companies (only when the tab is
+ *     empty AND a local cache already exists — a brand-new setup with no
+ *     cache yet leaves the Companies tab for the user to seed by hand)
  *   - writes headers into empty Drafts/Sent/Undrafted tabs
  *   - adds the bot's extra columns (E1:G1) to the manual Recruiters List tab
  *
@@ -12,7 +14,7 @@
  *   npm run bootstrap-sheet -- --profile <name>
  */
 import "dotenv/config";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { config } from "../src/config.js";
@@ -62,10 +64,17 @@ async function main(): Promise<void> {
   }
   await seedIfEmpty(profileId, t.rawData, RAW_DATA_HEADER, contactRows);
 
-  // Companies: current registry, serialized through the shared codec.
+  // Companies: seed from the local cache if one exists (e.g. a re-bootstrap
+  // against a fresh spreadsheet). On a brand-new setup with no cache yet,
+  // there is nothing to seed from — the tab starts empty and the user adds
+  // rows by hand, or a first `npm run discover` populates it via appendRows.
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
-  const entries = z.array(RegistryEntrySchema).parse(JSON.parse(readFileSync(registryPath, "utf-8")));
-  await seedIfEmpty(profileId, t.companies, REGISTRY_COLUMNS, entries.map(entryToRow));
+  if (existsSync(registryPath)) {
+    const entries = z.array(RegistryEntrySchema).parse(JSON.parse(readFileSync(registryPath, "utf-8")));
+    await seedIfEmpty(profileId, t.companies, REGISTRY_COLUMNS, entries.map(entryToRow));
+  } else {
+    console.log(`${t.companies}: no local cache at ${registryPath} — leaving as-is`);
+  }
 
   // Empty lifecycle tabs get their headers so humans see the schema immediately.
   await seedIfEmpty(profileId, t.drafts, DRAFTS_HEADER, []);

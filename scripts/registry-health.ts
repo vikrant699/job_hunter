@@ -12,6 +12,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import { db } from "../src/db/db.js";
+import { config } from "../src/config.js";
 
 const countRow = z.object({ n: z.number() });
 const num = (s: string): number => countRow.parse(db.prepare(s).get()).n;
@@ -60,8 +61,11 @@ console.log("  never fetched:", num("SELECT COUNT(*) n FROM companies WHERE last
 console.log("  url_suspect=1:", num("SELECT COUNT(*) n FROM companies WHERE url_suspect=1"));
 console.log("  consecutive_failures>=3:", num("SELECT COUNT(*) n FROM companies WHERE COALESCE(consecutive_failures,0)>=3"));
 
-// Category / employer_type live in the registry JSON (source of truth, Phase 3).
-const regPath = resolve(process.cwd(), "config/companies.json");
+// Category / employer_type live on the Companies tab (source of truth, Phase 3);
+// this reads the local snapshot (data/registry-cache.json) rather than hitting
+// the sheet, since this report is a point-in-time DB/cache cross-check, not a
+// live sync.
+const regPath = resolve(process.cwd(), config.storage.registryPath);
 if (existsSync(regPath)) {
   const reg = z
     .array(z.object({ category: z.string().optional(), employer_type: z.string().optional() }))
@@ -74,10 +78,12 @@ if (existsSync(regPath)) {
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   };
-  console.log("\n[CATEGORY] (from registry JSON)");
+  console.log("\n[CATEGORY] (from registry cache)");
   for (const [cat, cnt] of tally("category")) console.log(`  ${cat.padEnd(24)} ${cnt}`);
   console.log("\n[EMPLOYER TYPE]");
   for (const [et, cnt] of tally("employer_type")) console.log(`  ${et.padEnd(12)} ${cnt}`);
+} else {
+  console.log("\n[CATEGORY / EMPLOYER TYPE] no local cache yet — run `npm run once` or `npm run discover` first.");
 }
 
 process.exit(0);

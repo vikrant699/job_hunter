@@ -1,7 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { db, upsertCompany, selectAllCompanies, deleteCompany } from "../db/index.js";
 import { isDeniedCompany } from "../filter/denylist.js";
@@ -12,10 +10,10 @@ import { resolveSlug, registryKey } from "../util/slug.js";
 const RegistryFileSchema = z.array(RegistryEntrySchema);
 
 /**
- * Read+validate a JSON array of RegistryEntry from disk. Shared by the JSON
- * sync path (below) and the sheet-backed cache fallback (sheet-registry.ts),
- * which reads data/registry-cache.json through this same function — the cache
- * is a plain JSON snapshot of the last fully-valid sheet sync.
+ * Read+validate a JSON array of RegistryEntry from disk. Used by the
+ * sheet-backed cache fallback (sheet-registry.ts), which reads
+ * data/registry-cache.json through this same function — the cache is a plain
+ * JSON snapshot of the last fully-valid Companies-tab sync.
  */
 export function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
@@ -41,10 +39,11 @@ export interface SyncEntriesResult {
 }
 
 /**
- * Shared upsert+prune core used by both the legacy JSON sync and the new
- * sheet-backed sync. `opts.prune` gates the delete-orphans pass: callers with
- * any unvalidated/quarantined rows must pass `prune: false` so a single bad
- * row in the source can't wipe out companies it doesn't even mention.
+ * Shared upsert+prune core behind the sheet-backed sync (both the live-sheet
+ * path and the cache fallback in sheet-registry.ts). `opts.prune` gates the
+ * delete-orphans pass: callers with any unvalidated/quarantined rows must
+ * pass `prune: false` so a single bad row in the source can't wipe out
+ * companies it doesn't even mention.
  */
 export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }): SyncEntriesResult {
   // Map dedups in case the source carries duplicate keys.
@@ -105,12 +104,4 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
   }
 
   return { synced: merged.size, denied, pruned };
-}
-
-export function syncRegistryFromJson(): { synced: number; denied: number; pruned: number; registryPath: string } {
-  const path = resolve(process.cwd(), config.storage.registryPath);
-  const entries = readRegistryFile(path);
-  const result = syncEntries(entries, { prune: true });
-  logger.info({ registryPath: path, ...result }, "registry synced");
-  return { ...result, registryPath: path };
 }

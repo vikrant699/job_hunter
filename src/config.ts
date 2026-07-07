@@ -53,7 +53,11 @@ export const config = {
      *  nothing projected DB state outward, but the outreach sheet-sync now
      *  mirrors outreach tables onto the user's real Google Sheet. */
     dbPath: process.env.JOB_HUNTER_DB_PATH ?? "data/job_hunter.db",
-    registryPath: "config/companies.json",
+    /** LOCAL SNAPSHOT of the Companies tab (the registry source of truth),
+     *  not itself a source of truth. Written atomically after every fully-
+     *  valid sheet sync; read back only when the sheet is unreachable
+     *  (sheet-registry.ts) or by read-only ops scripts. */
+    registryPath: "data/registry-cache.json",
     postingRetentionDays: 90,
   },
 

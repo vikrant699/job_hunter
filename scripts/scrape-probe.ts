@@ -1,7 +1,7 @@
 /** Test the llm-scrape pipeline against one company by slug. */
 import "dotenv/config";
 import * as cheerio from "cheerio";
-import { syncRegistryFromJson } from "../src/registry/companies.js";
+import { syncRegistryFromSheet } from "../src/registry/sheet-registry.js";
 import { selectActiveCompanies } from "../src/db/index.js";
 import { llmScrapeAdapter } from "../src/scraper/llm-scrape.js";
 import { fetchHtml, extractLinkShortlist } from "../src/scraper/cheerio.js";
@@ -118,7 +118,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  syncRegistryFromJson();
+  await syncRegistryFromSheet("default");
   const all = selectActiveCompanies();
 
   for (const slug of slugs) {
