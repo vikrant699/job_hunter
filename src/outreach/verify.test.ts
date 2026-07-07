@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { GoogleAuthExpiredError } from "../google/auth.js";
 import type { OutreachRow, UpdateOutreachStatusInput, InsertUndraftedInput } from "../db/outreach.js";
 import type { MessageMetadata } from "../google/gmail.js";
-import type { OutreachStatus, RecruiterStatus } from "../schemas.js";
+import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../schemas.js";
 import { epochSeconds, runVerify, type VerifyDeps } from "./verify.js";
 
 function mkRow(overrides: Partial<OutreachRow> = {}): OutreachRow {
@@ -33,6 +33,7 @@ interface Harness {
   statusUpdates: UpdateOutreachStatusInput[];
   undrafted: InsertUndraftedInput[];
   recruiterStatuses: Array<{ email: string; status: RecruiterStatus; atIso: string }>;
+  appended: Array<{ profileId: string; tab: string; rows: string[][] }>;
 }
 
 function harness(opts: {
@@ -42,10 +43,13 @@ function harness(opts: {
   searchMessages?: VerifyDeps["searchMessages"];
   getMessageMetadata?: VerifyDeps["getMessageMetadata"];
   now?: () => Date;
+  readTab?: VerifyDeps["readTab"];
+  recruitersByEmail?: Record<string, { source: RecruiterSource; company: string; contactName: string | null; phone: string | null; registrySlug: string | null }>;
 } = {}): Harness {
   const statusUpdates: UpdateOutreachStatusInput[] = [];
   const undrafted: InsertUndraftedInput[] = [];
   const recruiterStatuses: Array<{ email: string; status: RecruiterStatus; atIso: string }> = [];
+  const appended: Array<{ profileId: string; tab: string; rows: string[][] }> = [];
 
   const deps: VerifyDeps = {
     selectOutreachByStatus: (status: OutreachStatus) => {
@@ -67,10 +71,26 @@ function harness(opts: {
     setRecruiterStatus: (email: string, status: RecruiterStatus, atIso: string) => {
       recruiterStatuses.push({ email, status, atIso });
     },
+    lookupRecruiter: (email: string) => {
+      const found = opts.recruitersByEmail?.[email];
+      if (!found) return null;
+      return {
+        email,
+        company: found.company,
+        contactName: found.contactName,
+        phone: found.phone,
+        source: found.source,
+        registrySlug: found.registrySlug,
+      };
+    },
+    readTab: opts.readTab ?? (async () => [["Company", "Name", "Phone", "Email", "Source", "Verified On", "Registry Slug"]]),
+    appendRows: async (profileId: string, tab: string, rows: string[][]) => {
+      appended.push({ profileId, tab, rows });
+    },
     now: opts.now ?? (() => new Date("2026-07-06T12:00:00.000Z")),
   };
 
-  return { deps, statusUpdates, undrafted, recruiterStatuses };
+  return { deps, statusUpdates, undrafted, recruiterStatuses, appended };
 }
 
 test("epochSeconds converts an ISO timestamp to integer epoch seconds (no ms)", () => {
@@ -158,6 +178,51 @@ test("runVerify: sent row past verifyAfterHours with no bounce -> status verifie
   assert.equal(statusUpdates[0]?.status, "verified");
   assert.equal(recruiterStatuses.length, 1);
   assert.equal(recruiterStatuses[0]?.status, "verified");
+});
+
+test("runVerify: newly-verified raw-csv recruiter is appended to the Recruiters List tab", async () => {
+  const { deps, appended } = harness({
+    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-05T00:00:00.000Z", recruiterEmail: "raw@acme.com" })],
+    searchMessages: async () => [],
+    recruitersByEmail: {
+      "raw@acme.com": { source: "raw-csv", company: "Acme", contactName: "Jane", phone: "123", registrySlug: "acme" },
+    },
+  });
+
+  await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(appended.length, 1);
+  assert.equal(appended[0]?.tab, "Recruiters List");
+  assert.deepEqual(appended[0]?.rows, [["Acme", "Jane", "123", "raw@acme.com", "job-hunter-bot", "2026-07-06", "acme"]]);
+});
+
+test("runVerify: newly-verified manual-sheet recruiter is NOT appended (already on the tab)", async () => {
+  const { deps, appended } = harness({
+    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-05T00:00:00.000Z", recruiterEmail: "manual@acme.com" })],
+    searchMessages: async () => [],
+    recruitersByEmail: {
+      "manual@acme.com": { source: "manual-sheet", company: "Acme", contactName: "Jane", phone: null, registrySlug: null },
+    },
+  });
+
+  await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(appended.length, 0);
+});
+
+test("runVerify: raw-csv recruiter already present on the Recruiters List tab is not re-appended", async () => {
+  const { deps, appended } = harness({
+    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-05T00:00:00.000Z", recruiterEmail: "raw@acme.com" })],
+    searchMessages: async () => [],
+    recruitersByEmail: {
+      "raw@acme.com": { source: "raw-csv", company: "Acme", contactName: "Jane", phone: null, registrySlug: null },
+    },
+    readTab: async () => [
+      ["Company", "Name", "Phone", "Email", "Source", "Verified On", "Registry Slug"],
+      ["Acme", "Jane", "", "raw@acme.com", "manual", "2026-01-01", ""],
+    ],
+  });
+
+  await runVerify({ profileId: "default", runId: null, deps });
+  assert.equal(appended.length, 0);
 });
 
 test("runVerify: sent row not yet 24h old and no bounce -> only last_checked_at updates", async () => {

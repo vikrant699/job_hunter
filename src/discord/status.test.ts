@@ -25,6 +25,7 @@ test("buildStatusEmbed includes the profile id in the title", () => {
     stats: mkStats(),
     outreach: { draftsCreated: 3, undrafted: 1, companiesMatched: 2 },
     outreachError: null,
+    verify: null,
   });
   assert.match(embed.title, /vikrant/);
   assert.match(embed.title, /run complete/);
@@ -36,6 +37,7 @@ test("buildStatusEmbed surfaces companies/postings/green/yellow/jdFetchFailed/er
     stats: mkStats({ postingsGreen: 5, postingsYellow: 8, jdFetchFailed: 2, errors: ["oops"] }),
     outreach: { draftsCreated: 3, undrafted: 1, companiesMatched: 2 },
     outreachError: null,
+    verify: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Companies scanned"], "100");
@@ -53,6 +55,7 @@ test("buildStatusEmbed surfaces drafts created / undrafted counts and a spreadsh
     stats: mkStats(),
     outreach: { draftsCreated: 7, undrafted: 4, companiesMatched: 5 },
     outreachError: null,
+    verify: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Drafts created"], "7");
@@ -68,9 +71,38 @@ test("buildStatusEmbed shows an outreach-error field instead of drafts/undrafted
     stats: mkStats(),
     outreach: null,
     outreachError: "Google auth expired",
+    verify: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Outreach error"], "Google auth expired");
   assert.equal(byName["Drafts created"], undefined);
   assert.equal(byName["Undrafted"], undefined);
+});
+
+test("buildStatusEmbed renders a compact Verify field when a verify result is present", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: { checkedDrafts: 3, sent: 1, discarded: 1, bounced: 1, verified: 2 },
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.match(byName["Verify"] ?? "", /checked 3/);
+  assert.match(byName["Verify"] ?? "", /sent 1/);
+  assert.match(byName["Verify"] ?? "", /discarded 1/);
+  assert.match(byName["Verify"] ?? "", /bounced 1/);
+  assert.match(byName["Verify"] ?? "", /verified 2/);
+});
+
+test("buildStatusEmbed omits the Verify field when verify is null", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: { draftsCreated: 1, undrafted: 0, companiesMatched: 1 },
+    outreachError: null,
+    verify: null,
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Verify"], undefined);
 });

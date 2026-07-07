@@ -7,7 +7,9 @@ Guidance for AI agents (and humans) working in this repo. Read this before makin
 A personal job-hunting bot. It pulls postings from a registry of companies, filters them
 against the user's resume and deal-breakers, scores each with a local LLM, then drafts
 outreach emails to matching companies' recruiters in the profile's Gmail account (drafts
-only - a human reviews and sends) and projects the draft/sent/undrafted lifecycle to a
+only - a human reviews and sends). Before drafting, a bounce-only verify pass checks
+yesterday's drafts/sent messages against the mailbox (sent/discarded/bounced/verified) so
+a known-dead address never gets drafted to again. Both stages project their lifecycle to a
 Google Sheet. Discord carries only run status (progress heartbeats + one end-of-run embed).
 It is run by hand (`npm run once`), not on a schedule. Not a public service, single user.
 
@@ -23,6 +25,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. |
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data + Companies, writes headers. |
+| `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
 | `npm run probe \| verify \| scrape \| repair-urls` | Ops/maintenance CLIs under `scripts/`. |
 
@@ -80,7 +83,10 @@ src/
                  ONLY Discord surface - no per-posting pings, no per-profile webhooks)
   outreach/    match.ts (company normalizer + contact matcher), contacts.ts (sheet ->
                  recruiters-table sync), template.ts (+ config/outreach-template.md),
-                 run.ts (post-run Gmail draft stage), sheet-sync.ts (DB -> tab
+                 run.ts (post-run Gmail draft stage), verify.ts (bounce-only
+                 verify pass: draft->sent/discarded, sent->bounced/verified, plus
+                 raw-csv recruiter promotion onto the Recruiters List tab),
+                 roles.ts (shared roles_json schema), sheet-sync.ts (DB -> tab
                  projection), tabs.ts (tab header contracts)
   registry/    companies.ts (syncs config/companies.json into the DB); sheet-codec.ts
                  (Companies-tab row <-> RegistryEntry codec)
