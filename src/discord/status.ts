@@ -13,12 +13,18 @@ export interface OutreachSummary {
   companiesMatched: number;
 }
 
+export interface RegistrySyncSummary {
+  source: string;
+  invalidRows: number;
+}
+
 export interface StatusInput {
   profileId: string;
   stats: ProductionTickOutcome["stats"];
   outreach: OutreachSummary | null;
   outreachError: string | null;
   verify: VerifyResult | null;
+  registry: RegistrySyncSummary | null;
 }
 
 interface StatusEmbedField { name: string; value: string; inline: boolean }
@@ -66,11 +72,20 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     fields.push({ name: "Outreach error", value: input.outreachError, inline: false });
   }
 
+  if (input.registry) {
+    fields.push({
+      name: "Registry",
+      value: `source: ${input.registry.source}, invalid rows: ${input.registry.invalidRows}`,
+      inline: false,
+    });
+  }
+
   fields.push({ name: "Spreadsheet", value: spreadsheetUrl(), inline: false });
 
+  const registryStale = input.registry?.source === "cache";
   return {
     title: `${config.discord.titlePrefix} run complete — ${input.profileId}`,
-    color: input.outreachError || stats.errors.length > 0 ? COLOR_ORANGE : COLOR_GREEN,
+    color: input.outreachError || stats.errors.length > 0 || registryStale ? COLOR_ORANGE : COLOR_GREEN,
     fields,
   };
 }

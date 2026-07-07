@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { logger } from "./logger.js";
-import { syncRegistryFromJson } from "./registry/companies.js";
+import { syncRegistryFromSheet, type RegistrySyncResult } from "./registry/sheet-registry.js";
 import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery } from "./discovery/run.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
@@ -22,7 +22,7 @@ function printUsage(): void {
 `);
 }
 
-async function runOnce(): Promise<void> {
+async function runOnce(registryResult: RegistrySyncResult): Promise<void> {
   // Discovery is intentionally NOT part of a regular run — it's a separate step
   // (`npm run discover`) so nightly runs only fetch + filter + notify.
   const outcome = await runProductionTick();
@@ -51,7 +51,14 @@ async function runOnce(): Promise<void> {
   }
 
   try {
-    await postRunStatus({ profileId, stats: outcome.stats, outreach: outreachResult, outreachError, verify: verifyResult });
+    await postRunStatus({
+      profileId,
+      stats: outcome.stats,
+      outreach: outreachResult,
+      outreachError,
+      verify: verifyResult,
+      registry: { source: registryResult.source, invalidRows: registryResult.invalidRows.length },
+    });
   } catch (err) {
     logger.error({ err: String(err) }, "status post threw");
   }
@@ -84,18 +91,25 @@ async function main(): Promise<void> {
     await assertGoogleTokenValid(profile.id ?? "default");
   }
 
-  syncRegistryFromJson();
+  const profileId = profile.id ?? "default";
+  const registryResult = await syncRegistryFromSheet(profileId);
 
   if (discover) {
-    const r = await runDiscovery();
+    const r = await runDiscovery(profileId);
     logger.info(
-      { added: r.additions.length, skipped: r.skipped.length, braveQuotaUsed: r.braveQuotaUsed },
+      {
+        added: r.additions.length,
+        skipped: r.skipped.length,
+        braveQuotaUsed: r.braveQuotaUsed,
+        registrySource: registryResult.source,
+        registryInvalidRows: registryResult.invalidRows.length,
+      },
       "discovery-only run complete",
     );
     process.exit(0);
   }
 
-  await runOnce();
+  await runOnce(registryResult);
   process.exit(0);
 }
 

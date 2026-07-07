@@ -7,7 +7,7 @@ import { discoverFromUrl, validateCandidate, discoverKekaMeta, type AtsCandidate
 import { runBraveSource, type BraveCandidate } from "./sources/brave.js";
 import { runRssSources, type RssCandidate } from "./sources/rss.js";
 import { runYcSource, type YcCandidate } from "./sources/yc.js";
-import { appendToRegistry, kebabCase, entryKey, knownEntryKeys, knownCompanyNames } from "./json-writer.js";
+import { appendToRegistry, kebabCase, entryKey, knownEntryKeys, knownCompanyNames } from "./registry-writer.js";
 
 /**
  * Discovery orchestrator — pulls new candidate companies from YC, RSS funding
@@ -212,7 +212,7 @@ function deduplicateByName(
   return { kept, dupes };
 }
 
-export async function runDiscovery(): Promise<DiscoveryResult> {
+export async function runDiscovery(profileId: string): Promise<DiscoveryResult> {
   const now = new Date().toISOString();
   const errors: string[] = [];
   const bySource: Record<CandidateSource, { surfaced: number; added: number; skipped: number }> = {
@@ -267,8 +267,8 @@ export async function runDiscovery(): Promise<DiscoveryResult> {
 
   // Two-pass dedup: name-only catches duplicates across sources; (provider,
   // slug) catches when a probe resolves to an already-registered board.
-  const knownNames = knownCompanyNames();
-  const knownKeys = knownEntryKeys();
+  const knownNames = await knownCompanyNames(profileId);
+  const knownKeys = await knownEntryKeys(profileId);
   const { kept, dupes } = deduplicateByName(allCandidates, knownNames);
   const skipped: DiscoverySkip[] = [...dupes];
   for (const d of dupes) bySource[d.source].skipped++;
@@ -315,10 +315,10 @@ export async function runDiscovery(): Promise<DiscoveryResult> {
 
   if (additions.length > 0) {
     try {
-      const r = appendToRegistry(additions);
+      const r = await appendToRegistry(additions, profileId);
       logger.info(
-        { written: r.written, skippedDupes: r.skippedDuplicates, path: r.path },
-        "discovery: working registry updated",
+        { written: r.written, skippedDupes: r.skippedDuplicates },
+        "discovery: Companies tab updated",
       );
     } catch (err) {
       errors.push(`registry-write: ${String(err).slice(0, 160)}`);
