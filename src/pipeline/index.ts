@@ -50,6 +50,8 @@ export function toAdapterCompany(c: Company): AdapterCompany {
 }
 
 export interface ProductionTickOutcome {
+  /** The runs-table row id for this tick — scopes post-run outreach records. */
+  runId: number;
   startedAtIso: string;
   endedAtIso: string;
   stats: {
@@ -205,6 +207,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   );
 
   return {
+    runId,
     startedAtIso,
     endedAtIso: new Date(endedAt).toISOString(),
     stats: {

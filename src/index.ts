@@ -5,7 +5,7 @@ import { runProductionTick } from "./pipeline/index.js";
 import { runDiscovery } from "./discovery/run.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
-import { runOutreach, istDate, type RunOutreachResult } from "./outreach/run.js";
+import { runOutreach, type RunOutreachResult } from "./outreach/run.js";
 import { projectToSheet } from "./outreach/sheet-sync.js";
 import { postRunStatus } from "./discord/status.js";
 import { profile } from "./profile.js";
@@ -30,8 +30,8 @@ async function runOnce(): Promise<void> {
   let outreachResult: RunOutreachResult | null = null;
   let outreachError: string | null = null;
   try {
-    outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: null });
-    await projectToSheet(profileId, undefined, istDate(new Date()));
+    outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
+    await projectToSheet(profileId, undefined, outcome.runId);
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
       // Scrape results are already saved — a stale/revoked Google token must

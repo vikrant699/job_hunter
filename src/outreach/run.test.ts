@@ -1,10 +1,10 @@
-import { test } from "node:test";
+﻿import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GoogleAuthExpiredError } from "../google/auth.js";
 import type { RecruiterRow } from "../db/recruiters.js";
 import type { OutreachNotifiedPosting } from "../db/postings.js";
 import type { InsertOutreachInput, InsertUndraftedInput } from "../db/outreach.js";
-import { istDate, runOutreach, type RunOutreachDeps } from "./run.js";
+import { groupByCompany, istDate, runOutreach, type RunOutreachDeps } from "./run.js";
 
 function mkRecruiter(overrides: Partial<RecruiterRow> = {}): RecruiterRow {
   return {
@@ -88,9 +88,9 @@ function harness(opts: {
 }
 
 test("istDate converts a UTC instant to the IST calendar date (YYYY-MM-DD)", () => {
-  // 2026-07-06T19:00:00Z is 2026-07-07T00:30 IST (UTC+5:30) — crosses midnight.
+  // 2026-07-06T19:00:00Z is 2026-07-07T00:30 IST (UTC+5:30) â€” crosses midnight.
   assert.equal(istDate(new Date("2026-07-06T19:00:00.000Z")), "2026-07-07");
-  // 2026-07-06T18:00:00Z is 2026-07-06T23:30 IST — still the same day.
+  // 2026-07-06T18:00:00Z is 2026-07-06T23:30 IST â€” still the same day.
   assert.equal(istDate(new Date("2026-07-06T18:00:00.000Z")), "2026-07-06");
 });
 
@@ -251,4 +251,16 @@ test("runOutreach: missing resume file warns and sends without attachment", asyn
   const result = await runOutreach({ profileId: "default", sinceIso: "2026-01-01T00:00:00Z", runId: null, deps });
   assert.equal(result.draftsCreated, 1);
   assert.doesNotMatch(drafts[0]!.mime, /application\/pdf/);
+});
+
+test("groupByCompany merges near-duplicate display names into one group (Wipro / Wipro Limited)", () => {
+  const groups = groupByCompany([
+    mkPosting({ company: "Wipro", jobTitle: "SDE II" }),
+    mkPosting({ company: "Wipro Limited", jobTitle: "Frontend Engineer" }),
+    mkPosting({ company: "Zoho Corporation", jobTitle: "Analyst" }),
+  ]);
+  assert.equal(groups.length, 2);
+  const wipro = groups.find((g) => g.companyName === "Wipro");
+  assert.ok(wipro, "first-seen spelling is the display name");
+  assert.deepEqual(wipro.postings.map((p) => p.jobTitle), ["SDE II", "Frontend Engineer"]);
 });

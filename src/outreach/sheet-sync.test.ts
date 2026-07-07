@@ -132,24 +132,30 @@ test("projectToSheet writes the Sent tab with sent/bounced/verified rows, newest
   assert.equal(row[7], "sent"); // Status: raw status, not a pending/verified check-relabel
 });
 
-test("projectToSheet appends Undrafted rows for the current IST run date only, never rewrites", async () => {
+test("projectToSheet appends Undrafted rows for THIS runId only, never rewrites", async () => {
   const { deps, appends, rewrites } = harness();
   const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const runDate = "2026-07-06";
-  insertUndrafted({
+  // Two runs on the SAME day: earlier run's rows must not re-append (that was
+  // the same-day duplication bug — scoping by runDate instead of runId).
+  const earlierRunId = 900_000 + Math.floor(Math.random() * 50_000);
+  const thisRunId = earlierRunId + 1;
+  const mkRow = (runId: number, company: string) => ({
     profileId: "default",
-    runId: null,
+    runId,
     runDate,
-    company: `UndraftedCo-${tag}`,
+    company,
     jobTitle: "Analyst",
     location: "Remote",
     jobUrl: "https://x/undrafted",
     severity: "yellow",
     score: 0.5,
     reason: "no_contact",
-  });
+  } as const);
+  insertUndrafted(mkRow(earlierRunId, `EarlierCo-${tag}`));
+  insertUndrafted(mkRow(thisRunId, `UndraftedCo-${tag}`));
 
-  await projectToSheet("default", deps, runDate);
+  await projectToSheet("default", deps, thisRunId);
 
   assert.ok(!rewrites.some((r) => r.tab === config.google.tabs.undrafted));
   const undraftedAppend = appends.find((a) => a.tab === config.google.tabs.undrafted);
@@ -159,6 +165,13 @@ test("projectToSheet appends Undrafted rows for the current IST run date only, n
   assert.equal(row[0], runDate);
   assert.equal(row[3], "Analyst");
   assert.equal(row[8], "no_contact");
+  assert.ok(!undraftedAppend.rows.some((r) => r[2] === `EarlierCo-${tag}`), "earlier run's rows must not re-append");
+});
+
+test("projectToSheet skips the Undrafted append entirely when runId is absent", async () => {
+  const { deps, appends } = harness();
+  await projectToSheet("default", deps, null);
+  assert.ok(!appends.some((a) => a.tab === config.google.tabs.undrafted));
 });
 
 test("UNDRAFTED_HEADER shape sanity (guards column-index assumptions in this test file)", () => {

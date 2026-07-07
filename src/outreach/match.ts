@@ -59,10 +59,18 @@ function domainLabel(email: string): string | null {
 // that would false-positive-match unrelated companies.
 const MIN_DOMAIN_LABEL_LENGTH = 4;
 
+// EXACT equality only. Substring containment (either direction) was tried and
+// is dangerously loose against real data: a contact at @tech...com would have
+// matched 41 registry companies ("Polygon Tech", "AgNext Technologies", ...),
+// @india... 328, and short names matched the other way ("Axio" inside
+// "axiomconsulting"). A wrong match here addresses a real recruiter about a
+// company they have nothing to do with — worst failure mode this pipeline has —
+// so the heuristic stays strict: "Adda247" <-> hr@adda247.com matches, nothing
+// fuzzier does.
 function domainHeuristicMatch(companyNormCollapsed: string, email: string): boolean {
   const label = domainLabel(email);
   if (!label || label.length < MIN_DOMAIN_LABEL_LENGTH) return false;
-  return companyNormCollapsed.includes(label) || label.includes(companyNormCollapsed);
+  return label === companyNormCollapsed;
 }
 
 /**
@@ -70,7 +78,7 @@ function domainHeuristicMatch(companyNormCollapsed: string, email: string): bool
  * order and stopping at the first tier that yields any matches:
  *   a) exact normalized company name match
  *   b) normalized alt-name match (';'-joined on the candidate row)
- *   c) email-domain heuristic (collapsed name <-> domain label substring)
+ *   c) email-domain heuristic (collapsed name === domain label, exact)
  * Matches are then split into eligible / ineligible (bounced contact status,
  * or drafted within the cooldown window) and eligible ones are ordered
  * verified-first, then least-recently-drafted first (never-drafted = first).
