@@ -30,6 +30,33 @@ function hashKey(s: string): string {
 // an SPA cheerio can't read — bail rather than waste an LLM call.
 const SPA_SENTINEL_THRESHOLD = 3;
 
+/** The company slug of a YC company-profile URL, or null for anything else. */
+function ycCompanySlug(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)ycombinator\.com$/i.test(u.hostname)) return null;
+    return /^\/companies\/([^/]+)/.exec(u.pathname)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * YC company pages embed job links for OTHER YC companies ("similar jobs"
+ * rails), so scraping one company's page would attribute strangers' openings
+ * to it. When the careers URL is a YC company page, drop links that point at
+ * a DIFFERENT company's YC page; keep same-company and off-YC links. No-op
+ * for non-YC careers pages.
+ */
+export function dropCrossCompanyYcLinks<T extends { url: string }>(items: T[], careersUrl: string): T[] {
+  const own = ycCompanySlug(careersUrl);
+  if (!own) return items;
+  return items.filter((item) => {
+    const slug = ycCompanySlug(item.url);
+    return slug === null || slug === own;
+  });
+}
+
 export type Fetcher = (url: string) => Promise<FetchedHtml | RenderedPage>;
 
 export interface LlmScrapeFactoryOptions {
@@ -133,6 +160,10 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         }
       }
 
+      // Same-company guard BEFORE the sentinel/shortlist so cross-company YC
+      // links neither inflate the candidate count nor reach the LLM.
+      candidates = dropCrossCompanyYcLinks(candidates, company.careersUrl);
+
       // Zero-yield triage: if we're about to return nothing AND the page
       // doesn't even look like a careers page (or silently redirected to the
       // site root), the URL is the suspect — flag it for the url-repair pass
@@ -217,7 +248,9 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
       // An empty cached list is not a usable hit — `[]` is truthy, and serving
       // it would pin the company at zero postings for the whole TTL.
       if (cached && cached.length > 0) {
-        jobs = cached;
+        // Re-filter cache hits: rows cached before the guard existed may still
+        // carry cross-company YC links until their TTL expires.
+        jobs = dropCrossCompanyYcLinks(cached, company.careersUrl);
         logger.debug({ company: company.slug, count: jobs.length }, `${tag}: link cache hit`);
       } else {
         try {
