@@ -133,14 +133,18 @@ export function checkLocationFromText(
   jobUrl?: string,
 ): LocationCheck {
   const t = (title ?? "").toLowerCase();
-  const head = (jdText ?? "").slice(0, 2000).toLowerCase();
+  const full = (jdText ?? "").toLowerCase();
+  const head = full.slice(0, 2000);
   if (!t.trim() && !head.trim()) {
     return { accept: true, reason: "no-text-defer" };
   }
   const both = `${t}\n${head}`;
   const re = compile(cfg);
 
-  if (re.reject.test(both)) {
+  // Explicit reject phrases ("US only", work-authorization boilerplate) are
+  // unambiguous wherever they sit — and they usually sit at the BOTTOM of the
+  // JD, past the head window — so scan the whole text for these alone.
+  if (re.reject.test(`${t}\n${full}`)) {
     return { accept: false, reason: "geo-rejected" };
   }
   if (re.rejectRegions.test(t) && !(re.country.test(t) || re.city.test(t))) {
@@ -154,6 +158,13 @@ export function checkLocationFromText(
     ) {
       return { accept: false, reason: "geo-rejected-url" };
     }
+  }
+  // An explicit "Location: …" label line in the JD carries the role's location
+  // (Confido's JD led with "Location: New York, NY") — unlike prose mentions,
+  // which stay recall-safe and never reject. In-region beside it overrides.
+  const locLine = /^[ \t]*location[ \t]*[:–-][ \t]*(.+)$/im.exec(full)?.[1];
+  if (locLine && re.rejectRegions.test(locLine) && !(re.country.test(locLine) || re.city.test(locLine))) {
+    return { accept: false, reason: "geo-rejected-jd-location" };
   }
   if (re.remote.test(both)) {
     return { accept: true, reason: "remote-accept-text" };
