@@ -13,7 +13,7 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
  */
 export async function atsFetchJson(
   url: string,
-  opts: { method?: "GET" | "POST"; body?: unknown; provider?: string } = {},
+  opts: { method?: "GET" | "POST"; body?: unknown; provider?: string; userAgent?: string } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
   const controller = new AbortController();
@@ -22,7 +22,8 @@ export async function atsFetchJson(
     const res = await fetch(url, {
       method: opts.method ?? (opts.body !== undefined ? "POST" : "GET"),
       headers: {
-        "User-Agent": config.fetch.userAgent,
+        // Some WAF-fronted boards (Jibe) 403 the bot UA — those pass a browser UA.
+        "User-Agent": opts.userAgent ?? config.fetch.userAgent,
         Accept: "application/json",
         ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
       },

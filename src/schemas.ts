@@ -12,7 +12,7 @@ export const SILENT_SCORE_FLOOR = 0.65;
 
 export const ProviderSchema = z.enum([
   "greenhouse", "lever", "ashby", "smartrecruiters", "workday",
-  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "greythr", "custom",
+  "workable", "oracle", "keka", "eightfold", "phenom", "darwinbox", "greythr", "jibe", "custom",
 ]);
 export type Provider = z.infer<typeof ProviderSchema>;
 
