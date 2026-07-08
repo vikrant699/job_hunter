@@ -90,9 +90,29 @@ export function checkLocation(
   return { accept: false, reason: "out-of-region" };
 }
 
+/** The job URL's PATH as plain words: decoded, with slug separators flattened
+ *  to spaces so multi-word regions ("new york" in ".../new-york-123") match.
+ *  The host is deliberately excluded — a foreign word there names the company
+ *  or its board, not the role's location. */
+function urlPathText(jobUrl: string): string {
+  let path = jobUrl;
+  try {
+    path = new URL(jobUrl).pathname;
+  } catch {
+    // not an absolute URL — scan the raw string rather than dropping the signal
+  }
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // malformed escape — keep the encoded form
+  }
+  return path.replace(/[-_/.+]/g, " ").toLowerCase();
+}
+
 /**
  * Late-stage check for postings that arrived without a metadata location field
- * (i.e. llm-scrape / custom). Scans the TITLE and the first ~2000 chars of the JD.
+ * (i.e. llm-scrape / custom). Scans the TITLE, the first ~2000 chars of the JD,
+ * and the job URL's path.
  *
  * Recall-safe by design:
  *   - An explicit out-of-region phrase ("US only") anywhere → reject.
@@ -100,6 +120,9 @@ export function checkLocation(
  *     role's location for title-embedded scrapes like DoorDash's "… Sydney, NSW").
  *     Title-only, so a foreign HQ mentioned in the JD body does NOT reject an
  *     in-region role.
+ *   - A clearly-foreign place in the URL SLUG → reject (boards like Zoom put the
+ *     role's location only in the URL: ".../senior-front-end-engineer-remote-brazil-…").
+ *     An in-region signal in the title or the URL overrides, as with titles.
  *   - A positive in-region signal anywhere → accept.
  *   - Otherwise defer (accept) and let the LLM gate make the final call.
  */
@@ -107,6 +130,7 @@ export function checkLocationFromText(
   title: string,
   jdText: string,
   cfg: LocationConfig = profile.location,
+  jobUrl?: string,
 ): LocationCheck {
   const t = (title ?? "").toLowerCase();
   const head = (jdText ?? "").slice(0, 2000).toLowerCase();
@@ -121,6 +145,15 @@ export function checkLocationFromText(
   }
   if (re.rejectRegions.test(t) && !(re.country.test(t) || re.city.test(t))) {
     return { accept: false, reason: "geo-rejected-title" };
+  }
+  if (jobUrl) {
+    const u = urlPathText(jobUrl);
+    if (
+      re.rejectRegions.test(u) &&
+      !(re.country.test(u) || re.city.test(u) || re.country.test(t) || re.city.test(t))
+    ) {
+      return { accept: false, reason: "geo-rejected-url" };
+    }
   }
   if (re.remote.test(both)) {
     return { accept: true, reason: "remote-accept-text" };
