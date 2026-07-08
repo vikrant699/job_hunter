@@ -121,3 +121,38 @@ test("checkLocationFromText still defers when the URL carries no geo signal", ()
   const r = checkLocationFromText("Engineer", "Frontend role.", urlCfg, "https://x.example/jobs/engineer-42");
   assert.deepEqual(r, { accept: true, reason: "unknown-defer" });
 });
+
+test("checkLocationFromText rejects an explicit reject phrase ANYWHERE in the JD, not just the head", () => {
+  // Visa/work-authorization boilerplate usually sits at the BOTTOM of a JD,
+  // past the 2000-char head window the region scan uses.
+  const jd = "Great frontend role. " + "We ship fast. ".repeat(200) + "\nApplicants: US only.";
+  assert.ok(jd.length > 2500);
+  assert.equal(checkLocationFromText("Engineer", jd, cfg).accept, false);
+});
+
+test("checkLocationFromText rejects a foreign region on an explicit Location: label line (Confido leak)", () => {
+  const r = checkLocationFromText(
+    "Senior Frontend Engineer",
+    "Location: New York, NY (Relocation supported)\nWe build voice AI used by teams around the world.",
+    urlCfg,
+  );
+  assert.deepEqual(r, { accept: false, reason: "geo-rejected-jd-location" });
+});
+
+test("checkLocationFromText: an in-region city on the Location: line overrides the foreign one", () => {
+  const r = checkLocationFromText(
+    "Engineer",
+    "Location: Bengaluru or New York\nJoin our platform team.",
+    urlCfg,
+  );
+  assert.equal(r.accept, true);
+});
+
+test("checkLocationFromText: a foreign place in prose (not a Location: label) still does NOT reject", () => {
+  const r = checkLocationFromText(
+    "Engineer",
+    "Our HQ is in New York but this team ships from anywhere.",
+    urlCfg,
+  );
+  assert.equal(r.accept, true);
+});
