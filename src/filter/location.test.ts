@@ -84,3 +84,40 @@ test("checkLocationFromText tolerates a missing rejectRegions field", () => {
   // Sydney in title but no rejectRegions configured → falls through to defer (no crash)
   assert.equal(checkLocationFromText("Data Scientist Sydney", "", noRegions).accept, true);
 });
+
+const urlCfg: LocationConfig = { ...cfg, rejectRegions: [...(cfg.rejectRegions ?? []), "brazil", "new york"] };
+
+test("checkLocationFromText rejects a foreign region visible only in the job URL (Zoom Brazil leak)", () => {
+  const r = checkLocationFromText(
+    "Senior Front-End Engineer",
+    "Build tools that help agencies focus on meaningful work.",
+    urlCfg,
+    "https://careers.zoom.us/jobs/senior-front-end-engineer-remote-brazil-baae9adb-7eac",
+  );
+  assert.deepEqual(r, { accept: false, reason: "geo-rejected-url" });
+});
+
+test("checkLocationFromText matches multi-word regions across URL hyphens", () => {
+  const r = checkLocationFromText("Engineer", "", urlCfg, "https://x.example/jobs/senior-engineer-new-york-123");
+  assert.equal(r.accept, false);
+});
+
+test("checkLocationFromText: an in-region signal in the title overrides a foreign URL slug", () => {
+  const r = checkLocationFromText("Engineer, Bangalore", "", urlCfg, "https://x.example/jobs/london-team-engineer");
+  assert.equal(r.accept, true);
+});
+
+test("checkLocationFromText: an in-region signal in the URL itself overrides a foreign slug", () => {
+  const r = checkLocationFromText("Engineer", "", urlCfg, "https://x.example/jobs/engineer-london-or-bengaluru");
+  assert.equal(r.accept, true);
+});
+
+test("checkLocationFromText ignores the URL host (foreign words there are not role locations)", () => {
+  const r = checkLocationFromText("Engineer", "Frontend role.", urlCfg, "https://london.example.com/jobs/engineer-42");
+  assert.equal(r.accept, true);
+});
+
+test("checkLocationFromText still defers when the URL carries no geo signal", () => {
+  const r = checkLocationFromText("Engineer", "Frontend role.", urlCfg, "https://x.example/jobs/engineer-42");
+  assert.deepEqual(r, { accept: true, reason: "unknown-defer" });
+});

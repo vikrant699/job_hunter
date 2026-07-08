@@ -132,9 +132,9 @@ export async function processOnePosting(
     }
   }
 
-  // Late location filter from title/JD text when listing had no location metadata.
+  // Late location filter from title/JD/URL when listing had no location metadata.
   if (posting.location === null || posting.location === "") {
-    const loc = checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "");
+    const loc = checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "", undefined, posting.jobUrl);
     if (!loc.accept) return;
   }
 
