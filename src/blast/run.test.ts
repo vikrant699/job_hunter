@@ -120,6 +120,8 @@ test("crash mid-batch never re-drafts: state flushed per draft, re-run picks up 
       /quota/,
     );
     assert.equal(loadState(h.paths.state).records.length, 2);
+    // Sheet is only written on clean exit; a crashed run must not project.
+    assert.equal(h.rewrites.length, 0);
 
     const h2 = makeHarness(rows);
     // Reuse the crashed run's state file with the fresh (non-failing) deps.
@@ -170,6 +172,10 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     const summary = await runBlast({ profileId: "divya", limit: 1, force: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 1);
     assert.equal(summary.lastBatchBounceRatePct, 50);
+    // The Blast Log projection must carry the sweep's bounce over to the sheet.
+    const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[0] === "old1@x.com");
+    assert.equal(bouncedRow?.[3], "bounced");
+    assert.equal(bouncedRow?.[7], "Address not found");
   } finally {
     rmSync(h.dir, { recursive: true, force: true });
   }

@@ -53,7 +53,9 @@ export async function sweepBounces(profileId: string, state: BlastState, deps: S
     newlyBounced++;
   }
 
-  const last = state.records.reduce((m, r) => Math.max(m, r.batch), 0);
+  // Max batch over NON-SKIP records: a batch that only produced skipped_invalid
+  // rows must not reset the stop-loss to a fresh 0% bounce rate.
+  const last = state.records.reduce((m, r) => (r.status === "skipped_invalid" ? m : Math.max(m, r.batch)), 0);
   if (last === 0) return { checked: toCheck.length, newlyBounced, lastBatch: null };
   const inBatch = state.records.filter((r) => r.batch === last && r.status !== "skipped_invalid");
   const bounced = inBatch.filter((r) => r.status === "bounced").length;

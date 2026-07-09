@@ -80,6 +80,20 @@ test("lastBatch stats cover the highest batch only, excluding skips", async () =
   assert.deepEqual(result.lastBatch, { batch: 2, total: 2, bounced: 1, ratePct: 50 });
 });
 
+test("a skip-only latest batch does not reset lastBatch stats", async () => {
+  const state: BlastState = {
+    lastSweepAt: null,
+    records: [
+      record({ email: "b1@x.com", batch: 1 }),
+      record({ email: "b2skip@x.com", batch: 2, status: "skipped_invalid", variant: null, draftId: null }),
+    ],
+  };
+  const { deps } = fakeDeps(["b1@x.com"]);
+  const result = await sweepBounces("divya", state, deps);
+  assert.equal(result.lastBatch?.batch, 1);
+  assert.equal(result.lastBatch?.ratePct, 100);
+});
+
 test("lastBatch is null when nothing has ever been drafted", async () => {
   const { deps } = fakeDeps([]);
   const result = await sweepBounces("divya", { lastSweepAt: null, records: [] }, deps);
