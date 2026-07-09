@@ -39,7 +39,7 @@ test("saveState/loadState round-trips and leaves no temp file behind", () => {
     const state = { lastSweepAt: "2026-07-13T05:00:00.000Z", records: [record({})] };
     saveState(path, state);
     assert.deepEqual(loadState(path), state);
-    assert.equal(existsSync(`${path}.tmp-blast`), false);
+    assert.equal(existsSync(`${path}.tmp-${process.pid}`), false);
   });
 });
 
@@ -47,7 +47,7 @@ test("loadState throws on a malformed file instead of silently restarting the ca
   withTempDir((dir) => {
     const path = join(dir, "state.json");
     writeFileSync(path, '{"records": "oops"}', "utf-8");
-    assert.throws(() => loadState(path));
+    assert.throws(() => loadState(path), /blast state at/);
   });
 });
 
