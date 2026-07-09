@@ -180,11 +180,12 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
       state.records.push({
         ...candidate, status: "drafted", batch, variant: rendered.variant, draftId: created.draftId, at: nowIso, note: null,
       });
+      // Log before flushing: if saveState throws after a successful createDraft, the log is the only trace of the orphan draft.
+      logger.info({ email: candidate.email, variant: rendered.variant, draftId: created.draftId, drafted: drafted + 1 }, "blast: draft created");
       // Flush BEFORE the inter-draft gap so a crash can never re-draft.
       saveState(paths.state, state);
       drafted++;
       rotation++;
-      logger.info({ email: candidate.email, variant: rendered.variant, drafted }, "blast: draft created");
       if (drafted < limit) await deps.sleepMs(DRAFT_GAP_MS);
     }
     remaining = pool.length - index;
