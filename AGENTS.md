@@ -26,6 +26,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data and Companies from local files when they exist (both are gitignored), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
+| `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends; own JSON state at `data/blast-state-<name>.json`, projects a Blast Log tab). Flags: `--limit N` (default 100), `--verify-only`, `--force`. Delete `src/blast/`, `scripts/blast.ts`, and this row when the campaign ends. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
 | `npm run repair-urls` | Probe broken careers URLs and report proposed fixes (dry run). Add `-- --apply --profile <name>` to write fixes straight to the Companies tab (cache mirrored, url_suspect cleared). |
 | `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
