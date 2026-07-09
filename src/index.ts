@@ -38,6 +38,18 @@ async function runOnce(registryResult: RegistrySyncResult): Promise<void> {
     verifyResult = await runVerify({ profileId, runId: outcome.runId });
     outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
     await projectToSheet(profileId, undefined, outcome.runId);
+    // The happy path above is otherwise silent — without this line a clean
+    // run's log just stops at "production tick complete".
+    logger.info(
+      {
+        profileId,
+        draftsCreated: outreachResult.draftsCreated,
+        undrafted: outreachResult.undrafted,
+        companiesMatched: outreachResult.companiesMatched,
+        verify: verifyResult,
+      },
+      "outreach stage complete; sheet projected",
+    );
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
       // Scrape results are already saved — a stale/revoked Google token must
