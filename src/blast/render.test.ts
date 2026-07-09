@@ -57,6 +57,12 @@ test("greeting uses the first name when present, plain 'Hi,' otherwise", () => {
   assert.match(anon.bodyText, /^Hi,/);
 });
 
+test("replacement-pattern characters in inputs are inserted literally", () => {
+  const r = renderBlast({ template: TEMPLATE, company: "X", contactName: "$& Kumar", rotationIndex: 0 });
+  assert.equal(r.bodyText.includes("Hi $&,"), true);
+  assert.equal(r.bodyText.includes("{{greeting}}"), false);
+});
+
 test("no em dash in any subject or rendered body", () => {
   for (const s of SUBJECTS) assert.equal(s.includes("—"), false);
   for (let i = 0; i < 9; i++) {
@@ -79,6 +85,17 @@ test("loadBlastTemplate validates tokens and bans em dashes", () => {
     const emdash = join(dir, "emdash.md");
     writeFileSync(emdash, "{{greeting}}\n\n{{opener}}\n\nBody — with dash.\n", "utf-8");
     assert.throws(() => loadBlastTemplate(emdash), /em dash/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadBlastTemplate rejects duplicate tokens", () => {
+  const dir = mkdtempSync(join(tmpdir(), "blast-template-"));
+  try {
+    const dupe = join(dir, "dupe.md");
+    writeFileSync(dupe, "{{greeting}}\n\n{{opener}}\n\n{{opener}}\n\nBody.\n", "utf-8");
+    assert.throws(() => loadBlastTemplate(dupe), /exactly one/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
