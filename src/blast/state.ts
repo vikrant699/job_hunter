@@ -4,7 +4,7 @@
 // (docs/superpowers/specs/2026-07-09-divya-blast-design.md). Deliberately NOT
 // the job_hunter SQLite DB: the whole blast lives in src/blast/ + one state
 // file so it can be deleted cleanly when the campaign ends.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 
@@ -44,15 +44,25 @@ export function statePathFor(profileId: string): string {
  *  restarting the campaign would re-draft every address in the tab. */
 export function loadState(path: string): BlastState {
   if (!existsSync(path)) return emptyState();
-  return BlastStateSchema.parse(JSON.parse(readFileSync(path, "utf-8")));
+  try {
+    return BlastStateSchema.parse(JSON.parse(readFileSync(path, "utf-8")));
+  } catch (err) {
+    throw new Error(`blast state at ${path} is unreadable: ${String(err)}`);
+  }
 }
 
-/** Write-then-rename so a crash mid-write can't truncate the campaign state. */
+/** Write-then-rename so a crash mid-write can't truncate the campaign state.
+ *  Mirrors src/util/registry-file.ts writeAtomic (PID-scoped temp + cleanup). */
 export function saveState(path: string, state: BlastState): void {
   mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp-blast`;
+  const tmp = `${path}.tmp-${process.pid}`;
   writeFileSync(tmp, JSON.stringify(state, null, 2), "utf-8");
-  renameSync(tmp, path);
+  try {
+    renameSync(tmp, path);
+  } catch (err) {
+    try { unlinkSync(tmp); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 export function knownEmails(state: BlastState): Set<string> {
