@@ -67,6 +67,9 @@ export function loadBlastTemplate(path: string): BlastTemplate {
     if (!body.includes(token)) {
       throw new Error(`blast template at ${path} is missing the ${token} token`);
     }
+    if (body.split(token).length !== 2) {
+      throw new Error(`blast template at ${path} must contain exactly one ${token} token`);
+    }
   }
   if (body.includes("—")) {
     throw new Error(`blast template at ${path} contains an em dash (banned in outgoing mail)`);
@@ -108,9 +111,11 @@ export function renderBlast(input: RenderInput): RenderedBlast {
 
   const company = companyForMention(input.company);
   const openerText = `${opener.hello}\n\n${company === null ? opener.fallback : opener.withCompany(company)}`;
+  // Function replacers so `$&`/`$$` in names or companies insert literally
+  // instead of being treated as replacement patterns.
   const bodyText = input.template.body
-    .replace("{{greeting}}", greeting(input.contactName))
-    .replace("{{opener}}", openerText);
+    .replace("{{greeting}}", () => greeting(input.contactName))
+    .replace("{{opener}}", () => openerText);
   const variant = `S${String(si + 1)}/O${String(oi + 1)}${company === null ? "-fallback" : ""}`;
   return { subject, bodyText, variant };
 }
