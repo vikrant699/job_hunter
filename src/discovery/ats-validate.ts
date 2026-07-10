@@ -7,6 +7,10 @@ import { greythrAdapter } from "../ats/greythr.js";
 import { zohorecruitAdapter } from "../ats/zohorecruit.js";
 import { successfactorsAdapter } from "../ats/successfactors.js";
 import { peoplestrongAdapter } from "../ats/peoplestrong.js";
+import { ainterviewsAdapter } from "../ats/ainterviews.js";
+import { freshteamAdapter } from "../ats/freshteam.js";
+import { gohireAdapter } from "../ats/gohire.js";
+import { jobsoidAdapter } from "../ats/jobsoid.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -228,6 +232,26 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           apiMeta: null,
         };
         const postings = await peoplestrongAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "ainterviews": {
+        const company: AdapterCompany = { provider: "ainterviews", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await ainterviewsAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "freshteam": {
+        const company: AdapterCompany = { provider: "freshteam", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await freshteamAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "gohire": {
+        const company: AdapterCompany = { provider: "gohire", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await gohireAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "jobsoid": {
+        const company: AdapterCompany = { provider: "jobsoid", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await jobsoidAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:

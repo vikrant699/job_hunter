@@ -37,6 +37,39 @@ export async function atsFetchJson(
   }
 }
 
+/**
+ * Like atsFetchJson but sends a multipart/form-data POST (a plain string-keyed
+ * fields map, one FormData entry per field) with caller-supplied extra headers.
+ * Needed for ATSes (Ceipal) that gate their JSON API on a required `Referer`
+ * header and refuse a JSON body. Same timeout/UA/error semantics as atsFetchJson.
+ */
+export async function atsFetchJsonMultipart(
+  url: string,
+  opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string },
+): Promise<unknown> {
+  const provider = opts.provider ?? "ats";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
+  try {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(opts.fields)) form.append(key, value);
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "User-Agent": config.fetch.userAgent,
+        Accept: "application/json",
+        ...opts.headers,
+      },
+      body: form,
+      signal: controller.signal,
+    });
+    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface AtsFetchedHtml {
   finalUrl: string;
   html: string;
@@ -69,4 +102,37 @@ export async function atsFetchHtml(url: string, opts: { provider?: string } = {}
 export async function atsFetchText(url: string, opts: { provider?: string } = {}): Promise<string> {
   const { html } = await atsFetchHtml(url, opts);
   return html;
+}
+
+/**
+ * POST an application/x-www-form-urlencoded body and return the HTML
+ * response — for form-driven server-rendered boards (e.g. GoHire) whose list
+ * endpoint only serves page N when the pagination fields arrive in a POST
+ * body (a plain GET with ?page=N 404s). Same timeout/UA/error semantics as
+ * atsFetchHtml.
+ */
+export async function atsFetchFormHtml(
+  url: string,
+  form: Record<string, string>,
+  opts: { provider?: string } = {},
+): Promise<string> {
+  const provider = opts.provider ?? "ats";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "User-Agent": config.fetch.userAgent,
+        Accept: "text/html",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(form).toString(),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+    return await res.text();
+  } finally {
+    clearTimeout(timer);
+  }
 }
