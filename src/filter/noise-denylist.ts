@@ -11,7 +11,8 @@
  * Grows one denoise wave at a time. Low/zero scrape yield is NOT grounds for entry.
  */
 export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
-  // Wave 5 (2026-07-10): broken-repair sweep — defunct/acquired, confirmed by hand
+  // Wave 5 (2026-07-10): broken-repair + dormant-audit sweeps — defunct/acquired, confirmed by hand
+  "koo": "defunct: Koo shut down July 2024 (dormant-audit 2026-07-10)",
   "golorry": "defunct: domain expired/parked, no working site (broken-repair 2026-07-10)",
   "techbiz": "defunct: acquired by CredFlow 2023-06, domain abandoned (broken-repair 2026-07-10)",
   "verak": "defunct: acquired by InsuranceDekho 2023-04, domain NXDOMAIN (broken-repair 2026-07-10)",
