@@ -17,7 +17,7 @@ export type AtsProvider =
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
   | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr"
-  | "zohorecruit";
+  | "zohorecruit" | "peoplestrong";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -48,6 +48,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   darwinbox:      { hasAdapter: true,  canValidate: true  },
   greythr:        { hasAdapter: true,  canValidate: true  },
   zohorecruit:    { hasAdapter: true,  canValidate: true  },
+  peoplestrong:   { hasAdapter: true,  canValidate: true  },
 } as const;
 
 interface PatternDef {
@@ -270,6 +271,18 @@ const PATTERNS: PatternDef[] = [
       if (!slug || slug === "www") return null;
       const page = u!.pathname.match(/^\/jobs\/([^/]+)/)?.[1] ?? "Careers";
       return { url: `https://${u!.host}/jobs/${page}`, slug };
+    },
+  },
+  {
+    provider: "peoplestrong",
+    // <tenant>.peoplestrong.com Altone career portal. The subdomain is the slug.
+    re: /https?:\/\/[a-z0-9-]+\.peoplestrong\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      // www.peoplestrong.com is the vendor's marketing site, not a tenant.
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}`, slug };
     },
   },
 ] as const;
