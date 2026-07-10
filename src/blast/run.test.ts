@@ -4,14 +4,39 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runBlast, BLAST_LOG_TAB, type BlastDeps } from "./run.js";
+import { runBlast, blastLogTab, type BlastDeps } from "./run.js";
 import { loadState, saveState, type BlastState } from "./state.js";
 
 const NOW = new Date("2026-07-11T05:30:00.000Z"); // Sat before Mon 2026-07-13
 
+/** Tab name every projection in these tests should land on (profileId "divya"). */
+const BLAST_LOG_TAB = blastLogTab("divya");
+
+const TEST_CONTENT = {
+  resumeFilename: "Divya Rajput Resume.pdf",
+  subjects: ["Subject One", "Subject Two", "Subject Three"],
+  openers: [
+    {
+      hello: "I hope you're doing well.",
+      withCompany: "I am reaching out to explore opportunities that your team at {company} may be hiring for.",
+      fallback: "I am reaching out to explore opportunities that you may be hiring for.",
+    },
+    {
+      hello: "I hope your week is going well.",
+      withCompany: "I'm writing to check whether you or your team at {company} are currently hiring.",
+      fallback: "I'm writing to check whether you are currently hiring.",
+    },
+    {
+      hello: "I hope you're doing well.",
+      withCompany: "I wanted to share my profile with {company} for any openings.",
+      fallback: "I wanted to share my profile for any openings.",
+    },
+  ],
+};
+
 interface Harness {
   dir: string;
-  paths: { template: string; resume: string; state: string };
+  paths: { template: string; content: string; resume: string; state: string };
   deps: BlastDeps;
   created: { mime: string }[];
   rewrites: { tab: string; header: string[]; rows: string[][] }[];
@@ -21,10 +46,12 @@ function makeHarness(rawRows: string[][], opts?: { failCreateAt?: number; bounce
   const dir = mkdtempSync(join(tmpdir(), "blast-run-"));
   const paths = {
     template: join(dir, "template.md"),
+    content: join(dir, "content.json"),
     resume: join(dir, "resume.pdf"),
     state: join(dir, "state.json"),
   };
   writeFileSync(paths.template, "{{greeting}}\n\n{{opener}}\n\nFixed body.\n", "utf-8");
+  writeFileSync(paths.content, JSON.stringify(TEST_CONTENT), "utf-8");
   writeFileSync(paths.resume, "fake-pdf-bytes", "utf-8");
 
   const created: { mime: string }[] = [];
@@ -78,6 +105,8 @@ test("drafts up to limit, records state, projects Blast Log, reports remaining",
     assert.equal(summary.remaining, 1);
     assert.equal(h.created.length, 2);
     assert.match(h.created[0]?.mime ?? "", /To: a@a\.com/);
+    // Attachment filename comes from the profile's content config.
+    assert.match(h.created[0]?.mime ?? "", /filename="Divya Rajput Resume\.pdf"/);
     const state = loadState(h.paths.state);
     assert.deepEqual(state.records.map((r) => [r.email, r.status, r.batch]), [
       ["a@a.com", "drafted", 1],
@@ -181,10 +210,11 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
   }
 });
 
-test("verify-only: sweeps and projects the log but never reads template or drafts", async () => {
+test("verify-only: sweeps and projects the log but never reads template/content or drafts", async () => {
   const h = makeHarness([HEADER, ["A", "a@a.com", "", ""]]);
   try {
     rmSync(h.paths.template); // must not be needed in verify-only mode
+    rmSync(h.paths.content);
     const summary = await runBlast({ profileId: "divya", verifyOnly: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 0);
     assert.equal(h.created.length, 0);

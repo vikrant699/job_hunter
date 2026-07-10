@@ -1,45 +1,55 @@
 // src/blast/render.ts
 //
 // Variant rotation + company-mention personalization for blast emails.
-// Subject/opener text is user-approved verbatim (design spec, Content
-// section). Hard rule from the user: NO em dashes in outgoing mail.
+// Subject/opener text is per-profile, user-approved verbatim, and lives in
+// config/profiles/<profile>/blast-content.json (gitignored). Hard rule from
+// the user: NO em dashes in outgoing mail.
 import { readFileSync } from "node:fs";
+import { z } from "zod";
 
-export const SUBJECTS: readonly string[] = [
-  "Looking for Senior Data Analyst Opportunities | 4.5 Years Experience | Immediate Joiner",
-  "Senior Data Analyst | 4.5 Years Experience | Immediate Joiner | Open to All Locations",
-  "Profile for Senior Data Analyst / BI Roles: 4.5 Years Experience, Immediate Joiner",
-];
+const OpenerSchema = z.object({
+  hello: z.string().min(1),
+  /** Sentence containing a literal "{company}" token. */
+  withCompany: z.string().min(1),
+  fallback: z.string().min(1),
+});
+export type Opener = z.infer<typeof OpenerSchema>;
 
-interface Opener {
-  hello: string;
-  withCompany: (company: string) => string;
-  fallback: string;
+export const BlastContentSchema = z.object({
+  /** Attachment filename shown to recipients, e.g. "Divya Rajput Resume.pdf". */
+  resumeFilename: z.string().min(1),
+  subjects: z.array(z.string().min(1)).min(1),
+  openers: z.array(OpenerSchema).min(1),
+});
+export type BlastContent = z.infer<typeof BlastContentSchema>;
+
+/** Load + validate a profile's outgoing-content config. Throws actionable
+ *  errors on structural problems, a missing {company} token, or any em dash
+ *  (banned in outgoing mail). */
+export function loadBlastContent(path: string): BlastContent {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf-8"));
+  } catch (err) {
+    throw new Error(`blast content at ${path} is unreadable: ${String(err)}`);
+  }
+  const result = BlastContentSchema.safeParse(parsed);
+  if (!result.success) {
+    const issues = result.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
+    throw new Error(`blast content at ${path} is malformed: ${issues}`);
+  }
+  const content = result.data;
+  for (const o of content.openers) {
+    if (!o.withCompany.includes("{company}")) {
+      throw new Error(`blast content at ${path}: an opener's withCompany is missing the {company} token`);
+    }
+  }
+  const allText = [content.resumeFilename, ...content.subjects, ...content.openers.flatMap((o) => [o.hello, o.withCompany, o.fallback])];
+  if (allText.some((s) => s.includes("—"))) {
+    throw new Error(`blast content at ${path} contains an em dash (banned in outgoing mail)`);
+  }
+  return content;
 }
-
-export const OPENERS: readonly Opener[] = [
-  {
-    hello: "I hope you're doing well.",
-    withCompany: (c) =>
-      `I am reaching out to explore Senior Data Analyst and Business Intelligence opportunities that your team at ${c} may be hiring for.`,
-    fallback:
-      "I am reaching out to explore Senior Data Analyst and Business Intelligence opportunities that you may be hiring for.",
-  },
-  {
-    hello: "I hope your week is going well.",
-    withCompany: (c) =>
-      `I'm writing to check whether you or your team at ${c} are currently hiring for Senior Data Analyst or Business Intelligence roles.`,
-    fallback:
-      "I'm writing to check whether you are currently hiring for Senior Data Analyst or Business Intelligence roles.",
-  },
-  {
-    hello: "I hope you're doing well.",
-    withCompany: (c) =>
-      `I wanted to share my profile with ${c} for any Senior Data Analyst or BI openings you may be working on.`,
-    fallback:
-      "I wanted to share my profile for any Senior Data Analyst or BI openings you may be working on.",
-  },
-];
 
 /** Sanity-gate a Raw Data company cell before weaving it into a sentence.
  *  Returns the cleaned name, or null (use the opener's fallback). Calibrated
@@ -79,11 +89,12 @@ export function loadBlastTemplate(path: string): BlastTemplate {
 
 export interface RenderInput {
   template: BlastTemplate;
+  content: BlastContent;
   company: string;
   contactName: string | null;
   /** Global 0-based index over every address ever drafted; drives rotation
-   *  (subject cycles every draft, opener every SUBJECTS.length drafts, so all
-   *  9 combos appear before any repeats). */
+   *  (subject cycles every draft, opener every subjects.length drafts, so all
+   *  subject x opener combos appear before any repeats). */
   rotationIndex: number;
 }
 
@@ -101,18 +112,21 @@ function greeting(contactName: string | null): string {
 }
 
 export function renderBlast(input: RenderInput): RenderedBlast {
-  const si = input.rotationIndex % SUBJECTS.length;
-  const oi = Math.floor(input.rotationIndex / SUBJECTS.length) % OPENERS.length;
-  const subject = SUBJECTS[si];
-  const opener = OPENERS[oi];
+  const { subjects, openers } = input.content;
+  const si = input.rotationIndex % subjects.length;
+  const oi = Math.floor(input.rotationIndex / subjects.length) % openers.length;
+  const subject = subjects[si];
+  const opener = openers[oi];
   if (subject === undefined || opener === undefined) {
     throw new Error(`blast render: no variant at rotation index ${String(input.rotationIndex)}`);
   }
 
   const company = companyForMention(input.company);
-  const openerText = `${opener.hello}\n\n${company === null ? opener.fallback : opener.withCompany(company)}`;
   // Function replacers so `$&`/`$$` in names or companies insert literally
   // instead of being treated as replacement patterns.
+  const openerBody =
+    company === null ? opener.fallback : opener.withCompany.replace("{company}", () => company);
+  const openerText = `${opener.hello}\n\n${openerBody}`;
   const bodyText = input.template.body
     .replace("{{greeting}}", () => greeting(input.contactName))
     .replace("{{opener}}", () => openerText);

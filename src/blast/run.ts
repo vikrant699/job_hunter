@@ -24,11 +24,13 @@ import { sleep } from "../util/sleep.js";
 import { loadState, saveState, statePathFor, knownEmails, draftedEverCount, maxBatch } from "./state.js";
 import { buildPool } from "./pool.js";
 import { MxChecker, type MxResolver } from "./mx.js";
-import { loadBlastTemplate, renderBlast } from "./render.js";
+import { loadBlastTemplate, loadBlastContent, renderBlast } from "./render.js";
 import { sweepBounces } from "./bounces.js";
 
-export const BLAST_LOG_TAB = "Blast Log";
-export const RESUME_FILENAME = "Divya Rajput Resume.pdf";
+/** Per-profile so one profile's projection never clobbers another's. */
+export function blastLogTab(profileId: string): string {
+  return `Blast Log ${profileId}`;
+}
 const DRAFT_GAP_MS = 1_000;
 /** "Already drafted this week" guard: refuse a new batch when the newest
  *  drafted record is younger than this many days (override with --force). */
@@ -67,6 +69,9 @@ function defaultDeps(): BlastDeps {
 
 export interface BlastPaths {
   template: string;
+  /** Per-profile subjects/openers/attachment-filename (user-approved wording). */
+  content: string;
+  /** The profile's job_hunter resume — the same PDF the outreach pipeline attaches. */
   resume: string;
   state: string;
 }
@@ -74,7 +79,8 @@ export interface BlastPaths {
 export function blastPathsFor(profileId: string): BlastPaths {
   return {
     template: `config/profiles/${profileId}/blast-template.md`,
-    resume: `config/profiles/${profileId}/blast-resume.pdf`,
+    content: `config/profiles/${profileId}/blast-content.json`,
+    resume: `config/profiles/${profileId}/resume.pdf`,
     state: statePathFor(profileId),
   };
 }
@@ -127,6 +133,7 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
   if (!verifyOnly) {
     // Fail fast on missing content before any Google write.
     const template = loadBlastTemplate(paths.template);
+    const content = loadBlastContent(paths.content);
     const resume = deps.readFile(paths.resume);
 
     const newestDraftedMs = state.records
@@ -168,13 +175,13 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
       }
 
       const rendered = renderBlast({
-        template, company: candidate.company, contactName: candidate.contactName, rotationIndex: rotation,
+        template, content, company: candidate.company, contactName: candidate.contactName, rotationIndex: rotation,
       });
       const mime = buildDraftMime({
         to: candidate.email,
         subject: rendered.subject,
         bodyText: rendered.bodyText,
-        attachment: { filename: RESUME_FILENAME, mimeType: "application/pdf", content: resume },
+        attachment: { filename: content.resumeFilename, mimeType: "application/pdf", content: resume },
       });
       const created = await deps.createDraft(profileId, mime);
       state.records.push({
@@ -191,10 +198,10 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
     remaining = pool.length - index;
   }
 
-  await deps.ensureTabs(profileId, [BLAST_LOG_TAB]);
+  await deps.ensureTabs(profileId, [blastLogTab(profileId)]);
   await deps.rewriteTab(
     profileId,
-    BLAST_LOG_TAB,
+    blastLogTab(profileId),
     ["Email", "Company", "Contact Name", "Status", "Batch", "Variant", "Drafted At", "Note"],
     state.records.map((r) => [
       r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",
