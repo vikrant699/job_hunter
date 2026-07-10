@@ -34,7 +34,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   smartrecruiters:{ hasAdapter: true,  canValidate: true  },
   recruitee:      { hasAdapter: false, canValidate: true  },
   icims:          { hasAdapter: false, canValidate: false },
-  successfactors: { hasAdapter: false, canValidate: false },
+  successfactors: { hasAdapter: true,  canValidate: true  },
   phenom:         { hasAdapter: true,  canValidate: true  },
   eightfold:      { hasAdapter: true,  canValidate: false },
   avature:        { hasAdapter: false, canValidate: false },
@@ -136,16 +136,12 @@ const PATTERNS: PatternDef[] = [
       return { url: `https://${u.host}/jobs`, slug: sub };
     },
   },
-  {
-    provider: "successfactors",
-    re: /https?:\/\/[a-z0-9.-]+\.successfactors\.(?:com|eu)\b[^\s"'<>]*/gi,
-    parse(m) {
-      const u = safeUrl(m);
-      if (!u) return null;
-      // Slug derivation is fuzzy on SF; just use host.
-      return { url: `${u.protocol}//${u.host}${u.pathname}`, slug: u.host.split(".")[0]! };
-    },
-  },
+  // No successfactors URL pattern: the adapter (src/ats/successfactors.ts)
+  // targets the LEGACY Jobs2Web engine on each company's CUSTOM domain (e.g.
+  // jobs.heromotocorp.com), which shares no host signature. The only shared-host
+  // successfactors.com URLs belong to the GATED SAPUI5 app the adapter can't
+  // scrape, so matching them would only mis-promote them to ats-api. Discovery
+  // relies on registry seeding / careers-page HTML detection, like jibe.
   {
     provider: "phenom",
     re: /https?:\/\/[a-z0-9-]+\.phenompeople\.com\b/gi,
