@@ -13,6 +13,7 @@ export type AtsProvider =
   | "greenhouse" | "lever" | "ashby" | "workday"
   | "smartrecruiters" | "recruitee"
   | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
+  | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -38,6 +39,10 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   gohire:         { hasAdapter: true,  canValidate: true  },
   jobsoid:        { hasAdapter: true,  canValidate: true  },
   ceipal:         { hasAdapter: true,  canValidate: false },
+  ripplehire:     { hasAdapter: true,  canValidate: true  },
+  zwayam:         { hasAdapter: true,  canValidate: false },
+  sensehq:        { hasAdapter: true,  canValidate: true  },
+  breezyhr:       { hasAdapter: true,  canValidate: true  },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -173,8 +178,39 @@ const PATTERNS: PatternDef[] = [
   },
   // No ceipal URL pattern: its widget carries per-tenant api_key/cp_id in embed
   // attributes on the company's own site, with no shared per-tenant host/path.
-  // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature
-  // (both rely on registry seeding / careers-page HTML detection).
+  // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature.
+  // No zwayam URL pattern: tenants on fully custom domains (careers.cyient.com)
+  // + companyId needs bundle discovery, like keka (all rely on registry seeding /
+  // careers-page HTML detection).
+  {
+    provider: "ripplehire",
+    re: /https?:\/\/[a-z0-9-]+\.ripplehire\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      return slug ? { url: `https://${u!.host}`, slug } : null;
+    },
+  },
+  {
+    provider: "sensehq",
+    re: /https?:\/\/[a-z0-9-]+\.sensehq\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/careers`, slug };
+    },
+  },
+  {
+    provider: "breezyhr",
+    re: /https?:\/\/[a-z0-9-]+\.breezy\.hr\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}`, slug };
+    },
+  },
   {
     provider: "icims",
     re: /https?:\/\/(?:careers-)?[a-z0-9-]+\.icims\.com\/jobs\b/gi,
