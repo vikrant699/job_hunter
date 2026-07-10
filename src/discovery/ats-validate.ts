@@ -11,6 +11,9 @@ import { ainterviewsAdapter } from "../ats/ainterviews.js";
 import { freshteamAdapter } from "../ats/freshteam.js";
 import { gohireAdapter } from "../ats/gohire.js";
 import { jobsoidAdapter } from "../ats/jobsoid.js";
+import { ripplehireAdapter } from "../ats/ripplehire.js";
+import { sensehqAdapter } from "../ats/sensehq.js";
+import { breezyhrAdapter } from "../ats/breezyhr.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -252,6 +255,21 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "jobsoid": {
         const company: AdapterCompany = { provider: "jobsoid", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
         const postings = await jobsoidAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "ripplehire": {
+        const company: AdapterCompany = { provider: "ripplehire", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await ripplehireAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "sensehq": {
+        const company: AdapterCompany = { provider: "sensehq", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await sensehqAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "breezyhr": {
+        const company: AdapterCompany = { provider: "breezyhr", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await breezyhrAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:

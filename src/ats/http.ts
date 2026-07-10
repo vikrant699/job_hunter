@@ -38,14 +38,47 @@ export async function atsFetchJson(
 }
 
 /**
+ * POST an application/x-www-form-urlencoded body and parse the response as
+ * JSON. For ATSes (e.g. RippleHire) whose search endpoint content-negotiates
+ * on Accept (defaulting to XML) but returns JSON once we ask for it. Same
+ * timeout/UA/error semantics as atsFetchJson.
+ */
+export async function atsFetchFormJson(
+  url: string,
+  form: Record<string, string>,
+  opts: { provider?: string } = {},
+): Promise<unknown> {
+  const provider = opts.provider ?? "ats";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "User-Agent": config.fetch.userAgent,
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(form).toString(),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Like atsFetchJson but sends a multipart/form-data POST (a plain string-keyed
  * fields map, one FormData entry per field) with caller-supplied extra headers.
  * Needed for ATSes (Ceipal) that gate their JSON API on a required `Referer`
- * header and refuse a JSON body. Same timeout/UA/error semantics as atsFetchJson.
+ * header and refuse a JSON body. Zwayam's stack rejects the bot UA, so an
+ * optional userAgent override is supported. Same timeout/error semantics as atsFetchJson.
  */
 export async function atsFetchJsonMultipart(
   url: string,
-  opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string },
+  opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string; userAgent?: string },
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
   const controller = new AbortController();
@@ -56,7 +89,7 @@ export async function atsFetchJsonMultipart(
     const res = await fetch(url, {
       method: "POST",
       headers: {
-        "User-Agent": config.fetch.userAgent,
+        "User-Agent": opts.userAgent ?? config.fetch.userAgent,
         Accept: "application/json",
         ...opts.headers,
       },
@@ -80,13 +113,13 @@ export interface AtsFetchedHtml {
  * also capturing the post-redirect URL. Same timeout/UA/error semantics as
  * atsFetchJson.
  */
-export async function atsFetchHtml(url: string, opts: { provider?: string } = {}): Promise<AtsFetchedHtml> {
+export async function atsFetchHtml(url: string, opts: { provider?: string; userAgent?: string } = {}): Promise<AtsFetchedHtml> {
   const provider = opts.provider ?? "ats";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": config.fetch.userAgent, Accept: "text/html,application/json" },
+      headers: { "User-Agent": opts.userAgent ?? config.fetch.userAgent, Accept: "text/html,application/json" },
       redirect: "follow",
       signal: controller.signal,
     });
@@ -99,7 +132,7 @@ export async function atsFetchHtml(url: string, opts: { provider?: string } = {}
 }
 
 /** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
-export async function atsFetchText(url: string, opts: { provider?: string } = {}): Promise<string> {
+export async function atsFetchText(url: string, opts: { provider?: string; userAgent?: string } = {}): Promise<string> {
   const { html } = await atsFetchHtml(url, opts);
   return html;
 }

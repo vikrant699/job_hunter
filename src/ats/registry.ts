@@ -22,6 +22,10 @@ import { freshteamAdapter } from "./freshteam.js";
 import { gohireAdapter } from "./gohire.js";
 import { jobsoidAdapter } from "./jobsoid.js";
 import { ceipalAdapter } from "./ceipal.js";
+import { ripplehireAdapter } from "./ripplehire.js";
+import { zwayamAdapter } from "./zwayam.js";
+import { sensehqAdapter } from "./sensehq.js";
+import { breezyhrAdapter } from "./breezyhr.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -48,6 +52,10 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   gohire: gohireAdapter,
   jobsoid: jobsoidAdapter,
   ceipal: ceipalAdapter,
+  ripplehire: ripplehireAdapter,
+  zwayam: zwayamAdapter,
+  sensehq: sensehqAdapter,
+  breezyhr: breezyhrAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
