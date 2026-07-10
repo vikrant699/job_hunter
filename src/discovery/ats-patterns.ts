@@ -11,13 +11,13 @@ import { fetchHtml } from "../scraper/cheerio.js";
 export type AtsProvider =
   // adapter exists
   | "greenhouse" | "lever" | "ashby" | "workday"
-  // public board API exists, adapter pending (A3)
   | "smartrecruiters" | "recruitee"
+  | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
   | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr"
-  | "zohorecruit" | "peoplestrong";
+  | "zohorecruit" | "peoplestrong" | "jibe";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -32,7 +32,13 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   ashby:          { hasAdapter: true,  canValidate: true  },
   workday:        { hasAdapter: true,  canValidate: true  },
   smartrecruiters:{ hasAdapter: true,  canValidate: true  },
-  recruitee:      { hasAdapter: false, canValidate: true  },
+  recruitee:      { hasAdapter: true,  canValidate: true  },
+  ainterviews:    { hasAdapter: true,  canValidate: true  },
+  freshteam:      { hasAdapter: true,  canValidate: true  },
+  gohire:         { hasAdapter: true,  canValidate: true  },
+  jobsoid:        { hasAdapter: true,  canValidate: true  },
+  ceipal:         { hasAdapter: true,  canValidate: false },
+  jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
   phenom:         { hasAdapter: true,  canValidate: true  },
@@ -126,6 +132,49 @@ const PATTERNS: PatternDef[] = [
       return slug ? { url: `https://${u!.host}`, slug } : null;
     },
   },
+  {
+    provider: "ainterviews",
+    // ainterviews.com/job_board/<slug>/ or /api/job_board/<slug>/ — single shared host.
+    re: /https?:\/\/(?:www\.)?ainterviews\.com\/(?:api\/)?job_board\/[a-z0-9._-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.pathname.match(/job_board\/([^/]+)/)?.[1];
+      return slug ? { url: `https://ainterviews.com/job_board/${slug}/`, slug } : null;
+    },
+  },
+  {
+    provider: "freshteam",
+    re: /https?:\/\/[a-z0-9-]+\.freshteam\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/jobs`, slug };
+    },
+  },
+  {
+    provider: "gohire",
+    re: /https?:\/\/jobs\.gohire\.io\/[a-z0-9._-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u ? firstPathSegment(u) : null;
+      return slug ? { url: `https://jobs.gohire.io/${slug}/`, slug } : null;
+    },
+  },
+  {
+    provider: "jobsoid",
+    re: /https?:\/\/[a-z0-9-]+\.jobsoid\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/`, slug };
+    },
+  },
+  // No ceipal URL pattern: its widget carries per-tenant api_key/cp_id in embed
+  // attributes on the company's own site, with no shared per-tenant host/path.
+  // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature
+  // (both rely on registry seeding / careers-page HTML detection).
   {
     provider: "icims",
     re: /https?:\/\/(?:careers-)?[a-z0-9-]+\.icims\.com\/jobs\b/gi,

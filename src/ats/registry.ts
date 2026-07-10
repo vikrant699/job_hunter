@@ -16,6 +16,12 @@ import { jibeAdapter } from "./jibe.js";
 import { zohorecruitAdapter } from "./zohorecruit.js";
 import { successfactorsAdapter } from "./successfactors.js";
 import { peoplestrongAdapter } from "./peoplestrong.js";
+import { ainterviewsAdapter } from "./ainterviews.js";
+import { recruiteeAdapter } from "./recruitee.js";
+import { freshteamAdapter } from "./freshteam.js";
+import { gohireAdapter } from "./gohire.js";
+import { jobsoidAdapter } from "./jobsoid.js";
+import { ceipalAdapter } from "./ceipal.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -36,6 +42,12 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   zohorecruit: zohorecruitAdapter,
   successfactors: successfactorsAdapter,
   peoplestrong: peoplestrongAdapter,
+  ainterviews: ainterviewsAdapter,
+  recruitee: recruiteeAdapter,
+  freshteam: freshteamAdapter,
+  gohire: gohireAdapter,
+  jobsoid: jobsoidAdapter,
+  ceipal: ceipalAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
