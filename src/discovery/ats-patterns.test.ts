@@ -23,3 +23,29 @@ test("detects greytHR from the careersUrl itself (redirect target)", () => {
   const g = cands.find((c) => c.provider === "greythr");
   assert.equal(g?.slug, "acme");
 });
+
+test("detects a Zoho Recruit board and preserves the tenant's page name", () => {
+  const html = `<a href="https://spendflo.zohorecruit.com/jobs/Job-openings">Careers</a>`;
+  const cands = extractAtsCandidates(html, "https://spendflo.com/careers");
+  const z = cands.find((c) => c.provider === "zohorecruit");
+  assert.ok(z, "zohorecruit candidate should be detected");
+  assert.equal(z!.slug, "spendflo");
+  assert.equal(z!.url, "https://spendflo.zohorecruit.com/jobs/Job-openings");
+  assert.equal(z!.hasAdapter, true);
+  assert.equal(z!.canValidate, true);
+});
+
+test("Zoho Recruit .in hosts and job-detail deep links canonicalize to the board", () => {
+  const html = `<a href="https://acowale.zohorecruit.in/jobs/Careers/196319000004222912/Frontend-Developer">FE</a>`;
+  const z = extractAtsCandidates(html, "https://x.com").find((c) => c.provider === "zohorecruit");
+  assert.equal(z?.slug, "acowale");
+  assert.equal(z?.url, "https://acowale.zohorecruit.in/jobs/Careers");
+});
+
+test("Zoho Recruit bare-host mentions default to /jobs/Careers; vendor www is ignored", () => {
+  const z = extractAtsCandidates(`<a href="https://acme.zohorecruit.com">jobs</a>`, "https://x.com")
+    .find((c) => c.provider === "zohorecruit");
+  assert.equal(z?.url, "https://acme.zohorecruit.com/jobs/Careers");
+  const none = extractAtsCandidates(`<a href="https://www.zohorecruit.com/pricing">x</a>`, "https://x.com");
+  assert.equal(none.some((c) => c.provider === "zohorecruit"), false);
+});

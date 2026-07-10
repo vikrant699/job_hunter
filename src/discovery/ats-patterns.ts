@@ -16,7 +16,8 @@ export type AtsProvider =
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
-  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr";
+  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr"
+  | "zohorecruit";
 
 export interface AtsCapability {
   /** We have an AtsAdapter that can fetch postings. */
@@ -46,6 +47,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   keka:           { hasAdapter: true,  canValidate: false },
   darwinbox:      { hasAdapter: true,  canValidate: true  },
   greythr:        { hasAdapter: true,  canValidate: true  },
+  zohorecruit:    { hasAdapter: true,  canValidate: true  },
 } as const;
 
 interface PatternDef {
@@ -257,6 +259,21 @@ const PATTERNS: PatternDef[] = [
       // www.greythr.com is the vendor's own marketing/careers site, not a tenant.
       if (!slug || slug === "www") return null;
       return { url: `https://${u!.host}/hire/jobs/`, slug };
+    },
+  },
+  {
+    provider: "zohorecruit",
+    // <tenant>.zohorecruit.com|.in hosted career site. The segment after
+    // /jobs/ is the tenant's career-site page name — usually "Careers" but
+    // tenant-chosen (e.g. "Job-openings") — so preserve it when present.
+    re: /https?:\/\/[a-z0-9-]+\.zohorecruit\.(?:com|in)\b[^\s"'<>]*/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      // www.zohorecruit.com is the vendor's marketing site, not a tenant.
+      if (!slug || slug === "www") return null;
+      const page = u!.pathname.match(/^\/jobs\/([^/]+)/)?.[1] ?? "Careers";
+      return { url: `https://${u!.host}/jobs/${page}`, slug };
     },
   },
 ] as const;

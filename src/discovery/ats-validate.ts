@@ -4,6 +4,7 @@ import { extractKekaOrgGuid, kekaEmbedUrl } from "../ats/keka.js";
 import { phenomAdapter } from "../ats/phenom.js";
 import { darwinboxAdapter } from "../ats/darwinbox.js";
 import { greythrAdapter } from "../ats/greythr.js";
+import { zohorecruitAdapter } from "../ats/zohorecruit.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -189,6 +190,18 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           apiMeta: null,
         };
         const postings = await greythrAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "zohorecruit": {
+        const company: AdapterCompany = {
+          provider: "zohorecruit",
+          slug: c.slug,
+          name: c.slug,
+          careersUrl: c.url,
+          tenantUrl: c.url,
+          apiMeta: null,
+        };
+        const postings = await zohorecruitAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:

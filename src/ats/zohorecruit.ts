@@ -1,0 +1,155 @@
+// src/ats/zohorecruit.ts — Zoho Recruit hosted career sites
+// (<tenant>.zohorecruit.com / <tenant>.zohorecruit.in).
+//
+// A plain GET of the tenant's careers page (usually /jobs/Careers; the segment
+// after /jobs/ is the tenant's career-site page name and varies, e.g. Spendflo
+// uses /jobs/Job-openings — so we fetch careers_url exactly as stored) returns
+// server-rendered HTML with the complete published-jobs list embedded as an
+// entity-escaped JSON array in:
+//
+//   <input type="hidden" value="[{&#34;Posting_Title&#34;:...}]" id="jobs">
+//
+// One request, no pagination, full JD inline — so jdText is populated in
+// listPostings and no fetchJd is needed. An empty board serializes as
+// value="[]". The default bot UA is accepted (verified live 2026-07-10).
+import { z } from "zod";
+import { logger } from "../logger.js";
+import type { AtsAdapter } from "./types.js";
+import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import { htmlToText } from "./html-text.js";
+import { atsFetchText } from "./http.js";
+
+export const ZohoRecruitJobSchema = z.object({
+  id: z.string(),
+  Posting_Title: z.string(),
+  Job_Description: z.string().nullable().optional(),
+  City: z.string().nullable().optional(),
+  State: z.string().nullable().optional(),
+  Country: z.string().nullable().optional(),
+  Remote_Job: z.boolean().nullable().optional(),
+  Date_Opened: z.string().nullable().optional(),
+  /** Live boards only embed Publish:true jobs; filtered defensively anyway. */
+  Publish: z.boolean().nullable().optional(),
+  Job_Type: z.string().nullable().optional(),
+});
+export type ZohoRecruitJob = z.infer<typeof ZohoRecruitJobSchema>;
+
+const JobsIslandSchema = z.array(ZohoRecruitJobSchema);
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+};
+
+/**
+ * Decode HTML-attribute entity escaping (&#34; &#x2F; &amp; &lt; ...) in a
+ * single pass, so a double-escaped sequence (&amp;#34;) decodes exactly one
+ * layer. Unknown named entities pass through untouched.
+ */
+export function decodeAttrEntities(s: string): string {
+  return s.replace(
+    /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([a-zA-Z]+));/g,
+    (m: string, dec?: string, hex?: string, name?: string): string => {
+      if (dec !== undefined) return String.fromCodePoint(Number(dec));
+      if (hex !== undefined) return String.fromCodePoint(parseInt(hex, 16));
+      return (name !== undefined ? NAMED_ENTITIES[name] : undefined) ?? m;
+    },
+  );
+}
+
+/**
+ * Pull the raw (still entity-escaped) value of the `id="jobs"` hidden input.
+ * Attribute values are fully entity-escaped by Zoho, so raw double quotes only
+ * occur as attribute delimiters — a quote-aware scan for the tag-closing `>`
+ * is unambiguous and immune to `>`/`"` lookalikes inside the payload. Returns
+ * null when the island is absent (WAF page, layout change, wrong path).
+ */
+export function extractJobsIsland(html: string): string | null {
+  const idIdx = html.indexOf('id="jobs"');
+  if (idIdx === -1) return null;
+  // `<` inside attribute values is escaped (&lt;), so this is the real tag start.
+  const tagStart = html.lastIndexOf("<input", idIdx);
+  if (tagStart === -1) return null;
+
+  let end = -1;
+  let inQuote = false;
+  for (let i = tagStart; i < html.length; i++) {
+    const ch = html[i];
+    if (ch === '"') inQuote = !inQuote;
+    else if (ch === ">" && !inQuote) { end = i; break; }
+  }
+  if (end === -1) return null;
+
+  const m = /\bvalue="([^"]*)"/.exec(html.slice(tagStart, end + 1));
+  return m ? m[1]! : null;
+}
+
+/** Entity-decode + JSON-parse + zod-validate the island. Throws with an
+ *  actionable message on garbage (each failure mode named separately). */
+export function parseJobsIsland(raw: string, slug: string): ZohoRecruitJob[] {
+  let parsed;
+  try {
+    parsed = JobsIslandSchema.safeParse(JSON.parse(decodeAttrEntities(raw)));
+  } catch (err) {
+    throw new Error(
+      `zohorecruit jobs island is not valid JSON for ${slug} (serialization change?): ${String(err).slice(0, 120)}`,
+    );
+  }
+  if (!parsed.success) {
+    logger.warn(
+      { slug, issues: parsed.error.issues.slice(0, 2) },
+      "zohorecruit island schema mismatch",
+    );
+    throw new Error(`zohorecruit jobs island failed schema for ${slug}`);
+  }
+  return parsed.data;
+}
+
+/**
+ * Board-style detail URL: <careers_url>/<id>/<Title-Slugified>. The server
+ * routes on the id alone (any/no slug still 200s — verified live), so the
+ * slug only needs to be close, not byte-identical to Zoho's.
+ */
+export function zohoJobUrl(company: AdapterCompany, j: ZohoRecruitJob): string {
+  const base = company.careersUrl.replace(/\/+$/, "");
+  const titleSlug = j.Posting_Title.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return titleSlug ? `${base}/${j.id}/${titleSlug}` : `${base}/${j.id}`;
+}
+
+export function normalizeZohoRecruit(company: AdapterCompany, j: ZohoRecruitJob): NormalizedPosting {
+  const parts = [j.City, j.State, j.Country].map((s) => (s ?? "").trim()).filter(Boolean);
+  return {
+    provider: "zohorecruit",
+    externalId: j.id,
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle: j.Posting_Title,
+    jobUrl: zohoJobUrl(company, j),
+    location: parts.length ? parts.join(", ") : null,
+    isRemote: j.Remote_Job === true,
+    jdText: htmlToText(j.Job_Description),
+    postedAt: j.Date_Opened ?? null,
+  };
+}
+
+/** Full HTML -> postings path, exposed so tests cover it without HTTP. */
+export function postingsFromZohoHtml(company: AdapterCompany, html: string): NormalizedPosting[] {
+  const raw = extractJobsIsland(html);
+  if (raw === null) {
+    throw new Error(
+      `zohorecruit: no id="jobs" island at ${company.careersUrl} for ${company.slug} — wrong page path or layout change`,
+    );
+  }
+  return parseJobsIsland(raw, company.slug)
+    .filter((j) => j.Publish !== false)
+    .map((j) => normalizeZohoRecruit(company, j));
+}
+
+export const zohorecruitAdapter: AtsAdapter = {
+  provider: "zohorecruit",
+
+  async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    const html = await atsFetchText(company.careersUrl, { provider: "zohorecruit" });
+    return postingsFromZohoHtml(company, html);
+  },
+  // The island carries the full JD — no fetchJd needed.
+};
