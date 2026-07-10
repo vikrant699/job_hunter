@@ -201,10 +201,12 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     const summary = await runBlast({ profileId: "divya", limit: 1, force: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 1);
     assert.equal(summary.lastBatchBounceRatePct, 50);
-    // The Blast Log projection must carry the sweep's bounce over to the sheet.
-    const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[0] === "old1@x.com");
-    assert.equal(bouncedRow?.[3], "bounced");
-    assert.equal(bouncedRow?.[7], "Address not found");
+    // The Blast Log projection must carry the sweep's bounce over to the sheet,
+    // with the profile in column A.
+    const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[1] === "old1@x.com");
+    assert.equal(bouncedRow?.[0], "divya");
+    assert.equal(bouncedRow?.[4], "bounced");
+    assert.equal(bouncedRow?.[8], "Address not found");
   } finally {
     rmSync(h.dir, { recursive: true, force: true });
   }
