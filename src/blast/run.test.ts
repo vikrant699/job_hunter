@@ -4,13 +4,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runBlast, blastLogTab, type BlastDeps } from "./run.js";
+import { runBlast, BLAST_LOG_TAB, type BlastDeps } from "./run.js";
 import { loadState, saveState, type BlastState } from "./state.js";
 
 const NOW = new Date("2026-07-11T05:30:00.000Z"); // Sat before Mon 2026-07-13
-
-/** Tab name every projection in these tests should land on (profileId "divya"). */
-const BLAST_LOG_TAB = blastLogTab("divya");
 
 const TEST_CONTENT = {
   resumeFilename: "Divya Rajput Resume.pdf",
@@ -42,7 +39,10 @@ interface Harness {
   rewrites: { tab: string; header: string[]; rows: string[][] }[];
 }
 
-function makeHarness(rawRows: string[][], opts?: { failCreateAt?: number; bouncedEmails?: string[] }): Harness {
+function makeHarness(
+  rawRows: string[][],
+  opts?: { failCreateAt?: number; bouncedEmails?: string[]; otherStates?: { profileId: string; state: BlastState }[] },
+): Harness {
   const dir = mkdtempSync(join(tmpdir(), "blast-run-"));
   const paths = {
     template: join(dir, "template.md"),
@@ -83,6 +83,11 @@ function makeHarness(rawRows: string[][], opts?: { failCreateAt?: number; bounce
       domain === "invalid.com"
         ? Promise.reject(new Error("ENOTFOUND"))
         : Promise.resolve([{ exchange: `mx.${domain}`, priority: 10 }]),
+    // Mirrors production: the running profile's on-disk state plus any others.
+    listStates: () => [
+      { profileId: "divya", state: loadState(paths.state) },
+      ...(opts?.otherStates ?? []),
+    ],
     now: () => NOW,
     sleepMs: () => Promise.resolve(),
   };
@@ -242,6 +247,34 @@ test("variant rotation continues across batches (index base = drafted-ever count
       ["S1/O1", "S2/O1", "S3/O1", "S1/O2"],
     );
     assert.equal(state.records[3]?.batch, 2);
+  } finally {
+    rmSync(h.dir, { recursive: true, force: true });
+  }
+});
+
+test("shared Blast Log merges every profile's records with a Profile column", async () => {
+  const vikrantState: BlastState = {
+    lastSweepAt: null,
+    records: [
+      {
+        email: "v@x.com", company: "V Co", contactName: null, status: "drafted",
+        batch: 1, variant: "S1/O1", draftId: "vd1", at: "2026-07-11T05:00:00.000Z", note: null,
+      },
+    ],
+  };
+  const h = makeHarness([HEADER, ["A Co", "a@a.com", "", ""]], {
+    otherStates: [{ profileId: "vikrant", state: vikrantState }],
+  });
+  try {
+    await runBlast({ profileId: "divya", limit: 1, deps: h.deps, paths: h.paths });
+    const log = h.rewrites.at(-1);
+    assert.equal(log?.tab, BLAST_LOG_TAB);
+    assert.equal(log?.header[0], "Profile");
+    const profiles = (log?.rows ?? []).map((r) => [r[0], r[1]]);
+    assert.deepEqual(profiles.sort(), [
+      ["divya", "a@a.com"],
+      ["vikrant", "v@x.com"],
+    ]);
   } finally {
     rmSync(h.dir, { recursive: true, force: true });
   }

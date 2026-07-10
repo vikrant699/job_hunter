@@ -21,16 +21,13 @@ import {
   rewriteTab as rewriteTabDefault,
 } from "../google/sheets.js";
 import { sleep } from "../util/sleep.js";
-import { loadState, saveState, statePathFor, knownEmails, draftedEverCount, maxBatch } from "./state.js";
+import { loadState, loadAllStates, saveState, statePathFor, knownEmails, draftedEverCount, maxBatch, type BlastState } from "./state.js";
 import { buildPool } from "./pool.js";
 import { MxChecker, type MxResolver } from "./mx.js";
 import { loadBlastTemplate, loadBlastContent, renderBlast } from "./render.js";
 import { sweepBounces } from "./bounces.js";
 
-/** Per-profile so one profile's projection never clobbers another's. */
-export function blastLogTab(profileId: string): string {
-  return `Blast Log ${profileId}`;
-}
+export const BLAST_LOG_TAB = "Blast Log";
 const DRAFT_GAP_MS = 1_000;
 /** "Already drafted this week" guard: refuse a new batch when the newest
  *  drafted record is younger than this many days (override with --force). */
@@ -48,6 +45,9 @@ export interface BlastDeps {
   readFile: (path: string) => Buffer;
   /** undefined -> MxChecker's real node:dns resolver. */
   mxResolver: MxResolver | undefined;
+  /** ALL profiles' states for the shared Blast Log projection (a rewrite from
+   *  one profile must never wipe another profile's rows). */
+  listStates: () => { profileId: string; state: BlastState }[];
   now: () => Date;
   sleepMs: (ms: number) => Promise<void>;
 }
@@ -62,6 +62,7 @@ function defaultDeps(): BlastDeps {
     getMessageMetadata: getMessageMetadataDefault,
     readFile: (p) => readFileSync(p),
     mxResolver: undefined,
+    listStates: () => loadAllStates(),
     now: () => new Date(),
     sleepMs: sleep,
   };
@@ -198,14 +199,20 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
     remaining = pool.length - index;
   }
 
-  await deps.ensureTabs(profileId, [blastLogTab(profileId)]);
+  // Shared tab: merge EVERY profile's state so this rewrite can't wipe another
+  // profile's rows. The current profile's state was saved above, so re-reading
+  // from disk is consistent.
+  const allRows = deps.listStates().flatMap(({ profileId: pid, state: s }) =>
+    s.records.map((r) => [
+      pid, r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",
+    ]),
+  );
+  await deps.ensureTabs(profileId, [BLAST_LOG_TAB]);
   await deps.rewriteTab(
     profileId,
-    blastLogTab(profileId),
+    BLAST_LOG_TAB,
     ["Profile", "Email", "Company", "Contact Name", "Status", "Batch", "Variant", "Drafted At", "Note"],
-    state.records.map((r) => [
-      profileId, r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",
-    ]),
+    allRows,
   );
 
   return {

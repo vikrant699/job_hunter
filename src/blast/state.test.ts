@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  loadState, saveState, emptyState, knownEmails, draftedEverCount, maxBatch, statePathFor,
+  loadState, loadAllStates, saveState, emptyState, knownEmails, draftedEverCount, maxBatch, statePathFor,
   type BlastRecord,
 } from "./state.js";
 
@@ -76,4 +76,16 @@ test("selectors: knownEmails, draftedEverCount (excludes skips), maxBatch", () =
 
 test("statePathFor is per-profile under data/", () => {
   assert.equal(statePathFor("divya"), "data/blast-state-divya.json");
+});
+
+test("loadAllStates finds every profile's state file, sorted, ignoring other files", () => {
+  withTempDir((dir) => {
+    saveState(join(dir, "blast-state-vikrant.json"), { lastSweepAt: null, records: [record({ email: "v@x.com" })] });
+    saveState(join(dir, "blast-state-divya.json"), { lastSweepAt: null, records: [record({})] });
+    writeFileSync(join(dir, "job_hunter.db"), "not a state file", "utf-8");
+    const all = loadAllStates(dir);
+    assert.deepEqual(all.map((s) => s.profileId), ["divya", "vikrant"]);
+    assert.equal(all[1]?.state.records[0]?.email, "v@x.com");
+  });
+  assert.deepEqual(loadAllStates("does-not-exist"), []);
 });

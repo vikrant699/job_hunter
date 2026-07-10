@@ -4,8 +4,8 @@
 // (docs/superpowers/specs/2026-07-09-divya-blast-design.md). Deliberately NOT
 // the job_hunter SQLite DB: the whole blast lives in src/blast/ + one state
 // file so it can be deleted cleanly when the campaign ends.
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { z } from "zod";
 
 export const BlastStatusSchema = z.enum(["drafted", "bounced", "skipped_invalid"]);
@@ -63,6 +63,18 @@ export function saveState(path: string, state: BlastState): void {
     try { unlinkSync(tmp); } catch { /* ignore */ }
     throw err;
   }
+}
+
+/** All profiles' campaign states, for the shared Blast Log projection: every
+ *  data/blast-state-<profile>.json, sorted by profile id. A run by one profile
+ *  must never wipe another's rows from the shared tab. */
+export function loadAllStates(dir = "data"): { profileId: string; state: BlastState }[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .map((f) => /^blast-state-(.+)\.json$/.exec(f))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => ({ profileId: m[1] ?? "", state: loadState(join(dir, m[0])) }))
+    .sort((a, b) => a.profileId.localeCompare(b.profileId));
 }
 
 export function knownEmails(state: BlastState): Set<string> {
