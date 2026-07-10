@@ -51,16 +51,16 @@ export function parseSuccessfactorsTotal(html: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** reqId + slug from a "/job/<slug>/<reqId>/" href. reqId is the last path
- *  segment; slug is the one before it. Null when the shape doesn't match. */
+/** reqId + slug from a "/job/<slug>/<reqId>/" href. The "/job/<slug>/<reqId>"
+ *  pair may appear ANYWHERE in the path, not just at the root: multi-brand
+ *  tenants prefix real postings with a subsidiary segment
+ *  (e.g. "/TaroPharma/job/Hawthorne-Line-Mechanic/6196744/"). Null when the
+ *  shape doesn't match. */
 export function parseJobHref(href: string): { slug: string; reqId: string } | null {
   const path = href.split(/[?#]/)[0] ?? "";
-  const segs = path.split("/").filter(Boolean);
-  if (segs.length < 2 || segs[0] !== "job") return null;
-  const reqId = segs[segs.length - 1];
-  const slug = segs[segs.length - 2];
-  if (!reqId || !slug) return null;
-  return { slug, reqId };
+  const m = path.match(/\/job\/([^/]+)\/([^/]+)\/?$/);
+  if (!m?.[1] || !m[2]) return null;
+  return { slug: m[1], reqId: m[2] };
 }
 
 /** Tenant date formats vary ("10 Jul 2026", "Jul 10, 2026"); both parse. */
@@ -161,13 +161,21 @@ export const successfactorsAdapter: AtsAdapter = {
       },
     });
 
-    // Warn only on a genuine safety-cap truncation (board needs more pages than
-    // MAX_PAGES). A smaller postings.length than `total` on its own is benign —
-    // it just means a non-job data-row (e.g. an ad slot) was filtered out.
+    // Warn on a genuine safety-cap truncation (board needs more pages than
+    // MAX_PAGES).
     if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
       logger.warn(
         { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },
         "successfactors pagination capped — board larger than the safety limit",
+      );
+    } else if (total !== null && postings.length < total) {
+      // Collected fewer postings than the banner total without hitting the cap.
+      // NOT necessarily benign — a row whose href we couldn't parse is a REAL
+      // dropped posting (e.g. an unhandled brand-prefixed /job/ path), so surface
+      // it rather than swallowing it silently.
+      logger.info(
+        { slug: company.slug, collected: postings.length, total },
+        "successfactors collected fewer postings than the reported total — some rows were not parsed",
       );
     }
 
