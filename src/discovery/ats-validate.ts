@@ -6,6 +6,7 @@ import { darwinboxAdapter } from "../ats/darwinbox.js";
 import { greythrAdapter } from "../ats/greythr.js";
 import { zohorecruitAdapter } from "../ats/zohorecruit.js";
 import { successfactorsAdapter } from "../ats/successfactors.js";
+import { peoplestrongAdapter } from "../ats/peoplestrong.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -215,6 +216,18 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
           apiMeta: null,
         };
         const postings = await successfactorsAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "peoplestrong": {
+        const company: AdapterCompany = {
+          provider: "peoplestrong",
+          slug: c.slug,
+          name: c.slug,
+          careersUrl: c.url,
+          tenantUrl: c.url,
+          apiMeta: null,
+        };
+        const postings = await peoplestrongAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:
