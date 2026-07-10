@@ -67,7 +67,8 @@ function pageWith(jobs: ReadonlyArray<Record<string, boolean | string>>): string
     "<!DOCTYPE html><html><head><title>Careers</title></head><body>",
     '<script>var lyteReady = "id=\\"jobs\\" is rendered later";</script>',
     `<input type="hidden" value="${meta}" id="moduleMeta">`,
-    `<input type="hidden" value="${attrEscape(JSON.stringify(jobs))}" id="jobs">`,
+    // data-value sits BEFORE value: the old \bvalue= regex would grab "EVIL".
+    `<input type="hidden" data-value="EVIL" value="${attrEscape(JSON.stringify(jobs))}" id="jobs">`,
     `<input type="hidden" value="${cfg}" id="portalDetails">`,
     "</body></html>",
   ].join("");
@@ -87,6 +88,21 @@ test("extractJobsIsland finds the id=\"jobs\" input among sibling islands", () =
   const raw = extractJobsIsland(pageWith([fullJob, remoteJob]));
   assert.ok(raw !== null);
   assert.match(raw!, /^\[\{&#34;/); // still entity-escaped at this point
+});
+
+test("extractJobsIsland skips raw id=\"jobs\" literals in earlier page content", () => {
+  // Raw (NOT JS-escaped) literals before the real island: one in a CSS
+  // selector inside a <style> block, one in a <div> attribute, and one inside
+  // an earlier <input> tag that has no value attribute.
+  const decoys = [
+    '<style>.board input[id="jobs"] { display: none; }</style>',
+    "<div data-target='id=\"jobs\"' class=\"lyte-placeholder\">loading…</div>",
+    '<input type="checkbox" id="jobs">',
+  ].join("");
+  const html = pageWith([fullJob]).replace("<body>", `<body>${decoys}`);
+  const jobs = parseJobsIsland(extractJobsIsland(html)!, company.slug);
+  assert.equal(jobs.length, 1);
+  assert.equal(jobs[0]!.id, "196319000004222912");
 });
 
 test("extractJobsIsland returns null when the island is absent", () => {
