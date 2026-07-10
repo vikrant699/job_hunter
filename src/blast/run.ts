@@ -202,9 +202,9 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
   await deps.rewriteTab(
     profileId,
     blastLogTab(profileId),
-    ["Email", "Company", "Contact Name", "Status", "Batch", "Variant", "Drafted At", "Note"],
+    ["Profile", "Email", "Company", "Contact Name", "Status", "Batch", "Variant", "Drafted At", "Note"],
     state.records.map((r) => [
-      r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",
+      profileId, r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",
     ]),
   );
 
