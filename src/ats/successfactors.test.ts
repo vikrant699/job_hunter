@@ -1,0 +1,162 @@
+// src/ats/successfactors.test.ts
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import {
+  successfactorsOrigin,
+  successfactorsSearchUrl,
+  parseSuccessfactorsTotal,
+  parseJobHref,
+  parseSuccessfactorsSearch,
+  parseSuccessfactorsJd,
+} from "./successfactors.js";
+import type { AdapterCompany } from "../types.js";
+
+const company: AdapterCompany = {
+  provider: "successfactors",
+  slug: "heromotocorp",
+  name: "Hero MotoCorp",
+  careersUrl: "https://jobs.heromotocorp.com/search/",
+  tenantUrl: null,
+  apiMeta: null,
+};
+
+// A 2-row search page. Each row renders twice (desktop .hidden-phone +
+// mobile .visible-phone), fields selected by class WITHIN the row. Row 1
+// mirrors Hero (title column first); row 2 exercises a remote location.
+const SEARCH_HTML = `
+<html><body>
+  <span class="paginationLabel" aria-label="Results 1 – 25">Results 1 to 25 of 46</span>
+  <table class="searchResults full table">
+    <tbody>
+      <tr class="data-row">
+        <td class="colTitle" headers="hdrTitle">
+          <span class="jobTitle hidden-phone">
+            <a href="/job/Chittoor-Team-Manager-Weld-Shop-AP/1332433066/" class="jobTitle-link">Team Manager - Weld Shop</a>
+          </span>
+          <div class="jobdetail-phone visible-phone">
+            <span class="jobTitle visible-phone">
+              <a class="jobTitle-link" href="/job/Chittoor-Team-Manager-Weld-Shop-AP/1332433066/">Team Manager - Weld Shop</a>
+            </span>
+            <span class="jobLocation visible-phone"><span class="jobLocation">Chittoor, AP, IN</span></span>
+            <span class="jobDate visible-phone">10 Jul 2026</span>
+          </div>
+        </td>
+        <td class="colDepartment hidden-phone"><span class="jobDepartment">PLANT OPERATIONS</span></td>
+        <td class="colLocation hidden-phone"><span class="jobLocation">Chittoor, AP, IN</span></td>
+        <td class="colDate hidden-phone"><span class="jobDate">10 Jul 2026</span></td>
+      </tr>
+      <tr class="data-row">
+        <td class="colTitle" headers="hdrTitle">
+          <span class="jobTitle hidden-phone">
+            <a href="/job/Remote-Frontend-Engineer/998877/" class="jobTitle-link">Frontend Engineer</a>
+          </span>
+        </td>
+        <td class="colDepartment hidden-phone"><span class="jobDepartment">IT</span></td>
+        <td class="colLocation hidden-phone"><span class="jobLocation">Remote - India</span></td>
+        <td class="colDate hidden-phone"><span class="jobDate">Jul 09, 2026</span></td>
+      </tr>
+    </tbody>
+  </table>
+</body></html>`;
+
+const JD_HTML = `
+<html><body>
+  <span class="jobdescription"><div><H2><b>Function</b></H2><p>Operations</p></div>
+  <ul><li>Own the weld shop</li><li>Lead the team</li></ul></span>
+</body></html>`;
+
+test("successfactorsOrigin derives origin from careersUrl (or tenantUrl when set)", () => {
+  assert.equal(successfactorsOrigin(company), "https://jobs.heromotocorp.com");
+  assert.equal(
+    successfactorsOrigin({ ...company, tenantUrl: "https://careers.sunpharma.com/search/" }),
+    "https://careers.sunpharma.com",
+  );
+});
+
+test("successfactorsSearchUrl builds the paged /search/ URL at the row offset", () => {
+  assert.equal(
+    successfactorsSearchUrl("https://jobs.heromotocorp.com", 50),
+    "https://jobs.heromotocorp.com/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=50",
+  );
+});
+
+test("parseSuccessfactorsTotal reads the 'Results X to Y of N' banner", () => {
+  assert.equal(parseSuccessfactorsTotal(SEARCH_HTML), 46);
+  assert.equal(parseSuccessfactorsTotal('<p>Results 1 to 25 of 1,234</p>'), 1234);
+  assert.equal(parseSuccessfactorsTotal("<p>no banner here</p>"), null);
+});
+
+test("parseJobHref splits /job/<slug>/<reqId>/ and rejects other shapes", () => {
+  assert.deepEqual(parseJobHref("/job/Chittoor-Team-Manager-Weld-Shop-AP/1332433066/"), {
+    slug: "Chittoor-Team-Manager-Weld-Shop-AP",
+    reqId: "1332433066",
+  });
+  assert.deepEqual(parseJobHref("/job/slug/42/?lang=en"), { slug: "slug", reqId: "42" });
+  assert.equal(parseJobHref("/search/?q=foo"), null);
+  assert.equal(parseJobHref("/job/"), null);
+});
+
+test("parseSuccessfactorsSearch parses rows once each, mapping title/location/date/id", () => {
+  const { postings, rowCount, total } = parseSuccessfactorsSearch(SEARCH_HTML, company);
+  assert.equal(total, 46);
+  assert.equal(rowCount, 2); // one <tr.data-row> per job — drives offset advancement
+  assert.equal(postings.length, 2); // NOT 4 — the phone/desktop duplicates collapse
+
+  const first = postings[0]!;
+  assert.equal(first.provider, "successfactors");
+  assert.equal(first.externalId, "1332433066");
+  assert.equal(first.companySlug, "heromotocorp");
+  assert.equal(first.jobTitle, "Team Manager - Weld Shop");
+  assert.equal(first.jobUrl, "https://jobs.heromotocorp.com/job/Chittoor-Team-Manager-Weld-Shop-AP/1332433066/");
+  assert.equal(first.location, "Chittoor, AP, IN");
+  assert.equal(first.isRemote, false);
+  assert.equal(first.jdText, ""); // JD populated by fetchJd, not the listing
+  assert.equal(first.postedAt, new Date("10 Jul 2026").toISOString());
+
+  const second = postings[1]!;
+  assert.equal(second.externalId, "998877");
+  assert.equal(second.location, "Remote - India");
+  assert.equal(second.isRemote, true);
+  assert.equal(second.postedAt, new Date("Jul 09, 2026").toISOString());
+});
+
+test("rowCount counts every data-row even when a row is filtered out (offset stays aligned)", () => {
+  const html = `<table><tbody>
+    <tr class="data-row"><td class="colTitle">
+      <a href="/job/good-role/111/" class="jobTitle-link">Good Role</a>
+      <span class="jobLocation">Pune, IN</span></td></tr>
+    <tr class="data-row"><td class="colTitle">
+      <a href="/not-a-job/xyz" class="jobTitle-link">Ad Row</a></td></tr>
+  </tbody></table>`;
+  const { postings, rowCount } = parseSuccessfactorsSearch(html, company);
+  assert.equal(rowCount, 2);      // both rows counted for pagination offset
+  assert.equal(postings.length, 1); // only the valid /job/ row becomes a posting
+  assert.equal(postings[0]!.externalId, "111");
+});
+
+test("parseSuccessfactorsJd extracts and strips the jobdescription HTML", () => {
+  const jd = parseSuccessfactorsJd(JD_HTML);
+  assert.match(jd, /Function/);
+  assert.match(jd, /Own the weld shop/);
+  assert.match(jd, /Lead the team/);
+  assert.doesNotMatch(jd, /<li>|<div>|<H2>/i);
+});
+
+test("empty page: no rows and no banner yields zero postings and null total", () => {
+  const { postings, total } = parseSuccessfactorsSearch(
+    "<html><body><table class='searchResults'></table></body></html>",
+    company,
+  );
+  assert.equal(postings.length, 0);
+  assert.equal(total, null);
+});
+
+test("malformed page: garbage HTML yields zero postings, no throw", () => {
+  const { postings, total } = parseSuccessfactorsSearch("<not-real><<>garbage", company);
+  assert.equal(postings.length, 0);
+  assert.equal(total, null);
+});
+
+test("parseSuccessfactorsJd returns empty string when the span is absent", () => {
+  assert.equal(parseSuccessfactorsJd("<html><body><p>nothing</p></body></html>"), "");
+});

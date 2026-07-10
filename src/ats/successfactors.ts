@@ -1,0 +1,181 @@
+// src/ats/successfactors.ts — SAP SuccessFactors career sites on the LEGACY
+// Jobs2Web / classic Career Site Builder engine, mounted on each company's
+// CUSTOM domain (e.g. jobs.heromotocorp.com, careers.sunpharma.com). NOT the
+// gated SAPUI5 app at career4.successfactors.com.
+//
+// The engine serves clean, unauthenticated, server-rendered Bootstrap-3 HTML:
+//
+//   list: GET <origin>/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=<N>
+//         -> rows `<tr class="data-row">`, each with
+//              a.jobTitle-link  href="/job/<slug>/<reqId>/"  (the title)
+//              .jobLocation     (city/region string)
+//              .jobDate         (posted date, tenant-formatted)
+//         Total count is inline as text "Results 1 to 25 of <TOTAL>".
+//         Page size is 25 (startrow += 25).
+//
+//   jd:   GET <origin>/job/<slug>/<reqId>/  -> full rich HTML in span.jobdescription
+//
+// Column ORDER varies per tenant (some put date before title), so every field is
+// selected by class WITHIN each row, never by column position. Each row renders
+// twice (a .hidden-phone desktop copy and a .visible-phone mobile copy); we take
+// the first match of each class per row, which is stable across both layouts.
+import * as cheerio from "cheerio";
+import { logger } from "../logger.js";
+import type { AtsAdapter } from "./types.js";
+import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import { htmlToText } from "./html-text.js";
+import { atsFetchText } from "./http.js";
+import { REMOTE_RE, paginate } from "./shared.js";
+
+const PAGE = 25; // engine-fixed page size
+// Safety cap: ~1000 jobs. paginate stops earlier once it reaches the parsed
+// total; this only bites pathologically large boards. listPostings logs when hit.
+const MAX_PAGES = 40;
+
+/** Origin (scheme + host) that serves the board — the custom career domain.
+ *  Prefers tenant_url when set, else the careers_url (root or /search/ page). */
+export function successfactorsOrigin(company: AdapterCompany): string {
+  return new URL(company.tenantUrl ?? company.careersUrl).origin;
+}
+
+/** Paged search URL at the given 0-based row offset. */
+export function successfactorsSearchUrl(origin: string, startrow: number): string {
+  return `${origin}/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=${startrow}`;
+}
+
+/** Parse the "Results 1 to 25 of <TOTAL>" banner. Null when absent. */
+export function parseSuccessfactorsTotal(html: string): number | null {
+  const m = html.match(/Results\s+[\d,]+\s+to\s+[\d,]+\s+of\s+([\d,]+)/i);
+  if (!m?.[1]) return null;
+  const n = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/** reqId + slug from a "/job/<slug>/<reqId>/" href. reqId is the last path
+ *  segment; slug is the one before it. Null when the shape doesn't match. */
+export function parseJobHref(href: string): { slug: string; reqId: string } | null {
+  const path = href.split(/[?#]/)[0] ?? "";
+  const segs = path.split("/").filter(Boolean);
+  if (segs.length < 2 || segs[0] !== "job") return null;
+  const reqId = segs[segs.length - 1];
+  const slug = segs[segs.length - 2];
+  if (!reqId || !slug) return null;
+  return { slug, reqId };
+}
+
+/** Tenant date formats vary ("10 Jul 2026", "Jul 10, 2026"); both parse. */
+function parseSuccessfactorsDate(s: string | null): string | null {
+  if (!s) return null;
+  const ms = Date.parse(s.trim());
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+function cleanText(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/** Parse one /search/ page: its postings, the raw `<tr class="data-row">` count
+ *  (the server's page size — used to advance the row offset regardless of how
+ *  many rows survive filtering), and the reported total (if present). */
+export function parseSuccessfactorsSearch(
+  html: string,
+  company: AdapterCompany,
+): { postings: NormalizedPosting[]; rowCount: number; total: number | null } {
+  const origin = successfactorsOrigin(company);
+  const $ = cheerio.load(html);
+  const postings: NormalizedPosting[] = [];
+  const rows = $("tr.data-row");
+
+  rows.each((_, row) => {
+    const $row = $(row);
+    const $link = $row.find("a.jobTitle-link").first();
+    const href = $link.attr("href");
+    const title = cleanText($link.text());
+    if (!href || !title) return;
+
+    const parsed = parseJobHref(href);
+    if (!parsed) return;
+
+    const locEl = $row.find(".colLocation .jobLocation").first();
+    const locText = cleanText((locEl.length ? locEl : $row.find(".jobLocation").first()).text());
+    const location = locText || null;
+
+    const dateEl = $row.find(".colDate .jobDate").first();
+    const dateText = cleanText((dateEl.length ? dateEl : $row.find(".jobDate").first()).text());
+
+    let jobUrl: string;
+    try {
+      jobUrl = new URL(href, origin).toString();
+    } catch {
+      return;
+    }
+
+    postings.push({
+      provider: "successfactors",
+      externalId: parsed.reqId,
+      companySlug: company.slug,
+      companyName: company.name,
+      jobTitle: title,
+      jobUrl,
+      location,
+      isRemote: location ? REMOTE_RE.test(location) : false,
+      jdText: "",
+      postedAt: parseSuccessfactorsDate(dateText || null),
+    });
+  });
+
+  return { postings, rowCount: rows.length, total: parseSuccessfactorsTotal(html) };
+}
+
+/** Extract the JD body (span.jobdescription) as plain text. */
+export function parseSuccessfactorsJd(html: string): string {
+  const $ = cheerio.load(html);
+  const el = $("span.jobdescription").first();
+  if (!el.length) return "";
+  const inner = el.html();
+  return inner ? htmlToText(inner) : cleanText(el.text());
+}
+
+export const successfactorsAdapter: AtsAdapter = {
+  provider: "successfactors",
+
+  async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    const origin = successfactorsOrigin(company);
+    let total: number | null = null;
+
+    const postings = await paginate<NormalizedPosting>({
+      provider: "successfactors",
+      company: company.slug,
+      pageSize: PAGE,
+      maxPages: MAX_PAGES,
+      fetchPage: async (offset) => {
+        const html = await atsFetchText(successfactorsSearchUrl(origin, offset), {
+          provider: "successfactors",
+        });
+        const page = parseSuccessfactorsSearch(html, company);
+        if (total === null) total = page.total;
+        // Advance by the server's row count (25 on a full page), NOT the number
+        // of postings that survived filtering — otherwise a single filtered row
+        // shortens the page and paginate would stop before the real last page.
+        return { items: page.postings, total: page.total, rawCount: page.rowCount };
+      },
+    });
+
+    // Warn only on a genuine safety-cap truncation (board needs more pages than
+    // MAX_PAGES). A smaller postings.length than `total` on its own is benign —
+    // it just means a non-job data-row (e.g. an ad slot) was filtered out.
+    if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
+      logger.warn(
+        { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },
+        "successfactors pagination capped — board larger than the safety limit",
+      );
+    }
+
+    return postings;
+  },
+
+  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+    const html = await atsFetchText(posting.jobUrl, { provider: "successfactors" });
+    return parseSuccessfactorsJd(html);
+  },
+};
