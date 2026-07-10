@@ -13,6 +13,7 @@ import { phenomAdapter } from "./phenom.js";
 import { darwinboxAdapter } from "./darwinbox.js";
 import { greythrAdapter } from "./greythr.js";
 import { jibeAdapter } from "./jibe.js";
+import { zohorecruitAdapter } from "./zohorecruit.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -30,6 +31,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   darwinbox: darwinboxAdapter,
   greythr: greythrAdapter,
   jibe: jibeAdapter,
+  zohorecruit: zohorecruitAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
