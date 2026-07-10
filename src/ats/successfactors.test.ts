@@ -96,6 +96,14 @@ test("parseJobHref splits /job/<slug>/<reqId>/ and rejects other shapes", () => 
   assert.equal(parseJobHref("/job/"), null);
 });
 
+test("parseJobHref matches brand-prefixed /job/ paths (multi-brand tenants)", () => {
+  assert.deepEqual(parseJobHref("/TaroPharma/job/Hawthorne-Line-Mechanic-Temporary-QC/6196744/"), {
+    slug: "Hawthorne-Line-Mechanic-Temporary-QC",
+    reqId: "6196744",
+  });
+  assert.deepEqual(parseJobHref("/SomeBrand/job/foo-bar/12345/"), { slug: "foo-bar", reqId: "12345" });
+});
+
 test("parseSuccessfactorsSearch parses rows once each, mapping title/location/date/id", () => {
   const { postings, rowCount, total } = parseSuccessfactorsSearch(SEARCH_HTML, company);
   assert.equal(total, 46);
@@ -120,18 +128,24 @@ test("parseSuccessfactorsSearch parses rows once each, mapping title/location/da
   assert.equal(second.postedAt, new Date("Jul 09, 2026").toISOString());
 });
 
-test("rowCount counts every data-row even when a row is filtered out (offset stays aligned)", () => {
+test("rowCount counts every data-row; brand-prefixed rows are kept, only non-job rows drop", () => {
   const html = `<table><tbody>
     <tr class="data-row"><td class="colTitle">
       <a href="/job/good-role/111/" class="jobTitle-link">Good Role</a>
       <span class="jobLocation">Pune, IN</span></td></tr>
     <tr class="data-row"><td class="colTitle">
+      <a href="/SomeBrand/job/foo-bar/12345/" class="jobTitle-link">Brand Role</a>
+      <span class="jobLocation">Mumbai, IN</span></td></tr>
+    <tr class="data-row"><td class="colTitle">
       <a href="/not-a-job/xyz" class="jobTitle-link">Ad Row</a></td></tr>
   </tbody></table>`;
   const { postings, rowCount } = parseSuccessfactorsSearch(html, company);
-  assert.equal(rowCount, 2);      // both rows counted for pagination offset
-  assert.equal(postings.length, 1); // only the valid /job/ row becomes a posting
+  assert.equal(rowCount, 3);      // all rows counted for pagination offset
+  assert.equal(postings.length, 2); // root-path AND brand-prefixed /job/ rows kept; ad row dropped
   assert.equal(postings[0]!.externalId, "111");
+  // Brand-prefixed subsidiary posting must NOT be silently dropped.
+  assert.equal(postings[1]!.externalId, "12345");
+  assert.equal(postings[1]!.jobUrl, "https://jobs.heromotocorp.com/SomeBrand/job/foo-bar/12345/");
 });
 
 test("parseSuccessfactorsJd extracts and strips the jobdescription HTML", () => {
