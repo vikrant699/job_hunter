@@ -26,6 +26,12 @@ import { ripplehireAdapter } from "./ripplehire.js";
 import { zwayamAdapter } from "./zwayam.js";
 import { sensehqAdapter } from "./sensehq.js";
 import { breezyhrAdapter } from "./breezyhr.js";
+import { turbohireAdapter } from "./turbohire.js";
+import { avatureAdapter } from "./avature.js";
+import { jazzhrAdapter } from "./jazzhr.js";
+import { webbtreeAdapter } from "./webbtree.js";
+import { zappyhireAdapter } from "./zappyhire.js";
+import { talentRecruitAdapter } from "./talentrecruit.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -56,6 +62,12 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   zwayam: zwayamAdapter,
   sensehq: sensehqAdapter,
   breezyhr: breezyhrAdapter,
+  turbohire: turbohireAdapter,
+  avature: avatureAdapter,
+  jazzhr: jazzhrAdapter,
+  webbtree: webbtreeAdapter,
+  zappyhire: zappyhireAdapter,
+  talentrecruit: talentRecruitAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
