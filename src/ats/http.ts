@@ -13,7 +13,7 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
  */
 export async function atsFetchJson(
   url: string,
-  opts: { method?: "GET" | "POST"; body?: unknown; provider?: string; userAgent?: string } = {},
+  opts: { method?: "GET" | "POST"; body?: unknown; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
   const controller = new AbortController();
@@ -26,6 +26,8 @@ export async function atsFetchJson(
         "User-Agent": opts.userAgent ?? config.fetch.userAgent,
         Accept: "application/json",
         ...(opts.body !== undefined ? { "Content-Type": "application/json" } : {}),
+        // Caller headers last so a provider-specific header (webbtree customurl) wins.
+        ...(opts.headers ?? {}),
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       signal: controller.signal,

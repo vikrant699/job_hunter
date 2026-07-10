@@ -14,6 +14,7 @@ export type AtsProvider =
   | "smartrecruiters" | "recruitee"
   | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
+  | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -43,12 +44,17 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   zwayam:         { hasAdapter: true,  canValidate: false },
   sensehq:        { hasAdapter: true,  canValidate: true  },
   breezyhr:       { hasAdapter: true,  canValidate: true  },
+  turbohire:      { hasAdapter: true,  canValidate: false },
+  jazzhr:         { hasAdapter: true,  canValidate: true  },
+  webbtree:       { hasAdapter: true,  canValidate: true  },
+  zappyhire:      { hasAdapter: true,  canValidate: false },
+  talentrecruit:  { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
   phenom:         { hasAdapter: true,  canValidate: true  },
   eightfold:      { hasAdapter: true,  canValidate: false },
-  avature:        { hasAdapter: false, canValidate: false },
+  avature:        { hasAdapter: true,  canValidate: true  },
   workable:       { hasAdapter: true,  canValidate: true  },
   personio:       { hasAdapter: false, canValidate: false },
   teamtailor:     { hasAdapter: false, canValidate: false },
@@ -176,6 +182,39 @@ const PATTERNS: PatternDef[] = [
       return { url: `https://${u!.host}/`, slug };
     },
   },
+  {
+    provider: "jazzhr",
+    re: /https?:\/\/[a-z0-9-]+\.applytojob\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/apply`, slug };
+    },
+  },
+  {
+    provider: "webbtree",
+    re: /https?:\/\/app\.webbtree\.com\/company\/[a-z0-9._-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.pathname.match(/\/company\/([^/]+)/)?.[1];
+      return slug ? { url: `https://app.webbtree.com/company/${slug}/jobs`, slug } : null;
+    },
+  },
+  {
+    provider: "talentrecruit",
+    re: /https?:\/\/[a-z0-9-]+\.talentrecruit\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      // app/appcareer/api are the vendor's shared hosts, not tenants.
+      if (!slug || ["app", "appcareer", "api", "www"].includes(slug)) return null;
+      return { url: `https://${u!.host}/career-page`, slug };
+    },
+  },
+  // No turbohire URL pattern: custom accountName + orgId (careerpage UUID) needed,
+  // browser-backed. No zappyhire pattern: backend host baked per-tenant in the JS
+  // bundle. Both rely on registry seeding (canValidate:false).
   // No ceipal URL pattern: its widget carries per-tenant api_key/cp_id in embed
   // attributes on the company's own site, with no shared per-tenant host/path.
   // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature.
