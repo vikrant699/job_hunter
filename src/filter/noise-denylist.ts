@@ -13,6 +13,8 @@
 export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   // Wave 5 (2026-07-10): broken-repair + dormant-audit sweeps — defunct/acquired, confirmed by hand
   "koo": "defunct: Koo shut down July 2024 (dormant-audit 2026-07-10)",
+  "vauld": "defunct: suspended trading 2022, court-supervised restructuring (dormant-audit 2026-07-10)",
+  "abcoffee": "defunct: domain parked/for sale (dormant-audit 2026-07-10)",
   "golorry": "defunct: domain expired/parked, no working site (broken-repair 2026-07-10)",
   "techbiz": "defunct: acquired by CredFlow 2023-06, domain abandoned (broken-repair 2026-07-10)",
   "verak": "defunct: acquired by InsuranceDekho 2023-04, domain NXDOMAIN (broken-repair 2026-07-10)",
