@@ -64,23 +64,34 @@ export function decodeAttrEntities(s: string): string {
  * null when the island is absent (WAF page, layout change, wrong path).
  */
 export function extractJobsIsland(html: string): string | null {
-  const idIdx = html.indexOf('id="jobs"');
-  if (idIdx === -1) return null;
-  // `<` inside attribute values is escaped (&lt;), so this is the real tag start.
-  const tagStart = html.lastIndexOf("<input", idIdx);
-  if (tagStart === -1) return null;
+  // A raw `id="jobs"` literal can occur in unrelated page content (a CSS
+  // selector, a data attribute) BEFORE the real island — walk every
+  // occurrence and require containment in an <input> tag rather than
+  // trusting the first hit.
+  for (let idIdx = html.indexOf('id="jobs"'); idIdx !== -1; idIdx = html.indexOf('id="jobs"', idIdx + 1)) {
+    // `<` inside attribute values is escaped (&lt;), so this is a real tag start.
+    const tagStart = html.lastIndexOf("<input", idIdx);
+    if (tagStart === -1) continue;
 
-  let end = -1;
-  let inQuote = false;
-  for (let i = tagStart; i < html.length; i++) {
-    const ch = html[i];
-    if (ch === '"') inQuote = !inQuote;
-    else if (ch === ">" && !inQuote) { end = i; break; }
+    let end = -1;
+    let inQuote = false;
+    for (let i = tagStart; i < html.length; i++) {
+      const ch = html[i];
+      if (ch === '"') inQuote = !inQuote;
+      else if (ch === ">" && !inQuote) { end = i; break; }
+    }
+    if (end === -1) continue;
+    // Containment: the occurrence must sit inside the tag being closed. A
+    // stray literal in earlier content has its nearest `<input` further back,
+    // so that tag closes before the occurrence (end <= idIdx) — skip it.
+    if (end <= idIdx) continue;
+
+    // `\s` (not `\b`) so a data-value="..." attribute can never match.
+    const m = /\svalue="([^"]*)"/.exec(html.slice(tagStart, end + 1));
+    if (m) return m[1]!;
+    // An <input id="jobs"> without a value attribute isn't the island — keep looking.
   }
-  if (end === -1) return null;
-
-  const m = /\bvalue="([^"]*)"/.exec(html.slice(tagStart, end + 1));
-  return m ? m[1]! : null;
+  return null;
 }
 
 /** Entity-decode + JSON-parse + zod-validate the island. Throws with an
