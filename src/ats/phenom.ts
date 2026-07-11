@@ -33,6 +33,27 @@ export function extractPhenomDdo(html: string): unknown | null {
   try { return JSON.parse(m[1]!); } catch { return null; }
 }
 
+/** Canonical Phenom job page for one posting: `<origin>/<locale>/job/<jobId>`.
+ * The locale prefix is the first two path segments of the tenant's search URL
+ * (/us/en, /global/en, /in/en, ...). This page is server-rendered with its own
+ * phApp.ddo island carrying the FULL description — the search ddo only has a
+ * ~300-char descriptionTeaser. */
+export function phenomJobPageUrl(tenantUrl: string, jobId: string): string {
+  const u = new URL(tenantUrl);
+  const segs = u.pathname.split("/").filter(Boolean);
+  const locale = segs.slice(0, 2).join("/");
+  return `${u.protocol}//${u.host}/${locale ? `${locale}/` : ""}job/${encodeURIComponent(jobId)}`;
+}
+
+/** Full JD from a job page's ddo: `jobDetail.data.job.description`. */
+export function phenomJobDescriptionFrom(ddo: unknown): string | null {
+  const parseResult = JsonValueSchema.safeParse(ddo);
+  const d: JsonValue | null = parseResult.success ? parseResult.data : null;
+  const job = getObj(getObj(getObj(d, "jobDetail"), "data"), "job");
+  const description = job?.["description"];
+  return typeof description === "string" && description.length > 0 ? description : null;
+}
+
 /** Pull jobs[] + totalHits from a parsed ddo (tolerant of both key shapes). */
 export function phenomJobsFrom(ddo: unknown): { jobs: unknown[]; totalHits: number } {
   const parseResult = JsonValueSchema.safeParse(ddo);
@@ -57,7 +78,10 @@ export function normalizePhenom(company: AdapterCompany, j: PhenomJob): Normaliz
     jobUrl: j.applyUrl ?? company.tenantUrl ?? company.careersUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: htmlToText(j.descriptionTeaser ?? ""),
+    // Left empty on purpose: the search ddo only carries a ~300-char teaser,
+    // which starved the relevance gate. fetchJd pulls the full JD from the
+    // posting's canonical job page instead.
+    jdText: "",
     postedAt: j.postedDate ?? j.dateCreated ?? null,
   };
 }
@@ -97,5 +121,17 @@ export const phenomAdapter: AtsAdapter = {
         return { items, total: totalHits, rawCount: jobs.length };
       },
     });
+  },
+
+  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+    if (!company.tenantUrl) throw new Error(`phenom requires tenant_url (search URL) for ${company.slug}`);
+    const url = phenomJobPageUrl(company.tenantUrl, posting.externalId);
+    const html = await atsFetchText(url, { provider: "phenom" });
+    const ddo = extractPhenomDdo(html);
+    const description = phenomJobDescriptionFrom(ddo);
+    if (description === null) {
+      throw new Error(`phenom: no jobDetail description at ${url} for ${company.slug}`);
+    }
+    return htmlToText(description);
   },
 };
