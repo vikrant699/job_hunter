@@ -1,7 +1,14 @@
 // src/ats/phenom.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPhenomDdo, phenomJobsFrom, normalizePhenom, PhenomJobSchema } from "./phenom.js";
+import {
+  extractPhenomDdo,
+  phenomJobsFrom,
+  normalizePhenom,
+  PhenomJobSchema,
+  phenomJobPageUrl,
+  phenomJobDescriptionFrom,
+} from "./phenom.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -34,5 +41,24 @@ test("normalizePhenom maps fields", () => {
   assert.equal(p.jobTitle, "Business Development Manager");
   assert.equal(p.location, "Mumbai, Maharashtra, India");
   assert.equal(p.jobUrl, "https://www.jobs.abbott/us/en/job/31146766/x");
-  assert.match(p.jdText, /all business development/);
+  // The teaser is NOT inlined — fetchJd pulls the full JD from the job page.
+  assert.equal(p.jdText, "");
+});
+
+test("phenomJobPageUrl derives origin + locale prefix from the tenant search URL", () => {
+  assert.equal(
+    phenomJobPageUrl("https://www.jobs.abbott/us/en/search-results?qcountry=India", "31146766"),
+    "https://www.jobs.abbott/us/en/job/31146766",
+  );
+  assert.equal(
+    phenomJobPageUrl("https://careers.abb/global/en/search-results", "JR-02586427"),
+    "https://careers.abb/global/en/job/JR-02586427",
+  );
+});
+
+test("phenomJobDescriptionFrom reads jobDetail.data.job.description", () => {
+  const jobHtml = `<script>phApp.ddo = {"jobDetail":{"data":{"job":{"description":"<p>Full <b>JD</b> body</p>"}}}};</script>`;
+  const ddo = extractPhenomDdo(jobHtml);
+  assert.equal(phenomJobDescriptionFrom(ddo), "<p>Full <b>JD</b> body</p>");
+  assert.equal(phenomJobDescriptionFrom(extractPhenomDdo(html)), null);
 });
