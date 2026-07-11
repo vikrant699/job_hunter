@@ -23,7 +23,7 @@ import { REMOTE_RE } from "./shared.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
 const PAGE_SIZE = 50;
-const MAX_PAGES = 100;
+const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 const TurboHireTokenSchema = z.object({ access_token: z.string() });
 

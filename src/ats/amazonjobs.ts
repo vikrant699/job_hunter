@@ -12,7 +12,7 @@ import { BROWSER_UA } from "../util/user-agent.js";
 
 const BASE = "https://www.amazon.jobs";
 const RESULT_LIMIT = 100; // server max for result_limit
-const MAX_PAGES = 50; // safety cap; ~2700 India postings / 100 per page ≈ 27 pages
+const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 export const AmazonJobSchema = z.object({
   id_icims: z.string(),

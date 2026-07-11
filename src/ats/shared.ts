@@ -18,7 +18,12 @@ export function warnDeepPagination(provider: string, slug: string, pagesDone: nu
   }
 }
 
-const DEFAULT_MAX_PAGES = 200;
+// Backstop against a tenant whose `total` is unreliable AND never returns a
+// short/empty page (would otherwise loop forever). Set high enough that no real
+// board is ever truncated — completeness matters more than the safety margin,
+// so we fetch every page and only this runaway guard can stop us early (it
+// logs loudly via warnDeepPagination well before here).
+const DEFAULT_MAX_PAGES = 5000;
 
 /**
  * Result of fetching one page: its items and, if known, the total item count
@@ -42,7 +47,9 @@ export interface PaginateOpts<T> {
   company: string;
   /** Expected page size — a page shorter than this ends the loop. */
   pageSize: number;
-  /** Hard stop on page count, in case a tenant's `total` is unreliable. Default 200. */
+  /** Runaway backstop on page count, for a tenant whose `total` is unreliable
+   *  and never returns a short/empty page. Default 5000 — high enough never to
+   *  truncate a real board. */
   maxPages?: number;
   /**
    * Whether a page shorter than `pageSize` (but non-empty) ends pagination.

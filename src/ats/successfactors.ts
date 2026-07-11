@@ -30,7 +30,7 @@ import { REMOTE_RE, paginate } from "./shared.js";
 const PAGE = 25; // engine-fixed page size
 // Safety cap: ~1000 jobs. paginate stops earlier once it reaches the parsed
 // total; this only bites pathologically large boards. listPostings logs when hit.
-const MAX_PAGES = 40;
+const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 /** Origin (scheme + host) that serves the board — the custom career domain.
  *  Prefers tenant_url when set, else the careers_url (root or /search/ page). */
