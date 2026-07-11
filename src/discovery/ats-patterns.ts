@@ -18,7 +18,7 @@ export type AtsProvider =
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
   | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
-  | "happyeasygo" | "adityabirla"
+  | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -84,7 +84,10 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   avature:        { hasAdapter: true,  canValidate: true  },
   workable:       { hasAdapter: true,  canValidate: true  },
   personio:       { hasAdapter: false, canValidate: false },
-  teamtailor:     { hasAdapter: false, canValidate: false },
+  teamtailor:     { hasAdapter: true,  canValidate: true  },
+  comeet:         { hasAdapter: true,  canValidate: false },
+  pyjamahr:       { hasAdapter: true,  canValidate: false },
+  goodfit:        { hasAdapter: true,  canValidate: true  },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
@@ -433,6 +436,15 @@ const PATTERNS: PatternDef[] = [
       const slug = u ? firstPathSegment(u) : null;
       if (!slug || slug === "api") return null;
       return { url: `https://careers.kula.ai/${slug}`, slug };
+    },
+  },
+  {
+    provider: "goodfit",
+    re: /https?:\/\/app\.goodfit\.so\/jobs\/[a-z0-9_-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.pathname.split("/").filter(Boolean)[1];
+      return slug ? { url: `https://app.goodfit.so/jobs/${slug}`, slug } : null;
     },
   },
   {
