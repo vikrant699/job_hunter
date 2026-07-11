@@ -19,6 +19,9 @@ import { jazzhrAdapter } from "../ats/jazzhr.js";
 import { webbtreeAdapter } from "../ats/webbtree.js";
 import { avatureAdapter } from "../ats/avature.js";
 import { mynexthireAdapter } from "../ats/mynexthire.js";
+import { gemAdapter } from "../ats/gem.js";
+import { doverAdapter } from "../ats/dover.js";
+import { ycombinatorAdapter } from "../ats/ycombinator.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -300,6 +303,21 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "mynexthire": {
         const company: AdapterCompany = { provider: "mynexthire", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
         const postings = await mynexthireAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "gem": {
+        const company: AdapterCompany = { provider: "gem", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await gemAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "dover": {
+        const company: AdapterCompany = { provider: "dover", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await doverAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "ycombinator": {
+        const company: AdapterCompany = { provider: "ycombinator", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await ycombinatorAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:

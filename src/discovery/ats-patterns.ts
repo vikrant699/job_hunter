@@ -16,6 +16,7 @@ export type AtsProvider =
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
+  | "gem" | "dover" | "ycombinator"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -56,6 +57,9 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   wpjobs:         { hasAdapter: true,  canValidate: false },
   mynexthire:     { hasAdapter: true,  canValidate: true  },
   metacareers:    { hasAdapter: true,  canValidate: false },
+  gem:            { hasAdapter: true,  canValidate: true  },
+  dover:          { hasAdapter: true,  canValidate: true  },
+  ycombinator:    { hasAdapter: true,  canValidate: true  },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -189,6 +193,38 @@ const PATTERNS: PatternDef[] = [
       const slug = u?.host.split(".")[0];
       if (!slug || slug === "www") return null;
       return { url: `https://${u!.host}/`, slug };
+    },
+  },
+  {
+    provider: "gem",
+    // Public career boards at jobs.gem.com/<slug>, e.g. PromptQL, Fireflies, Bolna.
+    re: /https?:\/\/jobs\.gem\.com\/[a-z0-9._-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u ? firstPathSegment(u) : null;
+      return slug ? { url: `https://jobs.gem.com/${slug}`, slug } : null;
+    },
+  },
+  {
+    provider: "dover",
+    // Shared host keyed by slug in the path: app.dover.com/jobs/<slug>.
+    re: /https?:\/\/app\.dover\.com\/jobs\/[a-z0-9._-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const slug = u.pathname.split("/").filter(Boolean)[1];
+      return slug ? { url: `https://app.dover.com/jobs/${slug}`, slug } : null;
+    },
+  },
+  {
+    provider: "ycombinator",
+    // YC startup job board; slug is the SECOND path segment (first is "companies").
+    re: /https?:\/\/(?:www\.)?ycombinator\.com\/companies\/[a-z0-9-]+(?:\/jobs)?\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const slug = u.pathname.split("/").filter(Boolean)[1];
+      return slug ? { url: `https://www.ycombinator.com/companies/${slug}/jobs`, slug } : null;
     },
   },
   {
