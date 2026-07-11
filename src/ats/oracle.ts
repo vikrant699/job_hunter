@@ -54,6 +54,11 @@ export const oracleAdapter: AtsAdapter = {
       provider: "oracle",
       company: company.slug,
       pageSize: PAGE,
+      // Oracle CE silently caps a page at 25 items regardless of `limit=` —
+      // a sub-PAGE page is normal, not the end. Pagination must run to
+      // TotalJobsCount / an empty page (verified: AmEx 291, Hexaware 197,
+      // BNY 1656 all returned 25/page).
+      shortPageEndsPagination: false,
       fetchPage: async (offset) => {
         const url =
           `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
@@ -86,6 +91,11 @@ export const oracleAdapter: AtsAdapter = {
     const body = [d.ExternalDescriptionStr, d.ExternalResponsibilitiesStr, d.ExternalQualificationsStr]
       .filter((s): s is string => typeof s === "string" && s.length > 0)
       .join("\n\n");
+    // Some tenants (e.g. Tata Tele) leave every External*Str empty and put the
+    // JD in CorporateDescriptionStr instead.
+    if (!body && typeof d.CorporateDescriptionStr === "string" && d.CorporateDescriptionStr.length > 0) {
+      return htmlToText(d.CorporateDescriptionStr);
+    }
     return htmlToText(body);
   },
 };
