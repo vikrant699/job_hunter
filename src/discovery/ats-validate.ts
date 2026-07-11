@@ -9,6 +9,7 @@ import { successfactorsAdapter } from "../ats/successfactors.js";
 import { peoplestrongAdapter } from "../ats/peoplestrong.js";
 import { ainterviewsAdapter } from "../ats/ainterviews.js";
 import { freshteamAdapter } from "../ats/freshteam.js";
+import { bambooHrAdapter } from "../ats/bamboohr.js";
 import { trakstarAdapter } from "../ats/trakstar.js";
 import { gohireAdapter } from "../ats/gohire.js";
 import { jobsoidAdapter } from "../ats/jobsoid.js";
@@ -253,6 +254,11 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "freshteam": {
         const company: AdapterCompany = { provider: "freshteam", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
         const postings = await freshteamAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "bamboohr": {
+        const company: AdapterCompany = { provider: "bamboohr", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await bambooHrAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       case "trakstar": {

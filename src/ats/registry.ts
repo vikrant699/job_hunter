@@ -46,6 +46,10 @@ import { icicibankAdapter } from "./icicibank.js";
 import { relianceAdapter } from "./reliance.js";
 import { magicpinAdapter } from "./magicpin.js";
 import { tatacareersAdapter } from "./tatacareers.js";
+import { peoplehumAdapter } from "./peoplehum.js";
+import { leapscholarAdapter } from "./leapscholar.js";
+import { bambooHrAdapter } from "./bamboohr.js";
+import { setuAdapter } from "./setu.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -96,6 +100,10 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   reliance: relianceAdapter,
   magicpin: magicpinAdapter,
   tatacareers: tatacareersAdapter,
+  peoplehum: peoplehumAdapter,
+  leapscholar: leapscholarAdapter,
+  bamboohr: bambooHrAdapter,
+  setu: setuAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

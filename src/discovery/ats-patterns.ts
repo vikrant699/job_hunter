@@ -17,6 +17,7 @@ export type AtsProvider =
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
+  | "peoplehum" | "leapscholar" | "setu"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -64,6 +65,9 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   reliance:       { hasAdapter: true,  canValidate: false },
   magicpin:       { hasAdapter: true,  canValidate: false },
   tatacareers:    { hasAdapter: true,  canValidate: false },
+  peoplehum:      { hasAdapter: true,  canValidate: false },
+  leapscholar:    { hasAdapter: true,  canValidate: false },
+  setu:           { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -75,7 +79,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   personio:       { hasAdapter: false, canValidate: false },
   teamtailor:     { hasAdapter: false, canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
-  bamboohr:       { hasAdapter: false, canValidate: false },
+  bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
   keka:           { hasAdapter: true,  canValidate: false },
   darwinbox:      { hasAdapter: true,  canValidate: true  },
