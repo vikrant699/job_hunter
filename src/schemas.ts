@@ -17,7 +17,7 @@ export const ProviderSchema = z.enum([
   "ainterviews", "recruitee", "freshteam", "gohire", "jobsoid", "ceipal",
   "ripplehire", "zwayam", "sensehq", "breezyhr",
   "turbohire", "avature", "jazzhr", "webbtree", "zappyhire", "talentrecruit", "trakstar",
-  "sharechat", "amazonjobs", "wpjobs", "mynexthire", "custom",
+  "sharechat", "amazonjobs", "wpjobs", "mynexthire", "metacareers", "custom",
 ]);
 export type Provider = z.infer<typeof ProviderSchema>;
 
