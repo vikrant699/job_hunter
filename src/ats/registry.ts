@@ -34,6 +34,9 @@ import { webbtreeAdapter } from "./webbtree.js";
 import { zappyhireAdapter } from "./zappyhire.js";
 import { talentRecruitAdapter } from "./talentrecruit.js";
 import { trakstarAdapter } from "./trakstar.js";
+import { sharechatAdapter } from "./sharechat.js";
+import { amazonJobsAdapter } from "./amazonjobs.js";
+import { wpjobsAdapter } from "./wpjobs.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -72,6 +75,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   zappyhire: zappyhireAdapter,
   talentrecruit: talentRecruitAdapter,
   trakstar: trakstarAdapter,
+  sharechat: sharechatAdapter,
+  amazonjobs: amazonJobsAdapter,
+  wpjobs: wpjobsAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
