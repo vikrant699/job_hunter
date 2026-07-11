@@ -18,6 +18,7 @@ import { breezyhrAdapter } from "../ats/breezyhr.js";
 import { jazzhrAdapter } from "../ats/jazzhr.js";
 import { webbtreeAdapter } from "../ats/webbtree.js";
 import { avatureAdapter } from "../ats/avature.js";
+import { mynexthireAdapter } from "../ats/mynexthire.js";
 import type { AdapterCompany } from "../types.js";
 import { safeUrl, firstPathSegment } from "./ats-patterns.js";
 import type { AtsCandidate } from "./ats-patterns.js";
@@ -294,6 +295,11 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "avature": {
         const company: AdapterCompany = { provider: "avature", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
         const postings = await avatureAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "mynexthire": {
+        const company: AdapterCompany = { provider: "mynexthire", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await mynexthireAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       default:
