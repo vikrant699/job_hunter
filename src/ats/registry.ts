@@ -44,6 +44,8 @@ import { doverAdapter } from "./dover.js";
 import { ycombinatorAdapter } from "./ycombinator.js";
 import { icicibankAdapter } from "./icicibank.js";
 import { relianceAdapter } from "./reliance.js";
+import { magicpinAdapter } from "./magicpin.js";
+import { tatacareersAdapter } from "./tatacareers.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -92,6 +94,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   ycombinator: ycombinatorAdapter,
   icicibank: icicibankAdapter,
   reliance: relianceAdapter,
+  magicpin: magicpinAdapter,
+  tatacareers: tatacareersAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
