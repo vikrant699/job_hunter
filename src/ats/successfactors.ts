@@ -124,6 +124,48 @@ export function parseSuccessfactorsSearch(
     });
   });
 
+  // Tile-view skin: some tenants (e.g. careers.trentlimited.com) render the
+  // same engine's results as <li class="job-tile" data-url="/job/<slug>/<reqId>/">
+  // cards instead of <tr class="data-row"> table rows. Same jobTitle-link
+  // anchor inside; location lives in a labeled .section-field.location block.
+  if (rows.length === 0) {
+    const tiles = $("li.job-tile");
+    tiles.each((_, tile) => {
+      const $tile = $(tile);
+      const $link = $tile.find("a.jobTitle-link").first();
+      const href = $link.attr("href") ?? $tile.attr("data-url");
+      const title = cleanText($link.text());
+      if (!href || !title) return;
+
+      const parsed = parseJobHref(href);
+      if (!parsed) return;
+
+      const locText = cleanText($tile.find(".section-field.location div[id$='-value']").first().text());
+      const location = locText || null;
+
+      let jobUrl: string;
+      try {
+        jobUrl = new URL(href, origin).toString();
+      } catch {
+        return;
+      }
+
+      postings.push({
+        provider: "successfactors",
+        externalId: parsed.reqId,
+        companySlug: company.slug,
+        companyName: company.name,
+        jobTitle: title,
+        jobUrl,
+        location,
+        isRemote: location ? REMOTE_RE.test(location) : false,
+        jdText: "",
+        postedAt: null,
+      });
+    });
+    return { postings, rowCount: tiles.length, total: parseSuccessfactorsTotal(html) };
+  }
+
   return { postings, rowCount: rows.length, total: parseSuccessfactorsTotal(html) };
 }
 

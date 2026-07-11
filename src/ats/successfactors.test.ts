@@ -174,3 +174,24 @@ test("malformed page: garbage HTML yields zero postings, no throw", () => {
 test("parseSuccessfactorsJd returns empty string when the span is absent", () => {
   assert.equal(parseSuccessfactorsJd("<html><body><p>nothing</p></body></html>"), "");
 });
+
+test("parseSuccessfactorsSearch falls back to tile-view cards when no table rows exist", () => {
+  const tileHtml = `<html><body><ul>
+    <li class="job-tile job-id-56793244" data-url="/job/Mumbai-Deputy-Buyer-Kids-wear-Maha/56793244/" data-row-index="1">
+      <span class="section-title title">
+        <a class="jobTitle-link" href="/job/Mumbai-Deputy-Buyer-Kids-wear-Maha/56793244/"> Deputy Buyer - Kids wear </a>
+      </span>
+      <div class="section-field location">
+        <span class="section-label"> Location </span>
+        <div id="job-56793244-desktop-section-location-value">Mumbai, Maharashtra, India </div>
+      </div>
+    </li>
+  </ul></body></html>`;
+  const { postings, rowCount } = parseSuccessfactorsSearch(tileHtml, company);
+  assert.equal(rowCount, 1);
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0]!.externalId, "56793244");
+  assert.equal(postings[0]!.jobTitle, "Deputy Buyer - Kids wear");
+  assert.equal(postings[0]!.location, "Mumbai, Maharashtra, India");
+  assert.match(postings[0]!.jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
+});
