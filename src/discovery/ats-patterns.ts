@@ -15,7 +15,7 @@ export type AtsProvider =
   | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
-  | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire"
+  | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -55,6 +55,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   amazonjobs:     { hasAdapter: true,  canValidate: false },
   wpjobs:         { hasAdapter: true,  canValidate: false },
   mynexthire:     { hasAdapter: true,  canValidate: true  },
+  metacareers:    { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
