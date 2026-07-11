@@ -52,6 +52,8 @@ import { bambooHrAdapter } from "./bamboohr.js";
 import { setuAdapter } from "./setu.js";
 import { radancyAdapter } from "./radancy.js";
 import { atlassianAdapter } from "./atlassian.js";
+import { kulaAdapter } from "./kula.js";
+import { urbancompanyAdapter } from "./urbancompany.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -108,6 +110,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   setu: setuAdapter,
   radancy: radancyAdapter,
   atlassian: atlassianAdapter,
+  kula: kulaAdapter,
+  urbancompany: urbancompanyAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
