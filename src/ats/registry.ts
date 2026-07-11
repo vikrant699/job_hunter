@@ -39,6 +39,9 @@ import { amazonJobsAdapter } from "./amazonjobs.js";
 import { wpjobsAdapter } from "./wpjobs.js";
 import { mynexthireAdapter } from "./mynexthire.js";
 import { metacareersAdapter } from "./metacareers.js";
+import { gemAdapter } from "./gem.js";
+import { doverAdapter } from "./dover.js";
+import { ycombinatorAdapter } from "./ycombinator.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -82,6 +85,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   wpjobs: wpjobsAdapter,
   mynexthire: mynexthireAdapter,
   metacareers: metacareersAdapter,
+  gem: gemAdapter,
+  dover: doverAdapter,
+  ycombinator: ycombinatorAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
