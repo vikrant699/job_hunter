@@ -72,6 +72,43 @@ export async function browserFetchJson(pageUrl: string, apiPaths: string[]): Pro
   });
 }
 
+/** One in-page fetch (GET, or POST with a JSON body) to run after the page
+ *  has cleared the WAF. */
+export interface BrowserJsonRequest {
+  path: string;
+  /** Defaults to GET. */
+  method?: "GET" | "POST";
+  /** JSON-serialized and sent with a `Content-Type: application/json` header. */
+  body?: unknown;
+}
+
+/**
+ * Like {@link browserFetchJson} but each request may be a POST with a JSON body
+ * (e.g. Darwinbox candidatev2's `/ms/candidateapi/job/alljobs` POST). Reuses the
+ * same WAF-clearing plumbing.
+ */
+export async function browserFetchJsonRequests(pageUrl: string, requests: BrowserJsonRequest[]): Promise<unknown[]> {
+  return withBrowserPage(pageUrl, async (page) => {
+    const out: unknown[] = [];
+    for (const req of requests) {
+      const json = await page.evaluate(async (r) => {
+        const res = await fetch(r.path, {
+          method: r.method ?? "GET",
+          headers: {
+            Accept: "application/json",
+            ...(r.body !== undefined ? { "Content-Type": "application/json" } : {}),
+          },
+          ...(r.body !== undefined ? { body: JSON.stringify(r.body) } : {}),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return await res.json();
+      }, req);
+      out.push(json);
+    }
+    return out;
+  });
+}
+
 export interface BrowserJsonStep {
   url: string;
   method?: "GET" | "POST";
