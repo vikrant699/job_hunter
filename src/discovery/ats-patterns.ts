@@ -18,6 +18,7 @@ export type AtsProvider =
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
   | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
+  | "happyeasygo" | "adityabirla"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -72,6 +73,8 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   atlassian:      { hasAdapter: true,  canValidate: false },
   kula:           { hasAdapter: true,  canValidate: true  },
   urbancompany:   { hasAdapter: true,  canValidate: false },
+  happyeasygo:    { hasAdapter: true,  canValidate: false },
+  adityabirla:    { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
