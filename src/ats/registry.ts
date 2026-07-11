@@ -50,6 +50,7 @@ import { peoplehumAdapter } from "./peoplehum.js";
 import { leapscholarAdapter } from "./leapscholar.js";
 import { bambooHrAdapter } from "./bamboohr.js";
 import { setuAdapter } from "./setu.js";
+import { radancyAdapter } from "./radancy.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -104,6 +105,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   leapscholar: leapscholarAdapter,
   bamboohr: bambooHrAdapter,
   setu: setuAdapter,
+  radancy: radancyAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
