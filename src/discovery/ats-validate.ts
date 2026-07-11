@@ -11,6 +11,8 @@ import { ainterviewsAdapter } from "../ats/ainterviews.js";
 import { freshteamAdapter } from "../ats/freshteam.js";
 import { bambooHrAdapter } from "../ats/bamboohr.js";
 import { kulaAdapter } from "../ats/kula.js";
+import { teamtailorAdapter } from "../ats/teamtailor.js";
+import { goodfitAdapter } from "../ats/goodfit.js";
 import { trakstarAdapter } from "../ats/trakstar.js";
 import { gohireAdapter } from "../ats/gohire.js";
 import { jobsoidAdapter } from "../ats/jobsoid.js";
@@ -265,6 +267,17 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "kula": {
         const company: AdapterCompany = { provider: "kula", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
         const postings = await kulaAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "teamtailor": {
+        const url = /\/jobs\/?$/.test(c.url) ? c.url : `${c.url.replace(/\/+$/, "")}/jobs`;
+        const company: AdapterCompany = { provider: "teamtailor", slug: c.slug, name: c.slug, careersUrl: url, tenantUrl: null, apiMeta: null };
+        const postings = await teamtailorAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "goodfit": {
+        const company: AdapterCompany = { provider: "goodfit", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: null, apiMeta: null };
+        const postings = await goodfitAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       case "trakstar": {

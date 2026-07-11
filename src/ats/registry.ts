@@ -56,6 +56,10 @@ import { kulaAdapter } from "./kula.js";
 import { urbancompanyAdapter } from "./urbancompany.js";
 import { happyeasygoAdapter } from "./happyeasygo.js";
 import { adityabirlaAdapter } from "./adityabirla.js";
+import { teamtailorAdapter } from "./teamtailor.js";
+import { comeetAdapter } from "./comeet.js";
+import { pyjamahrAdapter } from "./pyjamahr.js";
+import { goodfitAdapter } from "./goodfit.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -116,6 +120,10 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   urbancompany: urbancompanyAdapter,
   happyeasygo: happyeasygoAdapter,
   adityabirla: adityabirlaAdapter,
+  teamtailor: teamtailorAdapter,
+  comeet: comeetAdapter,
+  pyjamahr: pyjamahrAdapter,
+  goodfit: goodfitAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
