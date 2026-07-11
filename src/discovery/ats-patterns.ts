@@ -16,7 +16,7 @@ export type AtsProvider =
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   // detect-only
-  | "icims" | "successfactors" | "phenom" | "eightfold"
+  | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
   | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr"
   | "zohorecruit" | "peoplestrong" | "jibe";
@@ -55,6 +55,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   successfactors: { hasAdapter: true,  canValidate: true  },
   phenom:         { hasAdapter: true,  canValidate: true  },
   eightfold:      { hasAdapter: true,  canValidate: false },
+  eightfoldpcs:   { hasAdapter: true,  canValidate: false },
   avature:        { hasAdapter: true,  canValidate: true  },
   workable:       { hasAdapter: true,  canValidate: true  },
   personio:       { hasAdapter: false, canValidate: false },
@@ -226,6 +227,9 @@ const PATTERNS: PatternDef[] = [
   // No turbohire URL pattern: custom accountName + orgId (careerpage UUID) needed,
   // browser-backed. No zappyhire pattern: backend host baked per-tenant in the JS
   // bundle. Both rely on registry seeding (canValidate:false).
+  // No eightfoldpcs URL pattern: each tenant runs the PCSX API on its OWN
+  // careers domain (careers.qualcomm.com, apply.careers.microsoft.com) with no
+  // shared host signature — relies on registry seeding, like jibe/successfactors.
   // No ceipal URL pattern: its widget carries per-tenant api_key/cp_id in embed
   // attributes on the company's own site, with no shared per-tenant host/path.
   // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature.
