@@ -8,6 +8,7 @@ import { smartRecruitersAdapter } from "./smartrecruiters.js";
 import { workableAdapter } from "./workable.js";
 import { kekaAdapter } from "./keka.js";
 import { eightfoldAdapter } from "./eightfold.js";
+import { eightfoldPcsAdapter } from "./eightfoldpcs.js";
 import { oracleAdapter } from "./oracle.js";
 import { phenomAdapter } from "./phenom.js";
 import { darwinboxAdapter } from "./darwinbox.js";
@@ -45,6 +46,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   workable: workableAdapter,
   keka: kekaAdapter,
   eightfold: eightfoldAdapter,
+  eightfoldpcs: eightfoldPcsAdapter,
   oracle: oracleAdapter,
   phenom: phenomAdapter,
   darwinbox: darwinboxAdapter,
