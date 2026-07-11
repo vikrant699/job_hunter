@@ -43,6 +43,7 @@ import { gemAdapter } from "./gem.js";
 import { doverAdapter } from "./dover.js";
 import { ycombinatorAdapter } from "./ycombinator.js";
 import { icicibankAdapter } from "./icicibank.js";
+import { relianceAdapter } from "./reliance.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -90,6 +91,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   dover: doverAdapter,
   ycombinator: ycombinatorAdapter,
   icicibank: icicibankAdapter,
+  reliance: relianceAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
