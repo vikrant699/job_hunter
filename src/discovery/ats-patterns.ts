@@ -14,7 +14,7 @@ export type AtsProvider =
   | "smartrecruiters" | "recruitee"
   | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
-  | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit"
+  | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -49,6 +49,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   webbtree:       { hasAdapter: true,  canValidate: true  },
   zappyhire:      { hasAdapter: true,  canValidate: false },
   talentrecruit:  { hasAdapter: true,  canValidate: false },
+  trakstar:       { hasAdapter: true,  canValidate: true  },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -161,6 +162,16 @@ const PATTERNS: PatternDef[] = [
       const slug = u?.host.split(".")[0];
       if (!slug || slug === "www") return null;
       return { url: `https://${u!.host}/jobs`, slug };
+    },
+  },
+  {
+    provider: "trakstar",
+    re: /https?:\/\/[a-z0-9-]+\.hire\.trakstar\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/`, slug };
     },
   },
   {

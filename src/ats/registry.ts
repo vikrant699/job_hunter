@@ -32,6 +32,7 @@ import { jazzhrAdapter } from "./jazzhr.js";
 import { webbtreeAdapter } from "./webbtree.js";
 import { zappyhireAdapter } from "./zappyhire.js";
 import { talentRecruitAdapter } from "./talentrecruit.js";
+import { trakstarAdapter } from "./trakstar.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -68,6 +69,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   webbtree: webbtreeAdapter,
   zappyhire: zappyhireAdapter,
   talentrecruit: talentRecruitAdapter,
+  trakstar: trakstarAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
