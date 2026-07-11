@@ -17,7 +17,7 @@ export type AtsProvider =
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
-  | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian"
+  | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -70,6 +70,8 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   setu:           { hasAdapter: true,  canValidate: false },
   radancy:        { hasAdapter: true,  canValidate: false },
   atlassian:      { hasAdapter: true,  canValidate: false },
+  kula:           { hasAdapter: true,  canValidate: true  },
+  urbancompany:   { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -418,6 +420,16 @@ const PATTERNS: PatternDef[] = [
       const u = safeUrl(m);
       const slug = u?.host.split(".")[0];
       return slug ? { url: `https://${u!.host}/careers`, slug } : null;
+    },
+  },
+  {
+    provider: "kula",
+    re: /https?:\/\/careers\.kula\.ai\/[a-z0-9_-]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u ? firstPathSegment(u) : null;
+      if (!slug || slug === "api") return null;
+      return { url: `https://careers.kula.ai/${slug}`, slug };
     },
   },
   {
