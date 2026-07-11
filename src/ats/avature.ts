@@ -37,7 +37,7 @@ import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./sha
 // Safety cap on page hops in case a tenant's Next link never disappears
 // (loops back on itself, etc.) — pagination normally ends on its own once the
 // real last page is reached (no Next link) or a page yields zero postings.
-const MAX_PAGES = 300;
+const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();

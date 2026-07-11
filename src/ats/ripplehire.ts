@@ -34,7 +34,7 @@ import { REMOTE_RE, paginate } from "./shared.js";
 const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
 // Largest known tenant (UST/usource) is ~1355 jobs -> ~14 pages at PAGE=100;
 // 40 pages (~4000 jobs) leaves generous headroom. listPostings warns if hit.
-const MAX_PAGES = 40;
+const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 export const RipplehireJobSchema = z.object({
   jobSeq: z.union([z.string(), z.number()]).nullable().optional(),

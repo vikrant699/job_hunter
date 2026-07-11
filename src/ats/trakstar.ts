@@ -1,8 +1,10 @@
 // src/ats/trakstar.ts — Trakstar Hire career sites, one tenant per subdomain:
 // <tenant>.hire.trakstar.com. The board is server-rendered, no auth:
 //
-//   list: GET <origin>/ -> ALL postings inline in one page, no pagination
-//         (?page=2 is ignored). Each posting is a
+//   list: GET <origin>/?p=<N> -> 25 postings per page, server-paginated. The
+//         pagination param is `p` (NOT `page`, which is silently ignored); the
+//         bare origin is page 1. Follow `?p=2,3,...` until a short/empty page.
+//         Each posting is a
 //           <div class="js-careers-page-job-list-item">
 //         wrapping an <h3 class="js-job-list-opening-name"> title, an
 //         optional `.meta-job-location-city` location, and an
@@ -16,16 +18,19 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, paginate } from "./shared.js";
+
+const PAGE_SIZE = 25; // server-fixed page size
 
 /** Origin (https://<tenant>.hire.trakstar.com) from the tenant/careers URL. */
 export function trakstarBase(company: AdapterCompany): string {
   return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
-/** The one (unpaginated) listing page. */
-export function trakstarListUrl(company: AdapterCompany): string {
-  return trakstarBase(company);
+/** Listing page N (1-based). Page 1 is the bare origin (== ?p=1). */
+export function trakstarListUrl(company: AdapterCompany, page = 1): string {
+  const base = trakstarBase(company);
+  return page <= 1 ? base : `${base}/?p=${page}`;
 }
 
 function cleanText(s: string): string {
@@ -104,8 +109,23 @@ export const trakstarAdapter: AtsAdapter = {
   provider: "trakstar",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const html = await atsFetchText(trakstarListUrl(company), { provider: "trakstar" });
-    return parseTrakstarList(html, company);
+    // Server-paginated at 25/page via `?p=N`; follow pages until a short/empty
+    // one. `total` isn't exposed, so termination relies on the short-page rule.
+    const pages = await paginate<NormalizedPosting>({
+      provider: "trakstar",
+      company: company.slug,
+      pageSize: PAGE_SIZE,
+      fetchPage: async (_offset, page) => {
+        const html = await atsFetchText(trakstarListUrl(company, page + 1), { provider: "trakstar" });
+        const items = parseTrakstarList(html, company);
+        return { items, total: null, rawCount: items.length };
+      },
+    });
+    // paginate accumulates across pages without cross-page dedup; collapse any
+    // slug that appears on more than one page (defensive — pages don't overlap
+    // in practice).
+    const seen = new Set<string>();
+    return pages.filter((p) => (seen.has(p.externalId) ? false : (seen.add(p.externalId), true)));
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
