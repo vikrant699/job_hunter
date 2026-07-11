@@ -16,7 +16,7 @@ export type AtsProvider =
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
-  | "gem" | "dover" | "ycombinator"
+  | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -60,6 +60,8 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   gem:            { hasAdapter: true,  canValidate: true  },
   dover:          { hasAdapter: true,  canValidate: true  },
   ycombinator:    { hasAdapter: true,  canValidate: true  },
+  icicibank:      { hasAdapter: true,  canValidate: false },
+  reliance:       { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
