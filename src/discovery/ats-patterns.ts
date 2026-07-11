@@ -17,7 +17,7 @@ export type AtsProvider =
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
   | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
-  | "peoplehum" | "leapscholar" | "setu" | "radancy"
+  | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -69,6 +69,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   leapscholar:    { hasAdapter: true,  canValidate: false },
   setu:           { hasAdapter: true,  canValidate: false },
   radancy:        { hasAdapter: true,  canValidate: false },
+  atlassian:      { hasAdapter: true,  canValidate: false },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
