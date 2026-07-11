@@ -15,7 +15,7 @@ export type AtsProvider =
   | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
   | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
   | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
-  | "sharechat" | "amazonjobs" | "wpjobs"
+  | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -54,6 +54,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   sharechat:      { hasAdapter: true,  canValidate: false },
   amazonjobs:     { hasAdapter: true,  canValidate: false },
   wpjobs:         { hasAdapter: true,  canValidate: false },
+  mynexthire:     { hasAdapter: true,  canValidate: true  },
   jibe:           { hasAdapter: true,  canValidate: false },
   icims:          { hasAdapter: false, canValidate: false },
   successfactors: { hasAdapter: true,  canValidate: true  },
@@ -172,6 +173,16 @@ const PATTERNS: PatternDef[] = [
   {
     provider: "trakstar",
     re: /https?:\/\/[a-z0-9-]+\.hire\.trakstar\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u!.host}/`, slug };
+    },
+  },
+  {
+    provider: "mynexthire",
+    re: /https?:\/\/[a-z0-9-]+\.mynexthire\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
       const slug = u?.host.split(".")[0];
