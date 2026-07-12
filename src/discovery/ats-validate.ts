@@ -13,6 +13,8 @@ import { bambooHrAdapter } from "../ats/bamboohr.js";
 import { kulaAdapter } from "../ats/kula.js";
 import { teamtailorAdapter } from "../ats/teamtailor.js";
 import { goodfitAdapter } from "../ats/goodfit.js";
+import { superworksAdapter } from "../ats/superworks.js";
+import { recruiterflowAdapter } from "../ats/recruiterflow.js";
 import { trakstarAdapter } from "../ats/trakstar.js";
 import { gohireAdapter } from "../ats/gohire.js";
 import { jobsoidAdapter } from "../ats/jobsoid.js";
@@ -278,6 +280,16 @@ export async function validateCandidate(c: AtsCandidate): Promise<ValidateResult
       case "goodfit": {
         const company: AdapterCompany = { provider: "goodfit", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: null, apiMeta: null };
         const postings = await goodfitAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "superworks": {
+        const company: AdapterCompany = { provider: "superworks", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await superworksAdapter.listPostings(company);
+        return { ok: true, total: postings.length, error: null };
+      }
+      case "recruiterflow": {
+        const company: AdapterCompany = { provider: "recruiterflow", slug: c.slug, name: c.slug, careersUrl: c.url, tenantUrl: c.url, apiMeta: null };
+        const postings = await recruiterflowAdapter.listPostings(company);
         return { ok: true, total: postings.length, error: null };
       }
       case "trakstar": {
