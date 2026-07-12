@@ -1,0 +1,168 @@
+// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io),
+// a server-rendered Next.js page. The board's own data ships inline as a
+// `<script id="__NEXT_DATA__">` JSON island:
+//   props.pageProps = { companyData, careersList, jobData, embed, isCustomDomain }
+// `careersList` is the board's postings; `jobData` is populated only on a
+// single job's own page (null on the board index). Confirmed live
+// 2026-07-12 on careers.peerlist.io/ itself: the island parses cleanly, but
+// `careersList` is `[]` — the board is live and has zero open postings today.
+//
+// Since there's no non-empty board to observe live, the per-item shape is
+// designed TOLERANTLY (per integrator brief) rather than pinned to one exact
+// field set: accepts id/jobId/slug for identity, title/role/jobTitle for the
+// job name, a string OR {city,country} OR an array of those for location,
+// and description/jobDescription for the JD body. Extra/unknown keys on the
+// item are ignored (.passthrough()), not rejected.
+import { z } from "zod";
+import { logger } from "../logger.js";
+import type { AtsAdapter } from "./types.js";
+import type { AdapterCompany, NormalizedPosting } from "../types.js";
+import { htmlToText } from "./html-text.js";
+import { atsFetchText } from "./http.js";
+import { REMOTE_RE } from "./shared.js";
+import { kebabCase } from "../util/slug.js";
+
+export const PEERLIST_ORIGIN = "https://careers.peerlist.io";
+export const PEERLIST_BOARD_URL = `${PEERLIST_ORIGIN}/`;
+
+const LooseLocationPartSchema = z.object({
+  city: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+});
+
+export const PeerlistJobLikeSchema = z
+  .object({
+    id: z.union([z.string(), z.number()]).nullable().optional(),
+    jobId: z.union([z.string(), z.number()]).nullable().optional(),
+    slug: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    role: z.string().nullable().optional(),
+    jobTitle: z.string().nullable().optional(),
+    location: z.union([z.string(), LooseLocationPartSchema, z.array(LooseLocationPartSchema)]).nullable().optional(),
+    description: z.string().nullable().optional(),
+    jobDescription: z.string().nullable().optional(),
+  })
+  .passthrough();
+export type PeerlistJobLike = z.infer<typeof PeerlistJobLikeSchema>;
+
+const PagePropsSchema = z
+  .object({
+    careersList: z.array(PeerlistJobLikeSchema).nullable().optional(),
+    jobData: PeerlistJobLikeSchema.nullable().optional(),
+  })
+  .passthrough();
+
+const NextDataSchema = z.object({
+  props: z.object({ pageProps: PagePropsSchema }),
+});
+
+/** Extract the `__NEXT_DATA__` JSON island. Null when absent/unparseable. */
+export function extractPeerlistNextData(html: string): unknown | null {
+  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return null;
+  try {
+    return JSON.parse(m[1] ?? "");
+  } catch {
+    return null;
+  }
+}
+
+export interface PeerlistPageProps {
+  careersList: PeerlistJobLike[];
+  jobData: PeerlistJobLike | null;
+}
+
+/** Validate + unwrap `props.pageProps`. Throws a labeled error on shape mismatch. */
+export function parsePeerlistPageProps(nextData: unknown, slug: string): PeerlistPageProps {
+  const parsed = NextDataSchema.safeParse(nextData);
+  if (!parsed.success) {
+    logger.warn({ slug, issues: parsed.error.issues.slice(0, 3) }, "peerlist __NEXT_DATA__ schema mismatch");
+    throw new Error(`peerlist: unexpected __NEXT_DATA__ shape for ${slug}`);
+  }
+  return {
+    careersList: parsed.data.props.pageProps.careersList ?? [],
+    jobData: parsed.data.props.pageProps.jobData ?? null,
+  };
+}
+
+export function peerlistItemTitle(item: PeerlistJobLike): string {
+  return item.title ?? item.role ?? item.jobTitle ?? "";
+}
+
+/** Stable identity for one item: explicit id, then jobId, then slug, then a
+ *  slugified title as a last resort (this is a tolerant, small-board schema —
+ *  there is no guaranteed key). */
+export function peerlistExternalId(item: PeerlistJobLike): string {
+  if (item.id != null) return String(item.id);
+  if (item.jobId != null) return String(item.jobId);
+  if (item.slug) return item.slug;
+  return kebabCase(peerlistItemTitle(item));
+}
+
+/** Path segment for the job's own page under the board's origin. Slug preferred over id. */
+function peerlistSlugOrId(item: PeerlistJobLike): string | null {
+  if (item.slug) return item.slug;
+  if (item.id != null) return String(item.id);
+  if (item.jobId != null) return String(item.jobId);
+  return null;
+}
+
+export function peerlistJobUrl(item: PeerlistJobLike): string {
+  const slugOrId = peerlistSlugOrId(item);
+  return slugOrId ? `${PEERLIST_ORIGIN}/${slugOrId}` : PEERLIST_BOARD_URL;
+}
+
+function oneLocationPart(l: z.infer<typeof LooseLocationPartSchema>): string {
+  return [l.city, l.country].filter((s): s is string => !!s && s.trim().length > 0).join(", ");
+}
+
+export function peerlistLocationText(loc: PeerlistJobLike["location"]): string | null {
+  if (loc == null) return null;
+  if (typeof loc === "string") return loc.trim() || null;
+  if (Array.isArray(loc)) {
+    const joined = loc.map(oneLocationPart).filter((s) => s.length > 0).join("; ");
+    return joined || null;
+  }
+  const s = oneLocationPart(loc);
+  return s || null;
+}
+
+export function peerlistDescriptionHtml(item: PeerlistJobLike): string {
+  return item.description ?? item.jobDescription ?? "";
+}
+
+export function normalizePeerlistItem(company: AdapterCompany, item: PeerlistJobLike): NormalizedPosting {
+  const location = peerlistLocationText(item.location);
+  return {
+    provider: "peerlist",
+    externalId: peerlistExternalId(item),
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle: peerlistItemTitle(item) || "Untitled",
+    jobUrl: peerlistJobUrl(item),
+    location,
+    isRemote: location ? REMOTE_RE.test(location) : false,
+    jdText: htmlToText(peerlistDescriptionHtml(item)),
+    postedAt: null,
+  };
+}
+
+export const peerlistAdapter: AtsAdapter = {
+  provider: "peerlist",
+  async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    const url = company.careersUrl || PEERLIST_BOARD_URL;
+    const html = await atsFetchText(url, { provider: "peerlist" });
+    const nextData = extractPeerlistNextData(html);
+    if (!nextData) throw new Error(`peerlist: no __NEXT_DATA__ island for ${company.slug}`);
+    const { careersList } = parsePeerlistPageProps(nextData, company.slug);
+    return careersList.map((item) => normalizePeerlistItem(company, item));
+  },
+  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+    const html = await atsFetchText(posting.jobUrl, { provider: "peerlist" });
+    const nextData = extractPeerlistNextData(html);
+    if (!nextData) return "";
+    const { jobData } = parsePeerlistPageProps(nextData, company.slug);
+    if (!jobData) return "";
+    return htmlToText(peerlistDescriptionHtml(jobData));
+  },
+};

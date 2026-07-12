@@ -65,6 +65,9 @@ import { recruiterflowAdapter } from "./recruiterflow.js";
 import { sfunifyAdapter } from "./sfunify.js";
 import { appleAdapter } from "./apple.js";
 import { mercedesAdapter } from "./mercedes.js";
+import { snapdealAdapter } from "./snapdeal.js";
+import { sonyresearchAdapter } from "./sonyresearch.js";
+import { peerlistAdapter } from "./peerlist.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -134,6 +137,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   sfunify: sfunifyAdapter,
   apple: appleAdapter,
   mercedes: mercedesAdapter,
+  snapdeal: snapdealAdapter,
+  sonyresearch: sonyresearchAdapter,
+  peerlist: peerlistAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
