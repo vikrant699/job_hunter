@@ -21,7 +21,8 @@ export const ProviderSchema = z.enum([
   "gem", "dover", "ycombinator", "icicibank", "reliance", "magicpin", "tatacareers",
   "peoplehum", "leapscholar", "bamboohr", "setu", "radancy", "atlassian", "kula", "urbancompany",
   "happyeasygo", "adityabirla", "teamtailor", "comeet", "pyjamahr", "goodfit",
-  "superworks", "recruiterflow", "sfunify", "apple", "mercedes", "custom",
+  "superworks", "recruiterflow", "sfunify", "apple", "mercedes",
+  "snapdeal", "sonyresearch", "peerlist", "custom",
 ]);
 export type Provider = z.infer<typeof ProviderSchema>;
 
