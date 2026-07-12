@@ -19,7 +19,7 @@ export type AtsProvider =
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
   | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
   | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
-  | "superworks" | "recruiterflow"
+  | "superworks" | "recruiterflow" | "sfunify"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -91,6 +91,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   goodfit:        { hasAdapter: true,  canValidate: true  },
   superworks:     { hasAdapter: true,  canValidate: true  },
   recruiterflow:  { hasAdapter: true,  canValidate: true  },
+  sfunify:        { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },

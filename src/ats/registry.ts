@@ -62,6 +62,7 @@ import { pyjamahrAdapter } from "./pyjamahr.js";
 import { goodfitAdapter } from "./goodfit.js";
 import { superworksAdapter } from "./superworks.js";
 import { recruiterflowAdapter } from "./recruiterflow.js";
+import { sfunifyAdapter } from "./sfunify.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -128,6 +129,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   goodfit: goodfitAdapter,
   superworks: superworksAdapter,
   recruiterflow: recruiterflowAdapter,
+  sfunify: sfunifyAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
