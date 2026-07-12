@@ -19,6 +19,7 @@ export type AtsProvider =
   | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
   | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
   | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
+  | "superworks" | "recruiterflow"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -88,6 +89,8 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   comeet:         { hasAdapter: true,  canValidate: false },
   pyjamahr:       { hasAdapter: true,  canValidate: false },
   goodfit:        { hasAdapter: true,  canValidate: true  },
+  superworks:     { hasAdapter: true,  canValidate: true  },
+  recruiterflow:  { hasAdapter: true,  canValidate: true  },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
@@ -445,6 +448,26 @@ const PATTERNS: PatternDef[] = [
       const u = safeUrl(m);
       const slug = u?.pathname.split("/").filter(Boolean)[1];
       return slug ? { url: `https://app.goodfit.so/jobs/${slug}`, slug } : null;
+    },
+  },
+  {
+    provider: "superworks",
+    re: /https?:\/\/[a-z0-9-]+\.superworks\.com\/job\/listing/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u?.host.split(".")[0];
+      if (!slug || slug === "www" || slug === "jobs") return null;
+      return { url: `https://${u!.host}/job/listing`, slug };
+    },
+  },
+  {
+    provider: "recruiterflow",
+    re: /https?:\/\/recruiterflow\.com\/[a-z0-9_-]+\/jobs\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      const slug = u ? firstPathSegment(u) : null;
+      if (!slug || slug === "api" || slug === "static") return null;
+      return { url: `https://recruiterflow.com/${slug}/jobs`, slug };
     },
   },
   {

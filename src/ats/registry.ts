@@ -60,6 +60,8 @@ import { teamtailorAdapter } from "./teamtailor.js";
 import { comeetAdapter } from "./comeet.js";
 import { pyjamahrAdapter } from "./pyjamahr.js";
 import { goodfitAdapter } from "./goodfit.js";
+import { superworksAdapter } from "./superworks.js";
+import { recruiterflowAdapter } from "./recruiterflow.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -124,6 +126,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   comeet: comeetAdapter,
   pyjamahr: pyjamahrAdapter,
   goodfit: goodfitAdapter,
+  superworks: superworksAdapter,
+  recruiterflow: recruiterflowAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
