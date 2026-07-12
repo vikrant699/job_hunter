@@ -63,6 +63,8 @@ import { goodfitAdapter } from "./goodfit.js";
 import { superworksAdapter } from "./superworks.js";
 import { recruiterflowAdapter } from "./recruiterflow.js";
 import { sfunifyAdapter } from "./sfunify.js";
+import { appleAdapter } from "./apple.js";
+import { mercedesAdapter } from "./mercedes.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -130,6 +132,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   superworks: superworksAdapter,
   recruiterflow: recruiterflowAdapter,
   sfunify: sfunifyAdapter,
+  apple: appleAdapter,
+  mercedes: mercedesAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
