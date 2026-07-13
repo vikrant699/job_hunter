@@ -60,10 +60,13 @@ export const oracleAdapter: AtsAdapter = {
       // BNY 1656 all returned 25/page).
       shortPageEndsPagination: false,
       fetchPage: async (offset) => {
+        // limit/offset live INSIDE the finder args (canonical Oracle CE form).
+        // Some pods (e.g. Akamai's fa-extu) ignore top-level &limit=&offset=
+        // entirely and would serve page 1 forever.
         const url =
           `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
           `?onlyData=true&expand=requisitionList.secondaryLocations` +
-          `&finder=findReqs;siteNumber=${encodeURIComponent(site)}&limit=${PAGE}&offset=${offset}`;
+          `&finder=findReqs;siteNumber=${encodeURIComponent(site)},limit=${PAGE},offset=${offset}`;
         const raw = await atsFetchJson(url, { provider: "oracle" });
         const parsed = ListSchema.safeParse(raw);
         if (!parsed.success) {

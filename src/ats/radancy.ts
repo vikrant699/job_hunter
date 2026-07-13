@@ -120,7 +120,7 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
       if (!externalId || seen.has(externalId)) return;
 
       const $titleClone = $a.clone();
-      $titleClone.find('[class*="job-location"]').remove();
+      $titleClone.find('[class*="job-location"], span.location').remove();
       const title = cleanText($titleClone.text());
       if (!title) return;
 
@@ -133,7 +133,11 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
 
       const $li = $a.closest("li");
       const $card = $li.length ? $li : $a;
-      const location = cleanText($card.find('[class*="job-location"]').first().text()) || null;
+      // Some tenants (ARM) use a bare `class="location"` span instead of the
+      // usual `job-location` — fall back to it before giving up.
+      const $loc = $card.find('[class*="job-location"]').first();
+      const $locFallback = $loc.length ? $loc : $card.find("span.location").first();
+      const location = cleanText($locFallback.text()) || null;
       const isRemote = location ? REMOTE_RE.test(location) : false;
 
       seen.add(externalId);
