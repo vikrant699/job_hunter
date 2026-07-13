@@ -70,6 +70,9 @@ import { sonyresearchAdapter } from "./sonyresearch.js";
 import { peerlistAdapter } from "./peerlist.js";
 import { mediatekAdapter } from "./mediatek.js";
 import { redbusAdapter } from "./redbus.js";
+import { sageAdapter } from "./sage.js";
+import { onecardAdapter } from "./onecard.js";
+import { moglixAdapter } from "./moglix.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -144,6 +147,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   peerlist: peerlistAdapter,
   mediatek: mediatekAdapter,
   redbus: redbusAdapter,
+  sage: sageAdapter,
+  onecard: onecardAdapter,
+  moglix: moglixAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
