@@ -12,23 +12,12 @@ deduped from earlier runs) finish much faster.
 ## What it looks like
 
 Matches arrive in Discord as embeds, color-coded by confidence: green for a strong
-match, yellow for borderline (here, slightly over the years-of-experience cap). Each
+match, yellow for borderline (e.g. slightly over the years-of-experience cap). Each
 card shows the role, location, YOE, a one-line "why it matched", and the relevance score.
-
-| Strong match (green) | Borderline (yellow) |
-|---|---|
-| ![Green match embed](screenshots/green.png) | ![Yellow match embed](screenshots/yellow.png) |
-
 While a run is in flight, an optional progress heartbeat posts every 15 minutes to a
-separate channel: how far along it is, jobs seen and relevant so far, and a per-strategy
-breakdown.
-
-![Mid-run progress heartbeat embed](screenshots/status_check.png)
-
-At the end of every run it posts a single summary embed (companies scanned, postings
-seen, green/yellow counts, duration, and any errors) with the matches CSV attached:
-
-![End-of-run summary embed](screenshots/summary.png)
+separate channel (how far along it is, jobs seen and relevant so far, and a per-strategy
+breakdown). At the end of every run it posts a single summary embed (companies scanned,
+postings seen, green/yellow counts, duration, and any errors) with the matches CSV attached.
 
 ## What it needs
 
@@ -166,6 +155,14 @@ tenant_url: https://acme.wd1.myworkdayjobs.com/External
 Workday has no directory of tenants, so finding these means hunting around the
 company's careers page until you spot a `myworkdayjobs.com` link.
 
+Each entry also carries a `status`. `active`/`candidate` are scanned normally.
+`denied` is excluded from every scan - used for genuine dead ends (defunct or acquired
+companies, duplicate rows already covered by another entry, and IT-services/staffing
+body-shops that are out of scope). `dormant` is a softer quarantine for a real company
+that currently has no reachable public board (careers page is email/aggregator-only,
+WAF-walled, or temporarily broken) - kept on the books to revisit if a channel opens,
+but skipped by scans for now.
+
 ## Project layout
 
 ```
@@ -217,16 +214,34 @@ simplest existing example. The contract:
   not include the JD body. The pipeline only calls it for postings that survived the
   location filter and dedup, so you only pay the HTTP cost for postings you would keep.
 
-After writing the adapter:
+After writing the adapter, wire it into the four places the pipeline looks:
 
-1. Register it in `src/ats/registry.ts` under `ATS_ADAPTERS`.
-2. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` - the
+1. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` - the
    `Provider` type is inferred from it, so that one edit covers both the type and the
    runtime validation the registry loader runs.
+2. Register the adapter in `src/ats/registry.ts` under `ATS_ADAPTERS`.
+3. Add it to the `AtsProvider` union and `CAPABILITIES` map in
+   `src/discovery/ats-patterns.ts` (`hasAdapter: true`; set `canValidate: true` and a
+   host `PATTERN` regex only if the provider has a derivable host signature, otherwise
+   `canValidate: false` with no pattern).
+4. If `canValidate: true`, add a `case` in `src/discovery/ats-validate.ts` that calls
+   `listPostings`.
 
-The supported providers today: greenhouse, lever, ashby, smartrecruiters, workday,
-workable, oracle, keka, eightfold, phenom, darwinbox, greythr (plus `custom` for
-llm-scrape / playwright-llm-scrape).
+Most adapters hit a public JSON or server-rendered HTML endpoint and need nothing more.
+Some sit behind a WAF or an anti-bot host and are browser-backed via
+`src/ats/browser-fetch.ts` (headless Chromium through the shared Playwright pool);
+a few decrypt an obfuscated payload or lift a token from the page bundle. Reuse the
+shared helpers (`atsFetchJson`/`atsFetchText` in `http.ts`, `paginate`/`REMOTE_RE` in
+`shared.ts`, `htmlToText`) rather than re-rolling them.
+
+There are ~70 providers today, spanning the big ATSes (greenhouse, lever, ashby,
+workday, smartrecruiters, oracle, successfactors, darwinbox, phenom, avature, jibe,
+eightfold, ...), India-centric vendors (keka, peoplestrong, ripplehire, turbohire,
+zwayam, sensehq, mynexthire, freshteam, zohorecruit, ...), SMB boards (teamtailor,
+comeet, pyjamahr, goodfit, recruiterflow, bamboohr, trakstar, kula, ...), and bespoke
+single-company adapters (amazonjobs, metacareers, apple, mercedes, moglix, icicibank,
+reliance, tatacareers, adityabirla, ...) - plus `custom` for llm-scrape /
+playwright-llm-scrape. See `ProviderSchema` in `src/schemas.ts` for the full list.
 
 ## A few things to know
 
