@@ -73,6 +73,7 @@ import { redbusAdapter } from "./redbus.js";
 import { sageAdapter } from "./sage.js";
 import { onecardAdapter } from "./onecard.js";
 import { moglixAdapter } from "./moglix.js";
+import { talent500Adapter } from "./talent500.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -150,6 +151,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   sage: sageAdapter,
   onecard: onecardAdapter,
   moglix: moglixAdapter,
+  talent500: talent500Adapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
