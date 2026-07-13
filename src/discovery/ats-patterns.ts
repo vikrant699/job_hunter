@@ -21,6 +21,7 @@ export type AtsProvider =
   | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
   | "superworks" | "recruiterflow" | "sfunify" | "apple" | "mercedes"
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
+  | "sage" | "onecard" | "moglix"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -100,6 +101,9 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   peerlist:       { hasAdapter: true,  canValidate: false },
   mediatek:       { hasAdapter: true,  canValidate: false },
   redbus:         { hasAdapter: true,  canValidate: false },
+  sage:           { hasAdapter: true,  canValidate: false },
+  onecard:        { hasAdapter: true,  canValidate: false },
+  moglix:         { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
