@@ -68,6 +68,8 @@ import { mercedesAdapter } from "./mercedes.js";
 import { snapdealAdapter } from "./snapdeal.js";
 import { sonyresearchAdapter } from "./sonyresearch.js";
 import { peerlistAdapter } from "./peerlist.js";
+import { mediatekAdapter } from "./mediatek.js";
+import { redbusAdapter } from "./redbus.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -140,6 +142,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   snapdeal: snapdealAdapter,
   sonyresearch: sonyresearchAdapter,
   peerlist: peerlistAdapter,
+  mediatek: mediatekAdapter,
+  redbus: redbusAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
