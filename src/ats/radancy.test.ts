@@ -273,3 +273,25 @@ test("parseRadancyJd (Intuit): falls back to the job-description tier when ats-d
 test("parseRadancyJd returns '' when no known JD class tier matches (malformed/changed page)", () => {
   assert.equal(parseRadancyJd("<html><body>Not found</body></html>"), "");
 });
+
+test("parseRadancyList (ARM): reads location from a bare span.location when job-location is absent", () => {
+  const armHtml = `<html><body><section id="search-results" data-total-results="1" data-total-pages="1">
+    <ul><li>
+      <a href="/job/bangalore/senior-cpu-engineer/33099/98765432101">
+        <h2>Senior CPU Engineer</h2>
+        <span class="location">Bangalore, India</span>
+      </a>
+    </li></ul>
+  </section></body></html>`;
+  const postings = parseRadancyList(armHtml, {
+    provider: "radancy",
+    slug: "arm",
+    name: "ARM India",
+    careersUrl: "https://careers.arm.com/search-jobs/India",
+    tenantUrl: null,
+    apiMeta: null,
+  });
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0]!.jobTitle, "Senior CPU Engineer");
+  assert.equal(postings[0]!.location, "Bangalore, India");
+});
