@@ -113,9 +113,25 @@ data/          SQLite DB + caches (gitignored)
   `data/registry-cache.json` is a bot-maintained local snapshot/fallback used only when the
   sheet is unreachable, not itself a source of truth. To add/remove a company, edit the tab
   (and check it isn't already present under a non-obvious slug), not the DB or the cache file.
-- **New ATS adapter:** implement the `AtsAdapter` interface, register it in `src/ats/registry.ts`,
-  and add fixture tests. Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`, `unixToIso`,
-  `buildLocationString`-style helpers from `src/ats/shared.ts` rather than re-rolling them.
+- **New ATS adapter (4-file wiring):** implement the `AtsAdapter` interface, then wire it into
+  all four: (1) add the provider to the `ProviderSchema` enum in `src/schemas.ts`; (2) register
+  the adapter in `src/ats/registry.ts` (`ATS_ADAPTERS`); (3) add it to the `AtsProvider` union +
+  `CAPABILITIES` in `src/discovery/ats-patterns.ts` (`hasAdapter: true`; `canValidate: true` + a
+  host `PATTERN` only if there's a derivable host signature, else `canValidate: false` and no
+  pattern - mirror `jibe`/`eightfoldpcs`); (4) if `canValidate: true`, add a `case` in
+  `src/discovery/ats-validate.ts`. Write fixture tests (TDD). Reuse `atsFetchJson`/`atsFetchText`,
+  `REMOTE_RE`, `unixToIso`, and the location helpers from `src/ats/shared.ts` rather than
+  re-rolling them; for WAF/anti-bot hosts use the browser-backed helpers in
+  `src/ats/browser-fetch.ts` (shared headless-Chromium pool) instead of adding evasion code.
+  There are ~70 providers now; some are browser-backed, and a few crack an encrypted payload or
+  lift a token from the page bundle (see `icicibank`, `moglix`, `magicpin`, `metacareers`).
+- **NEVER truncate a board.** Adapters must page to the end; pagination backstops in
+  `src/ats/shared.ts` are runaway guards (5000), not limits. If a board looks capped, find the
+  real pagination mechanism.
+- **Company `status`:** `active`/`candidate` scan; `denied` = permanently excluded (dead/acquired,
+  duplicate-of-another-row, or services/staffing out-of-scope); `dormant` = alive company with no
+  reachable board right now, quarantined but revisitable. Never set `denied`/`dormant` in bulk
+  without the owner's sign-off - it removes companies from scans.
 - **TDD for new logic:** write the failing test first (`node:test`), watch it fail, then implement.
   Refactors must be behavior-preserving (the existing suite is the safety net).
 - **Don't reintroduce duplication.** Shared helpers live in `src/util/` and `src/ats/shared.ts`;
