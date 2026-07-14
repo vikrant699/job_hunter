@@ -87,9 +87,6 @@ export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 // Documented hand-edited contract is the UserProfile interface in types.ts; keep in sync.
 export const UserProfileSchema = z.object({
   id: z.string().optional(),
-  // legacy, unread — per-match Discord notify is gone (matches become Gmail
-  // drafts + sheet rows); kept so existing profiles don't fail validation.
-  webhookUrl: z.string().url().optional(),
   gatePrompt: z.string().optional(),
   resumeText: z.string().optional(),
   /** Free-text pitch inserted into the outreach email template. Optional. */
