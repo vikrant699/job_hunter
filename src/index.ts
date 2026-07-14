@@ -17,8 +17,8 @@ function printUsage(): void {
   once       Run a single production tick for one profile: fetch → filter → notify
   discover   Run discovery only: pull new candidate companies from configured sources
 
-  --profile <name>   Use config/profiles/<name>/ (profile.ts + resume.pdf) and that
-                     profile's webhook. Omit for the default (config/profile.ts).
+  --profile <name>   Use config/profiles/<name>/ (profile.ts + resume.pdf).
+                     Omit for the default (config/profile.ts).
 `);
 }
 

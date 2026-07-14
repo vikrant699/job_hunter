@@ -17,7 +17,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 
 | Command | What it does |
 |---|---|
-| `npm run once` | One full sweep: fetch, filter, score, notify, daily CSV report. Does NOT run discovery (that is a separate `npm run discover`). Add `-- --profile <name>` for a named profile. |
+| `npm run once` | One full sweep: fetch, filter, score, record matches to the Google Sheet, draft outreach emails, post an end-of-run status embed to Discord. Does NOT run discovery (that is a separate `npm run discover`). Add `-- --profile <name>` for a named profile. |
 | `npm run discover` | Discovery only (find new companies; does not touch postings). |
 | `npm test` | Run the test suite (`node:test`). |
 | `npm run typecheck` | `tsc --noEmit`. |

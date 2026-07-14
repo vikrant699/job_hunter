@@ -1,8 +1,9 @@
 # job-hunter-bot
 
 A personal job-hunting bot. It pulls postings from a list of companies you care about,
-filters them against your resume and deal-breakers, and pings the good matches to a
-Discord channel.
+filters them against your resume and deal-breakers, scores each with a local LLM, records
+the good matches to a Google Sheet, and drafts outreach emails to the matching companies'
+recruiters (drafts only - you review and send). Discord is used only for run status.
 
 You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
 ~1,300-company registry takes several hours - most of it waiting on the local LLM and on
@@ -11,13 +12,14 @@ deduped from earlier runs) finish much faster.
 
 ## What it looks like
 
-Matches arrive in Discord as embeds, color-coded by confidence: green for a strong
-match, yellow for borderline (e.g. slightly over the years-of-experience cap). Each
-card shows the role, location, YOE, a one-line "why it matched", and the relevance score.
-While a run is in flight, an optional progress heartbeat posts every 15 minutes to a
-separate channel (how far along it is, jobs seen and relevant so far, and a per-strategy
-breakdown). At the end of every run it posts a single summary embed (companies scanned,
-postings seen, green/yellow counts, duration, and any errors) with the matches CSV attached.
+Matches land in a Google Sheet, color-coded by confidence: green for a strong match,
+yellow for borderline (e.g. slightly over the years-of-experience cap). Each row shows
+the role, location, YOE, a one-line "why it matched", and the relevance score; matching
+companies' recruiters also get a drafted outreach email (drafts only - you review and
+send). Discord carries only run status: while a run is in flight an optional progress
+heartbeat posts every 15 minutes (how far along it is, jobs seen and relevant so far, and
+a per-strategy breakdown), and at the end of every run a single summary embed posts
+(companies scanned, postings seen, green/yellow counts, duration, and any errors).
 
 ## What it needs
 
@@ -31,10 +33,9 @@ postings seen, green/yellow counts, duration, and any errors) with the matches C
   `OLLAMA_KV_CACHE_TYPE=q8_0` in Ollama's environment so the KV cache stays small. To
   use a different model, set `OLLAMA_MODEL` (and `OLLAMA_NUM_CTX` for the context size).
 - Your resume as a PDF at `config/resume.pdf` (see Getting started).
-- A Discord webhook URL (Channel settings, Integrations, Webhooks, New Webhook).
-- Optionally, a second Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for mid-run
-  progress heartbeats, posted every 15 minutes while a run is in flight. Leave unset to
-  skip (progress is logged instead).
+- Optionally, a Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for run status: a
+  mid-run progress heartbeat every 15 minutes plus the single end-of-run summary embed.
+  It is the only Discord surface. Leave unset to skip (status is logged instead).
 - Optionally, a [Brave Search](https://brave.com/search/api/) API key, used only by the
   discovery flow that finds new companies. The free tier covers it.
 
@@ -59,16 +60,16 @@ Three things to set up:
 2. **Profile.** Open `config/profile.ts` and fill in your target roles, cities,
    deal-breakers, and denylists. Every field has a comment explaining what it is for.
    The shipped example is tuned for a data-analyst search in India; overwrite it.
-3. **Discord.** Put your webhook URL into `.env` under `DISCORD_WEBHOOK_URL`. That is
-   the only required env var; everything else has a sensible default.
+3. **Discord (optional).** For run-status pings, put a webhook URL into `.env` under
+   `DISCORD_PROGRESS_WEBHOOK_URL`. Leave it unset and run status is just logged instead.
 
 `config/profile.ts`, `config/resume.pdf`, `config/resume.txt`, and `.env` are all
 gitignored, so they stay on your machine.
 
 **Multiple profiles.** To run more than one search (e.g. two people, or two role
 families), put each under `config/profiles/<name>/profile.ts` with its own `resume.pdf`,
-and run `npm run once -- --profile <name>`. Each profile can set its own `webhookUrl`
-and even its own relevance-gate prompt (`gatePrompt`); postings and runs are stamped
+and run `npm run once -- --profile <name>`. Each profile can set its own relevance-gate
+prompt (`gatePrompt`) and outreach identity; postings and runs are stamped
 per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (the
 "default" profile). The whole `config/profiles/` tree is gitignored.
 
@@ -76,7 +77,7 @@ per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (th
 
 | | |
 |---|---|
-| `npm run once` | The main thing. One full sweep: fetch postings, filter, notify Discord, post an end-of-run report + CSV. Add `-- --profile <name>` for a named profile. Does **not** run discovery. |
+| `npm run once` | The main thing. One full sweep: fetch postings, filter, score, record matches to the Google Sheet, draft outreach emails, and post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. Does **not** run discovery. |
 | `npm run discover` | Discovery only - a separate step. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
@@ -109,21 +110,22 @@ then two LLM calls: a "gate" that returns a `matchScore` plus any deal-breaker h
 and an "extract" that pulls minimum and maximum YOE from the JD text. The gate judges
 the posting against your full resume text. The verdict is tri-state: green if the
 score clears your threshold with no soft hits, yellow for borderline matches or soft
-hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow both go
-to Discord with different sidebar colors. Silent drops are still logged to the SQLite
+hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow are both
+recorded to the Google Sheet, color-coded by tier. Silent drops are still logged to the SQLite
 DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` - titles
 that are floored to yellow instead of silenced even at a low score (for a rare
 sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
 
 Every run ends with a single Discord message: a "run complete" embed (companies
-scanned, postings seen, new postings, green/yellow counts, duration, and any errors)
-with `searched-<date>.csv` attached. That CSV has one row per matched posting (job
-title, link, score, green/yellow tier, reason) followed by one row per company that
-errored, is stuck on `manual`, or looks like a silently-failing scrape (a fragile
-scraper that returned zero) - each with the reason to fix.
+scanned, postings seen, new postings, green/yellow counts, duration, and any errors).
+The matched postings themselves live in the Google Sheet (one row per match with job
+title, link, score, green/yellow tier, and reason), and matching companies also get
+drafted outreach emails on the sheet's Drafts/Undrafted tabs. Companies that errored,
+are stuck on `manual`, or look like a silently-failing scrape (a fragile scraper that
+returned zero) are recorded in the DB and run logs with the reason to fix.
 
 While a run is in flight, a progress heartbeat is posted every 15 minutes to the
-separate `DISCORD_PROGRESS_WEBHOOK_URL` channel (companies scanned out of total, jobs
+`DISCORD_PROGRESS_WEBHOOK_URL` channel (companies scanned out of total, jobs
 seen, jobs relevant, and a per-strategy breakdown) so you can watch a long run without
 tailing logs.
 
@@ -185,8 +187,7 @@ src/
                            registry-writer.ts writes new entries to the Companies tab
   filter/                location / title / denylist / verdict
   llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
-  discord/               webhook helper + match/summary notifier + progress heartbeat + CSV uploader
-  reports/               end-of-run report + CSV builder
+  discord/               webhook helper + progress heartbeat + end-of-run status embed
   registry/              sheet-registry.ts syncs the Companies tab (with a
                            registry-cache.json fallback) into the companies table;
                            sheet-codec.ts converts between tab rows and RegistryEntry

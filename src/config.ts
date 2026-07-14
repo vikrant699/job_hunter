@@ -65,8 +65,8 @@ export const config = {
     embedDescriptionMaxChars: 300,
     /** Prefix on every embed title — useful when sharing a channel with other bots. */
     titlePrefix: "[job-hunter]",
-    /** Separate, shared channel for mid-run progress heartbeats (all profiles post
-     *  here). Distinct from the per-profile match/summary webhook. Unset → mock mode. */
+    /** Shared channel for the bot's run status: mid-run progress heartbeats + the
+     *  end-of-run status embed (all profiles post here). Unset → mock mode. */
     progressWebhookUrl: process.env.DISCORD_PROGRESS_WEBHOOK_URL,
     /** How often to post a progress heartbeat during a (long) production tick. */
     progressIntervalMs: 15 * 60 * 1000,

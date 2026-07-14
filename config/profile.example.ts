@@ -21,10 +21,9 @@ import type { UserProfile } from "../src/types.js";
 export type { UserProfile };
 
 export const profile: UserProfile = {
-  // Optional. Identifies this profile in the shared DB and picks its Discord
-  // webhook. Usually left unset for the default profile; named profiles live in
-  // config/profiles/<name>/profile.ts and the loader sets `id` from the dir name.
-  // webhookUrl: "https://discord.com/api/webhooks/...",
+  // Optional. Identifies this profile in the shared DB. Usually left unset for the
+  // default profile; named profiles live in config/profiles/<name>/profile.ts and
+  // the loader sets `id` from the dir name.
 
   // resumeText is NOT set here. Put your resume at config/resume.pdf; it is
   // extracted to config/resume.txt and loaded at startup (see src/profile.ts).
