@@ -76,6 +76,9 @@ import { moglixAdapter } from "./moglix.js";
 import { talent500Adapter } from "./talent500.js";
 import { ripplingAdapter } from "./rippling.js";
 import { talentsoftAdapter } from "./talentsoft.js";
+import { nineNineGamesAdapter } from "./nineninegames.js";
+import { dronahqAdapter } from "./dronahq.js";
+import { advantageclubAdapter } from "./advantageclub.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -156,6 +159,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   talent500: talent500Adapter,
   rippling: ripplingAdapter,
   talentsoft: talentsoftAdapter,
+  nineninegames: nineNineGamesAdapter,
+  dronahq: dronahqAdapter,
+  advantageclub: advantageclubAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
