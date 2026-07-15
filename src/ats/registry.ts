@@ -74,6 +74,9 @@ import { sageAdapter } from "./sage.js";
 import { onecardAdapter } from "./onecard.js";
 import { moglixAdapter } from "./moglix.js";
 import { talent500Adapter } from "./talent500.js";
+import { ripplingAdapter } from "./rippling.js";
+import { talentsoftAdapter } from "./talentsoft.js";
+import { worklineAdapter } from "./workline.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -152,6 +155,9 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   onecard: onecardAdapter,
   moglix: moglixAdapter,
   talent500: talent500Adapter,
+  rippling: ripplingAdapter,
+  talentsoft: talentsoftAdapter,
+  workline: worklineAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
