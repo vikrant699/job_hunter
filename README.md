@@ -36,8 +36,6 @@ a per-strategy breakdown), and at the end of every run a single summary embed po
 - Optionally, a Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for run status: a
   mid-run progress heartbeat every 15 minutes plus the single end-of-run summary embed.
   It is the only Discord surface. Leave unset to skip (status is logged instead).
-- Optionally, a [Brave Search](https://brave.com/search/api/) API key, used only by the
-  discovery flow that finds new companies. The free tier covers it.
 
 ## Getting started
 
@@ -77,13 +75,11 @@ per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (th
 
 | | |
 |---|---|
-| `npm run once` | The main thing. One full sweep: fetch postings, filter, score, record matches to the Google Sheet, draft outreach emails, and post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. Does **not** run discovery. |
-| `npm run discover` | Discovery only - a separate step. Pulls candidate companies from YC, RSS funding feeds, and Brave Search; does not touch postings. |
+| `npm run once` | The main thing. One full sweep: fetch postings, filter, score, record matches to the Google Sheet, draft outreach emails, and post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
 | `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
-| `npm run repair-urls` | Previews URL repair fixes for companies whose last fetch failed with a 404 or DNS error. Reports proposed fixes only; apply them by hand in the Companies tab. |
 | `npm run eval` | Replays a labelled eval dataset through the gate and prints accuracy stats. |
 | `npm run lint` | `eslint .` |
 | `npm run typecheck` | `tsc --noEmit`. |
@@ -133,7 +129,7 @@ tailing logs.
 
 The company registry is the Companies tab of your outreach Google Sheet. It is the one
 source of truth; the bot syncs it into the SQLite `companies` table on each run, and
-discovery writes new entries back to it. `data/registry-cache.json` is a bot-maintained
+writes updates back to it (URL repairs, strategy flips). `data/registry-cache.json` is a bot-maintained
 local snapshot of the tab, used only as an offline fallback when the sheet is
 unreachable - it is not itself a source of truth, and it is not git-tracked. An ATS
 entry's columns look like (see `src/registry/sheet-codec.ts` for the exact column order):
@@ -177,14 +173,14 @@ config/
 data/                    SQLite DB, registry-cache.json, other caches (gitignored)
 eval/                    offline gate-replay harness (replay.ts, dataset, metrics)
 scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
-                           scrape-probe, repair-urls-tool, url-repair
+                           scrape-probe
 src/
   ats/                   one file per ATS provider; registry.ts maps provider names
                            to adapters; workday-facet.ts for faceted Workday search
   db/                    per-table modules (companies, postings, runs, quota, ...)
                            behind a barrel index.ts
-  discovery/             YC + RSS + Brave sources; ats-patterns + ats-validate;
-                           registry-writer.ts writes new entries to the Companies tab
+  discovery/             ats-patterns + ats-validate (ATS detection + capabilities);
+                           registry-writer.ts writes updates to the Companies tab; ats.ts; host-match.ts
   filter/                location / title / denylist / verdict
   llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
   discord/               webhook helper + progress heartbeat + end-of-run status embed
@@ -196,7 +192,7 @@ src/
   tools/
     extract-resume.ts    PDF-to-text extraction (run via npm run extract-resume)
   pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts
-  config.ts              tunable knobs (workers, LLM model, discovery settings, ...)
+  config.ts              tunable knobs (workers, LLM model, fetch timeouts, ...)
   types.ts               shared TypeScript types
   schemas.ts             zod schemas (providers, registry entry, user profile)
   profile.ts             loads the selected profile and attaches resume text
@@ -243,13 +239,6 @@ comeet, pyjamahr, goodfit, recruiterflow, bamboohr, trakstar, kula, ...), and be
 single-company adapters (amazonjobs, metacareers, apple, mercedes, moglix, icicibank,
 reliance, tatacareers, adityabirla, ...) - plus `custom` for llm-scrape /
 playwright-llm-scrape. See `ProviderSchema` in `src/schemas.ts` for the full list.
-
-## A few things to know
-
-The discovery flow is India-biased out of the box. The YC source filters to India, the
-RSS feeds are Indian publications (Inc42, YourStory), and the Brave query pool is full
-of India city names. If you are hunting somewhere else, edit `src/config.ts` under
-`discovery`.
 
 The bot creates `data/job_hunter.db` on the first run. SQLite WAL files live there too.
 The `data/` directory is gitignored entirely.

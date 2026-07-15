@@ -17,8 +17,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 
 | Command | What it does |
 |---|---|
-| `npm run once` | One full sweep: fetch, filter, score, record matches to the Google Sheet, draft outreach emails, post an end-of-run status embed to Discord. Does NOT run discovery (that is a separate `npm run discover`). Add `-- --profile <name>` for a named profile. |
-| `npm run discover` | Discovery only (find new companies; does not touch postings). |
+| `npm run once` | One full sweep: fetch, filter, score, record matches to the Google Sheet, draft outreach emails, post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. |
 | `npm test` | Run the test suite (`node:test`). |
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm run lint` | `eslint .` (enforces the type-hygiene rules below). |
@@ -28,7 +27,6 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends; own JSON state at `data/blast-state-<name>.json`, projects a Blast Log tab). Flags: `--limit N` (default 100), `--verify-only`, `--force`. Delete `src/blast/`, `scripts/blast.ts`, and this row when the campaign ends. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
-| `npm run repair-urls` | Probe broken careers URLs and report proposed fixes (dry run). Add `-- --apply --profile <name>` to write fixes straight to the Companies tab (cache mirrored, url_suspect cleared). |
 | `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
 
 ## Before you commit (non-negotiable)
@@ -73,7 +71,7 @@ src/
                  unixToIso, parsePostedOn); html-text.ts; workday-facet.ts; types.ts (AtsAdapter)
   db/          per-table modules (companies, postings, runs, quota, link-cache, api-meta)
                  behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
-  discovery/   sources/ (brave, rss, yc); ats-patterns + ats-validate; run.ts; registry-writer.ts
+  discovery/   ats-patterns + ats-validate (ATS detection + capabilities); ats.ts; host-match.ts; registry-writer.ts
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)

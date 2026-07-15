@@ -6,7 +6,6 @@ export * from "./api-meta.js";
 export * from "./companies.js";
 export * from "./postings.js";
 export * from "./link-cache.js";
-export * from "./quota.js";
 export * from "./runs.js";
 export * from "./recruiters.js";
 export * from "./outreach.js";

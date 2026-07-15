@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   // Companies: seed from the local cache if one exists (e.g. a re-bootstrap
   // against a fresh spreadsheet). On a brand-new setup with no cache yet,
   // there is nothing to seed from — the tab starts empty and the user adds
-  // rows by hand, or a first `npm run discover` populates it via appendRows.
+  // rows by hand (the Companies tab is curated directly).
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
   if (existsSync(registryPath)) {
     const entries = z.array(RegistryEntrySchema).parse(JSON.parse(readFileSync(registryPath, "utf-8")));
