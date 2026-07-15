@@ -79,6 +79,7 @@ import { talentsoftAdapter } from "./talentsoft.js";
 import { nineNineGamesAdapter } from "./nineninegames.js";
 import { dronahqAdapter } from "./dronahq.js";
 import { advantageclubAdapter } from "./advantageclub.js";
+import { digitalRecruitersAdapter } from "./digitalrecruiters.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -162,6 +163,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   nineninegames: nineNineGamesAdapter,
   dronahq: dronahqAdapter,
   advantageclub: advantageclubAdapter,
+  digitalrecruiters: digitalRecruitersAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
