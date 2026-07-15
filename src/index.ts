@@ -2,7 +2,6 @@ import "dotenv/config";
 import { logger } from "./logger.js";
 import { syncRegistryFromSheet, type RegistrySyncResult } from "./registry/sheet-registry.js";
 import { runProductionTick } from "./pipeline/index.js";
-import { runDiscovery } from "./discovery/run.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
 import { runOutreach, type RunOutreachResult } from "./outreach/run.js";
@@ -15,7 +14,6 @@ function printUsage(): void {
   console.log(`Usage: npm run <command> [-- --profile <name>]
 
   once       Run a single production tick for one profile: fetch → filter → notify
-  discover   Run discovery only: pull new candidate companies from configured sources
 
   --profile <name>   Use config/profiles/<name>/ (profile.ts + resume.pdf).
                      Omit for the default (config/profile.ts).
@@ -23,8 +21,6 @@ function printUsage(): void {
 }
 
 async function runOnce(registryResult: RegistrySyncResult): Promise<void> {
-  // Discovery is intentionally NOT part of a regular run — it's a separate step
-  // (`npm run discover`) so nightly runs only fetch + filter + notify.
   const outcome = await runProductionTick();
   const profileId = profile.id ?? "default";
 
@@ -85,9 +81,8 @@ async function main(): Promise<void> {
   }
 
   const once = args.has("--once");
-  const discover = args.has("--discover");
 
-  if (!once && !discover) {
+  if (!once) {
     printUsage();
     process.exit(1);
   }
@@ -105,21 +100,6 @@ async function main(): Promise<void> {
 
   const profileId = profile.id ?? "default";
   const registryResult = await syncRegistryFromSheet(profileId);
-
-  if (discover) {
-    const r = await runDiscovery(profileId);
-    logger.info(
-      {
-        added: r.additions.length,
-        skipped: r.skipped.length,
-        braveQuotaUsed: r.braveQuotaUsed,
-        registrySource: registryResult.source,
-        registryInvalidRows: registryResult.invalidRows.length,
-      },
-      "discovery-only run complete",
-    );
-    process.exit(0);
-  }
 
   await runOnce(registryResult);
   process.exit(0);

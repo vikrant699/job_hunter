@@ -83,7 +83,7 @@ if (existsSync(regPath)) {
   console.log("\n[EMPLOYER TYPE]");
   for (const [et, cnt] of tally("employer_type")) console.log(`  ${et.padEnd(12)} ${cnt}`);
 } else {
-  console.log("\n[CATEGORY / EMPLOYER TYPE] no local cache yet — run `npm run once` or `npm run discover` first.");
+  console.log("\n[CATEGORY / EMPLOYER TYPE] no local cache yet — run `npm run once` first.");
 }
 
 process.exit(0);

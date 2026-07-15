@@ -8,11 +8,9 @@
   },
   "scripts": {
     "once": "tsx src/index.ts --once",
-    "discover": "tsx src/index.ts --discover",
     "probe": "tsx scripts/slug-probe.ts",
     "verify": "tsx scripts/verify-registry.ts",
     "scrape": "tsx scripts/scrape-probe.ts",
-    "repair-urls": "tsx scripts/repair-urls-tool.ts",
     "extract-resume": "tsx src/tools/extract-resume.ts",
     "google-auth": "tsx scripts/google-auth.ts",
     "bootstrap-sheet": "tsx scripts/bootstrap-sheet.ts",

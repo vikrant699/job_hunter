@@ -7,7 +7,6 @@
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
-import { SKIP_HOSTS, QUERY_POOL } from "./discovery/static-data.js";
 
 export const config = {
   fetch: {
@@ -70,33 +69,6 @@ export const config = {
     progressWebhookUrl: process.env.DISCORD_PROGRESS_WEBHOOK_URL,
     /** How often to post a progress heartbeat during a (long) production tick. */
     progressIntervalMs: 15 * 60 * 1000,
-  },
-
-  discovery: {
-    /** Cap on new companies added per discovery run. Prevents a viral funding
-     *  day or overly-broad query from flooding the registry. */
-    maxAdditionsPerRun: 50,
-    /** Don't add anything older than this. */
-    rssMaxArticleAgeDays: 14,
-    /** Hosts to skip — aggregators, content sites, salary-blog SEO farms. */
-    skipHosts: [...SKIP_HOSTS],
-    brave: {
-      monthlyCap: 1000,
-      monthlyBuffer: 50,
-      queriesPerRun: 8,
-      /** Rotating queries — daily run picks `queriesPerRun` by hash-of-date.
-       *  Tune for your region and target role family. */
-      queryPool: [...QUERY_POOL],
-    },
-    rss: {
-      sources: [
-        { name: "inc42-funding", url: "https://inc42.com/buzz/feed/" },
-        { name: "yourstory-funding", url: "https://yourstory.com/category/funding/feed" },
-      ],
-    },
-    yc: {
-      directoryUrl: "https://www.ycombinator.com/companies?regions=India",
-    },
   },
 
   google: {
