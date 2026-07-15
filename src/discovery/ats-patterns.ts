@@ -22,7 +22,7 @@ export type AtsProvider =
   | "superworks" | "recruiterflow" | "sfunify" | "apple" | "mercedes"
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
-  | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters"
+  | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -116,6 +116,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   dronahq:        { hasAdapter: true,  canValidate: false },
   advantageclub:  { hasAdapter: true,  canValidate: false },
   digitalrecruiters: { hasAdapter: true, canValidate: false },
+  feishu:         { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
