@@ -33,8 +33,8 @@ import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 export interface ZappyhireMeta {
   backendHost: string;
-  generation: "new" | "legacy";
-  /** Legacy-only: the `source` query param (e.g. "ESAF"). Null for new-gen. */
+  generation: "new" | "legacy" | "multitenant";
+  /** Legacy-only: the `source` query param (e.g. "ESAF"). Null otherwise. */
   source: string | null;
 }
 
@@ -44,8 +44,8 @@ function meta(company: AdapterCompany): ZappyhireMeta {
   if (!backendHost) {
     throw new Error(`zappyhire adapter requires apiMeta.backendHost for ${company.slug}`);
   }
-  if (generation !== "new" && generation !== "legacy") {
-    throw new Error(`zappyhire adapter requires apiMeta.generation ("new"|"legacy") for ${company.slug}`);
+  if (generation !== "new" && generation !== "legacy" && generation !== "multitenant") {
+    throw new Error(`zappyhire adapter requires apiMeta.generation ("new"|"legacy"|"multitenant") for ${company.slug}`);
   }
   return { backendHost, generation, source: company.apiMeta?.source ?? null };
 }
@@ -204,6 +204,76 @@ async function listLegacy(company: AdapterCompany, m: ZappyhireMeta): Promise<No
   return [...out.values()];
 }
 
+// ---------- multitenant (recruitcareers.zappyhire.com shared board) ----------
+//
+// The shared `recruitcareers.zappyhire.com/en/<slug>` frontend talks to a
+// per-tenant, slug-derivable backend host `<slug>.zappyhire-multitenant-be-
+// prod.zappyhire.com` (so no bundle capture is needed -- apiMeta.backendHost
+// is just that host). Two calls:
+//   list: GET .../api/jobs/jobsearch/?page=<n>&page_size=<N>
+//     -> { results: { total: { value }, hits: [{ _source: {...} }] } }   (Elasticsearch shape, JD NOT inline)
+//   JD:   GET .../api/careers/jobs/<job>/
+//     -> { results: { description, ... } }
+const MT_PAGE_SIZE = 50;
+
+const MtSourceSchema = z.object({
+  job: z.union([z.number(), z.string()]),
+  title: z.string(),
+  location: z.string().nullable().optional(),
+  department: z.string().nullable().optional(),
+  job_type: z.string().nullable().optional(),
+});
+export type MtSource = z.infer<typeof MtSourceSchema>;
+const MtResponseSchema = z.object({
+  results: z.object({
+    total: z.object({ value: z.number() }).nullable().optional(),
+    hits: z.array(z.object({ _source: MtSourceSchema })),
+  }),
+});
+const MtDetailResponseSchema = z.object({
+  results: z.object({ description: z.string().nullable().optional() }),
+});
+
+export function normalizeZappyhireMt(company: AdapterCompany, s: MtSource): NormalizedPosting {
+  const location = s.location ?? null;
+  return {
+    provider: "zappyhire",
+    externalId: String(s.job),
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle: s.title,
+    jobUrl: `https://recruitcareers.zappyhire.com/${company.slug}/apply?source=1&company=1&job=${s.job}`,
+    location,
+    isRemote: location ? REMOTE_RE.test(location) : false,
+    jdText: "", // fetched lazily via fetchJd (careers/jobs detail)
+    postedAt: null, // list endpoint omits the publish date; only the detail call has it
+  };
+}
+
+async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promise<NormalizedPosting[]> {
+  const out = new Map<string, NormalizedPosting>();
+  let page = 1;
+  for (;;) {
+    const url = `https://${m.backendHost}/api/jobs/jobsearch/?page=${page}&page_size=${MT_PAGE_SIZE}`;
+    const raw = await atsFetchJson(url, { provider: "zappyhire" });
+    const parsed = MtResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      logger.warn(
+        { slug: company.slug, page, issues: parsed.error.issues.slice(0, 2) },
+        "zappyhire multitenant jobsearch schema mismatch",
+      );
+      throw new Error(`zappyhire multitenant response failed schema for ${company.slug}`);
+    }
+    const { hits, total } = parsed.data.results;
+    for (const h of hits) out.set(String(h._source.job), normalizeZappyhireMt(company, h._source));
+    const expected = total?.value ?? hits.length;
+    if (hits.length === 0 || out.size >= expected) break;
+    page += 1;
+    await sleep(INTER_PAGE_DELAY_MS);
+  }
+  return [...out.values()];
+}
+
 // ---------- adapter ----------
 
 export const zappyhireAdapter: AtsAdapter = {
@@ -211,7 +281,9 @@ export const zappyhireAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const m = meta(company);
-    return m.generation === "new" ? listNewGen(company, m) : listLegacy(company, m);
+    if (m.generation === "new") return listNewGen(company, m);
+    if (m.generation === "multitenant") return listMultitenant(company, m);
+    return listLegacy(company, m);
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
@@ -220,6 +292,14 @@ export const zappyhireAdapter: AtsAdapter = {
     // pipeline only calls fetchJd when jdText is empty, so this branch is a
     // defensive no-op in practice.
     if (m.generation === "new") return posting.jdText;
+
+    if (m.generation === "multitenant") {
+      const url = `https://${m.backendHost}/api/careers/jobs/${encodeURIComponent(posting.externalId)}/`;
+      const raw = await atsFetchJson(url, { provider: "zappyhire" });
+      const parsed = MtDetailResponseSchema.safeParse(raw);
+      if (!parsed.success) return "";
+      return htmlToText(parsed.data.results.description ?? "");
+    }
 
     const url = `https://${m.backendHost}/api/resourcerequirements/job/career/?job=${encodeURIComponent(posting.externalId)}`;
     const raw = await atsFetchJson(url, { provider: "zappyhire" });

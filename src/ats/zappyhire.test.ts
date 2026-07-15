@@ -4,12 +4,13 @@ import assert from "node:assert/strict";
 import {
   normalizeZappyhireNew,
   normalizeZappyhireLegacy,
+  normalizeZappyhireMt,
   parseZappyhireDate,
   parseZappyhireBundle,
   extractScriptUrls,
   zappyhireAdapter,
 } from "./zappyhire.js";
-import type { NewGenJob, LegacyJobSummary } from "./zappyhire.js";
+import type { NewGenJob, LegacyJobSummary, MtSource } from "./zappyhire.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 
 const realFetch = globalThis.fetch;
@@ -37,6 +38,20 @@ const legacyCompany: AdapterCompany = {
   provider: "zappyhire", slug: "esaf", name: "ESAF Small Finance Bank",
   careersUrl: "https://esafcareers.zappyhire.com/", tenantUrl: null,
   apiMeta: { backendHost: "zappyhire-esaf-be-prod.zappyhire.com", generation: "legacy", source: "ESAF" },
+};
+
+const mtCompany: AdapterCompany = {
+  provider: "zappyhire", slug: "dhan", name: "Dhan",
+  careersUrl: "https://recruitcareers.zappyhire.com/en/dhan", tenantUrl: null,
+  apiMeta: { backendHost: "dhan.zappyhire-multitenant-be-prod.zappyhire.com", generation: "multitenant" },
+};
+
+const mtSource: MtSource = {
+  job: 34,
+  title: "Product & Growth Marketing (Raise AI)",
+  location: "Mumbai",
+  department: "Design",
+  job_type: "Full Time",
 };
 
 // ---------- pure field mapping ----------
@@ -247,6 +262,49 @@ test("zappyhireAdapter.fetchJd (legacy): malformed detail response returns empty
     const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
     const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
     assert.equal(jd, "");
+  } finally {
+    restoreFetch();
+  }
+});
+
+// ---------- multitenant (recruitcareers.zappyhire.com) ----------
+
+test("normalizeZappyhireMt maps fields, builds the recruitcareers apply URL, leaves JD empty", () => {
+  const p = normalizeZappyhireMt(mtCompany, mtSource);
+  assert.equal(p.externalId, "34");
+  assert.equal(p.jobTitle, "Product & Growth Marketing (Raise AI)");
+  assert.equal(p.location, "Mumbai");
+  assert.equal(p.isRemote, false);
+  assert.equal(p.jobUrl, "https://recruitcareers.zappyhire.com/dhan/apply?source=1&company=1&job=34");
+  assert.equal(p.jdText, "");
+  assert.equal(p.postedAt, null);
+});
+
+test("zappyhireAdapter.listPostings (multitenant): reads results.hits[]._source and dedups by job id", async () => {
+  stubFetchSeq([
+    () =>
+      jsonResponse({
+        status: 1, errors: "",
+        results: { total: { value: 2 }, hits: [{ _source: mtSource }, { _source: { ...mtSource, job: 35, title: "SDE II" } }] },
+      }),
+  ]);
+  try {
+    const postings = await zappyhireAdapter.listPostings(mtCompany);
+    assert.deepEqual(postings.map((p) => p.externalId), ["34", "35"]);
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("zappyhireAdapter.fetchJd (multitenant): fetches the careers/jobs detail and strips HTML", async () => {
+  stubFetchSeq([
+    () => jsonResponse({ status: 1, errors: "", results: { description: "<p>Own <strong>growth</strong> loops</p>" } }),
+  ]);
+  try {
+    const posting = normalizeZappyhireMt(mtCompany, mtSource);
+    const jd = await zappyhireAdapter.fetchJd!(mtCompany, posting);
+    assert.match(jd, /Own growth loops/);
+    assert.doesNotMatch(jd, /<p>|<strong>/);
   } finally {
     restoreFetch();
   }
