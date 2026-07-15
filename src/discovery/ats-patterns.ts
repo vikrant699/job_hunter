@@ -21,7 +21,7 @@ export type AtsProvider =
   | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
   | "superworks" | "recruiterflow" | "sfunify" | "apple" | "mercedes"
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
-  | "sage" | "onecard" | "moglix" | "talent500"
+  | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft" | "workline"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -109,6 +109,9 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   // derivable per-company host/path signature — relies on registry seeding,
   // like eightfoldpcs/jibe.
   talent500:      { hasAdapter: true,  canValidate: false },
+  rippling:       { hasAdapter: true,  canValidate: false },
+  talentsoft:     { hasAdapter: true,  canValidate: false },
+  workline:       { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
