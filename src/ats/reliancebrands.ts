@@ -22,6 +22,7 @@
 // not a crash. apiMeta.country overrides the country filter (default "IN"),
 // apiMeta.subtenant adds a subtenant scope when set.
 import type { Page } from "playwright";
+import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -80,7 +81,9 @@ function searchBody(pageno: number, country: string, subtenant: string | null): 
   return body;
 }
 
-async function postJobSearch(page: Page, body: unknown): Promise<{ result: Record<string, unknown>[] }> {
+const JobRowSchema = z.record(z.unknown());
+
+async function postJobSearch(page: Page, body: unknown): Promise<{ result: unknown[] }> {
   return page.evaluate(
     async ({ url, body }) => {
       const r = await fetch(url, {
@@ -89,8 +92,10 @@ async function postJobSearch(page: Page, body: unknown): Promise<{ result: Recor
         body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      const j = (await r.json()) as { result?: unknown };
-      return { result: Array.isArray(j.result) ? (j.result as Record<string, unknown>[]) : [] };
+      const j: unknown = await r.json();
+      const result: unknown[] =
+        j !== null && typeof j === "object" && "result" in j && Array.isArray(j.result) ? j.result : [];
+      return { result };
     },
     { url: JOBSEARCH_URL, body },
   );
@@ -123,7 +128,7 @@ export const reliancebrandsAdapter: AtsAdapter = {
         const out: NormalizedPosting[] = [];
         const seen = new Set<string>();
         for (let pageno = 0; pageno < MAX_PAGES; pageno++) {
-          let res: { result: Record<string, unknown>[] };
+          let res: { result: unknown[] };
           try {
             res = await postJobSearch(page, searchBody(pageno, country, subtenant));
           } catch (e) {
@@ -131,8 +136,10 @@ export const reliancebrandsAdapter: AtsAdapter = {
             break;
           }
           const before = out.length;
-          for (const job of res.result) {
-            const p = normalizeReliance(company, job);
+          for (const row of res.result) {
+            const job = JobRowSchema.safeParse(row);
+            if (!job.success) continue;
+            const p = normalizeReliance(company, job.data);
             if (!p || seen.has(p.externalId)) continue;
             seen.add(p.externalId);
             out.push(p);

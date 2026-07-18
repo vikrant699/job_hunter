@@ -29,6 +29,8 @@ export const SuperopsCareerSchema = z.object({
 export type SuperopsCareer = z.infer<typeof SuperopsCareerSchema>;
 
 const PageDataSchema = z.object({ staticQueryHashes: z.array(z.union([z.string(), z.number()])) });
+const SqBlobSchema = z.object({ data: z.record(z.unknown()) });
+const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
 
 function base(company: AdapterCompany): string {
   return new URL(company.tenantUrl ?? company.careersUrl).origin;
@@ -37,14 +39,11 @@ function base(company: AdapterCompany): string {
 /** Find the careers[] array inside any sq-data blob (shape:
  *  data.<Anything>.careers). Returns null when this blob isn't the one. */
 export function extractSuperopsCareers(blob: unknown): SuperopsCareer[] | null {
-  const data = (blob as { data?: Record<string, unknown> } | null)?.data;
-  if (!data || typeof data !== "object") return null;
-  for (const v of Object.values(data)) {
-    const careers = (v as { careers?: unknown } | null)?.careers;
-    if (Array.isArray(careers)) {
-      const parsed = z.array(SuperopsCareerSchema).safeParse(careers);
-      if (parsed.success) return parsed.data;
-    }
+  const parsed = SqBlobSchema.safeParse(blob);
+  if (!parsed.success) return null;
+  for (const v of Object.values(parsed.data.data)) {
+    const node = CareersNodeSchema.safeParse(v);
+    if (node.success) return node.data.careers;
   }
   return null;
 }

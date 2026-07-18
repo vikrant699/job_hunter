@@ -1,6 +1,7 @@
 // src/ats/jsvar.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import { extractBalanced, parseLiteral, jsVarPostings } from "./jsvar.js";
 import type { AdapterCompany } from "../types.js";
 
@@ -16,7 +17,7 @@ test("extractBalanced handles object container + backtick strings", () => {
   const src = "x jobData = { a: { t: `has } brace` }, b: { t: 'y' } } ;";
   const lit = extractBalanced(src, "jobData =", "{");
   assert.ok(lit);
-  const val = parseLiteral(lit!, false) as Record<string, unknown>;
+  const val = z.record(z.unknown()).parse(parseLiteral(lit!, false));
   assert.deepEqual(Object.keys(val), ["a", "b"]);
 });
 
@@ -25,7 +26,7 @@ test("extractBalanced returns null when the marker is absent", () => {
 });
 
 test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", () => {
-  const v = parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false) as Array<Record<string, string>>;
+  const v = z.array(z.record(z.string())).parse(parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false));
   assert.equal(v[0]!.title, "A");
 });
 
