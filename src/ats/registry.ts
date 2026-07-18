@@ -96,6 +96,7 @@ import { procmartAdapter } from "./procmart.js";
 import { superopsAdapter } from "./superops.js";
 import { bmwAdapter } from "./bmw.js";
 import { ubsAdapter } from "./ubs.js";
+import { reliancebrandsAdapter } from "./reliancebrands.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -196,6 +197,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   superops: superopsAdapter,
   bmw: bmwAdapter,
   ubs: ubsAdapter,
+  reliancebrands: reliancebrandsAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
