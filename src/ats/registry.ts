@@ -90,6 +90,8 @@ import { amplelogicAdapter } from "./amplelogic.js";
 import { talviewAdapter } from "./talview.js";
 import { skuadAdapter } from "./skuad.js";
 import { gullakAdapter } from "./gullak.js";
+import { ongigAdapter } from "./ongig.js";
+import { directemployersAdapter } from "./directemployers.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -184,6 +186,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   talview: talviewAdapter,
   skuad: skuadAdapter,
   gullak: gullakAdapter,
+  ongig: ongigAdapter,
+  directemployers: directemployersAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
