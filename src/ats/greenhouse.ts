@@ -28,7 +28,10 @@ export const greenhouseAdapter: AtsAdapter = {
   provider: "greenhouse",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const slug = company.slug;
+    // Board token defaults to the registry slug, but apiMeta.boardSlug overrides
+    // it when the registry slug can't be the greenhouse board name (e.g.
+    // razorpayx-payroll -> "razorpaysoftwareprivatelimited").
+    const slug = company.apiMeta?.boardSlug ?? company.slug;
     const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`;
 
     const raw = await atsFetchJson(url, { provider: "greenhouse" });

@@ -13,6 +13,13 @@ import { paginate } from "./shared.js";
 
 const PAGE_LIMIT = 100;
 
+/** SmartRecruiters company token for the API. Defaults to the registry slug;
+ *  apiMeta.boardSlug overrides it when the registry slug isn't the SR company
+ *  id (e.g. coding-ninjas -> "CodingNinjas", indegene -> "Indegene1"). */
+function srToken(company: AdapterCompany): string {
+  return company.apiMeta?.boardSlug ?? company.slug;
+}
+
 const LocationSchema = z.object({
   city: z.string().nullable().optional(),
   region: z.string().nullable().optional(),
@@ -68,7 +75,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
   provider: "smartrecruiters",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const slug = company.slug;
+    const slug = srToken(company);
 
     return paginate<NormalizedPosting>({
       provider: "smartrecruiters",
@@ -98,7 +105,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(company.slug)}/postings/${encodeURIComponent(posting.externalId)}`;
+    const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(srToken(company))}/postings/${encodeURIComponent(posting.externalId)}`;
 
     const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
 
@@ -112,7 +119,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
     }
 
     // Replace the synthesized list-time URL with the canonical one from the API.
-    posting.jobUrl = srPostingUrl(company.slug, posting.externalId, parsed.data);
+    posting.jobUrl = srPostingUrl(srToken(company), posting.externalId, parsed.data);
 
     const sections = parsed.data.jobAd?.sections;
     if (!sections) return "";
@@ -153,7 +160,7 @@ function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
   const location = parts.length > 0 ? parts.join(", ") : null;
   const isRemote = loc?.remote === true;
 
-  const jobUrl = srPostingUrl(company.slug, p.id);
+  const jobUrl = srPostingUrl(srToken(company), p.id);
 
   return {
     provider: "smartrecruiters",

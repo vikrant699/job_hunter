@@ -85,7 +85,7 @@ const YcJobDetailPageSchema = z.object({
 
 /** The company's public jobs board. */
 export function ycJobsPageUrl(company: AdapterCompany): string {
-  return `${YC_ORIGIN}/companies/${company.slug}/jobs`;
+  return `${YC_ORIGIN}/companies/${company.apiMeta?.boardSlug ?? company.slug}/jobs`;
 }
 
 /** Job listing `url` is already site-relative (e.g. "/companies/<slug>/jobs/<id>-title"). */
