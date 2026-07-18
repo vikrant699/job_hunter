@@ -23,7 +23,7 @@ export type AtsProvider =
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
   | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
-  | "htmlboard" | "nextdata"
+  | "htmlboard" | "nextdata" | "jsvar"
   | "juspay" | "amplelogic" | "talview" | "skuad" | "gullak"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
@@ -128,6 +128,7 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   // nextdata is a generic __NEXT_DATA__-island adapter — per-company JSON
   // paths in apiMeta, no shared host signature.
   nextdata:       { hasAdapter: true,  canValidate: false },
+  jsvar:          { hasAdapter: true,  canValidate: false },
   // Single-company custom-API adapters (see each module's header).
   juspay:         { hasAdapter: true,  canValidate: false },
   amplelogic:     { hasAdapter: true,  canValidate: false },
