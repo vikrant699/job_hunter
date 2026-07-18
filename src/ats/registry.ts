@@ -92,6 +92,8 @@ import { skuadAdapter } from "./skuad.js";
 import { gullakAdapter } from "./gullak.js";
 import { ongigAdapter } from "./ongig.js";
 import { directemployersAdapter } from "./directemployers.js";
+import { procmartAdapter } from "./procmart.js";
+import { superopsAdapter } from "./superops.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -188,6 +190,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   gullak: gullakAdapter,
   ongig: ongigAdapter,
   directemployers: directemployersAdapter,
+  procmart: procmartAdapter,
+  superops: superopsAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
