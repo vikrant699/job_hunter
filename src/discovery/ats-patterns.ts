@@ -24,6 +24,7 @@ export type AtsProvider =
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
   | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
   | "htmlboard" | "nextdata"
+  | "juspay" | "amplelogic" | "bookmyshow" | "talview" | "skuad" | "gullak"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -127,6 +128,14 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   // nextdata is a generic __NEXT_DATA__-island adapter — per-company JSON
   // paths in apiMeta, no shared host signature.
   nextdata:       { hasAdapter: true,  canValidate: false },
+  // Single-company custom-API adapters (see each module's header).
+  juspay:         { hasAdapter: true,  canValidate: false },
+  amplelogic:     { hasAdapter: true,  canValidate: false },
+  bookmyshow:     { hasAdapter: true,  canValidate: false },
+  // Talview boards are keyed by apiMeta.organizationId — shared vendor.
+  talview:        { hasAdapter: true,  canValidate: false },
+  skuad:          { hasAdapter: true,  canValidate: false },
+  gullak:         { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
