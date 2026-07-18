@@ -197,7 +197,7 @@ test("runOutreach: a Gmail failure on one draft is logged and does not stop the 
   const { deps, inserted } = harness({
     postings: [mkPosting()],
     recruiters: [mkRecruiter({ email: "r1@acme.com" }), mkRecruiter({ email: "r2@acme.com" })],
-    createDraft: async (profileId, mime) => {
+    createDraft: async (_profileId, _mime) => {
       calls++;
       if (calls === 1) throw new Error("Gmail 500");
       return { draftId: "d2", messageId: "m2", threadId: "t2" };

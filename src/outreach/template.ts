@@ -91,7 +91,7 @@ function buildPlaceholders(input: RenderDraftInput): Record<string, string> {
 const PLACEHOLDER_RE = /\{\{(\w+)\}\}/g;
 
 function fill(text: string, placeholders: Record<string, string>): string {
-  return text.replace(PLACEHOLDER_RE, (match, name: string) => {
+  return text.replace(PLACEHOLDER_RE, (_match, name: string) => {
     if (!(name in placeholders)) {
       throw new Error(`outreach template contains unknown placeholder "{{${name}}}"`);
     }
