@@ -17,18 +17,22 @@ function normalize(parsed: JsonValue): JsonValue {
   for (const key of ["yoeMin", "yoeMax"]) {
     const val = p[key];
     if (typeof val === "string") {
-      const n = Number(val);
-      p[key] = Number.isFinite(n) ? n : null;
-    }
-    const val2 = p[key];
-    if (val2 === "" || val2 === "null" || val2 === "none") {
-      p[key] = null;
+      // Empty/placeholder strings mean "unspecified" — they must become null,
+      // not 0 (Number("") === 0), or verdict.ts would treat the YOE as known.
+      const s = val.trim().toLowerCase();
+      if (s === "" || s === "null" || s === "none") {
+        p[key] = null;
+      } else {
+        const n = Number(s);
+        p[key] = Number.isFinite(n) ? n : null;
+      }
     }
   }
   return p;
 }
 
-function parseExtractResponse(raw: string): ExtractResult {
+/** Parse + normalize one raw model response. Pure — unit tested. */
+export function parseExtractResponse(raw: string): ExtractResult {
   const parsed: JsonValue = parseJsonOrThrow(raw, "extract");
 
   const result = ExtractResultSchema.safeParse(normalize(parsed));

@@ -82,6 +82,29 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
   assert.ok(!existsSync(cachePath), "cache must NOT be written when rows were quarantined");
 });
 
+test("syncRegistryFromSheet: a zero-row sheet read never prunes and never overwrites the cache", async () => {
+  const tag = `sheetreg-empty-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const survivor = E("custom", `${tag}-keep`, `Keep-${tag}`);
+  await syncRegistryFromSheet("default", {
+    readTab: async () => sheetRows([survivor]),
+    cachePath: tmpCache(),
+  });
+
+  // Header-only tab (e.g. data rows cleared, or the API returned no values):
+  // must be treated as a suspect read, not as "delete everything".
+  const emptyCachePath = tmpCache();
+  const result = await syncRegistryFromSheet("default", {
+    readTab: async () => [[...REGISTRY_COLUMNS]],
+    cachePath: emptyCachePath,
+  });
+
+  assert.equal(result.source, "sheet");
+  assert.equal(result.synced, 0);
+  assert.equal(result.pruned, 0);
+  assert.ok(selectAllCompanies().some((c) => c.slug === `${tag}-keep`), "existing companies must survive");
+  assert.ok(!existsSync(emptyCachePath), "cache must NOT be overwritten by an empty read");
+});
+
 test("syncRegistryFromSheet: sheet read throws -> falls back to the cache with source 'cache'", async () => {
   const cachePath = tmpCache();
   const tag = `sheetreg-cache-${Date.now()}-${Math.random().toString(36).slice(2)}`;

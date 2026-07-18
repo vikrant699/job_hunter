@@ -49,9 +49,9 @@ export async function getBrowser(): Promise<Browser> {
       sharedBrowser = null;
       bootPromise = null;
     };
-    process.once("exit", () => { teardown(); });
-    process.once("SIGINT", () => { teardown().then(() => process.exit(0)); });
-    process.once("SIGTERM", () => { teardown().then(() => process.exit(0)); });
+    process.once("exit", () => { void teardown(); });
+    process.once("SIGINT", () => { void teardown().finally(() => process.exit(0)); });
+    process.once("SIGTERM", () => { void teardown().finally(() => process.exit(0)); });
     return b;
   })();
   // A failed launch must not poison future calls: clear the cached promise so

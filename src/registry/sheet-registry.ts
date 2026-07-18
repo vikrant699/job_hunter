@@ -29,7 +29,7 @@ function defaultCachePath(): string {
   return resolve(process.cwd(), "data/registry-cache.json");
 }
 
-function defaultDeps(profileId: string): SyncRegistryFromSheetDeps {
+function defaultDeps(_profileId: string): SyncRegistryFromSheetDeps {
   return {
     readTab: (id: string, tab: string) => defaultReadTab(id, tab),
     cachePath: defaultCachePath(),
@@ -98,16 +98,27 @@ export async function syncRegistryFromSheet(
       "registry sync: quarantined invalid Companies-tab rows — prune disabled this run",
     );
   }
-  const result = syncEntries(entries, { prune: invalidRows.length === 0 });
+  // A successful read with ZERO valid entries is treated as a suspect read
+  // (cleared tab, API returning no `values`), not as "delete everything":
+  // pruning here would wipe every company AND overwrite the offline cache
+  // with an empty list, destroying both recovery paths in one tick.
+  if (entries.length === 0) {
+    logger.warn(
+      { profileId },
+      "registry sync: Companies tab returned zero valid rows — prune and cache snapshot disabled this run",
+    );
+  }
+  const trustworthy = invalidRows.length === 0 && entries.length > 0;
+  const result = syncEntries(entries, { prune: trustworthy });
 
   // Snapshot ONLY fully-valid syncs: the offline fallback path trusts the
   // cache with prune enabled, so a partial snapshot (quarantined rows missing)
   // would let a later offline run prune companies that still exist on the
   // sheet but had a cell typo at snapshot time.
-  if (invalidRows.length === 0) {
+  if (trustworthy) {
     writeAtomic(deps.cachePath, entries);
   } else {
-    logger.warn({ cachePath: deps.cachePath }, "registry sync: cache snapshot skipped (invalid rows present)");
+    logger.warn({ cachePath: deps.cachePath }, "registry sync: cache snapshot skipped (sheet read not trustworthy)");
   }
 
   logger.info({ ...result, source: "sheet", invalidRowCount: invalidRows.length }, "registry synced");

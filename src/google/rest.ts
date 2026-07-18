@@ -17,11 +17,16 @@ export interface RestDeps {
 
 /**
  * Authorized fetch-json wrapper shared by the Sheets and Gmail clients:
- * attaches the bearer token for `profileId`, retries once on 429/5xx with a
- * short backoff (mirrors src/discord/webhook.ts's retry tone, kept simpler
- * since these are low-volume, interactive-adjacent calls), and returns the
- * raw parsed JSON body for the caller to zod-validate. Throws a plain Error
- * with status + body snippet on a non-retryable or still-failing response.
+ * attaches the bearer token for `profileId`, retries once with a short
+ * backoff (mirrors src/discord/webhook.ts's retry tone, kept simpler since
+ * these are low-volume, interactive-adjacent calls), and returns the raw
+ * parsed JSON body for the caller to zod-validate. Throws a plain Error with
+ * status + body snippet on a non-retryable or still-failing response.
+ *
+ * Retry policy: 429 retries for every method (a rate-limited request was
+ * rejected before processing), but 5xx retries only idempotent methods —
+ * a POST (draft create, row append) may have been processed before the
+ * error response, and replaying it would duplicate the draft/row.
  */
 export async function googleFetchJson(
   profileId: string,
@@ -33,9 +38,11 @@ export async function googleFetchJson(
   const retryDelayMs = deps.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const accessToken = await getAccessToken(profileId, deps.authDeps);
 
+  const method = init.method ?? "GET";
+  const idempotent = method !== "POST";
   for (let attempt = 0; attempt <= 1; attempt++) {
     const res = await fetchFn(url, {
-      method: init.method ?? "GET",
+      method,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
@@ -43,7 +50,7 @@ export async function googleFetchJson(
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     });
 
-    if ((res.status === 429 || res.status >= 500) && attempt === 0) {
+    if ((res.status === 429 || (idempotent && res.status >= 500)) && attempt === 0) {
       logger.warn({ url, status: res.status, attempt }, "Google API transient failure; retrying once");
       await sleep(retryDelayMs);
       continue;

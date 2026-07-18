@@ -17,6 +17,16 @@ const ENTITY_MAP: Record<string, string> = {
   "&ndash;": "–",
 };
 
+/** Decode both numeric entity forms (&#123; / &#x1F600;). fromCodePoint so
+ *  astral characters survive; malformed/out-of-range entities pass through. */
+export function decodeNumericEntities(s: string): string {
+  const decode = (entity: string, cp: number): string =>
+    Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : entity;
+  return s
+    .replace(/&#(\d+);/g, (m, d: string) => decode(m, Number(d)))
+    .replace(/&#x([\da-f]+);/gi, (m, h: string) => decode(m, parseInt(h, 16)));
+}
+
 export function htmlToText(html: string | null | undefined): string {
   if (!html) return "";
 
@@ -38,8 +48,7 @@ export function htmlToText(html: string | null | undefined): string {
   }
 
   // Decode numeric entities.
-  s = s.replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(Number(d)));
-  s = s.replace(/&#x([\da-f]+);/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+  s = decodeNumericEntities(s);
 
   // Collapse whitespace.
   s = s.replace(/[ \t]+/g, " ");
