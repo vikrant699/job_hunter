@@ -82,6 +82,8 @@ import { advantageclubAdapter } from "./advantageclub.js";
 import { digitalRecruitersAdapter } from "./digitalrecruiters.js";
 import { feishuAdapter } from "./feishu.js";
 import { skimaAdapter } from "./skima.js";
+import { htmlboardAdapter } from "./htmlboard.js";
+import { nextdataAdapter } from "./nextdata.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -168,6 +170,8 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   digitalrecruiters: digitalRecruitersAdapter,
   feishu: feishuAdapter,
   skima: skimaAdapter,
+  htmlboard: htmlboardAdapter,
+  nextdata: nextdataAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

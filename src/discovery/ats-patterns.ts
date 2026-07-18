@@ -23,6 +23,7 @@ export type AtsProvider =
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
   | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
+  | "htmlboard" | "nextdata"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -120,6 +121,12 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   // Skima tenants live on custom domains (careers.nykaa.com); the only shared
   // signature is the canonical "<domain>.skima.ai" alias, matched below.
   skima:          { hasAdapter: true,  canValidate: false },
+  // htmlboard is a generic selector-driven adapter for bespoke SSR careers
+  // pages — per-company config in apiMeta, no shared host signature at all.
+  htmlboard:      { hasAdapter: true,  canValidate: false },
+  // nextdata is a generic __NEXT_DATA__-island adapter — per-company JSON
+  // paths in apiMeta, no shared host signature.
+  nextdata:       { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
