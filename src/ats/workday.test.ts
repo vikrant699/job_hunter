@@ -257,7 +257,7 @@ test("crawlWorkdayPostings falls back to the flat (capped) crawl and does not th
 });
 
 test("crawlWorkdayPostings still returns results (without throwing) when a partition itself re-latches at 2000", async () => {
-  const items = await crawlWorkdayPostings(genpactCompany, {}, null, async (offset, facets) => {
+  const items = await crawlWorkdayPostings(genpactCompany, {}, null, async (_offset, facets) => {
     if (Object.keys(facets).length === 0) {
       return {
         items: [],

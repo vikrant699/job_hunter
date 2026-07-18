@@ -164,7 +164,7 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-function pageResponse(page: number, results: unknown[], count: number): Response {
+function pageResponse(_page: number, results: unknown[], count: number): Response {
   return new Response(JSON.stringify({ count, num_pages: Math.ceil(count / 20), results }), { status: 200 });
 }
 

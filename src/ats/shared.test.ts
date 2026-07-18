@@ -221,7 +221,7 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 2,
-      fetchPage: async (offset) => {
+      fetchPage: async (_offset) => {
         calls++;
         // total=0 reported on a full first page: offset(0) >= total(0) must stop
         // immediately after this page rather than treating 0 as "not yet known".

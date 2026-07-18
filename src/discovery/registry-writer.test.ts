@@ -32,10 +32,10 @@ function harness(existing: RegistryEntry[], cachePath: string): Harness {
   const sheetRows = [[...REGISTRY_COLUMNS], ...existing.map(entryToRow)];
   const deps: RegistryWriterDeps = {
     readTab: async () => sheetRows,
-    appendRows: async (profileId: string, tab: string, rows: string[][]) => {
+    appendRows: async (_profileId: string, tab: string, rows: string[][]) => {
       appended.push({ tab, rows });
     },
-    updateRange: async (profileId: string, rangeA1: string, rows: string[][]) => {
+    updateRange: async (_profileId: string, rangeA1: string, rows: string[][]) => {
       updatedRanges.push({ rangeA1, rows });
     },
     cachePath,

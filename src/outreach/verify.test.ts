@@ -155,7 +155,7 @@ test("runVerify: draft gone + no sent message -> discarded + one undrafted row p
 test("runVerify: sent row with a bounce hit -> status bounced + recruiter globally bounced", async () => {
   const { deps, statusUpdates, recruiterStatuses } = harness({
     sentRows: [mkRow({ status: "sent", sentAt: "2026-07-01T00:00:00.000Z" })],
-    searchMessages: async (profileId, q) => (q.includes("mailer-daemon") ? [{ id: "b1", threadId: "bt1" }] : []),
+    searchMessages: async (_profileId, q) => (q.includes("mailer-daemon") ? [{ id: "b1", threadId: "bt1" }] : []),
     getMessageMetadata: async () => ({ snippet: "550 5.1.1 user unknown", internalDate: 1782900000000 }),
   });
 
@@ -275,7 +275,7 @@ test("runVerify: only rows for the given profileId are checked (selectOutreachBy
   // just confirm runVerify passes it through.
   let passedProfileId: string | null = null;
   const { deps } = harness({});
-  deps.selectOutreachByStatus = (status: OutreachStatus, profileId?: string) => {
+  deps.selectOutreachByStatus = (_status: OutreachStatus, profileId?: string) => {
     passedProfileId = profileId ?? null;
     return [];
   };

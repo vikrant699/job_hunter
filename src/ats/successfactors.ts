@@ -235,7 +235,7 @@ export const successfactorsAdapter: AtsAdapter = {
     return postings;
   },
 
-  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+  async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "successfactors" });
     return parseSuccessfactorsJd(html);
   },

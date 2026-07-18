@@ -41,10 +41,10 @@ function harness(): Harness {
   const rewrites: Array<{ tab: string; header: string[]; rows: string[][] }> = [];
   const appends: Array<{ tab: string; rows: string[][] }> = [];
   const deps: SheetSyncDeps = {
-    rewriteTab: async (profileId: string, tab: string, header: string[], rows: string[][]) => {
+    rewriteTab: async (_profileId: string, tab: string, header: string[], rows: string[][]) => {
       rewrites.push({ tab, header, rows });
     },
-    appendRows: async (profileId: string, tab: string, rows: string[][]) => {
+    appendRows: async (_profileId: string, tab: string, rows: string[][]) => {
       appends.push({ tab, rows });
     },
   };

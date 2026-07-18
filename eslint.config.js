@@ -1,41 +1,61 @@
 // @ts-check
 import tseslint from "typescript-eslint";
 
-export default tseslint.config({
-  files: ["**/*.ts"],
-  ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**"],
-  languageOptions: {
-    parser: tseslint.parser,
-    parserOptions: {
-      projectService: true,
-      tsconfigRootDir: import.meta.dirname,
+const languageOptions = {
+  parser: tseslint.parser,
+  parserOptions: {
+    projectService: true,
+    tsconfigRootDir: import.meta.dirname,
+  },
+};
+
+const plugins = {
+  "@typescript-eslint": tseslint.plugin,
+};
+
+export default tseslint.config(
+  {
+    files: ["**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**"],
+    languageOptions,
+    plugins,
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unsafe-assignment": "error",
+      "@typescript-eslint/no-unsafe-member-access": "error",
+      "@typescript-eslint/no-unsafe-call": "error",
+      "@typescript-eslint/no-unsafe-return": "error",
+      "@typescript-eslint/no-unsafe-argument": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          // Ban `x as T` except `x as const`
+          selector:
+            "TSAsExpression:not([typeAnnotation.type='TSTypeReference'][typeAnnotation.typeName.name='const'])",
+          message:
+            "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
+        },
+        {
+          // Ban angle-bracket assertions: <T>x
+          selector: "TSTypeAssertion",
+          message:
+            "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
+        },
+      ],
     },
   },
-  plugins: {
-    "@typescript-eslint": tseslint.plugin,
+  {
+    // Async-correctness rules for production code. Test files are exempt from
+    // no-floating-promises only because node:test's top-level `test()` calls
+    // return promises the runner itself tracks.
+    files: ["**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "**/*.test.ts"],
+    languageOptions,
+    plugins,
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+      "@typescript-eslint/await-thenable": "error",
+    },
   },
-  rules: {
-    "@typescript-eslint/no-explicit-any": "error",
-    "@typescript-eslint/no-unsafe-assignment": "error",
-    "@typescript-eslint/no-unsafe-member-access": "error",
-    "@typescript-eslint/no-unsafe-call": "error",
-    "@typescript-eslint/no-unsafe-return": "error",
-    "@typescript-eslint/no-unsafe-argument": "error",
-    "no-restricted-syntax": [
-      "error",
-      {
-        // Ban `x as T` except `x as const`
-        selector:
-          "TSAsExpression:not([typeAnnotation.type='TSTypeReference'][typeAnnotation.typeName.name='const'])",
-        message:
-          "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
-      },
-      {
-        // Ban angle-bracket assertions: <T>x
-        selector: "TSTypeAssertion",
-        message:
-          "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
-      },
-    ],
-  },
-});
+);
