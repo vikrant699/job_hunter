@@ -211,18 +211,9 @@ const markUrlSuspectStmt = db.prepare(`
   UPDATE companies SET url_suspect = 1 WHERE provider = :provider AND slug = :slug
 `);
 
-/** Page fetched OK but doesn't look like a careers page — url-repair will probe it. */
+/** Page fetched OK but doesn't look like a careers page — flags it for manual repair. */
 export function markUrlSuspect(provider: Provider, slug: string): void {
   markUrlSuspectStmt.run({ provider, slug });
-}
-
-const clearUrlSuspectStmt = db.prepare(`
-  UPDATE companies SET url_suspect = 0, zero_yield_streak = 0 WHERE provider = :provider AND slug = :slug
-`);
-
-/** Called after a URL repair so the company gets a fresh yield run-in. */
-export function clearUrlSuspect(provider: Provider, slug: string): void {
-  clearUrlSuspectStmt.run({ provider, slug });
 }
 
 const applyDormancyStmt = db.prepare(`

@@ -4,9 +4,8 @@ import { logger } from "../logger.js";
 import { readTab as defaultReadTab, appendRows as defaultAppendRows, updateRange as defaultUpdateRange } from "../google/sheets.js";
 import type { RegistryEntry } from "../schemas.js";
 import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "../registry/sheet-codec.js";
-import { readRegistryFile } from "../registry/companies.js";
 import { writeAtomic } from "../util/registry-file.js";
-import { registryKey as entryKey, kebabCase } from "../util/slug.js";
+import { registryKey as entryKey } from "../util/slug.js";
 
 /**
  * Registry-mutation surface for discovery/runtime callers, writing against
@@ -168,28 +167,3 @@ export async function updateRegistryStrategy(
   return updateRegistryEntry({ source, source_slug: sourceSlug, name }, { parsing_strategy: strategy }, profileId, deps);
 }
 
-/** Known (source,slug) keys, read straight from the tab. */
-export async function knownEntryKeys(
-  profileId: string,
-  deps: RegistryWriterDeps = defaultDeps(),
-): Promise<Set<string>> {
-  const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  return new Set(decodeValidRows(rows).entries.map(entryKey));
-}
-
-/** Known company names (kebab-cased), read straight from the tab. */
-export async function knownCompanyNames(
-  profileId: string,
-  deps: RegistryWriterDeps = defaultDeps(),
-): Promise<Set<string>> {
-  const rows = await deps.readTab(profileId, config.google.tabs.companies);
-  return new Set(decodeValidRows(rows).entries.map((e) => kebabCase(e.name)));
-}
-
-export { entryKey, kebabCase };
-
-// Re-exported for callers that only need to read the last-known-good snapshot
-// without hitting the network (e.g. a read path that's fine with staleness).
-export function readCachedRegistry(cachePath: string = defaultCachePath()): RegistryEntry[] {
-  return readRegistryFile(cachePath);
-}
