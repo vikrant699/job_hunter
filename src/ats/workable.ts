@@ -35,7 +35,8 @@ const ResponseSchema = z.object({ name: z.string().optional(), jobs: z.array(Job
 export const workableAdapter: AtsAdapter = {
   provider: "workable",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const url = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(company.slug)}?details=true`;
+    const account = company.apiMeta?.boardSlug ?? company.slug;
+    const url = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(account)}?details=true`;
     const raw = await atsFetchJson(url, { provider: "workable" });
     const parsed = ResponseSchema.safeParse(raw);
     if (!parsed.success) {

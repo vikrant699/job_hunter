@@ -22,7 +22,7 @@ const PAGE = 10;
 /** Board URL for a tenant, e.g. "https://jobs.gohire.io/<slug>/". The tenant
  *  slug is the company's registry slug (source_slug = tenant). */
 export function gohireBoardUrl(company: AdapterCompany): string {
-  return `https://jobs.gohire.io/${company.slug}/`;
+  return `https://jobs.gohire.io/${company.apiMeta?.boardSlug ?? company.slug}/`;
 }
 
 /** The stable id is the numeric suffix on the job-slug path segment, e.g.

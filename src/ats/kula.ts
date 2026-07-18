@@ -59,7 +59,9 @@ export function kulaJobUrl(slug: string, id: string | number): string {
 export const kulaAdapter: AtsAdapter = {
   provider: "kula",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const slug = company.slug;
+    // Board token defaults to the registry slug; apiMeta.boardSlug overrides it
+    // when they differ (e.g. multiplier -> "usemultiplier", plum -> "plumhq").
+    const slug = company.apiMeta?.boardSlug ?? company.slug;
     return paginate<NormalizedPosting>({
       provider: "kula",
       company: slug,
