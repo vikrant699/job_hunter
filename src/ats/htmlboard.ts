@@ -51,6 +51,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { kebabCase } from "../util/slug.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;
@@ -133,7 +134,7 @@ export function htmlBoardExternalId(jobUrl: string | null, title: string, listUr
       /* fall through to title slug */
     }
   }
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return kebabCase(title);
 }
 
 export interface HtmlBoardItem {

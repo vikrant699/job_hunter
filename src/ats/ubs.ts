@@ -22,6 +22,7 @@
 // apiMeta.location overrides the search term (default "India"). partnerid /
 // siteid are read from the careers URL's query string.
 import type { Page } from "playwright";
+import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -34,8 +35,12 @@ const DEFAULT_LOCATION = "India";
 const NAV_TIMEOUT = 45_000;
 const CAPTURE_TIMEOUT = 30_000;
 
-interface UbsQuestion { QuestionName?: string; Value?: unknown }
-interface UbsJob { Questions?: UbsQuestion[] }
+const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: z.unknown() });
+const UbsJobSchema = z.object({ Questions: z.array(UbsQuestionSchema).optional() });
+const MatchedJobsSchema = z.object({
+  Jobs: z.object({ Job: z.array(UbsJobSchema).optional() }).optional(),
+});
+type UbsJob = z.infer<typeof UbsJobSchema>;
 
 /** Read one Questions field's value as a trimmed string. */
 export function ubsField(job: UbsJob, name: string): string | null {
@@ -48,7 +53,8 @@ export function ubsField(job: UbsJob, name: string): string | null {
 
 /** Parse the MatchedJobs payload into normalized postings. Pure/testable. */
 export function parseUbsMatchedJobs(payload: unknown, company: AdapterCompany, homeUrl: string, siteId: string): NormalizedPosting[] {
-  const jobs = (payload as { Jobs?: { Job?: UbsJob[] } } | null)?.Jobs?.Job ?? [];
+  const parsed = MatchedJobsSchema.safeParse(payload);
+  const jobs = parsed.success ? parsed.data.Jobs?.Job ?? [] : [];
   const out: NormalizedPosting[] = [];
   const seen = new Set<string>();
   for (const job of jobs) {

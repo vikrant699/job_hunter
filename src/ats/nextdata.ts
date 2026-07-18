@@ -22,6 +22,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import { kebabCase } from "../util/slug.js";
 
 export interface NextDataConfig {
   listUrl: string;
@@ -55,12 +56,13 @@ export function dig(value: unknown, path: string): unknown {
   let cur: unknown = value;
   for (const key of path.split(".")) {
     if (cur === null || typeof cur !== "object") return null;
-    cur = (cur as Record<string, unknown>)[key];
+    cur = Reflect.get(cur, key);
   }
   return cur ?? null;
 }
 
-function digString(value: unknown, path: string): string | null {
+/** dig() a path and coerce the hit to a trimmed string (numbers stringified). */
+export function digString(value: unknown, path: string): string | null {
   const v = dig(value, path);
   if (typeof v === "string") return v.trim() || null;
   if (typeof v === "number") return String(v);
@@ -72,10 +74,11 @@ export function parseNextDataIsland(html: string): unknown {
   const $ = cheerio.load(html);
   const raw = $("script#__NEXT_DATA__").first().text();
   if (!raw) throw new Error("nextdata: page has no __NEXT_DATA__ script tag");
-  return JSON.parse(raw) as unknown;
+  return JSON.parse(raw);
 }
 
-function jdFromFields(job: unknown, fields: string[]): string {
+/** Concatenate the string/string[] values at `fields` dot-paths as JD text. */
+export function jdFromFields(job: unknown, fields: string[]): string {
   const parts: string[] = [];
   for (const f of fields) {
     const v = dig(job, f);
@@ -102,8 +105,7 @@ export function nextDataPostings(company: AdapterCompany, island: unknown): Norm
     if (!jobTitle) continue;
 
     const rawId = cfg.idField ? digString(job, cfg.idField) : null;
-    const externalId =
-      rawId ?? jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const externalId = rawId ?? kebabCase(jobTitle);
     if (!externalId || seen.has(externalId)) continue;
     seen.add(externalId);
 

@@ -30,14 +30,14 @@
 // the input is a data literal. Escaped-JSON blobs (unescape:true) go through
 // JSON.parse instead.
 import { createContext, runInContext } from "node:vm";
-import * as cheerio from "cheerio";
+import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
-import { dig } from "./nextdata.js";
+import { digString, jdFromFields } from "./nextdata.js";
+import { kebabCase } from "../util/slug.js";
 
 export interface JsVarConfig {
   listUrl: string;
@@ -107,34 +107,9 @@ export function extractBalanced(text: string, startMarker: string, open: "[" | "
 /** Parse an extracted literal. JSON.parse for escaped-JSON blobs; a sandboxed
  *  vm eval for JS object/array literals (single quotes, backticks, bare keys). */
 export function parseLiteral(literal: string, viaJson: boolean): unknown {
-  if (viaJson) return JSON.parse(literal) as unknown;
-  const sandbox = createContext(Object.create(null) as object);
+  if (viaJson) return JSON.parse(literal);
+  const sandbox = createContext({ __proto__: null });
   return runInContext(`(${literal})`, sandbox, { timeout: 1000 });
-}
-
-function digString(value: unknown, path: string): string | null {
-  const v = dig(value, path);
-  if (typeof v === "string") return v.trim() || null;
-  if (typeof v === "number") return String(v);
-  return null;
-}
-
-function jdFrom(job: unknown, fields: string[]): string {
-  const parts: string[] = [];
-  for (const f of fields) {
-    const v = dig(job, f);
-    if (typeof v === "string" && v.trim()) parts.push(v);
-    else if (Array.isArray(v)) for (const it of v) if (typeof it === "string" && it.trim()) parts.push(it);
-  }
-  return parts.length ? htmlToText(parts.join("\n")) : "";
-}
-
-/** Pull the raw text to search: assetUrl body, else the HTML (marker may live
- *  in an inline <script> or a raw flight string, so search the whole doc). */
-export function jsVarSourceText(html: string, cfg: JsVarConfig): string {
-  if (cfg.assetUrl) return html; // caller already fetched the asset into `html`
-  // Inline case: search raw HTML (covers <script> literals and flight blobs).
-  return html;
 }
 
 export function jsVarPostings(company: AdapterCompany, sourceText: string): NormalizedPosting[] {
@@ -149,12 +124,14 @@ export function jsVarPostings(company: AdapterCompany, sourceText: string): Norm
   if (!text) throw new Error(`jsvar: startMarker "${cfg.startMarker}" not found for ${company.slug}`);
 
   const parsed = parseLiteral(text, cfg.unescape);
-  const entries: Array<{ key: string | null; job: unknown }> =
-    cfg.container === "object" && parsed && typeof parsed === "object"
-      ? Object.entries(parsed as Record<string, unknown>).map(([key, job]) => ({ key, job }))
-      : Array.isArray(parsed)
-        ? parsed.map((job) => ({ key: null, job }))
-        : [];
+  let entries: Array<{ key: string | null; job: unknown }> = [];
+  if (cfg.container === "object") {
+    const rec = z.record(z.unknown()).safeParse(parsed);
+    if (rec.success) entries = Object.entries(rec.data).map(([key, job]) => ({ key, job }));
+  } else {
+    const arr = z.array(z.unknown()).safeParse(parsed);
+    if (arr.success) entries = arr.data.map((job) => ({ key: null, job }));
+  }
 
   const out: NormalizedPosting[] = [];
   const seen = new Set<string>();
@@ -162,8 +139,7 @@ export function jsVarPostings(company: AdapterCompany, sourceText: string): Norm
     const jobTitle = digString(job, cfg.titleField);
     if (!jobTitle) continue;
     const rawId = cfg.idField ? digString(job, cfg.idField) : null;
-    const externalId =
-      key ?? rawId ?? jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const externalId = key ?? rawId ?? kebabCase(jobTitle);
     if (!externalId || seen.has(externalId)) continue;
     seen.add(externalId);
 
@@ -182,7 +158,7 @@ export function jsVarPostings(company: AdapterCompany, sourceText: string): Norm
       jobUrl,
       location,
       isRemote: location ? REMOTE_RE.test(location) : false,
-      jdText: jdFrom(job, cfg.jdFields),
+      jdText: jdFromFields(job, cfg.jdFields),
       postedAt: null,
     });
   }
@@ -197,7 +173,7 @@ export const jsvarAdapter: AtsAdapter = {
     const url = cfg.assetUrl ?? cfg.listUrl;
     const text = await atsFetchText(url, { provider: "jsvar" });
     try {
-      return jsVarPostings(company, jsVarSourceText(text, cfg));
+      return jsVarPostings(company, text);
     } catch (e) {
       logger.warn({ slug: company.slug, err: String(e).slice(0, 160) }, "jsvar parse failed");
       throw e;
