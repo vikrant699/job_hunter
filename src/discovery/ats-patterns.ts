@@ -24,7 +24,7 @@ export type AtsProvider =
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
   | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
   | "htmlboard" | "nextdata" | "jsvar"
-  | "juspay" | "amplelogic" | "talview" | "skuad" | "gullak" | "ongig" | "directemployers"
+  | "juspay" | "amplelogic" | "talview" | "skuad" | "gullak" | "ongig" | "directemployers" | "procmart" | "superops"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -138,6 +138,8 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   gullak:         { hasAdapter: true,  canValidate: false },
   ongig:          { hasAdapter: true,  canValidate: false },
   directemployers:{ hasAdapter: true,  canValidate: false },
+  procmart:       { hasAdapter: true,  canValidate: false },
+  superops:       { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
