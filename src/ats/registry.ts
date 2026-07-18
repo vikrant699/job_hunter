@@ -86,7 +86,6 @@ import { htmlboardAdapter } from "./htmlboard.js";
 import { nextdataAdapter } from "./nextdata.js";
 import { juspayAdapter } from "./juspay.js";
 import { amplelogicAdapter } from "./amplelogic.js";
-import { bookmyshowAdapter } from "./bookmyshow.js";
 import { talviewAdapter } from "./talview.js";
 import { skuadAdapter } from "./skuad.js";
 import { gullakAdapter } from "./gullak.js";
@@ -180,7 +179,6 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   nextdata: nextdataAdapter,
   juspay: juspayAdapter,
   amplelogic: amplelogicAdapter,
-  bookmyshow: bookmyshowAdapter,
   talview: talviewAdapter,
   skuad: skuadAdapter,
   gullak: gullakAdapter,
