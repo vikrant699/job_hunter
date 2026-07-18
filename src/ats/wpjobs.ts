@@ -56,8 +56,10 @@ export const WpPostSchema = z.object({
   title: z.object({ rendered: z.string() }),
   content: z.object({ rendered: z.string().nullable().optional() }).nullable().optional(),
   class_list: z.array(z.string()).nullable().optional(),
-  acf: z.record(z.string(), JsonValueSchema).nullable().optional(),
-  meta: z.record(z.string(), JsonValueSchema).nullable().optional(),
+  // WP serializes an EMPTY acf/meta set as [] (PHP array), not {} — accept both
+  // (verified live on careers.chingari.io, whose plain "posts" carry acf: []).
+  acf: z.union([z.record(z.string(), JsonValueSchema), z.array(JsonValueSchema)]).nullable().optional(),
+  meta: z.union([z.record(z.string(), JsonValueSchema), z.array(JsonValueSchema)]).nullable().optional(),
   _embedded: WpEmbeddedSchema.nullable().optional(),
 });
 export type WpPost = z.infer<typeof WpPostSchema>;
@@ -135,8 +137,8 @@ export function wpjobsLocation(post: WpPost): string | null {
   return (
     locationFromEmbeddedTerms(post) ??
     locationFromClassList(post) ??
-    firstStringLocationField(post.acf) ??
-    firstStringLocationField(post.meta) ??
+    firstStringLocationField(Array.isArray(post.acf) ? null : post.acf) ??
+    firstStringLocationField(Array.isArray(post.meta) ? null : post.meta) ??
     locationFromContent(post.content?.rendered)
   );
 }

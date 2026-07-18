@@ -184,6 +184,7 @@ export const successfactorsAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const origin = successfactorsOrigin(company);
     let total: number | null = null;
+    const seenIds = new Set<string>();
 
     const postings = await paginate<NormalizedPosting>({
       provider: "successfactors",
@@ -196,10 +197,20 @@ export const successfactorsAdapter: AtsAdapter = {
         });
         const page = parseSuccessfactorsSearch(html, company);
         if (total === null) total = page.total;
+        // Some tenants CLAMP an out-of-range startrow and re-serve the last
+        // page instead of an empty one (verified live on careers.acer.com,
+        // whose tile skin also omits the results banner, so `total` never
+        // stops the loop either). A page that adds no NEW reqIds is the end
+        // of the board — without this, paginate spins to MAX_PAGES.
+        const fresh = page.postings.filter((p) => !seenIds.has(p.externalId));
+        if (page.postings.length > 0 && fresh.length === 0) {
+          return { items: [], total: page.total, rawCount: 0 };
+        }
+        for (const p of fresh) seenIds.add(p.externalId);
         // Advance by the server's row count (25 on a full page), NOT the number
         // of postings that survived filtering — otherwise a single filtered row
         // shortens the page and paginate would stop before the real last page.
-        return { items: page.postings, total: page.total, rawCount: page.rowCount };
+        return { items: fresh, total: page.total, rawCount: page.rowCount };
       },
     });
 

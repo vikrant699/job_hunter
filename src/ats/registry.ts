@@ -84,6 +84,12 @@ import { feishuAdapter } from "./feishu.js";
 import { skimaAdapter } from "./skima.js";
 import { htmlboardAdapter } from "./htmlboard.js";
 import { nextdataAdapter } from "./nextdata.js";
+import { juspayAdapter } from "./juspay.js";
+import { amplelogicAdapter } from "./amplelogic.js";
+import { bookmyshowAdapter } from "./bookmyshow.js";
+import { talviewAdapter } from "./talview.js";
+import { skuadAdapter } from "./skuad.js";
+import { gullakAdapter } from "./gullak.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -172,6 +178,12 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   skima: skimaAdapter,
   htmlboard: htmlboardAdapter,
   nextdata: nextdataAdapter,
+  juspay: juspayAdapter,
+  amplelogic: amplelogicAdapter,
+  bookmyshow: bookmyshowAdapter,
+  talview: talviewAdapter,
+  skuad: skuadAdapter,
+  gullak: gullakAdapter,
 };
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

@@ -57,7 +57,11 @@ async function withBrowserPage<T>(
  * then run an in-page `fetch` for each apiPath, returning parsed JSON per path.
  * For Cloudflare-gated JSON APIs (Darwinbox) that reject plain Node fetch.
  */
-export async function browserFetchJson(pageUrl: string, apiPaths: string[]): Promise<unknown[]> {
+export async function browserFetchJson(
+  pageUrl: string,
+  apiPaths: string[],
+  opts: { blockHeavyAssets?: boolean } = {},
+): Promise<unknown[]> {
   return withBrowserPage(pageUrl, async (page) => {
     const out: unknown[] = [];
     for (const path of apiPaths) {
@@ -69,7 +73,7 @@ export async function browserFetchJson(pageUrl: string, apiPaths: string[]): Pro
       out.push(json);
     }
     return out;
-  });
+  }, opts);
 }
 
 /** One in-page fetch (GET, or POST with a JSON body) to run after the page
@@ -240,6 +244,45 @@ export async function browserCaptureText(
         bodies.push(body);
       }
       return { bodies, responseUrls };
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    release();
+  }
+}
+
+/**
+ * Load `pageUrl` and PASSIVELY capture the response body of the first request
+ * whose URL contains `urlSubstring` — for SPAs whose API calls carry
+ * session-pinned headers (BookMyShow's x-bms-id) that an in-page replay can't
+ * reproduce. The SPA fires the call on boot; we just read its response.
+ * Heavy-asset blocking stays OFF: some WAFs (BMS's Cloudflare) bot-score
+ * aborted asset loads and 403 the API call afterward.
+ */
+export async function browserCaptureResponse(
+  pageUrl: string,
+  urlSubstring: string,
+  opts: { timeoutMs?: number } = {},
+): Promise<string> {
+  const timeoutMs = opts.timeoutMs ?? 30_000;
+  const release = await acquirePageSlot();
+  try {
+    const browser = await getBrowser();
+    const ctx = await browser.newContext({
+      userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
+      locale: "en-US", timezoneId: "Asia/Kolkata",
+    });
+    try {
+      const page = await ctx.newPage();
+      page.setDefaultNavigationTimeout(45_000);
+      const captured = page.waitForResponse(
+        (resp) => resp.url().includes(urlSubstring) && resp.status() === 200,
+        { timeout: timeoutMs },
+      );
+      try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
+      const resp = await captured;
+      return await resp.text();
     } finally {
       await ctx.close();
     }
