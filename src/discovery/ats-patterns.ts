@@ -24,7 +24,7 @@ export type AtsProvider =
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
   | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
   | "htmlboard" | "nextdata"
-  | "juspay" | "amplelogic" | "bookmyshow" | "talview" | "skuad" | "gullak"
+  | "juspay" | "amplelogic" | "talview" | "skuad" | "gullak"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -131,7 +131,6 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   // Single-company custom-API adapters (see each module's header).
   juspay:         { hasAdapter: true,  canValidate: false },
   amplelogic:     { hasAdapter: true,  canValidate: false },
-  bookmyshow:     { hasAdapter: true,  canValidate: false },
   // Talview boards are keyed by apiMeta.organizationId — shared vendor.
   talview:        { hasAdapter: true,  canValidate: false },
   skuad:          { hasAdapter: true,  canValidate: false },
