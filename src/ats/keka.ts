@@ -66,19 +66,23 @@ async function fetchKeka(company: AdapterCompany, url: string): Promise<Normaliz
 export const kekaAdapter: AtsAdapter = {
   provider: "keka",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    // The keka subdomain is usually the registry slug, but apiMeta.boardSlug
+    // overrides it when they differ (e.g. browntape's tenant is "ginesysone",
+    // greaves' is "peopleatgems").
+    const sub = company.apiMeta?.boardSlug ?? company.slug;
     const orgGuid = company.apiMeta?.orgGuid;
     // No orgGuid -> Blazor-UI tenant (no GUID to store). With an orgGuid, try
     // the legacy embed endpoint first, then fall back to the Blazor endpoint
     // for tenants that migrated UIs after conversion.
-    if (!orgGuid) return fetchKeka(company, kekaJobsUrl(company.slug));
+    if (!orgGuid) return fetchKeka(company, kekaJobsUrl(sub));
     try {
-      return await fetchKeka(company, kekaEmbedUrl(company.slug, orgGuid));
+      return await fetchKeka(company, kekaEmbedUrl(sub, orgGuid));
     } catch (e) {
       logger.warn(
         { slug: company.slug, err: String(e).slice(0, 80) },
         "keka embed endpoint failed; trying Blazor jobs endpoint",
       );
-      return fetchKeka(company, kekaJobsUrl(company.slug));
+      return fetchKeka(company, kekaJobsUrl(sub));
     }
   },
 };
@@ -95,7 +99,7 @@ export function normalizeKeka(company: AdapterCompany, j: Job): NormalizedPostin
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: `https://${company.slug}.keka.com/careers/jobdetails/${j.id}`,
+    jobUrl: `https://${company.apiMeta?.boardSlug ?? company.slug}.keka.com/careers/jobdetails/${j.id}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: htmlToText(j.description ?? ""),
