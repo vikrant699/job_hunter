@@ -16,6 +16,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import { decodeNumericEntities } from "./html-text.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
 
@@ -34,9 +35,7 @@ const ATTR_ENTITY_MAP: Record<string, string> = {
 function decodeAttrEntities(s: string): string {
   let out = s;
   for (const [k, v] of Object.entries(ATTR_ENTITY_MAP)) out = out.split(k).join(v);
-  out = out.replace(/&#(\d+);/g, (_, d: string) => String.fromCharCode(Number(d)));
-  out = out.replace(/&#x([\da-f]+);/gi, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
-  return out;
+  return decodeNumericEntities(out);
 }
 
 /**

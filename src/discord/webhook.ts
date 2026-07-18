@@ -35,7 +35,8 @@ export async function postWebhookJson(url: string, body: unknown): Promise<void>
     }
 
     if (res.status === 429 && attempt < WEBHOOK_MAX_429_RETRIES) {
-      const retryAfter = Number(res.headers.get("retry-after") ?? "1");
+      const parsedRetryAfter = Number(res.headers.get("retry-after") ?? "1");
+      const retryAfter = Number.isFinite(parsedRetryAfter) ? parsedRetryAfter : 1;
       const waitMs = Math.min(Math.max(retryAfter, 0.25) * 1000, 30_000);
       logger.warn({ retryAfter, attempt }, "Discord 429; backing off");
       await sleep(waitMs);

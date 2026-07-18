@@ -1,9 +1,14 @@
 import { config } from "../config.js";
 import { rewriteTab as rewriteTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
-import { selectOutreachByStatus, selectOutreachSentTab, type OutreachRow } from "../db/outreach.js";
-import { selectUndraftedByRun, type UndraftedRow } from "../db/outreach.js";
+import {
+  selectOutreachByStatus,
+  selectOutreachSentTab,
+  selectUndraftedByRun,
+  type OutreachRow,
+  type UndraftedRow,
+} from "../db/outreach.js";
 import { logger } from "../logger.js";
-import { DRAFTS_HEADER, SENT_HEADER, UNDRAFTED_HEADER } from "./tabs.js";
+import { DRAFTS_HEADER, SENT_HEADER } from "./tabs.js";
 import { parseRoles, type RoleEntry } from "./roles.js";
 
 function rolesCell(roles: RoleEntry[]): string {
@@ -11,8 +16,11 @@ function rolesCell(roles: RoleEntry[]): string {
 }
 
 /** The role entry that should drive the row's Severity/Score columns: highest
- *  severity first (green beats yellow), then highest score within that tier. */
-function maxSeverityRole(roles: RoleEntry[]): RoleEntry {
+ *  severity first (green beats yellow), then highest score within that tier.
+ *  Null for an empty roles list (corrupt/hand-edited roles_json) so one bad
+ *  row degrades to blank cells instead of aborting the whole projection. */
+function maxSeverityRole(roles: RoleEntry[]): RoleEntry | null {
+  if (roles.length === 0) return null;
   return roles.reduce((best, r) => {
     if (r.severity === "green" && best.severity === "yellow") return r;
     if (r.severity === best.severity && (r.score ?? -Infinity) > (best.score ?? -Infinity)) return r;
@@ -41,8 +49,8 @@ function draftRow(row: OutreachRow): string[] {
     row.profileId,
     row.companyName,
     rolesCell(roles),
-    top.severity,
-    scoreCell(top.score),
+    top ? top.severity : "",
+    top ? scoreCell(top.score) : "",
     row.recruiterEmail,
     row.draftedAt,
     row.gmailDraftId ?? "",

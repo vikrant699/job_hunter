@@ -265,9 +265,13 @@ async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promi
       throw new Error(`zappyhire multitenant response failed schema for ${company.slug}`);
     }
     const { hits, total } = parsed.data.results;
+    const before = out.size;
     for (const h of hits) out.set(String(h._source.job), normalizeZappyhireMt(company, h._source));
     const expected = total?.value ?? hits.length;
-    if (hits.length === 0 || out.size >= expected) break;
+    // `out.size === before` catches a server that re-serves the same page
+    // forever (all hits dedup away) while `total` claims more — without it
+    // this loop would never terminate.
+    if (hits.length === 0 || out.size >= expected || out.size === before) break;
     page += 1;
     await sleep(INTER_PAGE_DELAY_MS);
   }
