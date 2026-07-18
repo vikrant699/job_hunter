@@ -7,10 +7,18 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
-// Keka embed API:
-//   GET <slug>.keka.com/careers/api/embedjobs/default/active/<orgGuid>  -> Job[]
-// orgGuid is org-level (stable); extracted once from the careers page at
-// conversion time and stored in api_meta.orgGuid. One-phase (description inline).
+// Keka careers API — two UI generations, same Job[] response shape:
+//   legacy embed widget:
+//     GET <slug>.keka.com/careers/api/embedjobs/default/active/<orgGuid>
+//     orgGuid is org-level (stable), extracted from the careers page HTML at
+//     conversion time and stored in api_meta.orgGuid.
+//   newer Blazor UI (e.g. signzy):
+//     GET <slug>.keka.com/careers/api/jobs/default/active   (NO orgGuid — its
+//     HTML embeds no GUID at all, which silently broke orgGuid-based conversion
+//     and dormanted these tenants).
+// A tenant without a stored orgGuid uses the Blazor endpoint; a tenant WITH one
+// tries the embed endpoint first and falls back to the Blazor endpoint if that
+// fails (covers tenants that migrated UIs after conversion). One-phase (JD inline).
 const LocSchema = z.object({
   city: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
@@ -35,24 +43,43 @@ export function extractKekaOrgGuid(html: string): string | null {
   return html.match(GUID_RE)?.[0] ?? null;
 }
 
-/** Embed-API endpoint for a slug + orgGuid; shared by the adapter and discovery validation. */
+/** Legacy embed-API endpoint for a slug + orgGuid. */
 export function kekaEmbedUrl(slug: string, orgGuid: string): string {
   return `https://${slug}.keka.com/careers/api/embedjobs/default/active/${orgGuid}`;
+}
+
+/** Newer Blazor-UI endpoint (no orgGuid). */
+export function kekaJobsUrl(slug: string): string {
+  return `https://${slug}.keka.com/careers/api/jobs/default/active`;
+}
+
+async function fetchKeka(company: AdapterCompany, url: string): Promise<NormalizedPosting[]> {
+  const raw = await atsFetchJson(url, { provider: "keka" });
+  const parsed = ResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "keka schema mismatch");
+    throw new Error(`keka response failed schema for ${company.slug}`);
+  }
+  return parsed.data.map((j) => normalizeKeka(company, j));
 }
 
 export const kekaAdapter: AtsAdapter = {
   provider: "keka",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const orgGuid = company.apiMeta?.orgGuid;
-    if (!orgGuid) throw new Error(`keka adapter requires apiMeta.orgGuid for ${company.slug}`);
-    const url = kekaEmbedUrl(company.slug, orgGuid);
-    const raw = await atsFetchJson(url, { provider: "keka" });
-    const parsed = ResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "keka schema mismatch");
-      throw new Error(`keka response failed schema for ${company.slug}`);
+    // No orgGuid -> Blazor-UI tenant (no GUID to store). With an orgGuid, try
+    // the legacy embed endpoint first, then fall back to the Blazor endpoint
+    // for tenants that migrated UIs after conversion.
+    if (!orgGuid) return fetchKeka(company, kekaJobsUrl(company.slug));
+    try {
+      return await fetchKeka(company, kekaEmbedUrl(company.slug, orgGuid));
+    } catch (e) {
+      logger.warn(
+        { slug: company.slug, err: String(e).slice(0, 80) },
+        "keka embed endpoint failed; trying Blazor jobs endpoint",
+      );
+      return fetchKeka(company, kekaJobsUrl(company.slug));
     }
-    return parsed.data.map((j) => normalizeKeka(company, j));
   },
 };
 
