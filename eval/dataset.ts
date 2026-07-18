@@ -20,7 +20,6 @@ const RowSchema = z.object({
   jd_text: z.string().nullable(),
   stored_score: z.number().nullable(),
 });
-type Row = z.infer<typeof RowSchema>;
 
 /** Pure-ish core: takes an open DB handle so it can be unit-tested with :memory:. */
 export function buildLabeledPostings(

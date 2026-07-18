@@ -36,21 +36,6 @@ export interface CandidateLink {
   text: string;
 }
 
-/**
- * Registrable apex of a host: "careers.foo.com" -> "foo.com",
- * "jobs.bar.co.in" -> "bar.co.in". Naive two/three-label heuristic (no PSL):
- * keeps three labels when the middle one is a common second-level registry.
- */
-export function apexOf(host: string): string {
-  const labels = host.toLowerCase().split(".");
-  if (labels.length <= 2) return labels.join(".");
-  const SECOND_LEVEL = new Set(["co", "com", "net", "org", "gov", "ac", "edu"]);
-  const tld = labels[labels.length - 1] ?? "";
-  const second = labels[labels.length - 2] ?? "";
-  const take = tld.length === 2 && SECOND_LEVEL.has(second) ? 3 : 2;
-  return labels.slice(-take).join(".");
-}
-
 const JOB_URL_RE = /\/(jobs?|careers?|positions?|openings?|opportunit|apply|posting|listings?|hiring|roles?|vacanc)\b/i;
 export const ROLE_TEXT_RE = /\b(analyst|engineer|manager|developer|designer|specialist|lead|director|associate|intern(?:ship)?|consultant|scientist|architect|coordinator|administrator|representative|executive|officer|head\b|principal|staff)\b/i;
 

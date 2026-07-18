@@ -7,6 +7,26 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
   return new Error(`${provider} HTTP ${status}: ${bodySnippet.slice(0, 200)}`);
 }
 
+/** Run `fn` with an AbortSignal that fires after the standard ATS timeout.
+ *  The timeout covers the whole call — headers AND body consumption — so a
+ *  stalled body read aborts too. */
+async function withAtsTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
+  try {
+    return await fn(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** fetch() that throws `atsHttpError` on a non-OK response. */
+async function fetchOk(url: string, init: RequestInit, provider: string): Promise<Response> {
+  const res = await fetch(url, init);
+  if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+  return res;
+}
+
 /**
  * Fetch JSON with the standard ATS timeout + UA. Throws `atsHttpError` on a
  * non-OK response. Sends a JSON body (and POST) when `body` is provided.
@@ -16,10 +36,8 @@ export async function atsFetchJson(
   opts: { method?: "GET" | "POST"; body?: unknown; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, {
+  return withAtsTimeout<unknown>(async (signal) => {
+    const res = await fetchOk(url, {
       method: opts.method ?? (opts.body !== undefined ? "POST" : "GET"),
       headers: {
         // Some WAF-fronted boards (Jibe) 403 the bot UA — those pass a browser UA.
@@ -30,13 +48,10 @@ export async function atsFetchJson(
         ...(opts.headers ?? {}),
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+      signal,
+    }, provider);
     return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 /**
@@ -51,10 +66,8 @@ export async function atsFetchFormJson(
   opts: { provider?: string } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, {
+  return withAtsTimeout<unknown>(async (signal) => {
+    const res = await fetchOk(url, {
       method: "POST",
       headers: {
         "User-Agent": config.fetch.userAgent,
@@ -62,13 +75,10 @@ export async function atsFetchFormJson(
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams(form).toString(),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+      signal,
+    }, provider);
     return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 /**
@@ -83,12 +93,10 @@ export async function atsFetchJsonMultipart(
   opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string; userAgent?: string },
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
+  return withAtsTimeout<unknown>(async (signal) => {
     const form = new FormData();
     for (const [key, value] of Object.entries(opts.fields)) form.append(key, value);
-    const res = await fetch(url, {
+    const res = await fetchOk(url, {
       method: "POST",
       headers: {
         "User-Agent": opts.userAgent ?? config.fetch.userAgent,
@@ -96,13 +104,10 @@ export async function atsFetchJsonMultipart(
         ...opts.headers,
       },
       body: form,
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+      signal,
+    }, provider);
     return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 export interface AtsFetchedHtml {
@@ -117,20 +122,15 @@ export interface AtsFetchedHtml {
  */
 export async function atsFetchHtml(url: string, opts: { provider?: string; userAgent?: string } = {}): Promise<AtsFetchedHtml> {
   const provider = opts.provider ?? "ats";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, {
+  return withAtsTimeout(async (signal) => {
+    const res = await fetchOk(url, {
       headers: { "User-Agent": opts.userAgent ?? config.fetch.userAgent, Accept: "text/html,application/json" },
       redirect: "follow",
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+      signal,
+    }, provider);
     const html = await res.text();
     return { finalUrl: res.url || url, html };
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 /** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
@@ -152,10 +152,8 @@ export async function atsFetchFormHtml(
   opts: { provider?: string } = {},
 ): Promise<string> {
   const provider = opts.provider ?? "ats";
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, {
+  return withAtsTimeout(async (signal) => {
+    const res = await fetchOk(url, {
       method: "POST",
       headers: {
         "User-Agent": config.fetch.userAgent,
@@ -163,11 +161,8 @@ export async function atsFetchFormHtml(
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams(form).toString(),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
+      signal,
+    }, provider);
     return await res.text();
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }

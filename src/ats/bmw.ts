@@ -30,7 +30,6 @@ import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 
-const SETTLE_MS = 5_000;
 const FRAG_RE = /jobfinder\d*\.jobfinder_table\.content\.html/i;
 // Safety cap on fragment pages (blockCount rows each) — India never
 // approaches this; it's a runaway backstop only.
