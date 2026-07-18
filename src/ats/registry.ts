@@ -84,6 +84,7 @@ import { feishuAdapter } from "./feishu.js";
 import { skimaAdapter } from "./skima.js";
 import { htmlboardAdapter } from "./htmlboard.js";
 import { nextdataAdapter } from "./nextdata.js";
+import { jsvarAdapter } from "./jsvar.js";
 import { juspayAdapter } from "./juspay.js";
 import { amplelogicAdapter } from "./amplelogic.js";
 import { talviewAdapter } from "./talview.js";
@@ -177,6 +178,7 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   skima: skimaAdapter,
   htmlboard: htmlboardAdapter,
   nextdata: nextdataAdapter,
+  jsvar: jsvarAdapter,
   juspay: juspayAdapter,
   amplelogic: amplelogicAdapter,
   talview: talviewAdapter,
