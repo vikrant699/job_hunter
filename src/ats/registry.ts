@@ -91,6 +91,10 @@ import { talviewAdapter } from "./talview.js";
 import { skuadAdapter } from "./skuad.js";
 import { gullakAdapter } from "./gullak.js";
 import { ongigAdapter } from "./ongig.js";
+import { ujjivanAdapter } from "./ujjivan.js";
+import { bajajautoAdapter } from "./bajajauto.js";
+import { spire2growAdapter } from "./spire2grow.js";
+import { paramaiAdapter } from "./paramai.js";
 import { directemployersAdapter } from "./directemployers.js";
 import { procmartAdapter } from "./procmart.js";
 import { superopsAdapter } from "./superops.js";
@@ -192,6 +196,10 @@ export const ATS_ADAPTERS: Record<string, AtsAdapter> = {
   skuad: skuadAdapter,
   gullak: gullakAdapter,
   ongig: ongigAdapter,
+  ujjivan: ujjivanAdapter,
+  bajajauto: bajajautoAdapter,
+  spire2grow: spire2growAdapter,
+  paramai: paramaiAdapter,
   directemployers: directemployersAdapter,
   procmart: procmartAdapter,
   superops: superopsAdapter,
