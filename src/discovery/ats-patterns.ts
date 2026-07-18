@@ -22,7 +22,7 @@ export type AtsProvider =
   | "superworks" | "recruiterflow" | "sfunify" | "apple" | "mercedes"
   | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
   | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
-  | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu"
+  | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
   // detect-only
   | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
   | "avature" | "workable" | "personio" | "teamtailor"
@@ -117,6 +117,9 @@ export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
   advantageclub:  { hasAdapter: true,  canValidate: false },
   digitalrecruiters: { hasAdapter: true, canValidate: false },
   feishu:         { hasAdapter: true,  canValidate: false },
+  // Skima tenants live on custom domains (careers.nykaa.com); the only shared
+  // signature is the canonical "<domain>.skima.ai" alias, matched below.
+  skima:          { hasAdapter: true,  canValidate: false },
   jobvite:        { hasAdapter: false, canValidate: false },
   bamboohr:       { hasAdapter: true,  canValidate: true  },
   oracle:         { hasAdapter: true,  canValidate: false },
@@ -560,6 +563,21 @@ const PATTERNS: PatternDef[] = [
       // www.peoplestrong.com is the vendor's marketing site, not a tenant.
       if (!slug || slug === "www") return null;
       return { url: `https://${u!.host}`, slug };
+    },
+  },
+  {
+    provider: "skima",
+    // Tenants sit on custom domains whose pages carry a canonical/asset link
+    // to "<custom-domain>.skima.ai" (e.g. careers.nykaa.com.skima.ai). The
+    // tenant board is the custom domain itself — strip the vendor suffix.
+    re: /https?:\/\/[a-z0-9.-]+\.skima\.ai\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const host = u.host.replace(/\.skima\.ai$/i, "");
+      // Vendor's own hosts (www.skima.ai, api.skima.ai) have no dots left.
+      if (!host.includes(".")) return null;
+      return { url: `https://${host}/`, slug: host };
     },
   },
 ] as const;
