@@ -103,6 +103,8 @@ export const UserProfileSchema = z.object({
     hardYoeCap: z.number(),
     yoeAcceptUnspecified: z.boolean(),
     matchThreshold: z.number(),
+    // Per-profile silent-drop floor; falls back to SILENT_SCORE_FLOOR when unset.
+    silentFloor: z.number().optional(),
   }),
   location: z.object({
     targetCities: z.array(z.string()),

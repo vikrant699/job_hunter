@@ -14,6 +14,7 @@ import { runGate } from "../llm/gate.js";
 import { runExtract, type ExtractResult } from "../llm/extract.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
+import { profile } from "../profile.js";
 import type { RunContext } from "./index.js";
 
 interface PostingResultPatch {
@@ -191,7 +192,7 @@ export async function processOnePosting(
   // evict the gate prompt's KV prefix cache (the resume) between gate calls.
   // Last full run this skipped ~4k of ~4.6k extract calls.
   let extractResult: ExtractResult | null = null;
-  if (gateResult.matchScore >= SILENT_SCORE_FLOOR) {
+  if (gateResult.matchScore >= (profile.filters.silentFloor ?? SILENT_SCORE_FLOOR)) {
     try {
       extractResult = await runExtract(posting.jdText);
     } catch (err) {

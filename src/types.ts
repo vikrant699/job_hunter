@@ -68,6 +68,10 @@ export interface UserProfile {
     yoeAcceptUnspecified: boolean;
     /** Match score above which a posting goes green (vs yellow). 0..1 scale. */
     matchThreshold: number;
+    /** Per-profile override of the silent-drop floor: postings scoring below this
+     *  are silently dropped as noise. Defaults to the global SILENT_SCORE_FLOOR
+     *  (0.65) when unset. Must be below matchThreshold so a yellow band exists. */
+    silentFloor?: number;
   };
   location: {
     /** Substrings (case-insensitive) of cities/regions you want to target. */

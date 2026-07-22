@@ -46,11 +46,12 @@ const usingExample = userPath === examplePath;
 // survives already clears matchThreshold — every notification comes out green and
 // the borderline tier stops existing. Fail loudly at load time instead of quietly
 // degrading the triage signal.
-export function assertMatchThresholdAboveFloor(matchThreshold: number): void {
-  if (matchThreshold <= SILENT_SCORE_FLOOR) {
+export function assertMatchThresholdAboveFloor(matchThreshold: number, silentFloor?: number): void {
+  const floor = silentFloor ?? SILENT_SCORE_FLOOR;
+  if (matchThreshold <= floor) {
     throw new Error(
       `[profile] filters.matchThreshold (${matchThreshold}) must be greater than ` +
-        `SILENT_SCORE_FLOOR (${SILENT_SCORE_FLOOR}) — otherwise the yellow band vanishes and every ` +
+        `the silent floor (${floor}) — otherwise the yellow band vanishes and every ` +
         "notification is green. Raise matchThreshold above the floor in your profile config.",
     );
   }
@@ -58,7 +59,7 @@ export function assertMatchThresholdAboveFloor(matchThreshold: number): void {
 
 const ProfileModuleSchema = z.object({ profile: UserProfileSchema });
 const mod = ProfileModuleSchema.parse(await import(pathToFileURL(userPath).href));
-assertMatchThresholdAboveFloor(mod.profile.filters.matchThreshold);
+assertMatchThresholdAboveFloor(mod.profile.filters.matchThreshold, mod.profile.filters.silentFloor);
 
 const resumeText = await ensureResumeText(resumeDir);
 export const profile: UserProfile = { ...mod.profile, id: profileName, resumeText };

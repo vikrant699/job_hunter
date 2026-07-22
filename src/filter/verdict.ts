@@ -37,7 +37,10 @@ export function classifyVerdict(
     return { severity: "silent", reason: gate.dealBreakerHit ?? "hard-deal-breaker" };
   }
 
-  if (gate.matchScore < SILENT_SCORE_FLOOR) {
+  // Effective silent floor: per-profile override (e.g. vikrant 0.60) or the
+  // global SILENT_SCORE_FLOOR default.
+  const silentFloor = profile.filters.silentFloor ?? SILENT_SCORE_FLOOR;
+  if (gate.matchScore < silentFloor) {
     // A priority-title role (e.g. React Native for a frontend dev) is floored to
     // yellow instead of silenced — unless it's over the hard YOE cap (still silent).
     const overYoeCap =
