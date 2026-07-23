@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildStatusEmbed } from "./status.js";
+import { buildStatusEmbed, buildIssueList } from "./status.js";
 import type { ProductionTickOutcome } from "../pipeline/index.js";
 
 function mkStats(overrides: Partial<ProductionTickOutcome["stats"]> = {}): ProductionTickOutcome["stats"] {
@@ -14,6 +14,7 @@ function mkStats(overrides: Partial<ProductionTickOutcome["stats"]> = {}): Produ
     postingsDuplicated: 3,
     jdFetchFailed: 2,
     errors: [],
+    failedCompanies: [],
     durationMs: 123_456,
     ...overrides,
   };
@@ -150,4 +151,39 @@ test("buildStatusEmbed marks the embed orange when the registry sync fell back t
     registry: { source: "cache", invalidRows: 0 },
   });
   assert.equal(embed.color, 0xe67e22);
+});
+
+test("buildStatusEmbed lists companies with issues, grouped by reason", () => {
+  const embed = buildStatusEmbed({
+    profileId: "vikrant",
+    stats: mkStats({
+      failedCompanies: [
+        { provider: "smartrecruiters", slug: "bosch", reason: "timeout" },
+        { provider: "phenom", slug: "abb", reason: "timeout" },
+        { provider: "lever", slug: "dream11", reason: "404" },
+      ],
+    }),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Boards with issues"], "3");
+  const list = byName["Companies with issues (3)"] ?? "";
+  assert.match(list, /timeout ×2/);
+  assert.match(list, /bosch/);
+  assert.match(list, /404 ×1/);
+});
+
+test("buildIssueList truncates a large group and reports the overflow", () => {
+  const many = Array.from({ length: 200 }, (_, i) => ({
+    provider: "greenhouse",
+    slug: `company-${i}`,
+    reason: "timeout",
+  }));
+  const out = buildIssueList(many, 1000);
+  assert.ok(out.length <= 1000);
+  assert.match(out, /timeout ×200/);
+  assert.match(out, /\(\+\d+\)/);
 });

@@ -17,6 +17,7 @@ function ctxWith(
     postingsDuplicated: 0,
     jdFetchFailed: 0,
     errors: [],
+    failedCompanies: [],
     priorNotifyKeys: new Set(),
     seenNotifyKeys: new Set(),
     profileId: "vikrant",
