@@ -12,6 +12,18 @@ import { toAdapterCompany } from "./index.js";
 import type { RunContext } from "./index.js";
 import { processOnePosting } from "./posting-pipeline.js";
 
+/** Collapse a raw fetch error into a short tag for the Discord issue list. */
+export function classifyFetchError(msg: string): string {
+  if (/AbortError|aborted|timeout|timed out|ETIMEDOUT/i.test(msg)) return "timeout";
+  if (/\b404\b|not found/i.test(msg)) return "404";
+  if (/\b(429)\b|rate.?limit|limit exceeded/i.test(msg)) return "rate-limited";
+  if (/\b5\d\d\b|HTTP 5/i.test(msg)) return "5xx";
+  if (/schema/i.test(msg)) return "schema";
+  if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|fetch failed|cert/i.test(msg)) return "network";
+  if (/requires tenant_url|missing .* segment|missing tenant/i.test(msg)) return "config";
+  return "other";
+}
+
 export async function processBucket(
   bucketKey: string,
   adapter: AtsAdapter,
@@ -54,7 +66,6 @@ async function processOneCompany(
     logger.debug({ company: company.name, reason: deny.reason }, "skip: services-denylist");
     return;
   }
-  stats.companiesScanned++;
 
   const adapterCompany = toAdapterCompany(company);
 
@@ -69,9 +80,18 @@ async function processOneCompany(
     logger.warn({ company: company.name, slug: company.slug, err: msg }, "fetch failed");
     markFetchFailure(company.provider, company.slug, msg);
     stats.errors.push(`${company.provider}/${company.slug}: ${msg.slice(0, 100)}`);
+    // A board that errored was NOT scanned — record it as an issue instead of
+    // counting it toward companiesScanned (which now means "fetched OK").
+    stats.failedCompanies.push({
+      provider: company.provider,
+      slug: company.slug,
+      reason: classifyFetchError(msg),
+    });
     return;
   }
 
+  // Only a successful fetch counts as scanned — errored/skipped boards don't.
+  stats.companiesScanned++;
   markFetchSuccess(company.provider, company.slug, postings.length);
 
   // Worker pool within the company: HTTP work parallelizes here while Ollama

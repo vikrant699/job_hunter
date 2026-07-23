@@ -27,6 +27,37 @@ export interface StatusInput {
   registry: RegistrySyncSummary | null;
 }
 
+/** Group failed boards by reason tag into a compact, Discord-field-safe string
+ *  (max ~1024 chars). e.g. "timeout ×122: bosch, abb, adobe … (+40) · 404 ×2: …". */
+export function buildIssueList(
+  failed: ReadonlyArray<{ provider: string; slug: string; reason: string }>,
+  maxLen = 1000,
+): string {
+  if (failed.length === 0) return "none 🎉";
+  const byReason = new Map<string, string[]>();
+  for (const f of failed) {
+    const arr = byReason.get(f.reason) ?? [];
+    arr.push(f.slug);
+    byReason.set(f.reason, arr);
+  }
+  const groups = [...byReason.entries()].sort((a, b) => b[1].length - a[1].length);
+  const parts: string[] = [];
+  for (const [reason, slugs] of groups) {
+    const shown: string[] = [];
+    let extra = 0;
+    for (const s of slugs) {
+      // keep each group's inline list from blowing the whole budget
+      if (shown.join(", ").length < 220) shown.push(s);
+      else extra++;
+    }
+    const tail = extra > 0 ? ` (+${extra})` : "";
+    parts.push(`**${reason} ×${slugs.length}**: ${shown.join(", ")}${tail}`);
+  }
+  let out = parts.join("\n");
+  if (out.length > maxLen) out = out.slice(0, maxLen - 1) + "…";
+  return out;
+}
+
 interface StatusEmbedField { name: string; value: string; inline: boolean }
 export interface StatusEmbed {
   title: string;
@@ -49,8 +80,17 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     { name: "Green", value: String(stats.postingsGreen), inline: true },
     { name: "Yellow", value: String(stats.postingsYellow), inline: true },
     { name: "JD fetch failed", value: String(stats.jdFetchFailed), inline: true },
+    { name: "Boards with issues", value: String(stats.failedCompanies.length), inline: true },
     { name: "Errors", value: String(stats.errors.length), inline: true },
   ];
+
+  if (stats.failedCompanies.length > 0) {
+    fields.push({
+      name: `Companies with issues (${stats.failedCompanies.length})`,
+      value: buildIssueList(stats.failedCompanies),
+      inline: false,
+    });
+  }
 
   if (input.verify) {
     fields.push({

@@ -26,6 +26,9 @@ export interface RunContext {
   /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
   jdFetchFailed: number;
   errors: string[];
+  /** Boards that failed to fetch this run (errored, not merely zero-yield). Drives
+   *  the Discord "companies with issues" list; these are NOT counted as scanned. */
+  failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
   /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */
   priorNotifyKeys: Set<string>;
   /** keys notified in THIS run — within-run dedup at notify time. */
@@ -64,6 +67,7 @@ export interface ProductionTickOutcome {
     postingsDuplicated: number;
     jdFetchFailed: number;
     errors: string[];
+    failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
     durationMs: number;
   };
 }
@@ -97,6 +101,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsDuplicated: 0,
     jdFetchFailed: 0,
     errors: [],
+    failedCompanies: [],
     priorNotifyKeys,
     seenNotifyKeys: new Set(),
     profileId,
@@ -201,6 +206,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       duplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
       errors: stats.errors.length,
+      boardsWithIssues: stats.failedCompanies.length,
       durationMs: endedAt - startedAt,
     },
     "production tick complete",
@@ -220,6 +226,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       postingsDuplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
       errors: stats.errors,
+      failedCompanies: stats.failedCompanies,
       durationMs: endedAt - startedAt,
     },
   };

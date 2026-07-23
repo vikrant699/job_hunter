@@ -17,8 +17,10 @@ export const config = {
     workersPerCompany: 5,
     /** Politeness delay between worker-pool iterations within a company. */
     interCallDelayMs: 250,
-    /** Per-call timeout for ATS fetches. */
-    timeoutMs: 20_000,
+    /** Per-call timeout for ATS fetches. Raised 20s -> 60s (2026-07-23): big
+     *  paginated boards (Bosch ~24s, ABB ~30s) were being aborted mid-fetch under
+     *  load, dropping their entire posting set. See config-repair memory. */
+    timeoutMs: 60_000,
     /** Identify ourselves to ATS providers; some block default node UA. */
     userAgent: "job-hunter-bot/0.1",
   },
