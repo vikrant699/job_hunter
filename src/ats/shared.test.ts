@@ -311,6 +311,55 @@ describe("paginate", () => {
     assert.equal(calls, 1);
   });
 
+  it("dedupeBy skips items whose key was already seen on an earlier page, without disturbing offset advance", async () => {
+    const offsetsSeen: number[] = [];
+    const result = await paginate<{ id: string; n: number }>({
+      provider: "test",
+      company: "acme",
+      pageSize: 2,
+      interPageDelayMs: 0,
+      dedupeBy: (item) => item.id,
+      fetchPage: async (offset) => {
+        offsetsSeen.push(offset);
+        if (offset === 0) return { items: [{ id: "a", n: 1 }, { id: "b", n: 2 }], total: null };
+        // "b" repeats here (e.g. a tenant re-listing a job that moved between
+        // pages while crawling) - it must be dropped from the result...
+        if (offset === 2) return { items: [{ id: "b", n: 2 }, { id: "c", n: 3 }], total: null };
+        // ...but the offset still advances by the RAW page size (2 items
+        // received), not the deduped output count, so this page is fetched
+        // at offset 4, not 3 - a duplicate never shifts later offsets.
+        if (offset === 4) return { items: [{ id: "d", n: 4 }], total: null }; // short page -> stop
+        throw new Error("should not be called again");
+      },
+    });
+    assert.deepEqual(result.map((r) => r.id), ["a", "b", "c", "d"]);
+    assert.deepEqual(offsetsSeen, [0, 2, 4]);
+  });
+
+  it("the cap-exit path (loop exhausts maxPages rather than breaking) still returns everything fetched", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "acme",
+      pageSize: 1,
+      maxPages: 4,
+      interPageDelayMs: 0,
+      fetchPage: async () => {
+        calls++;
+        // Every page is full-size (never short) and total stays unknown, so
+        // nothing inside the loop body ever breaks - the ONLY way this loop
+        // ends is by exhausting maxPages, which is the branch that also logs
+        // "pagination hit the runaway cap" via the global logger (not spied
+        // on here - shared.ts has no injection point for it; this test pins
+        // the functional half of the contract: the return is exactly the
+        // maxPages worth of items, no more, no less).
+        return { items: [calls], total: null };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3, 4]);
+    assert.equal(calls, 4);
+  });
+
   it("defaults interPageDelayMs to INTER_PAGE_DELAY_MS when omitted", async () => {
     assert.equal(INTER_PAGE_DELAY_MS, 150);
     let calls = 0;
