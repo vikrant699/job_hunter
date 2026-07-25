@@ -17,6 +17,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { REMOTE_RE } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 /** Tenant origin, e.g. "https://cuemath.jobsoid.com". */
 export function jobsoidOrigin(company: AdapterCompany): string {
@@ -25,8 +26,7 @@ export function jobsoidOrigin(company: AdapterCompany): string {
 
 /** Pull the numeric job id out of a `/j/<id>/<slug>` href. */
 export function jobsoidIdFromHref(href: string): string | null {
-  const m = href.match(/\/j\/(\d+)\b/);
-  return m ? m[1]! : null;
+  return matchGroup(/\/j\/(\d+)\b/, href);
 }
 
 /**

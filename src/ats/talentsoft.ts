@@ -108,9 +108,9 @@ export function talentsoftIdFromUrl(url: string): string | null {
 export function talentsoftLocationFromDescItems(descItems: string[]): string | null {
   const items = descItems.map((s) => s.trim()).filter(Boolean);
   if (items.length === 0) return null;
-  if (items.length === 1) return items[0]!;
-  const country = items[items.length - 2]!;
-  const city = items[items.length - 1]!;
+  if (items.length === 1) return items[0] ?? null;
+  const country = items[items.length - 2] ?? "";
+  const city = items[items.length - 1] ?? "";
   return `${city}, ${country}`;
 }
 

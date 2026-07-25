@@ -14,6 +14,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 const PAGE_SIZE = 50;
 
@@ -62,10 +63,10 @@ export function senseHqOrigin(company: AdapterCompany): string {
  * when the script is absent or its body isn't valid JSON.
  */
 export function extractSenseHqNextData(html: string): unknown | null {
-  const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-  if (!m) return null;
+  const raw = matchGroup(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/, html);
+  if (raw === null) return null;
   try {
-    return JSON.parse(m[1]!);
+    return JSON.parse(raw);
   } catch {
     return null;
   }

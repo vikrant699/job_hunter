@@ -337,9 +337,17 @@ const LEGACY_ENV_RE =
  */
 export function parseZappyhireBundle(scriptText: string): ZappyhireMeta | null {
   const legacy = scriptText.match(LEGACY_ENV_RE);
-  if (legacy) return { backendHost: legacy[1]!, generation: "legacy", source: legacy[2]! };
+  if (legacy) {
+    const [, host, source] = legacy;
+    if (host !== undefined && source !== undefined) {
+      return { backendHost: host, generation: "legacy", source };
+    }
+  }
   const newGen = scriptText.match(NEW_GEN_ENV_RE);
-  if (newGen) return { backendHost: newGen[1]!, generation: "new", source: null };
+  if (newGen) {
+    const host = newGen[1];
+    if (host !== undefined) return { backendHost: host, generation: "new", source: null };
+  }
   return null;
 }
 
@@ -350,8 +358,10 @@ export function extractScriptUrls(html: string, baseUrl: string): string[] {
   for (const re of patterns) {
     let m: RegExpExecArray | null;
     while ((m = re.exec(html)) !== null) {
+      const src = m[1];
+      if (src === undefined) continue;
       try {
-        urls.add(new URL(m[1]!, baseUrl).toString());
+        urls.add(new URL(src, baseUrl).toString());
       } catch {
         /* malformed src -- skip */
       }

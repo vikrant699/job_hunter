@@ -17,6 +17,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { decodeNumericEntities } from "./html-text.js";
+import { matchGroup } from "../util/regex.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
 
@@ -45,10 +46,10 @@ function decodeAttrEntities(s: string): string {
  * first `"..."` run after `data-page=` is exactly the JSON payload.
  */
 export function extractYcDataPage(html: string): unknown | null {
-  const m = html.match(/data-page="([^"]*)"/);
-  if (!m) return null;
+  const raw = matchGroup(/data-page="([^"]*)"/, html);
+  if (raw === null) return null;
   try {
-    return JSON.parse(decodeAttrEntities(m[1]!));
+    return JSON.parse(decodeAttrEntities(raw));
   } catch {
     return null;
   }
@@ -133,7 +134,9 @@ export function parseYcRelative(s: string | null | undefined): string | null {
   const m = s.toLowerCase().match(/(\d+)\s*(minute|hour|day|week|month|year)s?/);
   if (!m) return null;
   const n = Number(m[1]);
-  const unitMs = UNIT_MS[m[2]!];
+  const unit = m[2];
+  if (unit === undefined) return null;
+  const unitMs = UNIT_MS[unit];
   if (unitMs === undefined) return null;
   return new Date(Date.now() - n * unitMs).toISOString();
 }

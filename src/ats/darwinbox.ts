@@ -15,6 +15,7 @@ import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJson, browserFetchJsonRequests } from "./browser-fetch.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
@@ -47,8 +48,7 @@ const CANDIDATEV2_RE = /\/ms\/candidatev2\/([^/]+)\//i;
  */
 export function darwinboxV2Token(company: AdapterCompany): string | null {
   const raw = company.tenantUrl ?? company.careersUrl;
-  const match = CANDIDATEV2_RE.exec(raw);
-  return match ? match[1]! : null;
+  return matchGroup(CANDIDATEV2_RE, raw);
 }
 
 /**

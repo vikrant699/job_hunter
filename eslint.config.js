@@ -58,4 +58,17 @@ export default tseslint.config(
       "@typescript-eslint/await-thenable": "error",
     },
   },
+  {
+    // Non-null assertions banned in production code only. Test files carry
+    // 236 pre-existing `!` sites (mostly asserting on known-shape fixture
+    // JSON/regex results) that are out of scope for this pass; revisit if
+    // that debt is ever paid down.
+    files: ["**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "**/*.test.ts"],
+    languageOptions,
+    plugins,
+    rules: {
+      "@typescript-eslint/no-non-null-assertion": "error",
+    },
+  },
 );

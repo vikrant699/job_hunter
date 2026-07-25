@@ -122,9 +122,11 @@ export function extractMercedesJobPosting(html: string): Record<string, JsonValu
   const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
+    const raw = m[1];
+    if (raw === undefined) continue;
     let node: JsonValue;
     try {
-      node = JsonValueSchema.parse(JSON.parse(m[1]!));
+      node = JsonValueSchema.parse(JSON.parse(raw));
     } catch {
       continue;
     }

@@ -219,7 +219,9 @@ async function resolveSentRow(
 
   const bounceHits = await deps.searchMessages(profileId, bounceSearchQuery(row.recruiterEmail, row.sentAt));
   if (bounceHits.length > 0) {
-    const meta = await deps.getMessageMetadata(profileId, bounceHits[0]!.id);
+    const first = bounceHits[0];
+    if (!first) return "unchanged"; // unreachable: length > 0 was just checked
+    const meta = await deps.getMessageMetadata(profileId, first.id);
     deps.updateOutreachStatus({
       id: row.id,
       status: "bounced",

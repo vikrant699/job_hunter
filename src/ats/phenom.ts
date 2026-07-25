@@ -6,6 +6,7 @@ import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 const PAGE = 50;
 
@@ -27,10 +28,10 @@ export type PhenomJob = z.infer<typeof PhenomJobSchema>;
  * Anchored at the closing </script> so a literal `};` inside a string value
  * (e.g. a job teaser) can't truncate the blob; falls back to the lazy match. */
 export function extractPhenomDdo(html: string): unknown | null {
-  const m = html.match(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});\s*<\/script>/)
-    ?? html.match(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/);
-  if (!m) return null;
-  try { return JSON.parse(m[1]!); } catch { return null; }
+  const raw = matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});\s*<\/script>/, html)
+    ?? matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/, html);
+  if (raw === null) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }
 
 /** Canonical Phenom job page for one posting: `<origin>/<locale>/job/<jobId>`.

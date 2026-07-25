@@ -88,7 +88,7 @@ export function extractBalanced(text: string, startMarker: string, open: "[" | "
   let depth = 0;
   let quote: string | null = null; // ' " or `
   for (let i = start; i < text.length; i++) {
-    const ch = text[i]!;
+    const ch = text[i] ?? ""; // i < text.length, so always a real char in practice
     if (quote) {
       if (ch === "\\") { i++; continue; }
       if (ch === quote) quote = null;
