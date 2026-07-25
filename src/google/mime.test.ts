@@ -69,6 +69,30 @@ test("buildDraftMime: CRLF/control chars in the subject cannot inject headers", 
   assert.match(subjectLine, /attacker@evil\.com/, "payload stays inert inside the single Subject line");
 });
 
+test("buildDraftMime strips CR/LF from the To header", () => {
+  const mime = buildDraftMime({ to: "a@b.com\r\nBcc: evil@x.com", subject: "s", bodyText: "hi" });
+  // No attachment: the body is a base64 blob, so the header block (everything
+  // before the first blank line) is the right seam to inspect.
+  const headerBlock = mime.split("\r\n\r\n")[0] ?? "";
+  const headerLines = headerBlock.split("\r\n");
+  assert.ok(!headerLines.some((l) => l.startsWith("Bcc:")), "injected Bcc header must not exist as its own line");
+  assert.equal(headerLines.find((l) => l.startsWith("To:")), "To: a@b.com Bcc: evil@x.com", "payload stays inert inside the single To line");
+});
+
+test("buildDraftMime strips CR/LF and quotes from the attachment filename", () => {
+  const mime = buildDraftMime({
+    to: "a@b.com", subject: "s", bodyText: "hi",
+    attachment: { filename: 'r"\r\nX: y.pdf', mimeType: "application/pdf", content: Buffer.from("x") },
+  });
+  const lines = mime.split("\r\n");
+  assert.ok(!lines.some((l) => l.startsWith("X:")), "injected header line must not exist in the attachment part");
+  assert.equal(
+    lines.find((l) => l.startsWith("Content-Disposition:")),
+    'Content-Disposition: attachment; filename="r X: y.pdf"',
+    "CRLF collapses to a space and quotes are stripped, so the payload stays inert inside the filename attribute",
+  );
+});
+
 test("buildDraftMime: with attachment produces multipart/mixed with exactly two boundary delimiters and one closing delimiter", () => {
   const mime = buildDraftMime({
     to: "a@example.com",
