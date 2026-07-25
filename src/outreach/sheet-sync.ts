@@ -101,7 +101,7 @@ function undraftedRow(row: UndraftedRow): string[] {
  * `profileId` addresses which profile's Google credentials make the API calls
  * (Sheets access is per-profile-token), not which rows are included.
  */
-export async function projectToSheet(profileId: string, deps: SheetSyncDeps = defaultDeps(), runId?: number | null): Promise<void> {
+export async function projectToSheet(profileId: string, runId?: number | null, deps: SheetSyncDeps = defaultDeps()): Promise<void> {
   const drafts = selectOutreachByStatus("draft").map(draftRow);
   await deps.rewriteTab(profileId, config.google.tabs.drafts, [...DRAFTS_HEADER], drafts);
 
