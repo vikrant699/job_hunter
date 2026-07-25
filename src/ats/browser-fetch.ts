@@ -3,7 +3,7 @@ import type { Page } from "playwright";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import type { JsonValue } from "../util/json.js";
-const HEAVY = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
+export const HEAVY_ASSET_RE = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 
 /**
@@ -37,7 +37,7 @@ async function withBrowserPage<T>(
     });
     if (blockHeavyAssets) {
       await ctx.route("**/*", (route) =>
-        HEAVY.test(route.request().url()) ? route.abort() : route.continue());
+        HEAVY_ASSET_RE.test(route.request().url()) ? route.abort() : route.continue());
     }
     try {
       const page = await ctx.newPage();
@@ -135,8 +135,25 @@ export interface BrowserJsonStep {
 // which can destroy the execution context mid-`page.evaluate`; a
 // still-settling page can also briefly answer `fetch` with a network error.
 // Both are transient — retry with a settle wait until the churn passes.
-const TRANSIENT_EVAL_ERROR_RE = /execution context was destroyed|failed to fetch|target closed/i;
-const MAX_EVAL_ATTEMPTS = 4;
+export const TRANSIENT_EVAL_ERROR_RE = /execution context was destroyed|failed to fetch|target closed/i;
+export const MAX_EVAL_ATTEMPTS = 4;
+
+export function isTransientEvalError(err: unknown): boolean {
+  return TRANSIENT_EVAL_ERROR_RE.test(String(err));
+}
+
+/** Retry `run` on transient eval errors (settle() between attempts), up to
+ *  MAX_EVAL_ATTEMPTS total. Non-transient errors and the final attempt throw. */
+export async function runWithEvalRetry<T>(run: () => Promise<T>, settle: () => Promise<void>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (err) {
+      if (attempt >= MAX_EVAL_ATTEMPTS || !isTransientEvalError(err)) throw err;
+      await settle();
+    }
+  }
+}
 
 async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise<unknown> {
   // Stringify the body on the Node side — see the matching comment in
@@ -144,29 +161,26 @@ async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise
   // recursive Unboxed<Arg> mapped type recurse into JsonValue's own
   // recursive union, which can exceed TS's instantiation-depth limit.
   const bodyJson = step.body !== undefined ? JSON.stringify(step.body) : undefined;
-  const run = () =>
-    page.evaluate(async ({ url, method, headers, bodyJson }) => {
-      const res = await fetch(url, {
-        method: method ?? "GET",
-        headers: {
-          Accept: "application/json",
-          ...(bodyJson !== undefined ? { "Content-Type": "application/json" } : {}),
-          ...(headers ?? {}),
-        },
-        body: bodyJson,
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return await res.json();
-    }, { url: step.url, method: step.method, headers: step.headers, bodyJson });
-  for (let attempt = 1; ; attempt++) {
-    try {
-      return await run();
-    } catch (err) {
-      if (attempt >= MAX_EVAL_ATTEMPTS || !TRANSIENT_EVAL_ERROR_RE.test(String(err))) throw err;
+  return runWithEvalRetry(
+    () =>
+      page.evaluate(async ({ url, method, headers, bodyJson }) => {
+        const res = await fetch(url, {
+          method: method ?? "GET",
+          headers: {
+            Accept: "application/json",
+            ...(bodyJson !== undefined ? { "Content-Type": "application/json" } : {}),
+            ...(headers ?? {}),
+          },
+          body: bodyJson,
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return await res.json();
+      }, { url: step.url, method: step.method, headers: step.headers, bodyJson }),
+    async () => {
       await page.waitForLoadState("domcontentloaded").catch(() => { /* no pending navigation */ });
       await page.waitForTimeout(SETTLE_MS);
-    }
-  }
+    },
+  );
 }
 
 /**
