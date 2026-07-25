@@ -1,6 +1,5 @@
-import { z } from "zod";
 import type { RegistryEntry } from "../schemas.js";
-import { RegistryEntrySchema } from "../schemas.js";
+import { RegistryEntrySchema, ApiMetaSchema } from "../schemas.js";
 
 /**
  * Column contract for the Companies tab in the outreach spreadsheet. Order is
@@ -24,8 +23,6 @@ export const REGISTRY_COLUMNS = [
   "category",
   "employer_type",
 ] as const;
-
-const ApiMetaSchema = z.record(z.string());
 
 /** Serialize a registry entry to one sheet row (strings only; empty = absent). */
 export function entryToRow(entry: RegistryEntry): string[] {

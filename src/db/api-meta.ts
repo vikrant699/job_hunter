@@ -1,6 +1,4 @@
-import { z } from "zod";
-
-const ApiMetaSchema = z.record(z.string(), z.string());
+import { ApiMetaSchema } from "../schemas.js";
 
 /** Parse the api_meta JSON column into a token map, or null. */
 export function parseApiMeta(s: string | null): Record<string, string> | null {
