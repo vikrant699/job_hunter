@@ -3,6 +3,7 @@ import { logger } from "../logger.js";
 import type { FetchedHtml } from "./cheerio.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { makeSemaphore } from "../util/semaphore.js";
+import { envInt } from "../util/env.js";
 
 export interface RenderedPage extends FetchedHtml {
   /** Visible body text — captures content even when jobs render outside <a>. */
@@ -18,8 +19,8 @@ const NAV_TIMEOUT_MS = 30_000;
 // longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
 const POST_LOAD_WAIT_NETWORKIDLE_MS = 1_500;
 const POST_LOAD_WAIT_FALLBACK_MS = 6_000;
-// `|| 1` also catches NaN from a non-numeric env value; 0 would deadlock the semaphore.
-const MAX_CONCURRENT_PAGES = Math.max(1, Number(process.env.PLAYWRIGHT_MAX_PAGES ?? 5) || 1);
+// envInt refuses 0 and non-numeric values — a 0 concurrency cap would deadlock the semaphore.
+const MAX_CONCURRENT_PAGES = envInt("PLAYWRIGHT_MAX_PAGES", 5);
 
 // ---- listing expansion (infinite scroll / "Load more") ----
 const EXPAND_MAX_ROUNDS = 8;

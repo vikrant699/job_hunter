@@ -7,6 +7,7 @@
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
+import { envInt } from "./util/env.js";
 
 export const config = {
   fetch: {
@@ -36,7 +37,7 @@ export const config = {
     maxConcurrent: 1,
     /** Context window (tokens). Pair with OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0
      *  so the KV cache fits in VRAM alongside model weights. jdMaxChars is sized to this. */
-    numCtx: Number(process.env.OLLAMA_NUM_CTX ?? 9000),
+    numCtx: envInt("OLLAMA_NUM_CTX", 9000),
     // max chars of JD/text sent to the model
     jdMaxChars: 18000,
   },
