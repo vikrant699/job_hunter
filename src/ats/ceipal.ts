@@ -37,7 +37,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, atsFetchJsonMultipart } from "./http.js";
+import { atsFetchJson, atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const REFERER = "https://jobsapi.ceipal.com/";
@@ -209,14 +209,10 @@ export const ceipalAdapter: AtsAdapter = {
             from_career_portal: "1",
           },
         });
-        const parsed = PageSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "ceipal list schema mismatch");
-          throw new Error(`ceipal list failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(PageSchema, raw, { provider: "ceipal", slug: company.slug });
         return {
-          items: parsed.data.results.map((j) => normalizeCeipal(company, j)),
-          total: parsed.data.count ?? null,
+          items: parsed.results.map((j) => normalizeCeipal(company, j)),
+          total: parsed.count ?? null,
         };
       },
     });

@@ -16,11 +16,10 @@
 // the slug endpoint otherwise, so the adapter also works with apiMeta: null
 // (used by ats-validate's live probe).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const DOVER_HOST = "https://app.dover.com";
@@ -168,28 +167,24 @@ export const doverAdapter: AtsAdapter = {
       pageSize: PAGE,
       fetchPage: async (offset) => {
         const raw = await atsFetchJson(doverJobsUrl(clientId, offset), { provider: "dover" });
-        const parsed = DoverJobsPageSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "dover list schema mismatch");
-          throw new Error(`dover list failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(DoverJobsPageSchema, raw, { provider: "dover", slug: company.slug });
         // Dover shows sample/unpublished jobs to prospective employers on
         // thin boards — filter before normalizing, but advance the offset by
         // the RAW page size so filtered-out records don't skew pagination.
-        const live = parsed.data.results.filter((j) => j.is_published !== false && !j.is_sample);
+        const live = parsed.results.filter((j) => j.is_published !== false && !j.is_sample);
         return {
           items: live.map((j) => normalizeDover(company, j)),
-          total: parsed.data.count ?? null,
-          rawCount: parsed.data.results.length,
+          total: parsed.count ?? null,
+          rawCount: parsed.results.length,
         };
       },
     });
   },
 
-  async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const raw = await atsFetchJson(doverJdUrl(posting.externalId), { provider: "dover" });
-    const parsed = DoverJobDescriptionSchema.safeParse(raw);
-    if (!parsed.success) return "";
-    return extractDoverJd(parsed.data);
+    const parsed = parseOrNull(DoverJobDescriptionSchema, raw, { provider: "dover", slug: company.slug });
+    if (!parsed) return "";
+    return extractDoverJd(parsed);
   },
 };

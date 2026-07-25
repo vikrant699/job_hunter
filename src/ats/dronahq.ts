@@ -26,11 +26,10 @@
 // `per_page` (including empty) ends pagination. Never truncates — every
 // page is fetched until a short page or the runaway backstop.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const API_ORIGIN = "https://www.dronahq.com";
@@ -138,18 +137,11 @@ export const dronahqAdapter: AtsAdapter = {
       pageSize: PER_PAGE,
       fetchPage: async (_offset, page) => {
         const raw = await atsFetchJson(dronahqListUrl(page + 1), { provider: "dronahq" });
-        const parsed = DronahqListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-            "dronahq list schema mismatch",
-          );
-          throw new Error(`dronahq list response failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(DronahqListSchema, raw, { provider: "dronahq", slug: company.slug });
         return {
-          items: parsed.data.map((j) => normalizeDronahqJob(company, j)),
+          items: parsed.map((j) => normalizeDronahqJob(company, j)),
           total: null,
-          rawCount: parsed.data.length,
+          rawCount: parsed.length,
         };
       },
     });

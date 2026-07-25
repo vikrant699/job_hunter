@@ -216,7 +216,7 @@ test("listPostings returns an empty array for a tenant with zero postings", asyn
 test("listPostings throws on a malformed response (schema mismatch)", async () => {
   stubFetch(async () => new Response(JSON.stringify({ status: 400, success: 0, message: "Bot access is not allowed" }), { status: 200 }));
   try {
-    await assert.rejects(ceipalAdapter.listPostings(company), /ceipal list failed schema/);
+    await assert.rejects(ceipalAdapter.listPostings(company), /ceipal list response failed schema/);
   } finally {
     restoreFetch();
   }

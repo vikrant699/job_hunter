@@ -1,10 +1,9 @@
 // src/ats/eightfold.ts
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 
 // Eightfold public API:
@@ -52,13 +51,9 @@ export const eightfoldAdapter: AtsAdapter = {
       fetchPage: async (start) => {
         const url = `https://${host}/api/apply/v2/jobs?domain=${encodeURIComponent(domain)}&start=${start}&num=${PAGE}&sort_by=relevance`;
         const raw = await atsFetchJson(url, { provider: "eightfold" });
-        const parsed = ListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "eightfold list schema mismatch");
-          throw new Error(`eightfold list failed schema for ${company.slug}`);
-        }
-        const items = parsed.data.positions.map((p) => normalizeEightfold(company, p));
-        const total = typeof parsed.data.count === "number" ? parsed.data.count : null;
+        const parsed = parseOrThrow(ListSchema, raw, { provider: "eightfold", slug: company.slug });
+        const items = parsed.positions.map((p) => normalizeEightfold(company, p));
+        const total = typeof parsed.count === "number" ? parsed.count : null;
         return { items, total };
       },
     });
@@ -68,9 +63,9 @@ export const eightfoldAdapter: AtsAdapter = {
     const domain = domainOf(company);
     const url = `https://${host}/api/apply/v2/jobs/${encodeURIComponent(posting.externalId)}?domain=${encodeURIComponent(domain)}`;
     const raw = await atsFetchJson(url, { provider: "eightfold" });
-    const parsed = DetailSchema.safeParse(raw);
-    if (!parsed.success) return "";
-    const jd = parsed.data.positions?.[0]?.job_description ?? parsed.data.job_description ?? "";
+    const parsed = parseOrNull(DetailSchema, raw, { provider: "eightfold", slug: company.slug, what: "detail" });
+    if (!parsed) return "";
+    const jd = parsed.positions?.[0]?.job_description ?? parsed.job_description ?? "";
     return htmlToText(jd);
   },
 };

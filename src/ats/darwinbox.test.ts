@@ -129,7 +129,7 @@ test("mergeDarwinboxPages throws (not warn+truncate) on a mid-pagination schema 
   const out: NormalizedPosting[] = [{ ...normalizeDarwinbox(company, job) }];
   assert.throws(
     () => mergeDarwinboxPages(company, out, [{ status: "ok", message: { jobs: "not-an-array" } }], 5),
-    /darwinbox: page schema mismatch mid-pagination for emeritus/,
+    /darwinbox page \(fetched \d+\/\d+ so far\) response failed schema for emeritus/,
   );
   // Must not silently keep only the partial list — the throw happens before
   // any further mutation from this malformed page.
@@ -195,7 +195,7 @@ test("mergeDarwinboxV2Pages throws (not warn+truncate) on a mid-pagination schem
   const out: NormalizedPosting[] = [{ ...normalizeDarwinboxV2(v2Company, "a6914476a29263", v2Job) }];
   assert.throws(
     () => mergeDarwinboxV2Pages(v2Company, "a6914476a29263", out, [{ status: "success", data: "not-an-array" }], 5),
-    /darwinbox\(v2\): page schema mismatch mid-pagination for lg-soft-india/,
+    /darwinbox v2 page \(fetched \d+\/\d+ so far\) response failed schema for lg-soft-india/,
   );
   assert.equal(out.length, 1);
 });

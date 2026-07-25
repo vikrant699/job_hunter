@@ -14,10 +14,9 @@
 // Optional apiMeta.location narrows the Solr query to a location facet.
 // JD is inline in `description`. Paged by page until pagination.total.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
 
 const API = "https://prod-search-api.jobsyn.org/api/v1/solr/search";
@@ -101,19 +100,15 @@ export const directemployersAdapter: AtsAdapter = {
 
     for (let page = 1; page <= Math.min(totalPages, MAX_PAGES); page++) {
       const raw = await atsFetchJson(deSearchUrl(page, location), { provider: "directemployers", headers });
-      const parsed = DeResponseSchema.safeParse(raw);
-      if (!parsed.success) {
-        logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "directemployers schema mismatch");
-        throw new Error(`directemployers response failed schema for ${company.slug}`);
-      }
-      totalPages = parsed.data.pagination?.total_pages ?? page;
-      for (const j of parsed.data.jobs) {
+      const parsed = parseOrThrow(DeResponseSchema, raw, { provider: "directemployers", slug: company.slug, what: `list page ${page}` });
+      totalPages = parsed.pagination?.total_pages ?? page;
+      for (const j of parsed.jobs) {
         const p = normalizeDeJob(company, j);
         if (!p || seen.has(p.externalId)) continue;
         seen.add(p.externalId);
         out.push(p);
       }
-      if (parsed.data.jobs.length === 0) break;
+      if (parsed.jobs.length === 0) break;
       if (page < totalPages) {
         warnDeepPagination("directemployers", company.slug, page, out.length);
         await sleep(INTER_PAGE_DELAY_MS);

@@ -8,11 +8,10 @@
 // pincode sitting in `state`/`province`. We just join whichever object has
 // non-null parts rather than trying to normalize the swap.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LocationSchema = z
@@ -120,21 +119,18 @@ export const bambooHrAdapter: AtsAdapter = {
   provider: "bamboohr",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(bambooHrListUrl(company.slug), { provider: "bamboohr" });
-    const parsed = ListResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "bamboohr schema mismatch");
-      throw new Error(`bamboohr response failed schema for ${company.slug}`);
-    }
-    return parsed.data.result.map((j) => normalizeBambooHr(company, j));
+    const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "bamboohr", slug: company.slug });
+    return parsed.result.map((j) => normalizeBambooHr(company, j));
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const raw = await atsFetchJson(bambooHrDetailUrl(company.slug, posting.externalId), { provider: "bamboohr" });
-    const parsed = DetailResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, id: posting.externalId }, "bamboohr detail schema mismatch");
-      return "";
-    }
-    return htmlToText(parsed.data.result.jobOpening.description ?? "");
+    const parsed = parseOrNull(DetailResponseSchema, raw, {
+      provider: "bamboohr",
+      slug: company.slug,
+      what: `detail ${posting.externalId}`,
+    });
+    if (!parsed) return "";
+    return htmlToText(parsed.result.jobOpening.description ?? "");
   },
 };

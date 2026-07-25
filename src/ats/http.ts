@@ -53,9 +53,23 @@ export async function atsFetchJson(
 
 export interface ParseCtx { provider: string; slug: string; what?: string }
 
+// Generic parameter is the SCHEMA (`S extends z.ZodType<unknown>`), with the
+// returned value typed as `z.infer<S>` — not a bare `<T>(schema: z.ZodType<T>)`.
+// Some adapter schemas transform their input (e.g. `id: z.union([z.string(),
+// z.number()]).transform(String)`, where Output "string" ≠ Input "string |
+// number"); inferring a lone `T` against `z.ZodType<T>` (Input defaults to
+// Output) forces TS to unify T against BOTH positions and it picks the
+// pre-transform shape, breaking downstream call sites. Constraining on `S`
+// and reading `z.infer<S>` off it (an indexed-access lookup, same as z.infer
+// itself) sidesteps that and always matches the schema's true output type.
+// The explicit `<unknown>` bound (rather than a bare `z.ZodType`, which
+// defaults every parameter to `any`) is what keeps `parsed.data` below typed
+// as `unknown` instead of `any` inside this generic function body — a bare
+// bound trips `@typescript-eslint/no-unsafe-return` on the `return` below.
+
 /** safeParse + warn-log + throw, the shape ~60 adapters hand-rolled. The word
  *  "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
-export function parseOrThrow<T>(schema: z.ZodType<T>, raw: unknown, ctx: ParseCtx): T {
+export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: unknown, ctx: ParseCtx): z.infer<S> {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "list";
@@ -66,7 +80,7 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, raw: unknown, ctx: ParseCt
 }
 
 /** safeParse + warn-log + null, for detail fetches that degrade to "" instead of failing the company. */
-export function parseOrNull<T>(schema: z.ZodType<T>, raw: unknown, ctx: ParseCtx): T | null {
+export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: unknown, ctx: ParseCtx): z.infer<S> | null {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "detail";

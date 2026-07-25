@@ -10,11 +10,10 @@
 // ainterviews.com origin (the host is the same for every tenant — the tenant
 // only varies the path).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 export const AINTERVIEWS_ORIGIN = "https://ainterviews.com";
@@ -66,16 +65,9 @@ export const ainterviewsAdapter: AtsAdapter = {
     const url = ainterviewsListUrl(company.slug);
     const raw = await atsFetchJson(url, { provider: "ainterviews" });
 
-    const parsed = ListResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "ainterviews list schema mismatch",
-      );
-      throw new Error(`ainterviews list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "ainterviews", slug: company.slug });
 
-    return parsed.data.jobs.map((j) => normalizeAinterviews(company, j));
+    return parsed.jobs.map((j) => normalizeAinterviews(company, j));
   },
   // The list response carries the full description — no fetchJd needed.
 };
