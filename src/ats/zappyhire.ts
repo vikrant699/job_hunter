@@ -3,9 +3,8 @@
 // Zappyhire recruitment boards. The tenant-facing frontend host
 // (`<x>careers.zappyhire.com`) does NOT reveal the backend API host or
 // generation -- both are baked into the tenant's compiled Angular bundle at
-// build time. Capture once per tenant (see parseZappyhireBundle /
-// discoverZappyhireMeta in ats-validate.ts) and cache in
-// apiMeta = { backendHost, generation: "new"|"legacy", source? }.
+// build time (captured once per tenant from that bundle at registry-seeding
+// time) and cached in apiMeta = { backendHost, generation: "new"|"legacy", source? }.
 //
 // Two backend generations coexist:
 //
@@ -304,60 +303,3 @@ export const zappyhireAdapter: AtsAdapter = {
     return htmlToText(parsed.results.description ?? "");
   },
 };
-
-// ---------- discovery (per-tenant, one-time; drives onboarding) ----------
-//
-// The backend host + generation are baked into the compiled Angular
-// environment config at build time (a webpack/esbuild define, not a runtime
-// value), so they can't be derived from the tenant subdomain. They show up
-// verbatim in whichever JS bundle carries the environment object:
-//   new-gen:  {production:!0,BASE_URL:"https://fed.portal.zappyhire.com/",...}
-//   legacy:   {production:!0,endpoint:"https://zappyhire-esaf-be-prod.zappyhire.com/",...,source:"ESAF"}
-// `parseZappyhireBundle` is the pure regex step; `discoverZappyhireMeta` in
-// ats-validate.ts does the live fetch-and-grep across every script the
-// tenant's frontend page references (main bundle + lazy chunks -- the
-// environment object isn't always in the entry bundle).
-
-const NEW_GEN_ENV_RE = /\{production:!?[01],BASE_URL:"https?:\/\/([a-z0-9.-]+\.zappyhire\.com)\/?"[^}]*\}/;
-const LEGACY_ENV_RE =
-  /\{production:!?[01],endpoint:"https?:\/\/([a-z0-9.-]+\.zappyhire\.com)\/?"[^}]*?source:"([A-Za-z0-9_-]+)"\}/;
-
-/**
- * Extract {backendHost, generation, source} from the (concatenated) text of
- * one or more of a tenant's JS bundles. Null if neither generation's
- * environment-object signature is present.
- */
-export function parseZappyhireBundle(scriptText: string): ZappyhireMeta | null {
-  const legacy = scriptText.match(LEGACY_ENV_RE);
-  if (legacy) {
-    const [, host, source] = legacy;
-    if (host !== undefined && source !== undefined) {
-      return { backendHost: host, generation: "legacy", source };
-    }
-  }
-  const newGen = scriptText.match(NEW_GEN_ENV_RE);
-  if (newGen) {
-    const host = newGen[1];
-    if (host !== undefined) return { backendHost: host, generation: "new", source: null };
-  }
-  return null;
-}
-
-/** Every same-origin-resolvable `<script src>` / `<link href>` `.js` reference in an HTML page. */
-export function extractScriptUrls(html: string, baseUrl: string): string[] {
-  const urls = new Set<string>();
-  const patterns = [/<script[^>]*\ssrc="([^"]+\.js)"/gi, /<link[^>]*\shref="([^"]+\.js)"/gi];
-  for (const re of patterns) {
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null) {
-      const src = m[1];
-      if (src === undefined) continue;
-      try {
-        urls.add(new URL(src, baseUrl).toString());
-      } catch {
-        /* malformed src -- skip */
-      }
-    }
-  }
-  return [...urls];
-}

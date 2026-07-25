@@ -70,9 +70,6 @@ export function ripplingDetailUrl(companySlug: string, uuid: string): string {
 export function normalizeRipplingJob(company: AdapterCompany, j: RipplingJob): NormalizedPosting {
   const location = j.workLocation?.label ?? null;
   return {
-    // "rippling" is not yet a member of schemas.ts's ProviderSchema — the
-    // human wires that in separately. Left as a plain literal (no cast) so
-    // tsc flags it until then, per repo type-hygiene (no any/unknown/casts).
     provider: "rippling",
     externalId: j.uuid,
     companySlug: company.slug,

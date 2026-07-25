@@ -75,9 +75,14 @@ export function eightfoldPcsDetailsUrl(company: AdapterCompany, positionId: stri
   return `${host}/api/pcsx/position_details?position_id=${encodeURIComponent(positionId)}&domain=${encodeURIComponent(domain)}&hl=en`;
 }
 
-/** Unwrap the `data.{positions,count}` envelope. */
-export function eightfoldPcsPageJobs(pageJson: unknown): { positions: EightfoldPcsPosition[]; count: number | null } {
-  const parsed = SearchResponseSchema.parse(pageJson);
+/** Unwrap the `data.{positions,count}` envelope. `slug` defaults to the
+ *  provider name for callers (tests) with no company context; the adapter
+ *  itself passes the real company slug. */
+export function eightfoldPcsPageJobs(
+  pageJson: unknown,
+  slug = "eightfoldpcs",
+): { positions: EightfoldPcsPosition[]; count: number | null } {
+  const parsed = parseOrThrow(SearchResponseSchema, pageJson, { provider: "eightfoldpcs", slug });
   return { positions: parsed.data.positions, count: parsed.data.count ?? null };
 }
 
@@ -109,11 +114,10 @@ export const eightfoldPcsAdapter: AtsAdapter = {
           provider: "eightfoldpcs",
           userAgent: BROWSER_UA,
         });
-        const parsed = parseOrThrow(SearchResponseSchema, raw, { provider: "eightfoldpcs", slug: company.slug });
-        const { positions, count } = parsed.data;
+        const { positions, count } = eightfoldPcsPageJobs(raw, company.slug);
         return {
           items: positions.map((p) => normalizeEightfoldPcs(company, p)),
-          total: count ?? null,
+          total: count,
           rawCount: positions.length,
         };
       },

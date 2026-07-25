@@ -6,8 +6,6 @@ import {
   normalizeZappyhireLegacy,
   normalizeZappyhireMt,
   parseZappyhireDate,
-  parseZappyhireBundle,
-  extractScriptUrls,
   zappyhireAdapter,
 } from "./zappyhire.js";
 import type { NewGenJob, LegacyJobSummary, MtSource } from "./zappyhire.js";
@@ -272,47 +270,4 @@ test("listPostings throws a clear error when apiMeta.generation is missing or in
 test("listPostings (legacy) throws when apiMeta.source is missing", async () => {
   const c: AdapterCompany = { ...legacyCompany, apiMeta: { backendHost: "zappyhire-esaf-be-prod.zappyhire.com", generation: "legacy" } };
   await assert.rejects(zappyhireAdapter.listPostings(c), /apiMeta\.source/);
-});
-
-// ---------- per-tenant bundle discovery (parseZappyhireBundle / extractScriptUrls) ----------
-
-test("parseZappyhireBundle detects the new-gen environment object (BASE_URL)", () => {
-  const bundleText = 'var Xa={production:!0,BASE_URL:"https://fed.portal.zappyhire.com/",PORTAL_URL:"https://talentconnect.zappyhire.com/"};';
-  assert.deepEqual(parseZappyhireBundle(bundleText), { backendHost: "fed.portal.zappyhire.com", generation: "new", source: null });
-});
-
-test("parseZappyhireBundle detects the legacy environment object (endpoint + source), ignoring chatEndPoint and unrelated source: literals", () => {
-  const bundleText =
-    'source:"imperative";' + // decoy from an unrelated Angular router literal
-    '{production:!0,endpoint:"https://zappyhire-esaf-be-prod.zappyhire.com/",' +
-    'chatEndPoint:"https://zappyhire-esaf-be-prod.zappyhire.com/",' +
-    'chatUrl:"https://zappyhire-chatbot-fe-prod.zappyhire.com/",source:"ESAF"}';
-  assert.deepEqual(parseZappyhireBundle(bundleText), {
-    backendHost: "zappyhire-esaf-be-prod.zappyhire.com",
-    generation: "legacy",
-    source: "ESAF",
-  });
-});
-
-test("parseZappyhireBundle returns null when neither environment signature is present", () => {
-  assert.equal(parseZappyhireBundle("function foo(){return 1}"), null);
-});
-
-test("extractScriptUrls resolves script src and modulepreload link href against the page URL, dedups", () => {
-  const html = `
-    <link rel="modulepreload" href="chunk-Z77EVITP.js">
-    <link rel="modulepreload" href="chunk-Z77EVITP.js">
-    <script src="polyfills-FFHMD2TL.js" type="module"></script>
-    <script src="main-K6IIGMC7.js" type="module"></script>
-    <link rel="stylesheet" href="styles-UHGTUYPQ.css">
-  `;
-  const urls = extractScriptUrls(html, "https://federalbankcareers.zappyhire.com/");
-  assert.deepEqual(
-    new Set(urls),
-    new Set([
-      "https://federalbankcareers.zappyhire.com/chunk-Z77EVITP.js",
-      "https://federalbankcareers.zappyhire.com/polyfills-FFHMD2TL.js",
-      "https://federalbankcareers.zappyhire.com/main-K6IIGMC7.js",
-    ]),
-  );
 });

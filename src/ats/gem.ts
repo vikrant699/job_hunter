@@ -65,7 +65,6 @@ export const GemLocationSchema = z.object({
   isoCountry: z.string().nullable().optional(),
   isRemote: z.boolean().nullable().optional(),
 });
-export type GemLocation = z.infer<typeof GemLocationSchema>;
 
 const GemJobMetaSchema = z.object({
   id: z.union([z.string(), z.number()]),
