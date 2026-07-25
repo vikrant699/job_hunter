@@ -26,8 +26,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { withBrowserPage } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 
@@ -128,23 +127,9 @@ export const reliancebrandsAdapter: AtsAdapter = {
     const country = company.apiMeta?.country ?? "IN";
     const subtenant = company.apiMeta?.subtenant ?? null;
 
-    const release = await acquirePageSlot();
-    try {
-      const browser = await getBrowser();
-      const ctx = await browser.newContext({
-        userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-        locale: "en-US", timezoneId: "Asia/Kolkata",
-      });
-      try {
-        const page = await ctx.newPage();
-        page.setDefaultNavigationTimeout(45_000);
-        try {
-          await page.goto(WARM_URL, { waitUntil: "domcontentloaded" });
-        } catch {
-          /* WAF interstitial — the in-page POST below still runs in-origin */
-        }
-        await page.waitForTimeout(5000);
-
+    return withBrowserPage(
+      WARM_URL,
+      async (page) => {
         const out: NormalizedPosting[] = [];
         const seen = new Set<string>();
         for (let pageno = 0; pageno < MAX_PAGES; pageno++) {
@@ -167,11 +152,10 @@ export const reliancebrandsAdapter: AtsAdapter = {
           if (res.result.length < PAGE_SIZE || out.length === before) break;
         }
         return out;
-      } finally {
-        await ctx.close();
-      }
-    } finally {
-      release();
-    }
+      },
+      // WAF interstitial on goto is swallowed (default) — the in-page POST
+      // below still runs in-origin even if the initial nav "failed".
+      { navTimeoutMs: 45_000, blockHeavyAssets: false },
+    );
   },
 };

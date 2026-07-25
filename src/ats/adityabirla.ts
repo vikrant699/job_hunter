@@ -43,7 +43,7 @@ import { htmlToText } from "./html-text.js";
 import { atsHttpError, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
-import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
+import { withBrowserPage } from "./browser-fetch.js";
 import { config } from "../config.js";
 
 const TENANT_ORIGIN = "https://careers.adityabirla.com";
@@ -90,45 +90,36 @@ let cachedToken: { value: string; fetchedAt: number } | null = null;
  * separately-derived secret.
  */
 async function captureAuthToken(): Promise<string> {
-  const release = await acquirePageSlot();
-  try {
-    const browser = await getBrowser();
-    const ctx = await browser.newContext({
-      userAgent: BROWSER_UA,
-      viewport: { width: 1280, height: 800 },
-      locale: "en-US",
-      timezoneId: "Asia/Kolkata",
-    });
-    try {
-      const page = await ctx.newPage();
-      page.setDefaultNavigationTimeout(30_000);
-      // Boxed in an object: a bare `let token` mutated only inside this closure
-      // defeats TS's narrowing (it can't see the reassignment from the outer
-      // scope and treats `token` as permanently `null`); a property write is
-      // narrowed correctly at each read below.
-      const captured: { token: string | null } = { token: null };
-      const onRequest = (req: PlaywrightRequest): void => {
-        if (captured.token) return;
-        if (!req.url().includes(JOBS_API_PATH) && !req.url().includes("/api/v3/organisations")) return;
-        const auth = req.headers()["authorization"];
-        if (auth && auth.startsWith("Bearer ")) captured.token = auth.slice("Bearer ".length);
-      };
-      page.on("request", onRequest);
-      try {
-        await page.goto(JOB_SEARCH_URL, { waitUntil: "networkidle" });
-      } catch {
-        /* WAF interstitial or slow settle — token may still arrive below */
-      }
+  // Boxed in an object: a bare `let token` mutated only inside the
+  // `beforeGoto`-registered listener closure defeats TS's narrowing (it
+  // can't see the reassignment from the outer scope and treats `token` as
+  // permanently `null`); a property write is narrowed correctly at each
+  // read below.
+  const captured: { token: string | null } = { token: null };
+  let onRequest: ((req: PlaywrightRequest) => void) | null = null;
+  return withBrowserPage(
+    JOB_SEARCH_URL,
+    async (page) => {
       for (let i = 0; i < 10 && !captured.token; i++) await page.waitForTimeout(500);
-      page.off("request", onRequest);
+      if (onRequest) page.off("request", onRequest);
       if (!captured.token) throw new Error("adityabirla: could not capture bearer token from /job-search");
       return captured.token;
-    } finally {
-      await ctx.close();
-    }
-  } finally {
-    release();
-  }
+    },
+    {
+      blockHeavyAssets: false,
+      waitUntil: "networkidle", // WAF interstitial or slow settle is swallowed (default); token may still arrive below
+      settleMs: 0, // the poll loop above replaces the fixed settle wait
+      beforeGoto: (page) => {
+        onRequest = (req: PlaywrightRequest): void => {
+          if (captured.token) return;
+          if (!req.url().includes(JOBS_API_PATH) && !req.url().includes("/api/v3/organisations")) return;
+          const auth = req.headers()["authorization"];
+          if (auth && auth.startsWith("Bearer ")) captured.token = auth.slice("Bearer ".length);
+        };
+        page.on("request", onRequest);
+      },
+    },
+  );
 }
 
 async function getAuthToken(forceRefresh: boolean): Promise<string> {

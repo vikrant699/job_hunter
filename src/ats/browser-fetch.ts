@@ -1,5 +1,5 @@
 // src/ats/browser-fetch.ts
-import type { Page } from "playwright";
+import type { Page, Request } from "playwright";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import type { JsonValue } from "../util/json.js";
@@ -9,7 +9,10 @@ const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 /**
  * Load `pageUrl` in a real browser (clears Cloudflare/WAF + sets the
  * session), hand the live `Page` to `run`, then always close the context.
- * Shared plumbing behind `browserFetchJson` and `browserFetchJsonSteps`.
+ * Shared plumbing behind `browserFetchJson`, `browserFetchJsonSteps`, and the
+ * browser-backed adapters (metacareers/adityabirla/bmw/ubs/reliancebrands/
+ * ralphlauren) that need the same acquire-slot/context/route/goto/close shape
+ * around a page they drive themselves.
  *
  * `blockHeavyAssets` (default true) aborts images/fonts/video/css to save
  * bandwidth. Some tenant apps (TurboHire's Ola careerpage, confirmed live)
@@ -20,10 +23,36 @@ const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
  * a one-shot token/API handshake, not a full scrape, so the extra bytes are
  * cheap.
  */
-async function withBrowserPage<T>(
+export async function withBrowserPage<T>(
   pageUrl: string,
   run: (page: Page) => Promise<T>,
-  opts: { blockHeavyAssets?: boolean; navTimeoutMs?: number; beforeGoto?: (page: Page) => void } = {},
+  opts: {
+    blockHeavyAssets?: boolean;
+    navTimeoutMs?: number;
+    /** Wait after `goto` (successful or swallowed) before invoking `run`.
+     *  Default 5000ms — lets a Cloudflare/WAF challenge clear + session
+     *  cookie set. Callers that do their own settle/poll inside `run` (e.g.
+     *  a request-capture poll loop with its own early-exit) pass 0 so the
+     *  two waits don't stack. */
+    settleMs?: number;
+    /** Navigation wait condition passed to `page.goto` (default
+     *  "domcontentloaded"). Some tenant apps only fire the request/response
+     *  this helper's caller wants to observe once background XHRs quiesce,
+     *  which needs "networkidle" instead. */
+    waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
+    /** Run right before `goto`, e.g. to register a `page.on("request"/
+     *  "response")` listener that must be attached before navigation fires
+     *  the requests it wants to observe (mirrors `browserCaptureText`'s own
+     *  response-URL capture). */
+    beforeGoto?: (page: Page) => void;
+    /** When true, a `goto` failure propagates instead of being swallowed as
+     *  a presumed WAF/CF interstitial. Default false matches every existing
+     *  caller (browserFetchJson/browserFetchJsonRequests/
+     *  browserFetchJsonSteps/browserCaptureText and most adapter call
+     *  sites), which treat a goto throw as "interstitial, keep going" and
+     *  let the settle wait give it time to clear. */
+    rethrowGotoErrors?: boolean;
+  } = {},
 ): Promise<T> {
   const blockHeavyAssets = opts.blockHeavyAssets ?? true;
   // Outer try guarantees the page slot is released even if getBrowser /
@@ -43,8 +72,13 @@ async function withBrowserPage<T>(
       const page = await ctx.newPage();
       page.setDefaultNavigationTimeout(opts.navTimeoutMs ?? 30_000);
       opts.beforeGoto?.(page);
-      try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
-      await page.waitForTimeout(SETTLE_MS);
+      try {
+        await page.goto(pageUrl, { waitUntil: opts.waitUntil ?? "domcontentloaded" });
+      } catch (err) {
+        if (opts.rethrowGotoErrors) throw err;
+        /* CF interstitial */
+      }
+      await page.waitForTimeout(opts.settleMs ?? SETTLE_MS);
       return await run(page);
     } finally {
       await ctx.close();
@@ -52,6 +86,34 @@ async function withBrowserPage<T>(
   } finally {
     release();
   }
+}
+
+/**
+ * Resolve with the first in-flight request whose URL matches `urlRe`, or
+ * `null` after `timeoutMs`. Register this BEFORE `goto` (e.g. from
+ * `withBrowserPage`'s `beforeGoto`) — the request it's watching for is
+ * typically fired by the page's own JS during/soon after initial load, so a
+ * listener attached after navigation starts can miss it. The listener and
+ * timer are always torn down on resolution (whichever comes first), so
+ * nothing is left dangling.
+ */
+export function captureFirstRequest(page: Page, urlRe: RegExp, timeoutMs: number): Promise<string | null> {
+  return new Promise((resolve) => {
+    const onRequest = (req: Request): void => {
+      if (!urlRe.test(req.url())) return;
+      cleanup();
+      resolve(req.url());
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, timeoutMs);
+    function cleanup(): void {
+      page.off("request", onRequest);
+      clearTimeout(timer);
+    }
+    page.on("request", onRequest);
+  });
 }
 
 /**

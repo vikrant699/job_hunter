@@ -31,6 +31,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
+import { withBrowserPage, HEAVY_ASSET_RE } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 import { parseOrThrow } from "./http.js";
@@ -41,7 +42,6 @@ const LOCATION_QUERY_NAME = "CareersJobSearchLocationFilterV3Query";
 const RESULTS_QUERY_NAME = "CareersJobSearchResultsV2DataQuery";
 const NAV_TIMEOUT_MS = 30_000;
 const SETTLE_MS = 4_000; // let the page's own queries land after networkidle
-const HEAVY = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 
 /** Some FB GraphQL endpoints prefix the JSON body with this to block naive
  *  `<script>` inclusion. Not observed live for this endpoint, but stripped
@@ -173,7 +173,7 @@ export async function fetchIndiaJobs(): Promise<MetaJob[]> {
       timezoneId: "Asia/Kolkata",
     });
     await ctx.route("**/*", (route) =>
-      HEAVY.test(route.request().url()) ? route.abort() : route.continue());
+      HEAVY_ASSET_RE.test(route.request().url()) ? route.abort() : route.continue());
     try {
       const page = await ctx.newPage();
       page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
@@ -331,29 +331,17 @@ export const metacareersAdapter: AtsAdapter = {
     return jobs.map((j) => normalizeMetaJob(company, j));
   },
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const release = await acquirePageSlot();
-    try {
-      const browser = await getBrowser();
-      const ctx = await browser.newContext({
-        userAgent: BROWSER_UA,
-        viewport: { width: 1280, height: 800 },
-        locale: "en-US",
-        timezoneId: "Asia/Kolkata",
-      });
-      await ctx.route("**/*", (route) =>
-        HEAVY.test(route.request().url()) ? route.abort() : route.continue());
-      try {
-        const page = await ctx.newPage();
-        page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
-        const url = `${JOBS_URL}${encodeURIComponent(posting.externalId)}/`;
-        await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT_MS });
+    const url = `${JOBS_URL}${encodeURIComponent(posting.externalId)}/`;
+    return withBrowserPage(
+      url,
+      async (page) => {
         const html = await page.content();
         return extractMetaJd(html);
-      } finally {
-        await ctx.close();
-      }
-    } finally {
-      release();
-    }
+      },
+      // Unlike fetchIndiaJobs (below), this route has no observed CF
+      // interstitial: the original had no goto catch and no post-goto
+      // settle, so both are preserved exactly (rethrow + settleMs: 0).
+      { settleMs: 0, rethrowGotoErrors: true },
+    );
   },
 };

@@ -24,9 +24,7 @@ import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { browserFetchJson } from "./browser-fetch.js";
-import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { browserFetchJson, withBrowserPage } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
@@ -143,19 +141,9 @@ export const ralphlaurenAdapter: AtsAdapter = {
     // we navigate in the browser and read the rendered DOM. The JD lives in the
     // `article--details` blocks (metadata + company/overview/duties/experience);
     // the action/share/notification articles are skipped.
-    const release = await acquirePageSlot();
-    try {
-      const browser = await getBrowser();
-      const ctx = await browser.newContext({
-        userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-        locale: "en-US", timezoneId: "Asia/Kolkata",
-      });
-      try {
-        const page = await ctx.newPage();
-        page.setDefaultNavigationTimeout(45_000);
-        try {
-          await page.goto(posting.jobUrl, { waitUntil: "domcontentloaded" });
-        } catch { /* CF interstitial — the wait below still resolves once hydrated */ }
+    return withBrowserPage(
+      posting.jobUrl,
+      async (page) => {
         try {
           await page.waitForSelector("article.article--details", { timeout: 20_000 });
         } catch { /* fall through: parse whatever rendered */ }
@@ -174,11 +162,10 @@ export const ralphlaurenAdapter: AtsAdapter = {
           .map((s) => s.trim())
           .filter(Boolean);
         return parts.join("\n\n");
-      } finally {
-        await ctx.close();
-      }
-    } finally {
-      release();
-    }
+      },
+      // No settle wait between goto and the selector-wait below (matches the
+      // original, which went straight from goto into waitForSelector).
+      { navTimeoutMs: 45_000, settleMs: 0, blockHeavyAssets: false },
+    );
   },
 };

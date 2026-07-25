@@ -31,8 +31,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { withBrowserPage } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 
@@ -129,22 +128,9 @@ export const ubsAdapter: AtsAdapter = {
     const siteId = new URL(homeUrl).searchParams.get("siteid") ?? "";
     const location = company.apiMeta?.location ?? DEFAULT_LOCATION;
 
-    const release = await acquirePageSlot();
-    try {
-      const browser = await getBrowser();
-      const ctx = await browser.newContext({
-        userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-        locale: "en-US", timezoneId: "Asia/Kolkata",
-      });
-      try {
-        const page = await ctx.newPage();
-        page.setDefaultNavigationTimeout(NAV_TIMEOUT);
-        try {
-          await page.goto(homeUrl, { waitUntil: "networkidle" });
-        } catch {
-          /* WAF/consent settle — UI is still driveable below */
-        }
-        await page.waitForTimeout(3000);
+    return withBrowserPage(
+      homeUrl,
+      async (page) => {
         await dismissConsent(page);
         await page.waitForTimeout(500);
 
@@ -166,11 +152,10 @@ export const ubsAdapter: AtsAdapter = {
         const truncated = ubsTruncationWarning(postings.length, ubsReportedJobsCount(payload));
         if (truncated) logger.warn({ slug: company.slug }, truncated);
         return postings;
-      } finally {
-        await ctx.close();
-      }
-    } finally {
-      release();
-    }
+      },
+      // WAF/consent settle on goto is swallowed (default); the 3000ms settle
+      // (matching the original inline wait) runs before the UI-driving above.
+      { navTimeoutMs: NAV_TIMEOUT, waitUntil: "networkidle", settleMs: 3000, blockHeavyAssets: false },
+    );
   },
 };

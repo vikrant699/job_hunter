@@ -25,8 +25,7 @@ import type { Page } from "playwright";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { withBrowserPage, captureFirstRequest } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 
@@ -112,38 +111,22 @@ export const bmwAdapter: AtsAdapter = {
     const pageUrl = company.tenantUrl ?? company.careersUrl;
     const origin = new URL(pageUrl).origin;
 
-    const release = await acquirePageSlot();
-    try {
-      const browser = await getBrowser();
-      const ctx = await browser.newContext({
-        userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-        locale: "en-US", timezoneId: "Asia/Kolkata",
-      });
-      try {
-        const page = await ctx.newPage();
-        page.setDefaultNavigationTimeout(45_000);
+    // Capture the exact jobfinder fragment URL the page's own JS requests
+    // (carries the container id + India filter); blockCount comes from it.
+    // Registered from `beforeGoto` (before navigation) since the request can
+    // fire during the initial load — a listener attached after `goto` could
+    // miss it. Placeholder is overwritten synchronously by `beforeGoto`
+    // before `run` ever reads it.
+    let fragUrlPromise: Promise<string | null> = Promise.resolve(null);
 
-        // Capture the exact jobfinder fragment URL the page's own JS requests
-        // (carries the container id + India filter). blockCount comes from it.
-        // Boxed in an object: a bare `let fragUrl` mutated only inside this
-        // request-listener closure defeats TS's narrowing (it can't see the
-        // reassignment from the outer scope and treats it as permanently
-        // `null`); a property write is narrowed correctly at each read below.
-        const captured: { fragUrl: string | null } = { fragUrl: null };
-        page.on("request", (req) => {
-          if (!captured.fragUrl && FRAG_RE.test(req.url())) captured.fragUrl = req.url();
-        });
-        try {
-          await page.goto(pageUrl, { waitUntil: "networkidle" });
-        } catch {
-          /* Akamai interstitial / slow settle — the fragment may still fire */
-        }
-        for (let i = 0; i < 12 && !captured.fragUrl; i++) await page.waitForTimeout(500);
-        if (!captured.fragUrl) {
+    return withBrowserPage(
+      pageUrl,
+      async (page) => {
+        const fragUrl = await fragUrlPromise;
+        if (!fragUrl) {
           logger.warn({ slug: company.slug }, "bmw: no jobfinder fragment request observed");
           return [];
         }
-        const fragUrl = captured.fragUrl;
 
         const blockCount = Number(new URL(fragUrl).searchParams.get("blockCount") ?? "5") || 5;
 
@@ -192,11 +175,20 @@ export const bmwAdapter: AtsAdapter = {
           });
         }
         return out;
-      } finally {
-        await ctx.close();
-      }
-    } finally {
-      release();
-    }
+      },
+      {
+        navTimeoutMs: 45_000,
+        waitUntil: "networkidle", // Akamai interstitial / slow settle is swallowed (default); the fragment may still fire
+        settleMs: 0, // captureFirstRequest's own timeout below replaces the fixed settle wait
+        blockHeavyAssets: false,
+        // Original budget was "up to navTimeoutMs inside goto (interstitial/slow
+        // networkidle), THEN up to 6000ms more of polling" — i.e. ~51s worst
+        // case measured from listener-registration. captureFirstRequest's
+        // timer starts at that same instant (beforeGoto runs pre-goto), so it
+        // must cover the full 45_000 + 6_000 to not cut the window short while
+        // goto itself is still settling.
+        beforeGoto: (page) => { fragUrlPromise = captureFirstRequest(page, FRAG_RE, 51_000); },
+      },
+    );
   },
 };
