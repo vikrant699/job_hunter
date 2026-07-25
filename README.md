@@ -66,20 +66,27 @@ gitignored, so they stay on your machine.
 
 **Multiple profiles.** To run more than one search (e.g. two people, or two role
 families), put each under `config/profiles/<name>/profile.ts` with its own `resume.pdf`,
-and run `npm run once -- --profile <name>`. Each profile can set its own relevance-gate
-prompt (`gatePrompt`) and outreach identity; postings and runs are stamped
-per profile in the DB. Without `--profile`, the bot uses `config/profile.ts` (the
-"default" profile). The whole `config/profiles/` tree is gitignored.
+and run `npm run once -- --profile <name>`. Setting the `PROFILE` env var instead of
+passing `--profile <name>` selects the same way. Each profile can set its own
+relevance-gate prompt (`gatePrompt`) and outreach identity; postings and runs are
+stamped per profile in the DB. Without `--profile` or `PROFILE`, the bot uses
+`config/profile.ts` (the "default" profile). The whole `config/profiles/` tree is
+gitignored.
 
 ## Commands
 
 | | |
 |---|---|
 | `npm run once` | The main thing. One full sweep: fetch postings, filter, score, record matches to the Google Sheet, draft outreach emails, and post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. |
+| `npm test` | Runs the test suite (`node:test`). |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
+| `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account; writes `data/google-token-<name>.json`. |
+| `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates the bot's tabs and seeds Raw Data/Companies from local files when present. |
+| `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass over one profile's mailbox, then re-projects the sheet (this also runs automatically inside `npm run once`). |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
-| `npm run verify` | Checks every entry in your registry is still reachable. Pass `--suggest` to re-probe failed entries against other ATSes. |
+| `npm run verify` | Checks every entry in your registry is still reachable (verifies against the local registry cache snapshot, so run it after at least one successful sync). Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
+| `npm run health` | Read-only registry health report: status/strategy/provider yield tallies from the local DB and cache. |
 | `npm run eval` | Replays a labelled eval dataset through the gate and prints accuracy stats. |
 | `npm run lint` | `eslint .` |
 | `npm run typecheck` | `tsc --noEmit`. |
@@ -129,7 +136,8 @@ tailing logs.
 
 The company registry is the Companies tab of your outreach Google Sheet. It is the one
 source of truth; the bot syncs it into the SQLite `companies` table on each run, and
-writes updates back to it (URL repairs, strategy flips). `data/registry-cache.json` is a bot-maintained
+writes one kind of update back to it (the SPA sentinel's llm-scrape to
+playwright-llm-scrape strategy flip). `data/registry-cache.json` is a bot-maintained
 local snapshot of the tab, used only as an offline fallback when the sheet is
 unreachable - it is not itself a source of truth, and it is not git-tracked. An ATS
 entry's columns look like (see `src/registry/sheet-codec.ts` for the exact column order):
@@ -176,19 +184,32 @@ scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
                            scrape-probe
 src/
   ats/                   one file per ATS provider; registry.ts maps provider names
-                           to adapters; workday-facet.ts for faceted Workday search
-  db/                    per-table modules (companies, postings, runs, quota, ...)
-                           behind a barrel index.ts
-  discovery/             ats-patterns + ats-validate (ATS detection + capabilities);
-                           registry-writer.ts writes updates to the Companies tab; ats.ts; host-match.ts
+                           to adapters; detect.ts holds the ATS-redirect detection
+                           patterns llm-scrape uses; workday-facet.ts for faceted
+                           Workday search
+  db/                    per-table modules (companies, postings, runs, recruiters,
+                           outreach, link-cache, api-meta) behind a barrel index.ts
   filter/                location / title / denylist / verdict
+  google/                auth.ts (per-profile OAuth token refresh), rest.ts
+                           (authorized fetch + retry), sheets.ts, gmail.ts, mime.ts
+                           (RFC 5322 draft builder)
   llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
   discord/               webhook helper + progress heartbeat + end-of-run status embed
+  outreach/              contact sync from the sheet (contacts.ts), the company/contact
+                           matcher (match.ts), the email template (template.ts), the
+                           post-run Gmail draft stage (run.ts), the bounce-only verify
+                           pass (verify.ts), and the DB -> sheet projection (sheet-sync.ts)
   registry/              sheet-registry.ts syncs the Companies tab (with a
                            registry-cache.json fallback) into the companies table;
-                           sheet-codec.ts converts between tab rows and RegistryEntry
+                           sheet-codec.ts converts between tab rows and RegistryEntry;
+                           sheet-writer.ts is the write path back to the tab (the SPA
+                           sentinel's strategy flip, and appendToRegistry for
+                           registry-maintenance sessions)
   scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
-  util/                  shared helpers: semaphore, user-agent, slug, json, registry-file
+  blast/                 TEMPORARY weekly cold-email drafter over the Raw Data tab;
+                           see AGENTS.md for details and its deletion checklist
+  util/                  shared helpers: semaphore, sleep, user-agent, slug, json,
+                           csv, probe, fs, regex, env, registry-file
   tools/
     extract-resume.ts    PDF-to-text extraction (run via npm run extract-resume)
   pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts
@@ -211,18 +232,20 @@ simplest existing example. The contract:
   not include the JD body. The pipeline only calls it for postings that survived the
   location filter and dedup, so you only pay the HTTP cost for postings you would keep.
 
-After writing the adapter, wire it into the four places the pipeline looks:
+After writing the adapter, wire it into two places (plus one optional step):
 
 1. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` - the
    `Provider` type is inferred from it, so that one edit covers both the type and the
    runtime validation the registry loader runs.
-2. Register the adapter in `src/ats/registry.ts` under `ATS_ADAPTERS`.
-3. Add it to the `AtsProvider` union and `CAPABILITIES` map in
-   `src/discovery/ats-patterns.ts` (`hasAdapter: true`; set `canValidate: true` and a
-   host `PATTERN` regex only if the provider has a derivable host signature, otherwise
-   `canValidate: false` with no pattern).
-4. If `canValidate: true`, add a `case` in `src/discovery/ats-validate.ts` that calls
-   `listPostings`.
+2. Register the adapter in `src/ats/registry.ts` under `ATS_ADAPTERS`. This map is
+   checked against the enum at compile time (`satisfies Record<Exclude<Provider,
+   "custom">, AtsAdapter>`), so a forgotten registration is a `tsc` error instead of a
+   company that silently never gets scanned; `src/ats/registry.test.ts` also pins the
+   enum/map completeness.
+3. Optional: if the vendor has a shared host signature (e.g. tenants live under
+   `*.vendor.com`), add a `PatternDef` to `src/ats/detect.ts` so the ATS-redirect
+   detector that llm-scrape uses can recognize boards that link out to it. Skip this
+   for single-company or custom-domain vendors.
 
 Most adapters hit a public JSON or server-rendered HTML endpoint and need nothing more.
 Some sit behind a WAF or an anti-bot host and are browser-backed via
@@ -231,7 +254,7 @@ a few decrypt an obfuscated payload or lift a token from the page bundle. Reuse 
 shared helpers (`atsFetchJson`/`atsFetchText` in `http.ts`, `paginate`/`REMOTE_RE` in
 `shared.ts`, `htmlToText`) rather than re-rolling them.
 
-There are ~70 providers today, spanning the big ATSes (greenhouse, lever, ashby,
+There are just over 100 providers today, spanning the big ATSes (greenhouse, lever, ashby,
 workday, smartrecruiters, oracle, successfactors, darwinbox, phenom, avature, jibe,
 eightfold, ...), India-centric vendors (keka, peoplestrong, ripplehire, turbohire,
 zwayam, sensehq, mynexthire, freshteam, zohorecruit, ...), SMB boards (teamtailor,
@@ -251,7 +274,7 @@ Ollama instances behind a load balancer, raise `llm.maxConcurrent` in `src/confi
 If a careers page is bot-blocked (Cloudflare, Akamai, and the like), the bot does not
 work around it; there is no headless-evasion code. The `manual` parsing strategy exists
 for these. Entries marked manual stay in your registry but are never fetched, and they
-surface as company rows in the daily `searched` CSV for hand-review.
+show up in the registry health report (`npm run health`) for hand-review.
 
 ## License
 
