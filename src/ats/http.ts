@@ -1,5 +1,6 @@
 // src/ats/http.ts
 import { config } from "../config.js";
+import type { JsonValue } from "../util/json.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
@@ -33,7 +34,7 @@ async function fetchOk(url: string, init: RequestInit, provider: string): Promis
  */
 export async function atsFetchJson(
   url: string,
-  opts: { method?: "GET" | "POST"; body?: unknown; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
+  opts: { method?: "GET" | "POST"; body?: JsonValue; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
   return withAtsTimeout<unknown>(async (signal) => {

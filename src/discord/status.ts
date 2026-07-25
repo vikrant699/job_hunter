@@ -58,12 +58,15 @@ export function buildIssueList(
   return out;
 }
 
-interface StatusEmbedField { name: string; value: string; inline: boolean }
-export interface StatusEmbed {
+// Type aliases (not interfaces): postWebhookJson's JsonValue parameter needs
+// the implicit index signature TS infers for object type literals, which
+// interfaces don't get.
+type StatusEmbedField = { name: string; value: string; inline: boolean };
+export type StatusEmbed = {
   title: string;
   color: number;
   fields: StatusEmbedField[];
-}
+};
 
 function spreadsheetUrl(): string {
   return `https://docs.google.com/spreadsheets/d/${config.google.spreadsheetId}`;

@@ -29,6 +29,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
+import type { JsonValue } from "../util/json.js";
 
 const ORIGIN = "https://jobs.apple.com";
 const PAGE = 20;
@@ -69,7 +70,7 @@ const AppleJobDetailsResponseSchema = z.object({
 
 /** Build the exact body Apple's SPA sends once its location filter is set to
  *  the India facet — every key here is required (see module header). */
-export function appleSearchBody(page: number): unknown {
+export function appleSearchBody(page: number): JsonValue {
   return {
     query: "",
     filters: { locations: [INDIA_LOCATION_FACET] },

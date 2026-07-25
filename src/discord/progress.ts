@@ -32,13 +32,16 @@ export function buildBreakdown(bp: ReadonlyMap<string, { total: number; scanned:
   return parts.join(" · ") || "—";
 }
 
-interface ProgressEmbedField { name: string; value: string; inline: boolean }
-export interface ProgressEmbed {
+// Type aliases (not interfaces): postWebhookJson's JsonValue parameter needs
+// the implicit index signature TS infers for object type literals, which
+// interfaces don't get.
+type ProgressEmbedField = { name: string; value: string; inline: boolean };
+export type ProgressEmbed = {
   title: string;
   color: number;
   fields: ProgressEmbedField[];
   timestamp: string;
-}
+};
 
 /** Pure builder for the heartbeat embed — no I/O, so it's unit-testable. */
 export function buildProgressEmbed(ctx: ProgressContext, nowMs: number): ProgressEmbed {
