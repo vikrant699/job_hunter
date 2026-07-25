@@ -1,8 +1,13 @@
 // src/pipeline/posting-pipeline.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { droppedResult, verdictResult, lateLocationCheck } from "./posting-pipeline.js";
-import type { NormalizedPosting } from "../types.js";
+import { droppedResult, verdictResult, lateLocationCheck, processOnePosting } from "./posting-pipeline.js";
+import type { NormalizedPosting, Company } from "../types.js";
+import type { AtsAdapter } from "../ats/types.js";
+import type { RunContext } from "./index.js";
+import { postingExists } from "../db/index.js";
+import { notifyKey } from "../filter/dedup.js";
+import { mkAdapterCompany } from "../ats/test-helpers.js";
 
 function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
   return {
@@ -19,6 +24,81 @@ function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
     ...over,
   };
 }
+
+// ---- processOnePosting orchestration fixtures ----
+// Local to this file: mirrors pipeline/index.ts's RunContext defaults and
+// types.ts's Company shape for the pre-LLM drop-path pins below. A counter
+// keeps externalIds unique across calls within one test process, so the same
+// (provider, external_id, profile_id) row is never re-inserted across runs.
+let orchPostingCounter = 0;
+function mkNormalizedPosting(overrides: Partial<NormalizedPosting> = {}): NormalizedPosting {
+  orchPostingCounter++;
+  return {
+    provider: "greenhouse",
+    externalId: `orch-${Date.now()}-${orchPostingCounter}`,
+    companySlug: "acme",
+    companyName: "Acme Corp",
+    jobTitle: "Data Analyst",
+    jobUrl: "https://example.com/jobs/1",
+    location: "Bengaluru, India",
+    isRemote: false,
+    jdText: "",
+    postedAt: null,
+    ...overrides,
+  };
+}
+
+function mkRunContext(overrides: Partial<RunContext> = {}): RunContext {
+  return {
+    companiesScanned: 0,
+    postingsSeen: 0,
+    postingsNew: 0,
+    postingsGreen: 0,
+    postingsYellow: 0,
+    postingsTitleDenied: 0,
+    postingsDuplicated: 0,
+    jdFetchFailed: 0,
+    errors: [],
+    failedCompanies: [],
+    priorNotifyKeys: new Set<string>(),
+    seenNotifyKeys: new Set<string>(),
+    profileId: `orch-profile-${Date.now()}`,
+    bucketProgress: new Map(),
+    ...overrides,
+  };
+}
+
+function mkCompany(overrides: Partial<Company> = {}): Company {
+  return {
+    provider: "greenhouse",
+    slug: "acme",
+    name: "Acme Corp",
+    careersUrl: "https://acme.com/careers",
+    parsingStrategy: "ats-api",
+    status: "active",
+    denyReason: null,
+    discoveredVia: null,
+    tenantUrl: null,
+    apiMeta: null,
+    discoveredAt: new Date().toISOString(),
+    lastFetchedAt: null,
+    lastSuccessAt: null,
+    lastError: null,
+    consecutiveFailures: 0,
+    postingsSeenTotal: 0,
+    postingsMatchedTotal: 0,
+    zeroYieldStreak: 0,
+    urlSuspect: false,
+    ...overrides,
+  };
+}
+
+const orchAdapterCompany = mkAdapterCompany({
+  provider: "greenhouse",
+  slug: "acme",
+  name: "Acme Corp",
+  careersUrl: "https://acme.com/careers",
+});
 
 // An adapter may only learn the real location while fetching the JD (Avature's
 // list API gives lat/lon and leaves many jobs ungeocoded). When it resolves one,
@@ -134,4 +214,49 @@ test("verdictResult: duplicate shape prefixes reason and carries extract yoe", (
     dropStage: "duplicate",
     notifiedAt: null,
   });
+});
+
+// processOnePosting orchestration: pre-LLM drop paths only (location -> dedup ->
+// title-deny, all ahead of fetchJd/gate/extract). Full gate/extract stubbing would
+// need a DI refactor of processOnePosting, out of scope here — these three pin the
+// LLM-free stages against the real test DB (test-setup.mjs points it at a throwaway
+// file) using the checked-in example profile's actual location/title-deny config.
+
+test("processOnePosting drops an out-of-region posting before any DB write", async () => {
+  const outOfRegionPosting = mkNormalizedPosting({ location: "Berlin, Germany" });
+  const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
+  const stats = mkRunContext();
+  await processOnePosting(adapter, orchAdapterCompany, outOfRegionPosting, mkCompany(), stats);
+  assert.equal(postingExists(outOfRegionPosting.provider, outOfRegionPosting.externalId, stats.profileId), false);
+});
+
+test("processOnePosting counts a prior-notified duplicate and skips the title/JD stages", async () => {
+  // Title deliberately also matches a titleDenyPatterns entry, to prove cross-run
+  // dedup (priorNotifyKeys) is checked BEFORE the title-deny stage: if the pipeline
+  // ever reordered these, this would report a titleDenied count instead.
+  const dupPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Frontend Engineer" });
+  const stats = mkRunContext();
+  stats.priorNotifyKeys.add(notifyKey(dupPosting.companyName, dupPosting.jobTitle, dupPosting.location));
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => { throw new Error("must not be called"); },
+  };
+  await processOnePosting(adapter, orchAdapterCompany, dupPosting, mkCompany(), stats);
+  assert.equal(stats.postingsDuplicated, 1);
+});
+
+test("processOnePosting title-deny drops before fetchJd", async () => {
+  // First titleDenyPatterns entry in config/profile.example.ts denies backend/
+  // frontend/fullstack/... "(software) engineer" titles; "Backend Engineer" matches
+  // it verbatim.
+  const deniedPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Backend Engineer" });
+  const stats = mkRunContext();
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => { throw new Error("must not be called"); },
+  };
+  await processOnePosting(adapter, orchAdapterCompany, deniedPosting, mkCompany(), stats);
+  assert.equal(stats.postingsTitleDenied, 1);
 });
