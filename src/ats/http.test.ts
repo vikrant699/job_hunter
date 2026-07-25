@@ -1,8 +1,8 @@
 // src/ats/http.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { atsHttpError, atsFetchHtml, atsFetchText } from "./http.js";
-import { stubFetch } from "./test-helpers.js";
+import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson } from "./http.js";
+import { stubFetch, jsonResponse } from "./test-helpers.js";
 
 test("atsHttpError: 404 gives a short provider-tagged message", () => {
   const e = atsHttpError("keka", 404, "<html>not found</html>");
@@ -42,4 +42,23 @@ test("atsFetchText is a thin wrapper that discards finalUrl", async (t) => {
   stubFetch(t, async () => new Response("plain text body", { status: 200 }));
   const text = await atsFetchText("https://example.com/careers", { provider: "keka" });
   assert.equal(text, "plain text body");
+});
+
+// withAtsTimeout (private) builds the signal via AbortSignal.timeout(config.fetch.timeoutMs)
+// — the 60s duration itself is untestable without config injection (out of scope), but
+// the two tests below pin what is pinnable: the signal reaches fetch, and an abort
+// rejection propagates out of atsFetchJson rather than being swallowed.
+test("atsFetchJson passes an abortable timeout signal to fetch", async (t) => {
+  let sawSignal = false;
+  stubFetch(t, (_url, init) => {
+    sawSignal = init?.signal instanceof AbortSignal;
+    return Promise.resolve(jsonResponse({}));
+  });
+  await atsFetchJson("https://x.example/api");
+  assert.equal(sawSignal, true);
+});
+
+test("atsFetchJson rejects when fetch rejects with an AbortError (timeout signal fired)", async (t) => {
+  stubFetch(t, () => Promise.reject(new DOMException("This operation was aborted", "AbortError")));
+  await assert.rejects(atsFetchJson("https://x.example/api"), /abort/i);
 });

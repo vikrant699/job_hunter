@@ -22,6 +22,12 @@ test("postingExists is per-profile: a job checked by alice is still new for bob"
   assert.equal(postingExists("custom", id, "bob"), true);
 });
 
+test("insertPostingIfNew returns false for a same-profile duplicate", () => {
+  const id = `dup-${Date.now()}`;
+  assert.equal(insertPostingIfNew(mk(id), "pX"), true);
+  assert.equal(insertPostingIfNew(mk(id), "pX"), false);
+});
+
 test("selectNotifiedPostingsSince returns notified rows since the cutoff, joined to the company display name", () => {
   const profileId = `snps-${Date.now()}`;
   const slug = `snps-co-${Date.now()}`;
