@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { entryToRow, REGISTRY_COLUMNS } from "../registry/sheet-codec.js";
+import { entryToRow, REGISTRY_COLUMNS } from "./sheet-codec.js";
 import type { RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
-import { appendToRegistry, updateRegistryStrategy, updateRegistryEntry, type RegistryWriterDeps } from "./registry-writer.js";
+import { appendToRegistry, updateRegistryStrategy, updateRegistryEntry, type RegistryWriterDeps } from "./sheet-writer.js";
 
 function tmpCache(seed: RegistryEntry[] = []): string {
   const f = join(mkdtempSync(join(tmpdir(), "reg-writer-")), "registry-cache.json");
@@ -150,7 +150,13 @@ test("updateRegistryEntry rewrites the located row and mirrors the cache", async
   assert.equal(cached.find((e) => e.source_slug === `${tag}-b`)?.careers_url, "https://fixed.example/careers");
 });
 
-test("updateRegistryEntry targets the correct sheet row even with an invalid row above the match", async () => {
+// Row-location/cache-mirror mechanics below are shared by updateRegistryEntry
+// and updateRegistryStrategy (the latter delegates to the former), so this
+// case is expressed through the public updateRegistryStrategy entry point
+// rather than the internal-use updateRegistryEntry directly. The "no match"
+// case is already covered by "updateRegistryStrategy returns false and writes
+// nothing when no row matches the key" above.
+test("updateRegistryStrategy targets the correct sheet row even with an invalid row above the match", async () => {
   const tag = `rw-align-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const a = E("custom", `${tag}-a`, `A-${tag}`);
   const b = E("ashby", `${tag}-b`, `B-${tag}`);
@@ -160,31 +166,14 @@ test("updateRegistryEntry targets the correct sheet row even with an invalid row
   // located at sheet row 3, not shifted to 2 by the valid-only index.
   h.sheetRows[1] = ["Bad Co", "https://bad/x", "not-a-provider", "", "ats-api", "", "", "", "", "", "", "", "", ""];
 
-  const ok = await updateRegistryEntry(
-    { source: "ashby", source_slug: `${tag}-b`, name: `B-${tag}` },
-    { careers_url: "https://fixed.example/b" },
-    "default",
-    h.deps,
+  const flipped = await updateRegistryStrategy(
+    "ashby", `${tag}-b`, `B-${tag}`, "playwright-llm-scrape", "default", h.deps,
   );
 
-  assert.equal(ok, true);
+  assert.equal(flipped, true);
   assert.match(h.updatedRanges[0]!.rangeA1, /!A3:N3$/);
   // Cache mirror must be SKIPPED (partial decode) so the invalid row's company
   // is not pruned by a later offline fallback.
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));
   assert.deepEqual(cached, []);
-});
-
-test("updateRegistryEntry returns false for an unknown key", async () => {
-  const tag = `rw-miss-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const cachePath = tmpCache([]);
-  const { deps, updatedRanges } = harness([E("custom", `${tag}-a`, `A-${tag}`)], cachePath);
-  const ok = await updateRegistryEntry(
-    { source: "ashby", source_slug: "nope", name: "Nope" },
-    { careers_url: "https://x/y" },
-    "default",
-    deps,
-  );
-  assert.equal(ok, false);
-  assert.equal(updatedRanges.length, 0);
 });

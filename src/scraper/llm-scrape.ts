@@ -7,7 +7,7 @@ import { runShortlist, type ShortlistItem } from "../llm/shortlist.js";
 import { runShortlistFromText } from "../llm/extract-text-jobs.js";
 import { getLinkCache, setLinkCache, updateParsingStrategy, markUrlSuspect, type ShortlistedLink } from "../db/index.js";
 import { extractAtsCandidates } from "../ats/detect.js";
-import { updateRegistryStrategy } from "../discovery/registry-writer.js";
+import { updateRegistryStrategy } from "../registry/sheet-writer.js";
 import { profile } from "../profile.js";
 import { extractJsonLdJobs } from "./json-ld.js";
 import { analyzeCareersPage } from "./page-signals.js";
