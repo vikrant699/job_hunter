@@ -39,7 +39,7 @@ function formatLinksList(candidates: CandidateLink[]): string {
  *  anchor text, and de-dupes by URL — so one bad item can't lose the whole company. */
 export function selectShortlistItems(rawJobs: unknown[], candidates: CandidateLink[]): ShortlistItem[] {
   const anchorByUrl = new Map(
-    candidates.map((c) => [c.url, (c.text ?? "").trim().replace(/\s+/g, " ")]),
+    candidates.map((c) => [c.url, c.text.trim().replace(/\s+/g, " ")]),
   );
   const seen = new Set<string>();
   const out: ShortlistItem[] = [];

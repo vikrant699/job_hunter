@@ -118,7 +118,7 @@ export function normalizeOngig(company: AdapterCompany, org: string, r: OngigRes
 async function ongigSession(org: string): Promise<{ token: string; cookie: string }> {
   const res = await fetch(`${org}/`, { headers: { "user-agent": BROWSER_UA } });
   // Node fetch folds multiple Set-Cookie into getSetCookie().
-  const setCookies = res.headers.getSetCookie?.() ?? [];
+  const setCookies = res.headers.getSetCookie();
   const cookie = setCookies.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
   const xsrf = setCookies.find((c) => c.startsWith("XSRF-TOKEN="));
   const token = xsrf ? decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length).split(";")[0] ?? "") : "";

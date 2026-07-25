@@ -125,20 +125,25 @@ export const bmwAdapter: AtsAdapter = {
 
         // Capture the exact jobfinder fragment URL the page's own JS requests
         // (carries the container id + India filter). blockCount comes from it.
-        let fragUrl: string | null = null;
+        // Boxed in an object: a bare `let fragUrl` mutated only inside this
+        // request-listener closure defeats TS's narrowing (it can't see the
+        // reassignment from the outer scope and treats it as permanently
+        // `null`); a property write is narrowed correctly at each read below.
+        const captured: { fragUrl: string | null } = { fragUrl: null };
         page.on("request", (req) => {
-          if (!fragUrl && FRAG_RE.test(req.url())) fragUrl = req.url();
+          if (!captured.fragUrl && FRAG_RE.test(req.url())) captured.fragUrl = req.url();
         });
         try {
           await page.goto(pageUrl, { waitUntil: "networkidle" });
         } catch {
           /* Akamai interstitial / slow settle — the fragment may still fire */
         }
-        for (let i = 0; i < 12 && !fragUrl; i++) await page.waitForTimeout(500);
-        if (!fragUrl) {
+        for (let i = 0; i < 12 && !captured.fragUrl; i++) await page.waitForTimeout(500);
+        if (!captured.fragUrl) {
           logger.warn({ slug: company.slug }, "bmw: no jobfinder fragment request observed");
           return [];
         }
+        const fragUrl = captured.fragUrl;
 
         const blockCount = Number(new URL(fragUrl).searchParams.get("blockCount") ?? "5") || 5;
 

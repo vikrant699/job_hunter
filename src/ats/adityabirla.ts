@@ -102,12 +102,16 @@ async function captureAuthToken(): Promise<string> {
     try {
       const page = await ctx.newPage();
       page.setDefaultNavigationTimeout(30_000);
-      let token: string | null = null;
+      // Boxed in an object: a bare `let token` mutated only inside this closure
+      // defeats TS's narrowing (it can't see the reassignment from the outer
+      // scope and treats `token` as permanently `null`); a property write is
+      // narrowed correctly at each read below.
+      const captured: { token: string | null } = { token: null };
       const onRequest = (req: PlaywrightRequest): void => {
-        if (token) return;
+        if (captured.token) return;
         if (!req.url().includes(JOBS_API_PATH) && !req.url().includes("/api/v3/organisations")) return;
         const auth = req.headers()["authorization"];
-        if (auth && auth.startsWith("Bearer ")) token = auth.slice("Bearer ".length);
+        if (auth && auth.startsWith("Bearer ")) captured.token = auth.slice("Bearer ".length);
       };
       page.on("request", onRequest);
       try {
@@ -115,10 +119,10 @@ async function captureAuthToken(): Promise<string> {
       } catch {
         /* WAF interstitial or slow settle — token may still arrive below */
       }
-      for (let i = 0; i < 10 && !token; i++) await page.waitForTimeout(500);
+      for (let i = 0; i < 10 && !captured.token; i++) await page.waitForTimeout(500);
       page.off("request", onRequest);
-      if (!token) throw new Error("adityabirla: could not capture bearer token from /job-search");
-      return token;
+      if (!captured.token) throw new Error("adityabirla: could not capture bearer token from /job-search");
+      return captured.token;
     } finally {
       await ctx.close();
     }

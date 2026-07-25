@@ -9,6 +9,11 @@ import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shor
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
 import { envInt } from "./util/env.js";
 
+// Declared outside the `as const` config object (typed `number`, not narrowed
+// to the literal `250`) so pipeline/scheduler.ts's `> 0` skip-if-disabled
+// check stays a real runtime check instead of a compile-time-always-true one.
+const INTER_CALL_DELAY_MS: number = 250;
+
 export const config = {
   fetch: {
     /** How many companies of one provider run in parallel. */
@@ -17,7 +22,7 @@ export const config = {
      *  Ollama serializes via the semaphore in llm/client.ts. */
     workersPerCompany: 5,
     /** Politeness delay between worker-pool iterations within a company. */
-    interCallDelayMs: 250,
+    interCallDelayMs: INTER_CALL_DELAY_MS,
     /** Per-call timeout for ATS fetches. Raised 20s -> 60s (2026-07-23): big
      *  paginated boards (Bosch ~24s, ABB ~30s) were being aborted mid-fetch under
      *  load, dropping their entire posting set. See config-repair memory. */

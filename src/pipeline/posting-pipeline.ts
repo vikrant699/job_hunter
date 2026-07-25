@@ -101,7 +101,7 @@ export function lateLocationCheck(posting: NormalizedPosting): LocationCheck {
   if (posting.location !== null && posting.location !== "") {
     return checkLocation(posting.location, posting.isRemote);
   }
-  return checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "", undefined, posting.jobUrl);
+  return checkLocationFromText(posting.jobTitle, posting.jdText, undefined, posting.jobUrl);
 }
 
 export async function processOnePosting(
@@ -120,7 +120,7 @@ export async function processOnePosting(
 
   // Cross-run dedup: skip re-listings (same company/title/location notified before)
   // before spending gate + extract calls, since we'd only drop them at notify time.
-  const dupKey = notifyKey(posting.companyName ?? company.name, posting.jobTitle, posting.location);
+  const dupKey = notifyKey(posting.companyName, posting.jobTitle, posting.location);
   if (stats.priorNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     return;

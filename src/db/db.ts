@@ -105,5 +105,5 @@ export function queryOne<T>(
   params: Record<string, SQLInputValue> = {},
 ): T | undefined {
   const row = stmt.get(params);
-  return row === undefined || row === null ? undefined : schema.parse(row);
+  return row === undefined ? undefined : schema.parse(row);
 }

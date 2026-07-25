@@ -132,8 +132,8 @@ export function checkLocationFromText(
   cfg: LocationConfig = profile.location,
   jobUrl?: string,
 ): LocationCheck {
-  const t = (title ?? "").toLowerCase();
-  const full = (jdText ?? "").toLowerCase();
+  const t = title.toLowerCase();
+  const full = jdText.toLowerCase();
   const head = full.slice(0, 2000);
   if (!t.trim() && !head.trim()) {
     return { accept: true, reason: "no-text-defer" };

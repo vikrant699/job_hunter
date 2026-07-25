@@ -183,7 +183,11 @@ export const successfactorsAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const origin = successfactorsOrigin(company);
-    let total: number | null = null;
+    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
+    // closure defeats TS's narrowing (it can't see paginate() invoking the
+    // closure, so it treats `total` as permanently its initial `null`); a
+    // property write is narrowed correctly at each read below.
+    const state: { total: number | null } = { total: null };
     const seenIds = new Set<string>();
 
     const postings = await paginate<NormalizedPosting>({
@@ -196,7 +200,7 @@ export const successfactorsAdapter: AtsAdapter = {
           provider: "successfactors",
         });
         const page = parseSuccessfactorsSearch(html, company);
-        if (total === null) total = page.total;
+        if (state.total === null) state.total = page.total;
         // Some tenants CLAMP an out-of-range startrow and re-serve the last
         // page instead of an empty one (verified live on careers.acer.com,
         // whose tile skin also omits the results banner, so `total` never
@@ -216,6 +220,7 @@ export const successfactorsAdapter: AtsAdapter = {
 
     // Warn on a genuine safety-cap truncation (board needs more pages than
     // MAX_PAGES).
+    const total = state.total;
     if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
       logger.warn(
         { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },
