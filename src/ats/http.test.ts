@@ -1,7 +1,8 @@
 // src/ats/http.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson } from "./http.js";
+import { z } from "zod";
+import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { stubFetch, jsonResponse } from "./test-helpers.js";
 
 test("atsHttpError: 404 gives a short provider-tagged message", () => {
@@ -61,4 +62,18 @@ test("atsFetchJson passes an abortable timeout signal to fetch", async (t) => {
 test("atsFetchJson rejects when fetch rejects with an AbortError (timeout signal fired)", async (t) => {
   stubFetch(t, () => Promise.reject(new DOMException("This operation was aborted", "AbortError")));
   await assert.rejects(atsFetchJson("https://x.example/api"), /abort/i);
+});
+
+test("parseOrThrow returns the typed value on success", () => {
+  const S = z.object({ a: z.number() });
+  assert.deepEqual(parseOrThrow(S, { a: 1 }, { provider: "x", slug: "acme" }), { a: 1 });
+});
+test("parseOrThrow throws with provider/slug and 'schema' in the message on mismatch", () => {
+  const S = z.object({ a: z.number() });
+  assert.throws(() => parseOrThrow(S, { a: "no" }, { provider: "x", slug: "acme", what: "list" }),
+    /x list response failed schema for acme/);
+});
+test("parseOrNull returns null on mismatch", () => {
+  const S = z.object({ a: z.number() });
+  assert.equal(parseOrNull(S, { a: "no" }, { provider: "x", slug: "acme" }), null);
 });

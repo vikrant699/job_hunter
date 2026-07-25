@@ -1,5 +1,7 @@
 // src/ats/http.ts
+import { type z } from "zod";
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 import type { JsonValue } from "../util/json.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
@@ -47,6 +49,31 @@ export async function atsFetchJson(
     }, provider);
     return await res.json();
   });
+}
+
+export interface ParseCtx { provider: string; slug: string; what?: string }
+
+/** safeParse + warn-log + throw, the shape ~60 adapters hand-rolled. The word
+ *  "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
+export function parseOrThrow<T>(schema: z.ZodType<T>, raw: unknown, ctx: ParseCtx): T {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const what = ctx.what ?? "list";
+    logger.warn({ slug: ctx.slug, issues: parsed.error.issues.slice(0, 3) }, `${ctx.provider} ${what} schema mismatch`);
+    throw new Error(`${ctx.provider} ${what} response failed schema for ${ctx.slug}`);
+  }
+  return parsed.data;
+}
+
+/** safeParse + warn-log + null, for detail fetches that degrade to "" instead of failing the company. */
+export function parseOrNull<T>(schema: z.ZodType<T>, raw: unknown, ctx: ParseCtx): T | null {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const what = ctx.what ?? "detail";
+    logger.warn({ slug: ctx.slug, issues: parsed.error.issues.slice(0, 3) }, `${ctx.provider} ${what} schema mismatch`);
+    return null;
+  }
+  return parsed.data;
 }
 
 /**
