@@ -18,6 +18,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { matchGroup } from "../util/regex.js";
 
 export const ZohoRecruitJobSchema = z.object({
   id: z.string(),
@@ -87,8 +88,8 @@ export function extractJobsIsland(html: string): string | null {
     if (end <= idIdx) continue;
 
     // `\s` (not `\b`) so a data-value="..." attribute can never match.
-    const m = /\svalue="([^"]*)"/.exec(html.slice(tagStart, end + 1));
-    if (m) return m[1]!;
+    const value = matchGroup(/\svalue="([^"]*)"/, html.slice(tagStart, end + 1));
+    if (value !== null) return value;
     // An <input id="jobs"> without a value attribute isn't the island — keep looking.
   }
   return null;

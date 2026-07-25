@@ -16,7 +16,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 function selectedProfileName(): string {
   const argv = process.argv;
   const i = argv.indexOf("--profile");
-  const fromArg = i >= 0 && argv[i + 1] && !argv[i + 1]!.startsWith("--") ? argv[i + 1]! : undefined;
+  const next = i >= 0 ? argv[i + 1] : undefined;
+  const fromArg = next && !next.startsWith("--") ? next : undefined;
   return (fromArg ?? process.env.PROFILE ?? "default").trim();
 }
 

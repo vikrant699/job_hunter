@@ -107,9 +107,8 @@ export function parseSfunifyStartDate(s: string | null | undefined): string | nu
   if (!s) return null;
   const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
   if (!m) return null;
-  const a = m[1]!;
-  const b = m[2]!;
-  const y = m[3]!;
+  const [, a, b, y] = m;
+  if (a === undefined || b === undefined || y === undefined) return null;
   const fourDigitYear = y.length === 4;
   const year = fourDigitYear ? Number(y) : 2000 + Number(y);
   const [month, day] = fourDigitYear ? [Number(b), Number(a)] : [Number(a), Number(b)];

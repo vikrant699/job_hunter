@@ -80,19 +80,19 @@ interface CompanyGroup {
  *  group, or the same recruiter would get two drafts in a single run. The
  *  display name shown in the email is the first spelling seen. */
 export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
-  const order: string[] = [];
-  const groups = new Map<string, { companyName: string; postings: OutreachNotifiedPosting[] }>();
+  const byKey = new Map<string, CompanyGroup>();
+  const order: CompanyGroup[] = [];
   for (const p of postings) {
     const key = normalizeCompanyName(p.company);
-    const existing = groups.get(key);
-    if (existing) {
-      existing.postings.push(p);
-    } else {
-      groups.set(key, { companyName: p.company, postings: [p] });
-      order.push(key);
+    const existing = byKey.get(key);
+    if (existing) existing.postings.push(p);
+    else {
+      const group = { companyName: p.company, postings: [p] };
+      byKey.set(key, group);
+      order.push(group);
     }
   }
-  return order.map((key) => groups.get(key)!);
+  return order;
 }
 
 /** Reason to record on the undrafted row for a company with zero eligible

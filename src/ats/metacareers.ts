@@ -34,6 +34,7 @@ import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 import { logger } from "../logger.js";
+import { matchGroup } from "../util/regex.js";
 
 const JOBS_URL = "https://www.metacareers.com/jobs/";
 const LOCATION_QUERY_NAME = "CareersJobSearchLocationFilterV3Query";
@@ -67,13 +68,13 @@ interface GraphqlCall {
 
 export function parsePostData(postData: string | null): Omit<GraphqlCall, "body"> {
   if (!postData) return { friendlyName: null, docId: null, lsd: null };
-  const fn = postData.match(/fb_api_req_friendly_name=([^&]+)/);
-  const di = postData.match(/doc_id=(\d+)/);
-  const lsdM = postData.match(/(?:^|&)lsd=([^&]+)/);
+  const fn = matchGroup(/fb_api_req_friendly_name=([^&]+)/, postData);
+  const di = matchGroup(/doc_id=(\d+)/, postData);
+  const lsdM = matchGroup(/(?:^|&)lsd=([^&]+)/, postData);
   return {
-    friendlyName: fn ? decodeURIComponent(fn[1]!) : null,
-    docId: di ? di[1]! : null,
-    lsd: lsdM ? decodeURIComponent(lsdM[1]!) : null,
+    friendlyName: fn ? decodeURIComponent(fn) : null,
+    docId: di,
+    lsd: lsdM ? decodeURIComponent(lsdM) : null,
   };
 }
 
@@ -309,9 +310,11 @@ export function extractMetaJd(html: string): string {
   const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
+    const raw = m[1];
+    if (raw === undefined) continue;
     let parsed: unknown;
     try {
-      parsed = parseJsonUnknown(m[1]!);
+      parsed = parseJsonUnknown(raw);
     } catch {
       continue;
     }

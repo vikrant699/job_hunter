@@ -22,6 +22,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 // Runaway backstop for when the "Showing X of N" counter is missing and
 // pagination relies solely on the zero-item-page stop.
@@ -72,9 +73,9 @@ export function parseSkimaListingHtml(html: string, baseUrl: string): SkimaListi
   $("a[href]").each((_, el) => {
     const $a = $(el);
     const href = $a.attr("href") ?? "";
-    const m = href.match(UUID_PATH_RE);
-    if (!m) return;
-    const externalId = m[1]!.toLowerCase();
+    const rawId = matchGroup(UUID_PATH_RE, href);
+    if (rawId === null) return;
+    const externalId = rawId.toLowerCase();
     const jobTitle = $a.text().replace(/\s+/g, " ").trim();
     if (!jobTitle || seen.has(externalId)) return;
 

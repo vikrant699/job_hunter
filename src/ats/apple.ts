@@ -28,6 +28,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 const ORIGIN = "https://jobs.apple.com";
 const PAGE = 20;
@@ -100,8 +101,7 @@ export function normalizeApple(company: AdapterCompany, r: AppleSearchResult): N
 /** Recover the numeric jobNumber jobDetails expects from a details URL built
  *  by normalizeApple (".../details/<jobNumber>/<slug>"). */
 export function appleJobNumberFromUrl(jobUrl: string): string | null {
-  const m = jobUrl.match(/\/details\/(\d+)/);
-  return m ? m[1]! : null;
+  return matchGroup(/\/details\/(\d+)/, jobUrl);
 }
 
 /** Join the JD sub-fields Apple splits across the jobDetails response. */

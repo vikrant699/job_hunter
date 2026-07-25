@@ -41,6 +41,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
+import { matchGroup } from "../util/regex.js";
 
 const JOB_DETAILS_URL = "https://appapi.webbtree.com/candidate/jobs/getjobdetails";
 // Backend-ignored placeholder — confirmed live; the real tenant identity travels via c_n/c_e.
@@ -100,8 +101,7 @@ export function decodeWebbtreeEntities(s: string): string {
 /** Pull the raw (still entity-escaped) contents of the serverApp-state
  *  TransferState island. Null when absent (WAF page, wrong path, layout change). */
 export function extractServerAppStateIsland(html: string): string | null {
-  const m = /<script id="serverApp-state" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
-  return m ? m[1]! : null;
+  return matchGroup(/<script id="serverApp-state" type="application\/json">([\s\S]*?)<\/script>/, html);
 }
 
 /** Entity-decode + JSON-parse + zod-validate the island. Throws with an
@@ -160,12 +160,12 @@ const CE_TOKEN_FROM_JOB_URL_RE = /\/([A-Za-z0-9_-]+)\/job-board\/career\/jobdeta
  */
 export function extractCeToken(island: WebbtreeIsland, jobs: readonly WebbtreeJob[]): string | null {
   for (const entry of Object.values(island)) {
-    const m = typeof entry.url === "string" ? CE_TOKEN_RE.exec(entry.url) : null;
-    if (m) return m[1]!;
+    const token = typeof entry.url === "string" ? matchGroup(CE_TOKEN_RE, entry.url) : null;
+    if (token) return token;
   }
   for (const j of jobs) {
-    const m = j.jobdescriptionurl ? CE_TOKEN_FROM_JOB_URL_RE.exec(j.jobdescriptionurl) : null;
-    if (m) return m[1]!;
+    const token = j.jobdescriptionurl ? matchGroup(CE_TOKEN_FROM_JOB_URL_RE, j.jobdescriptionurl) : null;
+    if (token) return token;
   }
   return null;
 }

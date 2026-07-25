@@ -134,7 +134,11 @@ export function unwrapEnvelope(json: unknown): string {
   if (values.length !== 1) {
     throw new Error(`moglix: expected exactly one key in envelope, got ${values.length}`);
   }
-  return values[0]!;
+  const value = values[0];
+  if (value === undefined) {
+    throw new Error("moglix: envelope value unexpectedly missing");
+  }
+  return value;
 }
 
 export const MoglixJobSchema = z.object({

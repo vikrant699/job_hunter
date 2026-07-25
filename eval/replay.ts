@@ -10,6 +10,8 @@ import {
   maxThresholdForFullRecall, scoreSpread, type ScoredLabel,
 } from "./metrics.js";
 
+function flag(name: string, def: string): string;
+function flag(name: string, def: null): string | null;
 function flag(name: string, def: string | null): string | null {
   const i = process.argv.indexOf(`--${name}`);
   const next = process.argv[i + 1];
@@ -17,9 +19,9 @@ function flag(name: string, def: string | null): string | null {
   return def;
 }
 
-const dbPath = flag("db", config.storage.dbPath)!;
-const labelsPath = flag("labels", process.env.REVIEW_LABELS ?? "data/review-labels.csv")!;
-const promptName = flag("prompt", "baseline")!;
+const dbPath = flag("db", config.storage.dbPath);
+const labelsPath = flag("labels", process.env.REVIEW_LABELS ?? "data/review-labels.csv");
+const promptName = flag("prompt", "baseline");
 const sampleN = flag("sample", null);
 const outPath = flag("out", null);
 const tempArg = flag("temp", null); // e.g. 0 for deterministic scoring

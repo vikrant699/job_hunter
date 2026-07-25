@@ -12,6 +12,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 export const ParamAiJobSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -31,8 +32,8 @@ function subdomain(company: AdapterCompany): string {
   const s = company.apiMeta?.subdomain;
   if (s) return s;
   const host = new URL(company.tenantUrl ?? company.careersUrl).host;
-  const m = host.match(/^([a-z0-9-]+)\.app\.param\.ai$/i);
-  if (m) return m[1]!;
+  const sub = matchGroup(/^([a-z0-9-]+)\.app\.param\.ai$/i, host);
+  if (sub) return sub;
   throw new Error(`paramai requires apiMeta.subdomain for ${company.slug}`);
 }
 

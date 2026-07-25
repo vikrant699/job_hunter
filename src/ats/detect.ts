@@ -269,8 +269,9 @@ const PATTERNS: PatternDef[] = [
       const u = safeUrl(m);
       if (!u) return null;
       // host: "careers-foo.icims.com" or "foo.icims.com"
-      const sub = u.host.split(".")[0]!.replace(/^careers-/, "");
-      return { url: `https://${u.host}/jobs`, slug: sub };
+      const first = u.host.split(".")[0];
+      if (!first) return null;
+      return { url: `https://${u.host}/jobs`, slug: first.replace(/^careers-/, "") };
     },
   },
   // No successfactors URL pattern: the adapter (src/ats/successfactors.ts)
@@ -407,7 +408,9 @@ const PATTERNS: PatternDef[] = [
     parse(m) {
       const u = safeUrl(m);
       if (!u) return null;
-      return { url: `${u.protocol}//${u.host}`, slug: u.host.split(".")[0]! };
+      const slug = u.host.split(".")[0];
+      if (!slug) return null;
+      return { url: `${u.protocol}//${u.host}`, slug };
     },
   },
   {

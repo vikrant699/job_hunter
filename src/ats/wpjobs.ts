@@ -101,7 +101,7 @@ function titleCaseFromSlug(slug: string): string {
   return slug
     .split("-")
     .filter(Boolean)
-    .map((w) => w[0]!.toUpperCase() + w.slice(1))
+    .map((w) => (w[0] ?? "").toUpperCase() + w.slice(1))
     .join(" ");
 }
 

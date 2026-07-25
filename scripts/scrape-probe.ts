@@ -77,7 +77,8 @@ async function probeOne(
 
   // Stage C — fetch first JD if requested.
   if (flags.has("--jd") && jobs.length > 0 && llmScrapeAdapter.fetchJd) {
-    const first = jobs[0]!;
+    const first = jobs[0];
+    if (!first) return; // unreachable: jobs.length > 0 was just checked above
     console.log(`\n--- Fetching JD: ${first.title} ---`);
     const stub = {
       provider: company.provider,

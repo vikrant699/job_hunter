@@ -121,7 +121,7 @@ async function ongigSession(org: string): Promise<{ token: string; cookie: strin
   const setCookies = res.headers.getSetCookie?.() ?? [];
   const cookie = setCookies.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
   const xsrf = setCookies.find((c) => c.startsWith("XSRF-TOKEN="));
-  const token = xsrf ? decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length).split(";")[0]!) : "";
+  const token = xsrf ? decodeURIComponent(xsrf.slice("XSRF-TOKEN=".length).split(";")[0] ?? "") : "";
   if (!token) throw new Error("ongig: no XSRF-TOKEN cookie on board root");
   return { token, cookie };
 }

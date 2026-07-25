@@ -19,6 +19,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import { matchGroup } from "../util/regex.js";
 
 /** Tenant origin, e.g. "https://hackerearth.applytojob.com". Prefers an
  *  explicit tenant_url host when set, else builds it from the slug (the
@@ -45,8 +46,7 @@ export interface JazzhrListing {
  *  (/apply/<id>/<slug>). Null for URLs with no such shape (e.g. the board
  *  index itself). */
 export function parseJazzhrJobId(url: string): string | null {
-  const m = /\/apply\/([^/]+)\/[^/]+/.exec(url);
-  return m ? m[1]! : null;
+  return matchGroup(/\/apply\/([^/]+)\/[^/]+/, url);
 }
 
 /** Parse the /apply board page into raw listings. Pure — unit tested.

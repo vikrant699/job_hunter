@@ -17,6 +17,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsHttpError } from "./http.js";
 import { BROWSER_UA } from "../util/user-agent.js";
+import { matchGroup } from "../util/regex.js";
 
 export const SETU_CSV_URL =
   "https://raw.githubusercontent.com/SetuHQ/website-content/main/careers/Setu%20Website%20-%20CurrentOpenings.csv";
@@ -119,23 +120,30 @@ const HEADER_KEYS: Record<string, keyof SetuRow> = {
 export function parseSetuCsv(text: string): SetuRow[] {
   const rows = parseCsvRows(text);
   if (rows.length === 0) throw new Error("setu: empty CSV");
-  const header = rows[0]!.map((h) => h.trim().toLowerCase());
+  const header = (rows[0] ?? []).map((h) => h.trim().toLowerCase());
   const colIndex: Partial<Record<keyof SetuRow, number>> = {};
   for (const [headerKey, field] of Object.entries(HEADER_KEYS)) {
     const idx = header.indexOf(headerKey);
     if (idx === -1) throw new Error(`setu: CSV missing expected column "${headerKey}"`);
     colIndex[field] = idx;
   }
+  // Every SetuRow field was assigned an index above (or the loop threw), so
+  // this can never actually throw — it just gives TS a non-undefined number.
+  const col = (field: keyof SetuRow): number => {
+    const idx = colIndex[field];
+    if (idx === undefined) throw new Error(`setu: internal: column index for "${field}" not resolved`);
+    return idx;
+  };
 
   const out: SetuRow[] = [];
   for (const cells of rows.slice(1)) {
     if (cells.every((c) => c.trim() === "")) continue; // skip blank lines
     const record = {
-      role: (cells[colIndex.role!] ?? "").trim(),
-      description: (cells[colIndex.description!] ?? "").trim(),
-      link: (cells[colIndex.link!] ?? "").trim(),
-      category: (cells[colIndex.category!] ?? "").trim(),
-      subCategory: (cells[colIndex.subCategory!] ?? "").trim(),
+      role: (cells[col("role")] ?? "").trim(),
+      description: (cells[col("description")] ?? "").trim(),
+      link: (cells[col("link")] ?? "").trim(),
+      category: (cells[col("category")] ?? "").trim(),
+      subCategory: (cells[col("subCategory")] ?? "").trim(),
     };
     const parsed = SetuRowSchema.safeParse(record);
     if (parsed.success && parsed.data.role && parsed.data.link) out.push(parsed.data);
@@ -161,8 +169,7 @@ export function slugifyRole(role: string): string {
 /** externalId is the TurboHire job code embedded in the Link URL
  * (…/get/<code>); falls back to a slugified role if the URL doesn't match. */
 export function setuExternalId(row: SetuRow): string {
-  const m = row.link.match(TURBOHIRE_CODE_RE);
-  return m ? m[1]! : slugifyRole(row.role);
+  return matchGroup(TURBOHIRE_CODE_RE, row.link) ?? slugifyRole(row.role);
 }
 
 export function normalizeSetuRow(company: AdapterCompany, row: SetuRow): NormalizedPosting {
@@ -193,10 +200,10 @@ const JobPostingLdSchema = z.object({
 
 /** Extract the JD body from a TurboHire job page's HTML. */
 export function extractSetuJdText(html: string): string {
-  const m = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
-  if (m) {
+  const ldJson = matchGroup(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/, html);
+  if (ldJson !== null) {
     try {
-      const parsed = JobPostingLdSchema.safeParse(JSON.parse(m[1]!));
+      const parsed = JobPostingLdSchema.safeParse(JSON.parse(ldJson));
       if (parsed.success && parsed.data.description) return htmlToText(parsed.data.description);
     } catch {
       // fall through to whole-page strip

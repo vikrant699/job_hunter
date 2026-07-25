@@ -146,7 +146,7 @@ export function findOpeningsRecursionLink(html: string, baseUrl: string): string
     }
     if (score > bestScore) {
       bestScore = score;
-      bestUrl = abs.toString().split("#")[0]!;
+      bestUrl = abs.toString().split("#")[0] ?? abs.toString();
     }
   });
 
