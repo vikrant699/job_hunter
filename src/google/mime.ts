@@ -55,6 +55,17 @@ function randomBoundary(): string {
   return `job-hunter-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
 
+/** Header-value sanitizer: control chars (CR/LF above all) become spaces so
+ *  sheet-sourced values can never smuggle extra headers into the message. */
+function sanitizeHeaderValue(s: string): string {
+  return s.replace(/[\x00-\x1f\x7f]+/g, " ").trim();
+}
+
+/** Quoted-string-safe filename: header sanitize plus dropping double quotes. */
+function sanitizeFilename(s: string): string {
+  return sanitizeHeaderValue(s).replace(/"/g, "");
+}
+
 /**
  * Standard base64url encoding (RFC 4648 §5): `+`→`-`, `/`→`_`, no padding.
  * Gmail's `drafts.create`/`messages.send` raw field requires this encoding.
@@ -71,7 +82,7 @@ export function toBase64Url(s: string | Buffer): string {
  */
 export function buildDraftMime(input: BuildDraftMimeInput): string {
   const headers = [
-    `To: ${input.to}`,
+    `To: ${sanitizeHeaderValue(input.to)}`,
     `Subject: ${encodeSubject(input.subject)}`,
     "MIME-Version: 1.0",
   ];
@@ -93,10 +104,11 @@ export function buildDraftMime(input: BuildDraftMimeInput): string {
     wrapBase64(Buffer.from(input.bodyText, "utf-8").toString("base64")),
   ].join(CRLF);
 
+  const safeFilename = sanitizeFilename(attachment.filename);
   const attachmentPart = [
-    `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+    `Content-Type: ${attachment.mimeType}; name="${safeFilename}"`,
     "Content-Transfer-Encoding: base64",
-    `Content-Disposition: attachment; filename="${attachment.filename}"`,
+    `Content-Disposition: attachment; filename="${safeFilename}"`,
     "",
     wrapBase64(attachment.content.toString("base64")),
   ].join(CRLF);
