@@ -25,6 +25,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText, atsFetchFormHtml } from "./http.js";
 import { REMOTE_RE, warnDeepPagination } from "./shared.js";
+import { kebabCase } from "../util/slug.js";
 
 export const RELIANCE_BOARD_URL = "https://careers.ril.com/rilcareers/frmjobsearch.Aspx";
 
@@ -116,11 +117,17 @@ export function parseRelianceListPage(html: string): RelianceListPage {
 
 /**
  * Requisition code embedded at the end of the title, e.g.
- * "CS Operations Lead 2 - CS ( 82861680 )" -> "82861680". Falls back to the
- * raw (still unique, still stable) href when a title has no parseable code.
+ * "CS Operations Lead 2 - CS ( 82861680 )" -> "82861680". Falls back to a
+ * kebab-cased slug of the title when it has no parseable code — NOT the
+ * detail href: its JBTITLE/jbID params are encrypted and possibly
+ * session-varying (see the module doc above), so they are not a safe stable
+ * id. A title-slug fallback can still collide/rotate across runs if the
+ * title itself changes, but cross-run notifyKey dedup (company|title|
+ * location) suppresses re-notification for the one-time id-scheme change
+ * this introduces for rows already seen under the old href-based id.
  */
 export function relianceExternalId(row: Pick<RelianceJobRow, "title" | "href">): string {
-  return JOB_CODE_RE.exec(row.title)?.[1] ?? row.href;
+  return JOB_CODE_RE.exec(row.title)?.[1] ?? kebabCase(row.title);
 }
 
 /** "10 Jul 2026" -> ISO, or null if unparseable. */

@@ -177,9 +177,9 @@ test("relianceExternalId extracts the numeric requisition code from the title", 
   assert.equal(relianceExternalId({ title: "Some Role [82852018]", href: "x" }), "82852018");
 });
 
-test("relianceExternalId falls back to the href when the title has no parseable code", () => {
-  const href = "frmJobSearch.aspx?JBTITLE=xyz&jbID=abc";
-  assert.equal(relianceExternalId({ title: "Untitled Role", href }), href);
+test("relianceExternalId falls back to a title slug, not the encrypted href", () => {
+  const id = relianceExternalId({ title: "CS Operations Lead - CS", href: "frmJobSearch.aspx?JBTITLE=xyzenc&jbID=abc123enc" });
+  assert.equal(id, "cs-operations-lead-cs");
 });
 
 test("parseRelianceDate parses the site's DD Mon YYYY format, null on garbage", () => {
