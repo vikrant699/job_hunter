@@ -5,5 +5,3 @@
  */
 export type { AtsProvider, AtsCapability, AtsCandidate, AtsFetchResult } from "./ats-patterns.js";
 export { CAPABILITIES, extractAtsCandidates, discoverFromUrl, safeUrl, firstPathSegment } from "./ats-patterns.js";
-export type { ValidateResult, KekaMeta } from "./ats-validate.js";
-export { validateCandidate, discoverKekaMeta } from "./ats-validate.js";
