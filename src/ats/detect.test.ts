@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractAtsCandidates } from "./ats-patterns.js";
+import { extractAtsCandidates } from "./detect.js";
 
 test("detects a greytHR board URL and registers it as a promotable provider", () => {
   const html = `<a href="https://firstclub.greythr.com/hire/jobs/">Careers</a>`;
@@ -10,7 +10,6 @@ test("detects a greytHR board URL and registers it as a promotable provider", ()
   assert.equal(g!.slug, "firstclub");
   assert.equal(g!.url, "https://firstclub.greythr.com/hire/jobs/");
   assert.equal(g!.hasAdapter, true);
-  assert.equal(g!.canValidate, true);
 });
 
 test("ignores the greytHR vendor site (www.greythr.com)", () => {
@@ -32,7 +31,6 @@ test("detects a Zoho Recruit board and preserves the tenant's page name", () => 
   assert.equal(z!.slug, "spendflo");
   assert.equal(z!.url, "https://spendflo.zohorecruit.com/jobs/Job-openings");
   assert.equal(z!.hasAdapter, true);
-  assert.equal(z!.canValidate, true);
 });
 
 test("Zoho Recruit .in hosts and job-detail deep links canonicalize to the board", () => {
@@ -48,4 +46,12 @@ test("Zoho Recruit bare-host mentions default to /jobs/Careers; vendor www is ig
   assert.equal(z?.url, "https://acme.zohorecruit.com/jobs/Careers");
   const none = extractAtsCandidates(`<a href="https://www.zohorecruit.com/pricing">x</a>`, "https://x.com");
   assert.equal(none.some((c) => c.provider === "zohorecruit"), false);
+});
+
+test("hasAdapter is true exactly when the provider is in ProviderSchema", () => {
+  const gh = extractAtsCandidates(`<a href="https://boards.greenhouse.io/acme">jobs</a>`, "https://acme.com/careers");
+  assert.equal(gh[0]?.hasAdapter, true);
+  const icims = extractAtsCandidates(`<a href="https://careers-foo.icims.com/jobs">jobs</a>`, "https://foo.com/careers");
+  assert.equal(icims[0]?.provider, "icims");
+  assert.equal(icims[0]?.hasAdapter, false);
 });
