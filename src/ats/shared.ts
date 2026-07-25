@@ -116,6 +116,19 @@ export function unixToIso(seconds: number | null | undefined): string | null {
   return new Date(seconds * 1000).toISOString();
 }
 
+/** Date.parse-able string -> ISO, else null. The ~15 private per-adapter copies collapse into this. */
+export function dateToIso(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const ms = Date.parse(s);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+/** Positive epoch-milliseconds -> ISO, else null (sibling of unixToIso's seconds). */
+export function epochMsToIso(ms: number | null | undefined): string | null {
+  if (!ms) return null;
+  return new Date(ms).toISOString();
+}
+
 // Workday returns relative date strings like "Posted Today" / "5 Days Ago".
 export function parsePostedOn(s: string | null): string | null {
   if (!s) return null;

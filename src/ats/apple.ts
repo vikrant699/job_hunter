@@ -27,7 +27,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 import type { JsonValue } from "../util/json.js";
 
@@ -84,7 +84,6 @@ export function appleSearchBody(page: number): JsonValue {
 export function normalizeApple(company: AdapterCompany, r: AppleSearchResult): NormalizedPosting {
   const loc = r.locations?.[0];
   const location = loc?.name ?? loc?.countryName ?? null;
-  const postedMs = r.postDateInGMT ? Date.parse(r.postDateInGMT) : Number.NaN;
   return {
     provider: "apple",
     externalId: r.id,
@@ -95,7 +94,7 @@ export function normalizeApple(company: AdapterCompany, r: AppleSearchResult): N
     location,
     isRemote: r.homeOffice === true || (location ? REMOTE_RE.test(location) : false),
     jdText: "",
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(r.postDateInGMT),
   };
 }
 

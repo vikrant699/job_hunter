@@ -24,7 +24,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 const BOARD_ORIGIN = "https://app.goodfit.so";
 
@@ -164,12 +164,6 @@ function goodfitJobId(url: string, base: string): string | null {
   }
 }
 
-function goodfitIso(createdAt: string | null): string | null {
-  if (!createdAt) return null;
-  const d = new Date(createdAt); // e.g. "2026-06-22 11:39:05.63+00"
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
 function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
@@ -221,7 +215,7 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
           title: item.name,
           jobUrl: new URL(item.url, finalUrl).toString(),
           location: locations.length > 0 ? locations.join("; ") : null,
-          postedAt: goodfitIso(meta?.createdAt ?? null),
+          postedAt: dateToIso(meta?.createdAt ?? null),
         }),
       );
     }

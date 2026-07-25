@@ -25,7 +25,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const PAGE = 25; // engine-fixed page size
 // Safety cap: 125,000 jobs (PAGE 25 x MAX_PAGES 5000). paginate stops earlier
@@ -62,13 +62,6 @@ export function parseJobHref(href: string): { slug: string; reqId: string } | nu
   const m = path.match(/\/job\/([^/]+)\/([^/]+)\/?$/);
   if (!m?.[1] || !m[2]) return null;
   return { slug: m[1], reqId: m[2] };
-}
-
-/** Tenant date formats vary ("10 Jul 2026", "Jul 10, 2026"); both parse. */
-function parseSuccessfactorsDate(s: string | null): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s.trim());
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
 
 function cleanText(s: string): string {
@@ -121,7 +114,7 @@ export function parseSuccessfactorsSearch(
       location,
       isRemote: location ? REMOTE_RE.test(location) : false,
       jdText: "",
-      postedAt: parseSuccessfactorsDate(dateText || null),
+      postedAt: dateToIso(dateText || null),
     });
   });
 

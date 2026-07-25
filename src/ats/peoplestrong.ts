@@ -21,7 +21,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const PAGE = 45; // vendor-fixed page size
 // Safety cap: 225,000 jobs (PAGE 45 x MAX_PAGES 5000). Largest known tenant
@@ -79,13 +79,6 @@ export function peoplestrongJobUrl(base: string, j: PeoplestrongJob): string {
   return base;
 }
 
-/** Date-only strings ("2026-07-08"). Null-safe; returns null on unparseable. */
-function parsePeoplestrongDate(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s.trim());
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /** Map one API job to a NormalizedPosting. Null when the job has no jobCode
  *  (no stable id / JD key), so the caller can skip it. */
 export function normalizePeoplestrong(
@@ -104,7 +97,7 @@ export function normalizePeoplestrong(
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
-    postedAt: parsePeoplestrongDate(j.jobPostedDate),
+    postedAt: dateToIso(j.jobPostedDate),
   };
 }
 

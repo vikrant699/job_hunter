@@ -29,7 +29,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
 // Safety cap: 500,000 jobs (PAGE 100 x MAX_PAGES 5000). Largest known tenant
@@ -126,13 +126,6 @@ export function ripplehireBoardUrl(base: string, token: string): string {
   return `${base}/candidate/?token=${encodeURIComponent(token)}&source=CAREERSITE`;
 }
 
-/** Date-only strings ("2026-07-01"). Null-safe; returns null on unparseable input. */
-function parseRipplehireDate(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s.trim());
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /** Map one API job to a NormalizedPosting. Null when the job has neither
  *  jobSeq nor jobId (no stable id / JD key), so the caller can skip it. */
 export function normalizeRipplehire(
@@ -153,7 +146,7 @@ export function normalizeRipplehire(
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
-    postedAt: parseRipplehireDate(j.jobPostingDate ?? j.createDttm),
+    postedAt: dateToIso(j.jobPostingDate ?? j.createDttm),
   };
 }
 

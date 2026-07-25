@@ -14,7 +14,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 const ComeetLocationSchema = z.object({
   name: z.string().nullable().optional(),
@@ -110,7 +110,6 @@ export function comeetJdFromDetails(p: ComeetPosition): string {
 
 export function normalizeComeet(company: AdapterCompany, p: ComeetPosition): NormalizedPosting {
   const location = comeetLocationString(p.location);
-  const postedMs = p.time_updated ? Date.parse(p.time_updated) : Number.NaN;
   return {
     provider: "comeet",
     externalId: p.uid,
@@ -121,7 +120,7 @@ export function normalizeComeet(company: AdapterCompany, p: ComeetPosition): Nor
     location,
     isRemote: p.location?.is_remote === true || REMOTE_RE.test(`${p.workplace_type ?? ""} ${location ?? ""}`),
     jdText: comeetJdFromDetails(p),
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(p.time_updated),
   };
 }
 

@@ -40,7 +40,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const API_ORIGIN = "https://ibffpublic6f2461135ffd1b6a80db296ec15abf.onrender.com";
 const LIST_PATH = "/hr/jobs";
@@ -91,12 +91,6 @@ export function onecardListUrl(page: number, pageSize: number): string {
   return `${API_ORIGIN}${LIST_PATH}?${params.toString()}`;
 }
 
-function parseIso(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /** Joins the experience hint ahead of the description; empty when both are absent. */
 export function onecardJdText(a: OnecardJobAttributes): string {
   const parts: string[] = [];
@@ -119,7 +113,7 @@ export function normalizeOnecard(company: AdapterCompany, j: OnecardJob): Normal
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: onecardJdText(j.attributes),
-    postedAt: parseIso(j.attributes.publishedAt),
+    postedAt: dateToIso(j.attributes.publishedAt),
   };
 }
 

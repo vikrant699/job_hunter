@@ -29,7 +29,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const SEARCH_URL = "https://jobs.api.mercedes-benz.com/search";
 const PAGE = 50;
@@ -86,12 +86,6 @@ const MercedesSearchResponseSchema = z.object({
   }),
 });
 
-function parseDateOnly(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 export function normalizeMercedes(company: AdapterCompany, d: MercedesDescriptor): NormalizedPosting {
   const loc = d.PositionLocation?.[0];
   const location = loc?.CityName ?? loc?.DisplayName ?? null;
@@ -105,7 +99,7 @@ export function normalizeMercedes(company: AdapterCompany, d: MercedesDescriptor
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
-    postedAt: parseDateOnly(d.PublicationStartDate),
+    postedAt: dateToIso(d.PublicationStartDate),
   };
 }
 

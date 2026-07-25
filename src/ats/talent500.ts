@@ -28,7 +28,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const API_ORIGIN = "https://prod-warmachine.talent500.co";
 const PUBLIC_JOB_ORIGIN = "https://talent500.com";
@@ -93,15 +93,6 @@ export function talent500ShouldKeep(j: Talent500Job): boolean {
   return true;
 }
 
-/** created_at ("2026-06-24T14:51:54.811468+05:30") -> plain ISO, or null if
- *  absent/unparseable. (`posted_on` is a relative string like "19 days ago"
- *  and is intentionally never used.) */
-function parseTalent500PostedAt(createdAt: string | null | undefined): string | null {
-  if (!createdAt) return null;
-  const ms = Date.parse(createdAt);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 export function normalizeTalent500Job(company: AdapterCompany, j: Talent500Job): NormalizedPosting {
   const location = j.location ?? null;
   return {
@@ -114,7 +105,10 @@ export function normalizeTalent500Job(company: AdapterCompany, j: Talent500Job):
     location,
     isRemote: j.is_remote === true || REMOTE_RE.test(location ?? ""),
     jdText: "",
-    postedAt: parseTalent500PostedAt(j.created_at),
+    // created_at ("2026-06-24T14:51:54.811468+05:30") is the only reliable
+    // timestamp field; `posted_on` is a relative string like "19 days ago"
+    // and is intentionally never used.
+    postedAt: dateToIso(j.created_at),
   };
 }
 

@@ -33,7 +33,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchFormJson } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const HOST = "https://www.tata.com";
@@ -119,7 +119,6 @@ export function tataJobDetailUrl(company: AdapterCompany, j: TataJob): string {
 export function normalizeTataCareers(company: AdapterCompany, j: TataJob): NormalizedPosting {
   const location = j.location ?? null;
   const isFlexible = location ? /^flexible\b/i.test(location.trim()) : false;
-  const postedMs = j.publishedDate ? Date.parse(j.publishedDate) : Number.NaN;
   return {
     provider: "tatacareers",
     externalId: String(j.jobId),
@@ -130,7 +129,7 @@ export function normalizeTataCareers(company: AdapterCompany, j: TataJob): Norma
     location,
     isRemote: isFlexible || (location ? REMOTE_RE.test(location) : false),
     jdText: htmlToText(j.shortDescription ?? ""),
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(j.publishedDate),
   };
 }
 

@@ -31,7 +31,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 const LIST_URL = "https://www.sage.com/api/sagedotcom/CareerSearch/GetCareerSearchData/";
 
@@ -59,12 +59,6 @@ export function filterIndiaSage(records: SageRecord[]): SageRecord[] {
   return records.filter((r) => r.Country?.toLowerCase() === "india");
 }
 
-function parseDateOnly(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 export function normalizeSage(company: AdapterCompany, r: SageRecord): NormalizedPosting {
   const location = r.OfficeLocation ?? null;
   return {
@@ -77,7 +71,7 @@ export function normalizeSage(company: AdapterCompany, r: SageRecord): Normalize
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: r.Description ?? "",
-    postedAt: parseDateOnly(r.ActiveDate),
+    postedAt: dateToIso(r.ActiveDate),
   };
 }
 

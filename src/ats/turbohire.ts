@@ -19,7 +19,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJsonSteps } from "./browser-fetch.js";
 import { parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
 const PAGE_SIZE = 50;
@@ -101,8 +101,7 @@ export function parseTurboHireLocation(raw: string | null | undefined): string |
 function parseTurboHireDate(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const withZone = /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`;
-  const ms = Date.parse(withZone);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+  return dateToIso(withZone);
 }
 
 export function turboHireJobUrl(company: AdapterCompany, jobId: string): string {

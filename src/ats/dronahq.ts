@@ -30,7 +30,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const API_ORIGIN = "https://www.dronahq.com";
 const POST_TYPE = "career";
@@ -97,17 +97,11 @@ export function dronahqWorkTypeFromContent(html: string | null | undefined): str
   return found ? found : null;
 }
 
-/** Prefer date_gmt (true UTC) over the site-local `date` field; null if neither parses. */
+/** Prefer date_gmt (true UTC) over the site-local `date` field; null if
+ *  neither parses. date_gmt has no zone designator of its own (same WP
+ *  convention documented in wpjobs.ts), so "Z" is appended before parsing. */
 function dronahqPostedAt(job: DronahqJob): string | null {
-  if (job.date_gmt) {
-    const ms = Date.parse(`${job.date_gmt}Z`);
-    if (!Number.isNaN(ms)) return new Date(ms).toISOString();
-  }
-  if (job.date) {
-    const ms = Date.parse(job.date);
-    if (!Number.isNaN(ms)) return new Date(ms).toISOString();
-  }
-  return null;
+  return dateToIso(job.date_gmt ? `${job.date_gmt}Z` : null) ?? dateToIso(job.date);
 }
 
 export function normalizeDronahqJob(company: AdapterCompany, job: DronahqJob): NormalizedPosting {

@@ -34,7 +34,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 // Only statusId observed for a publicly listed/open requisition (and the
 // only one the public "careers" source endpoint has ever returned).
@@ -91,7 +91,6 @@ export function mynexthireJobUrl(company: AdapterCompany, reqId: number): string
 
 export function normalizeMyNextHire(company: AdapterCompany, j: MyNextHireJob): NormalizedPosting {
   const location = j.location ?? j.locationAddress ?? null;
-  const postedMs = j.approvedOn ? Date.parse(j.approvedOn) : Number.NaN;
   return {
     provider: "mynexthire",
     externalId: String(j.reqId),
@@ -102,7 +101,7 @@ export function normalizeMyNextHire(company: AdapterCompany, j: MyNextHireJob): 
     location,
     isRemote: REMOTE_RE.test(location ?? ""),
     jdText: htmlToText(j.jdDisplay),
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(j.approvedOn),
   };
 }
 

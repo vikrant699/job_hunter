@@ -27,7 +27,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const PAGE_SIZE = 10;
@@ -118,7 +118,7 @@ export function normalizeZwayam(
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: bestJdText(src),
-    postedAt: postedMs ? new Date(postedMs).toISOString() : null,
+    postedAt: epochMsToIso(postedMs),
   };
 }
 

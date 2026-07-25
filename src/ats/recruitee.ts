@@ -19,7 +19,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 export const RecruiteeOfferSchema = z.object({
   id: z.number(),
@@ -53,15 +53,6 @@ export function recruiteeBase(company: AdapterCompany): string {
   return `https://${company.slug}.recruitee.com`;
 }
 
-/** Recruitee's `published_at`/`created_at` use a space-separated "UTC" suffix
- *  ("2026-07-09 07:03:45 UTC") rather than ISO 8601. Returns null on any
- *  unparsable value instead of throwing. */
-export function parseRecruiteeDate(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /** Concatenate description + requirements (both full HTML) into plain-text JD. */
 function buildJdText(o: RecruiteeOffer): string {
   return [htmlToText(o.description), htmlToText(o.requirements)].filter(Boolean).join("\n\n");
@@ -78,7 +69,7 @@ export function normalizeRecruitee(company: AdapterCompany, o: RecruiteeOffer): 
     location: o.location ?? null,
     isRemote: o.remote === true || REMOTE_RE.test(o.location ?? ""),
     jdText: buildJdText(o),
-    postedAt: parseRecruiteeDate(o.published_at ?? o.created_at),
+    postedAt: dateToIso(o.published_at ?? o.created_at),
   };
 }
 
