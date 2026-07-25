@@ -1,5 +1,6 @@
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
+import type { JsonValue } from "../util/json.js";
 
 const WEBHOOK_TIMEOUT_MS = 15_000;
 const WEBHOOK_MAX_429_RETRIES = 3;
@@ -9,7 +10,7 @@ const WEBHOOK_MAX_429_RETRIES = 3;
  * Shared by the match/summary notifier and the progress heartbeat so the retry
  * behavior stays in one place. Throws on a non-retryable failure.
  */
-export async function postWebhookJson(url: string, body: unknown): Promise<void> {
+export async function postWebhookJson(url: string, body: JsonValue): Promise<void> {
   for (let attempt = 0; attempt <= WEBHOOK_MAX_429_RETRIES; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);

@@ -30,6 +30,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const PAGE = 10;
 
@@ -72,7 +73,7 @@ function origin(company: AdapterCompany): string {
  * (e.g. "custCountryRegion") to route the filter through `facetFilters`
  * instead of the flat field for such tenants.
  */
-export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number): Record<string, unknown> {
+export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number): Record<string, JsonValue> {
   const location = company.apiMeta?.location;
   const facetField = company.apiMeta?.locationFacetField;
   return {

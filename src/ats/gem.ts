@@ -110,11 +110,14 @@ const GemJobDetailSchema = z.object({
   }),
 });
 
-export interface GemGraphqlRequest {
+// A type alias (not interface): JsonValue callers assignability relies on the
+// implicit index signature TS infers for object type literals, which
+// interfaces don't get.
+export type GemGraphqlRequest = {
   operationName: string;
   variables: Record<string, string>;
   query: string;
-}
+};
 
 /** Body for the board's job-list query. Pure — unit tested. */
 export function gemListRequestBody(slug: string): GemGraphqlRequest {

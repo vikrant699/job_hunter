@@ -2,6 +2,7 @@
 import type { Page } from "playwright";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
+import type { JsonValue } from "../util/json.js";
 const HEAVY = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 
@@ -83,7 +84,7 @@ export interface BrowserJsonRequest {
   /** Defaults to GET. */
   method?: "GET" | "POST";
   /** JSON-serialized and sent with a `Content-Type: application/json` header. */
-  body?: unknown;
+  body?: JsonValue;
 }
 
 /**
@@ -95,18 +96,24 @@ export async function browserFetchJsonRequests(pageUrl: string, requests: Browse
   return withBrowserPage(pageUrl, async (page) => {
     const out: unknown[] = [];
     for (const req of requests) {
-      const json = await page.evaluate(async (r) => {
-        const res = await fetch(r.path, {
-          method: r.method ?? "GET",
+      // Stringify the body on the Node side (not inside the evaluated closure):
+      // passing a JsonValue through page.evaluate's Arg makes Playwright's
+      // recursive Unboxed<Arg> mapped type recurse into our own recursive
+      // JsonValue, which can blow TS's instantiation-depth limit (TS2589).
+      // A plain string in Arg sidesteps that entirely.
+      const bodyJson = req.body !== undefined ? JSON.stringify(req.body) : undefined;
+      const json = await page.evaluate(async ({ path, method, bodyJson }) => {
+        const res = await fetch(path, {
+          method: method ?? "GET",
           headers: {
             Accept: "application/json",
-            ...(r.body !== undefined ? { "Content-Type": "application/json" } : {}),
+            ...(bodyJson !== undefined ? { "Content-Type": "application/json" } : {}),
           },
-          ...(r.body !== undefined ? { body: JSON.stringify(r.body) } : {}),
+          ...(bodyJson !== undefined ? { body: bodyJson } : {}),
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         return await res.json();
-      }, req);
+      }, { path: req.path, method: req.method, bodyJson });
       out.push(json);
     }
     return out;
@@ -117,7 +124,7 @@ export interface BrowserJsonStep {
   url: string;
   method?: "GET" | "POST";
   headers?: Record<string, string>;
-  body?: unknown;
+  body?: JsonValue;
 }
 
 // Some tenant pages (TurboHire's careerpage app) keep re-navigating the main
@@ -131,20 +138,25 @@ const TRANSIENT_EVAL_ERROR_RE = /execution context was destroyed|failed to fetch
 const MAX_EVAL_ATTEMPTS = 4;
 
 async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise<unknown> {
+  // Stringify the body on the Node side — see the matching comment in
+  // browserFetchJsonRequests: a JsonValue-typed Arg makes Playwright's
+  // recursive Unboxed<Arg> mapped type recurse into JsonValue's own
+  // recursive union, which can exceed TS's instantiation-depth limit.
+  const bodyJson = step.body !== undefined ? JSON.stringify(step.body) : undefined;
   const run = () =>
-    page.evaluate(async (s) => {
-      const res = await fetch(s.url, {
-        method: s.method ?? "GET",
+    page.evaluate(async ({ url, method, headers, bodyJson }) => {
+      const res = await fetch(url, {
+        method: method ?? "GET",
         headers: {
           Accept: "application/json",
-          ...(s.body !== undefined ? { "Content-Type": "application/json" } : {}),
-          ...(s.headers ?? {}),
+          ...(bodyJson !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(headers ?? {}),
         },
-        body: s.body !== undefined ? JSON.stringify(s.body) : undefined,
+        body: bodyJson,
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       return await res.json();
-    }, step);
+    }, { url: step.url, method: step.method, headers: step.headers, bodyJson });
   for (let attempt = 1; ; attempt++) {
     try {
       return await run();

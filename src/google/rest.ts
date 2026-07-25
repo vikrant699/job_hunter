@@ -3,6 +3,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
 import { getAccessToken, type GoogleAuthDeps } from "./auth.js";
+import type { JsonValue } from "../util/json.js";
 
 /** How long to back off before the single retry on 429/5xx. */
 const DEFAULT_RETRY_DELAY_MS = 2_000;
@@ -31,7 +32,7 @@ export interface RestDeps {
 export async function googleFetchJson(
   profileId: string,
   url: string,
-  init: { method?: "GET" | "POST" | "PUT"; body?: unknown } = {},
+  init: { method?: "GET" | "POST" | "PUT"; body?: JsonValue } = {},
   deps: RestDeps = {},
 ): Promise<unknown> {
   const fetchFn = deps.fetchFn ?? fetch;
