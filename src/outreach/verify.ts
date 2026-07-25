@@ -12,6 +12,7 @@ import { selectAllRecruiters, setRecruiterStatus as setRecruiterStatusDefault } 
 import { readTab as readTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
 import { parseRoles } from "./roles.js";
 import { istDate } from "./run.js";
+import { RECRUITERS_LIST_COLS } from "./tabs.js";
 import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../schemas.js";
 
 /** How far back the verify pass re-checks 'discarded' rows for a late-indexed
@@ -347,8 +348,6 @@ function splitTabEmails(cell: string): string[] {
     .filter((e) => e.length > 0);
 }
 
-const RECRUITERS_LIST_EMAIL_COL = 3;
-
 /**
  * After a verify pass, any recruiter this pass newly marked 'verified' whose
  * source is 'raw-csv' (i.e. it came from the bot-owned Raw Data tab, never
@@ -365,7 +364,7 @@ async function promoteNewlyVerified(deps: VerifyDeps, profileId: string, newlyVe
   const existingRows = await deps.readTab(profileId, config.google.tabs.recruiters);
   const existingEmails = new Set<string>();
   for (const row of existingRows.slice(1)) {
-    for (const email of splitTabEmails(row[RECRUITERS_LIST_EMAIL_COL] ?? "")) {
+    for (const email of splitTabEmails(row[RECRUITERS_LIST_COLS.email] ?? "")) {
       existingEmails.add(email);
     }
   }
