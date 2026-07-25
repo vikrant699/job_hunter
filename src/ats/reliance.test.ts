@@ -14,6 +14,7 @@ import {
 } from "./reliance.js";
 import type { RelianceJobRow } from "./reliance.js";
 import type { AdapterCompany } from "../types.js";
+import { stubFetch } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "reliance", slug: "reliance", name: "Reliance Industries",
@@ -238,17 +239,9 @@ test("parseRelianceJd returns empty string when the description div is absent", 
 
 // --- Adapter integration: exercise the real __VIEWSTATE paging loop end to end ---
 
-const realFetch = globalThis.fetch;
-function stubFetch(fn: typeof globalThis.fetch): void {
-  globalThis.fetch = fn;
-}
-function restoreFetch(): void {
-  globalThis.fetch = realFetch;
-}
-
-test("relianceAdapter.listPostings pages through both fixture pages via the __VIEWSTATE postback loop", async () => {
+test("relianceAdapter.listPostings pages through both fixture pages via the __VIEWSTATE postback loop", async (t) => {
   let postCount = 0;
-  stubFetch(async (_input, init) => {
+  stubFetch(t, async (_input, init) => {
     if (init?.method === "POST") {
       postCount += 1;
       const body = String(init.body);
@@ -260,63 +253,47 @@ test("relianceAdapter.listPostings pages through both fixture pages via the __VI
     }
     return new Response(PAGE1_HTML, { status: 200 });
   });
-  try {
-    const postings = await relianceAdapter.listPostings(company);
-    assert.equal(postCount, 1, "a 2-page board should need exactly one postback");
-    assert.equal(postings.length, 4);
-    assert.equal(postings[0]?.jobTitle, "CS Operations Lead 2 - CS ( 82861680 )");
-    assert.equal(postings[2]?.jobTitle, "Technologist - PSF CP ( 81813262 )");
-    assert.deepEqual(
-      postings.map((p) => p.externalId),
-      ["82861680", "82859263", "81813262", "81900011"],
-    );
-  } finally {
-    restoreFetch();
-  }
+  const postings = await relianceAdapter.listPostings(company);
+  assert.equal(postCount, 1, "a 2-page board should need exactly one postback");
+  assert.equal(postings.length, 4);
+  assert.equal(postings[0]?.jobTitle, "CS Operations Lead 2 - CS ( 82861680 )");
+  assert.equal(postings[2]?.jobTitle, "Technologist - PSF CP ( 81813262 )");
+  assert.deepEqual(
+    postings.map((p) => p.externalId),
+    ["82861680", "82859263", "81813262", "81900011"],
+  );
 });
 
-test("relianceAdapter.listPostings makes no postback at all for a single-page board", async () => {
+test("relianceAdapter.listPostings makes no postback at all for a single-page board", async (t) => {
   const single = listPageHtml({ rows: page1Rows.slice(0, 1), currentPage: 1, totalPages: 1, viewstate: "VS-ONLY" });
   let calls = 0;
-  stubFetch(async () => {
+  stubFetch(t, async () => {
     calls += 1;
     return new Response(single, { status: 200 });
   });
-  try {
-    const postings = await relianceAdapter.listPostings(company);
-    assert.equal(calls, 1);
-    assert.equal(postings.length, 1);
-  } finally {
-    restoreFetch();
-  }
+  const postings = await relianceAdapter.listPostings(company);
+  assert.equal(calls, 1);
+  assert.equal(postings.length, 1);
 });
 
-test("relianceAdapter.listPostings throws instead of looping forever if the server never advances the page", async () => {
-  stubFetch(async (_input, init) => {
+test("relianceAdapter.listPostings throws instead of looping forever if the server never advances the page", async (t) => {
+  stubFetch(t, async (_input, init) => {
     if (init?.method === "POST") return new Response(PAGE1_HTML, { status: 200 }); // stuck on page 1
     return new Response(PAGE1_HTML, { status: 200 });
   });
-  try {
-    await assert.rejects(relianceAdapter.listPostings(company), /pagination stuck/);
-  } finally {
-    restoreFetch();
-  }
+  await assert.rejects(relianceAdapter.listPostings(company), /pagination stuck/);
 });
 
-test("relianceAdapter.fetchJd fetches the posting's job URL and extracts the description div", async () => {
+test("relianceAdapter.fetchJd fetches the posting's job URL and extracts the description div", async (t) => {
   let fetchedUrl = "";
-  stubFetch(async (input) => {
+  stubFetch(t, async (input) => {
     fetchedUrl = String(input);
     return new Response(JD_HTML, { status: 200 });
   });
-  try {
-    const posting = normalizeReliance(company, rowFromFixture(page1Rows[0]!));
-    const jd = await relianceAdapter.fetchJd!(company, posting);
-    assert.equal(fetchedUrl, posting.jobUrl);
-    assert.match(jd, /Job Responsibilities/);
-  } finally {
-    restoreFetch();
-  }
+  const posting = normalizeReliance(company, rowFromFixture(page1Rows[0]!));
+  const jd = await relianceAdapter.fetchJd!(company, posting);
+  assert.equal(fetchedUrl, posting.jobUrl);
+  assert.match(jd, /Job Responsibilities/);
 });
 
 // Helper: turn a fixture row spec into the RelianceJobRow shape parseRelianceListPage would produce.
