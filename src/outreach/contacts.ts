@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { readTab as readTabDefault } from "../google/sheets.js";
 import { upsertRecruiter } from "../db/recruiters.js";
 import { normalizeCompanyName } from "./match.js";
+import { RECRUITERS_LIST_COLS, RAW_DATA_COLS } from "./tabs.js";
 
 export interface SyncContactsDeps {
   /** Injectable in tests to avoid a real Sheets fetch. Defaults to the real
@@ -21,20 +22,6 @@ function splitEmails(cell: string): string[] {
     .map((e) => e.trim().toLowerCase())
     .filter((e) => EMAIL_RE.test(e));
 }
-
-const RECRUITERS_COL = {
-  company: 0,
-  name: 1,
-  phone: 2,
-  email: 3,
-} as const;
-
-const RAW_DATA_COL = {
-  company: 0,
-  email: 1,
-  contactName: 2,
-  altNames: 3,
-} as const;
 
 function cellAt(row: string[], index: number): string {
   return (row[index] ?? "").trim();
@@ -61,17 +48,17 @@ export async function syncContactsFromSheet(
   const rawRows = await readTab(profileId, config.google.tabs.rawData);
   let raw = 0;
   for (const row of rawRows.slice(1)) {
-    const company = cellAt(row, RAW_DATA_COL.company);
-    const emails = splitEmails(cellAt(row, RAW_DATA_COL.email));
+    const company = cellAt(row, RAW_DATA_COLS.company);
+    const emails = splitEmails(cellAt(row, RAW_DATA_COLS.email));
     if (emails.length === 0) continue;
     const altNamesNorm =
-      cellAt(row, RAW_DATA_COL.altNames)
+      cellAt(row, RAW_DATA_COLS.altNames)
         .split(";")
         .map((a) => a.trim())
         .filter((a) => a.length > 0)
         .map((a) => normalizeCompanyName(a))
         .join(";") || null;
-    const contactName = cellAt(row, RAW_DATA_COL.contactName) || null;
+    const contactName = cellAt(row, RAW_DATA_COLS.contactName) || null;
 
     for (const email of emails) {
       upsertRecruiter({
@@ -96,11 +83,11 @@ export async function syncContactsFromSheet(
   let manual = 0;
   const verifiedAt = importedAt;
   for (const row of recruiterRows.slice(1)) {
-    const company = cellAt(row, RECRUITERS_COL.company);
-    const emails = splitEmails(cellAt(row, RECRUITERS_COL.email));
+    const company = cellAt(row, RECRUITERS_LIST_COLS.company);
+    const emails = splitEmails(cellAt(row, RECRUITERS_LIST_COLS.email));
     if (emails.length === 0) continue;
-    const contactName = cellAt(row, RECRUITERS_COL.name) || null;
-    const phone = cellAt(row, RECRUITERS_COL.phone) || null;
+    const contactName = cellAt(row, RECRUITERS_LIST_COLS.name) || null;
+    const phone = cellAt(row, RECRUITERS_LIST_COLS.phone) || null;
 
     for (const email of emails) {
       upsertRecruiter({
