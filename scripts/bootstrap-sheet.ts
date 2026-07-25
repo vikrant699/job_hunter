@@ -24,7 +24,7 @@ import { RegistryEntrySchema } from "../src/schemas.js";
 import {
   DRAFTS_HEADER, RAW_DATA_HEADER, RECRUITERS_EXTRA_HEADER, SENT_HEADER, UNDRAFTED_HEADER,
 } from "../src/outreach/tabs.js";
-import { parseCsv } from "../eval/csv-parser.js";
+import { parseCsv } from "../src/util/csv.js";
 
 function argValue(flag: string): string | null {
   const i = process.argv.indexOf(flag);

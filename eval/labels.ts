@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { parseCsv } from "./csv-parser.js";
+import { parseCsv } from "../src/util/csv.js";
 
 export interface LoadedLabels {
   /** id (`provider:external_id`) → true if relevant, false if irrelevant. */

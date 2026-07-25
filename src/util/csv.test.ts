@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCsv } from "./csv.js";
+import { buildCsv, parseCsv } from "./csv.js";
 
 test("buildCsv emits header + rows joined by CRLF, quoting cells that need it", () => {
   const csv = buildCsv(
@@ -28,4 +28,28 @@ test("buildCsv leaves a blank cell for null/undefined and quotes commas", () => 
   );
   const lines = csv.trimEnd().split("\r\n");
   assert.equal(lines[1], 'match,"Acme, Inc",Analyst,https://x,,green,n/a');
+});
+
+test("parseCsv parses simple rows", () => {
+  assert.deepEqual(parseCsv("a,b\n1,2\n"), [["a", "b"], ["1", "2"]]);
+});
+
+test("parseCsv keeps commas inside quoted fields", () => {
+  assert.deepEqual(parseCsv('"x,y",z\n'), [["x,y", "z"]]);
+});
+
+test("parseCsv unescapes doubled quotes", () => {
+  assert.deepEqual(parseCsv('"a""b",c\n'), [['a"b', "c"]]);
+});
+
+test("parseCsv handles CRLF and a final row without trailing newline", () => {
+  assert.deepEqual(parseCsv("a,b\r\n1,2"), [["a", "b"], ["1", "2"]]);
+});
+
+test("parseCsv returns empty array for empty input", () => {
+  assert.deepEqual(parseCsv(""), []);
+});
+
+test("parseCsv normalizes CRLF inside a quoted field to \\n (no stray \\r in the value)", () => {
+  assert.deepEqual(parseCsv('"line1\r\nline2",x\r\n'), [["line1\nline2", "x"]]);
 });
