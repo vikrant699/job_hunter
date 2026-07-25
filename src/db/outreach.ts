@@ -268,11 +268,3 @@ const selectUndraftedByRunStmt = db.prepare(`
 export function selectUndraftedByRun(runId: number): UndraftedRow[] {
   return queryAll(selectUndraftedByRunStmt, UndraftedRowSchema, { runId }).map(rowToUndrafted);
 }
-
-const selectUndraftedByRunDateStmt = db.prepare(`
-  SELECT * FROM undrafted WHERE run_date = :runDate AND profile_id = :profileId
-`);
-
-export function selectUndraftedByRunDate(runDate: string, profileId: string): UndraftedRow[] {
-  return queryAll(selectUndraftedByRunDateStmt, UndraftedRowSchema, { runDate, profileId }).map(rowToUndrafted);
-}

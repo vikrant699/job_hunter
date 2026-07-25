@@ -7,7 +7,6 @@ import {
   selectLastDraftedAt,
   insertUndrafted,
   selectUndraftedByRun,
-  selectUndraftedByRunDate,
   selectOutreachSentTab,
 } from "./outreach.js";
 
@@ -126,38 +125,6 @@ test("insertUndrafted + selectUndraftedByRun round-trips", () => {
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.company, "NoContact Inc");
   assert.equal(rows[0]?.reason, "no_contact");
-});
-
-test("selectUndraftedByRunDate filters by run_date and profile_id", () => {
-  const runDate = `2026-01-${String(1 + Math.floor(Math.random() * 27)).padStart(2, "0")}`;
-  insertUndrafted({
-    profileId: "profX",
-    runId: null,
-    runDate,
-    company: "DateFilter Co",
-    jobTitle: "Engineer",
-    location: null,
-    jobUrl: "https://x/w",
-    severity: "green",
-    score: null,
-    reason: "cooldown",
-  });
-  insertUndrafted({
-    profileId: "profY",
-    runId: null,
-    runDate,
-    company: "OtherProfile Co",
-    jobTitle: "Engineer",
-    location: null,
-    jobUrl: "https://x/v",
-    severity: "green",
-    score: null,
-    reason: "cooldown",
-  });
-
-  const rows = selectUndraftedByRunDate(runDate, "profX");
-  assert.ok(rows.some((r) => r.company === "DateFilter Co"));
-  assert.ok(!rows.some((r) => r.company === "OtherProfile Co"));
 });
 
 test("selectOutreachSentTab returns sent/bounced/verified rows across all profiles, newest sent_at first", () => {

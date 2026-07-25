@@ -109,57 +109,6 @@ export function updatePostingResult(update: PostingResultUpdate): void {
   updatePostingResultStmt.run(update);
 }
 
-/* ===== listNotifiedPostingsSince ===== */
-
-const NotifiedPostingRowSchema = z.object({
-  company: z.string().nullable(),
-  company_slug: z.string(),
-  job_title: z.string().nullable(),
-  job_url: z.string(),
-  llm_confidence: z.number().nullable(),
-  drop_stage: z.string().nullable(),
-  llm_reason: z.string().nullable(),
-});
-
-export interface NotifiedPosting {
-  company: string;
-  title: string;
-  url: string;
-  score: number | null;
-  tier: "green" | "yellow";
-  reason: string;
-}
-
-// Notified postings (green = drop_stage NULL, yellow = drop_stage 'yellow')
-// discovered this tick, joined to the company name. Green first, then score desc.
-const listNotifiedPostingsSinceStmt = db.prepare(`
-  SELECT c.name AS company, p.company_slug, p.job_title, p.job_url,
-         p.llm_confidence, p.drop_stage, p.llm_reason
-  FROM postings p
-  LEFT JOIN companies c ON c.provider = p.provider AND c.slug = p.company_slug
-  WHERE p.discovered_at >= :since
-    AND p.notified_at IS NOT NULL
-    AND (p.drop_stage IS NULL OR p.drop_stage = 'yellow')
-    AND p.profile_id = :profileId
-  ORDER BY CASE WHEN p.drop_stage IS NULL THEN 0 ELSE 1 END,
-           p.llm_confidence DESC
-`);
-
-export function listNotifiedPostingsSince(sinceIso: string, profileId: string): NotifiedPosting[] {
-  const rows = queryAll(listNotifiedPostingsSinceStmt, NotifiedPostingRowSchema, {
-    since: sinceIso,
-    profileId,
-  });
-  return rows.map((r) => ({
-    company: r.company ?? r.company_slug,
-    title: r.job_title ?? "",
-    url: r.job_url,
-    score: r.llm_confidence,
-    tier: r.drop_stage === "yellow" ? "yellow" : "green",
-    reason: r.llm_reason ?? "",
-  }));
-}
-
 /* ===== selectNotifiedPostingsSince ===== */
 
 const OutreachNotifiedPostingRowSchema = z.object({

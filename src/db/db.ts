@@ -82,6 +82,11 @@ db.exec(schema);
     `);
     logger.info("migration: postings rebuilt with profile_id in PK (existing rows -> 'default')");
   }
+
+  // brave_quota was the Brave Search API's monthly-quota tracker; the Brave
+  // API was removed with the discovery pipeline (2026-07-15). Idempotent drop
+  // cleans up existing local DBs that still carry the table.
+  db.exec("DROP TABLE IF EXISTS brave_quota");
 }
 
 logger.info({ path: dbPath }, "sqlite initialized");

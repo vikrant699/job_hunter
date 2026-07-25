@@ -48,12 +48,6 @@ CREATE TABLE IF NOT EXISTS postings (
 CREATE INDEX IF NOT EXISTS idx_postings_company ON postings(provider, company_slug);
 CREATE INDEX IF NOT EXISTS idx_postings_discovered ON postings(discovered_at);
 
-CREATE TABLE IF NOT EXISTS brave_quota (
-  month  TEXT PRIMARY KEY,   -- "YYYY-MM"
-  count  INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS link_cache (
   provider    TEXT NOT NULL,
   slug        TEXT NOT NULL,
