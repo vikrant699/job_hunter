@@ -11,11 +11,10 @@
 // JobPosting JSON-LD block, which holds the full plain-text description.
 import { z } from "zod";
 import { logger } from "../logger.js";
-import { config } from "../config.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsHttpError } from "./http.js";
+import { atsFetchText } from "./http.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { matchGroup } from "../util/regex.js";
 
@@ -212,30 +211,12 @@ export function extractSetuJdText(html: string): string {
   return htmlToText(html);
 }
 
-// ---------------------------------------------------------------------------
-// HTTP — a small local fetch helper. Neither atsFetchJson (JSON-only) nor
-// atsFetchText (fixed bot UA) fit here: the CSV fetch is plain text off
-// GitHub, and the JD fetch must use a browser UA (verified live: a plain bot
-// UA is fine for the CSV host, but the job page is served off a WAF-fronted
-// TurboHire tenant that expects a browser UA).
-// ---------------------------------------------------------------------------
-
-async function fetchText(url: string, userAgent: string): Promise<string> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, { headers: { "User-Agent": userAgent }, signal: controller.signal });
-    if (!res.ok) throw atsHttpError("setu", res.status, await res.text());
-    return await res.text();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 export const setuAdapter: AtsAdapter = {
   provider: "setu",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const csv = await fetchText(SETU_CSV_URL, config.fetch.userAgent);
+    // Plain text off GitHub; the default bot UA is fine for this host
+    // (verified live).
+    const csv = await atsFetchText(SETU_CSV_URL, { provider: "setu" });
     if (!csv.trim()) throw new Error("setu: CSV response was empty");
     const rows = parseSetuCsv(csv);
     if (rows.length === 0) throw new Error("setu: CSV parsed to zero rows");
@@ -244,7 +225,9 @@ export const setuAdapter: AtsAdapter = {
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const html = await fetchText(posting.jobUrl, BROWSER_UA);
+    // The job page is served off a WAF-fronted TurboHire tenant that expects
+    // a browser UA (verified live) — override the default bot UA here.
+    const html = await atsFetchText(posting.jobUrl, { provider: "setu", userAgent: BROWSER_UA });
     return extractSetuJdText(html);
   },
 };

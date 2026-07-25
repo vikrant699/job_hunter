@@ -45,12 +45,11 @@
 // live), so `fetchJd` is not needed.
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsHttpError } from "./http.js";
+import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const API_URL = "https://moglix-api.flexiele.com/api-pub/rec/careers/list";
@@ -197,37 +196,22 @@ export function normalizeMoglix(company: AdapterCompany, j: MoglixJob): Normaliz
 }
 
 /**
- * POST the encrypted `careers/list` request. Not routed through
- * `atsFetchJson` because this API requires a bespoke `fe-req-encrypted`
- * header (the envelope's dynamic key name) that helper has no option for;
- * this mirrors its timeout/UA/error semantics directly. No WAF gate observed
- * live — the default bot UA works fine, no cookies/session needed.
+ * POST the encrypted `careers/list` request via atsFetchJson, which accepts
+ * the bespoke `fe-req-encrypted` header (the envelope's dynamic key name)
+ * alongside its usual timeout/UA/error handling. No WAF gate observed live —
+ * the default bot UA works fine, no cookies/session needed.
  */
 async function fetchEncryptedList(): Promise<unknown> {
   const hexKey = randomHexKey();
   const requestBody = { ...GRID_REQUEST, requiresCounts: true, skip: 0, take: TAKE };
   const ciphertext = moglixEncrypt(JSON.stringify(requestBody), ENC_PASSPHRASE);
   const envelope = { [hexKey]: ciphertext };
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "User-Agent": config.fetch.userAgent,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        [REQ_ENC_HEADER]: hexKey,
-      },
-      body: JSON.stringify(envelope),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError("moglix", res.status, await res.text());
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  return atsFetchJson(API_URL, {
+    method: "POST",
+    body: envelope,
+    provider: "moglix",
+    headers: { [REQ_ENC_HEADER]: hexKey },
+  });
 }
 
 export const moglixAdapter: AtsAdapter = {

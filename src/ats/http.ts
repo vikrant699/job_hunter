@@ -10,11 +10,17 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
   return new Error(`${provider} HTTP ${status}: ${bodySnippet.slice(0, 200)}`);
 }
 
-/** Run `fn` with an AbortSignal that fires after the standard ATS timeout.
- *  The timeout covers the whole call — headers AND body consumption — so a
- *  stalled body read aborts too. */
-async function withAtsTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  return fn(AbortSignal.timeout(config.fetch.timeoutMs));
+/** Run `fn` with an AbortSignal that fires after `timeoutMs` (default: the
+ *  standard ATS timeout). The timeout covers the whole call — headers AND
+ *  body consumption — so a stalled body read aborts too. Exported for the
+ *  handful of adapters whose fetch shape (raw Response access, bespoke
+ *  cookie/session headers) doesn't fit atsFetchJson/atsFetchText, so they can
+ *  still get a timeout without hand-rolling AbortController/setTimeout. */
+export async function withAtsTimeout<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number = config.fetch.timeoutMs,
+): Promise<T> {
+  return fn(AbortSignal.timeout(timeoutMs));
 }
 
 /** fetch() that throws `atsHttpError` on a non-OK response. */
@@ -99,16 +105,19 @@ export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: unknow
 export async function atsFetchFormJson(
   url: string,
   form: Record<string, string>,
-  opts: { provider?: string } = {},
+  opts: { provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
 ): Promise<unknown> {
   const provider = opts.provider ?? "ats";
   return withAtsTimeout<unknown>(async (signal) => {
     const res = await fetchOk(url, {
       method: "POST",
       headers: {
-        "User-Agent": config.fetch.userAgent,
+        "User-Agent": opts.userAgent ?? config.fetch.userAgent,
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
+        // Caller headers last so a provider-specific header wins (same
+        // ordering convention as atsFetchJson).
+        ...(opts.headers ?? {}),
       },
       body: new URLSearchParams(form).toString(),
       signal,
