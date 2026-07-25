@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  peoplestrongBase,
   peoplestrongListUrl,
   peoplestrongJdUrl,
   peoplestrongJobUrl,
@@ -40,14 +39,6 @@ const JOB_WITH_URL: PeoplestrongJob = {
   jobDetailUrl: "https://abfrlcareers.peoplestrong.com/job/detail/BFL_D-VA_1794956",
   jobPostedDate: "2026-07-08",
 };
-
-test("peoplestrongBase derives origin from careersUrl (or tenantUrl when set)", () => {
-  assert.equal(peoplestrongBase(company), "https://rblcareers.peoplestrong.com");
-  assert.equal(
-    peoplestrongBase({ ...company, tenantUrl: "https://abfrlcareers.peoplestrong.com/careers" }),
-    "https://abfrlcareers.peoplestrong.com",
-  );
-});
 
 test("peoplestrongListUrl builds the paged POST list endpoint", () => {
   assert.equal(

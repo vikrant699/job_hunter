@@ -18,18 +18,13 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 
 const PAGE_SIZE = 25; // server-fixed page size
 
-/** Origin (https://<tenant>.hire.trakstar.com) from the tenant/careers URL. */
-export function trakstarBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
-
 /** Listing page N (1-based). Page 1 is the bare origin (== ?p=1). */
 export function trakstarListUrl(company: AdapterCompany, page = 1): string {
-  const base = trakstarBase(company);
+  const base = tenantOrigin(company);
   return page <= 1 ? base : `${base}/?p=${page}`;
 }
 
@@ -51,7 +46,7 @@ export function parseTrakstarHref(href: string): { slug: string } | null {
  *  skips any row missing an href, slug, or title. Dedups by slug in case
  *  markup ever renders a row twice. */
 export function parseTrakstarList(html: string, company: AdapterCompany): NormalizedPosting[] {
-  const base = trakstarBase(company);
+  const base = tenantOrigin(company);
   const $ = cheerio.load(html);
   const postings: NormalizedPosting[] = [];
   const seen = new Set<string>();

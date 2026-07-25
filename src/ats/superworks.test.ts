@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  superworksBase,
   superworksListUrl,
   parseSuperworksList,
   parseSuperworksJd,
@@ -96,12 +95,11 @@ const DETAIL_HTML = `<html><body>${pushScript(DETAIL_INITIAL_DATA_CHUNK)}${pushS
 
 // ---- tests -------------------------------------------------------------
 
-test("superworksBase / superworksListUrl derive the tenant origin and listing URL", () => {
-  assert.equal(superworksBase(company), "https://refrens.superworks.com");
+test("superworksListUrl derives the tenant origin and listing URL", () => {
   assert.equal(superworksListUrl(company), "https://refrens.superworks.com/job/listing");
   assert.equal(
-    superworksBase({ ...company, tenantUrl: null }),
-    "https://refrens.superworks.com",
+    superworksListUrl({ ...company, tenantUrl: null }),
+    "https://refrens.superworks.com/job/listing",
   );
 });
 

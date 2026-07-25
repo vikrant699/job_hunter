@@ -8,7 +8,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const PAGE = 10; // server-fixed; page-size params are ignored
@@ -33,15 +33,11 @@ const JibePageSchema = z.object({
   totalCount: z.number().nullable().optional(),
 });
 
-function siteOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
-
 /** Paged search URL; `apiMeta.location` (e.g. "India") narrows server-side. */
 export function jibeApiUrl(company: AdapterCompany, page: number): string {
   const location = company.apiMeta?.location;
   const filter = location ? `&location=${encodeURIComponent(location)}` : "";
-  return `${siteOrigin(company)}/api/jobs?page=${page}${filter}`;
+  return `${tenantOrigin(company)}/api/jobs?page=${page}${filter}`;
 }
 
 /** Unwrap the `jobs[].data` envelope; tolerates a missing totalCount. */
@@ -59,7 +55,7 @@ export function normalizeJibe(company: AdapterCompany, j: JibeJob): NormalizedPo
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: j.meta_data?.canonical_url ?? `${siteOrigin(company)}/jobs/${slug}`,
+    jobUrl: j.meta_data?.canonical_url ?? `${tenantOrigin(company)}/jobs/${slug}`,
     location,
     isRemote: REMOTE_RE.test(`${j.location_type ?? ""} ${location ?? ""}`),
     jdText: j.description ? htmlToText(j.description) : "",

@@ -14,7 +14,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 
 const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
@@ -29,13 +29,9 @@ const TeamtailorJobPostingSchema = z.object({
 });
 export type TeamtailorJobPosting = z.infer<typeof TeamtailorJobPostingSchema>;
 
-function boardOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
-
 /** Paged board URL: https://<slug>.teamtailor.com/jobs?page=N (1-based). */
 export function teamtailorJobsUrl(company: AdapterCompany, page: number): string {
-  return `${boardOrigin(company)}/jobs?page=${page}`;
+  return `${tenantOrigin(company)}/jobs?page=${page}`;
 }
 
 /** Collapse whitespace runs — board titles/locations span multiple source lines. */
@@ -98,7 +94,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
       companySlug: company.slug,
       companyName: company.name,
       jobTitle: title,
-      jobUrl: new URL(href, boardOrigin(company)).toString(),
+      jobUrl: new URL(href, tenantOrigin(company)).toString(),
       location,
       isRemote: REMOTE_RE.test(`${workplace.join(" ")} ${location ?? ""}`),
       jdText: "", // detail page only — fetched lazily via fetchJd

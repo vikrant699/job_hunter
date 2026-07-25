@@ -13,7 +13,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchJson } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 const PAGE_SIZE = 50;
@@ -49,11 +49,6 @@ const SenseHqPaginatedDataSchema = z.object({ pageProps: SenseHqPagePropsSchema 
 export interface SenseHqJobsData {
   rows: SenseHqRow[];
   count: number | null;
-}
-
-/** Origin (https://<tenant>.sensehq.com) from the tenant or careers URL. */
-export function senseHqOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
 /**
@@ -117,7 +112,7 @@ export function normalizeSenseHq(company: AdapterCompany, origin: string, r: Sen
 export const sensehqAdapter: AtsAdapter = {
   provider: "sensehq",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const origin = senseHqOrigin(company);
+    const origin = tenantOrigin(company);
     const { html } = await atsFetchHtml(`${origin}/careers`, { provider: "sensehq" });
     const nextData = extractSenseHqNextData(html);
     if (!nextData) throw new Error(`sensehq: no __NEXT_DATA__ island for ${company.slug}`);

@@ -16,13 +16,8 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
-
-/** Tenant origin, e.g. "https://cuemath.jobsoid.com". */
-export function jobsoidOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Pull the numeric job id out of a `/j/<id>/<slug>` href. */
 export function jobsoidIdFromHref(href: string): string | null {
@@ -87,7 +82,7 @@ export const jobsoidAdapter: AtsAdapter = {
   provider: "jobsoid",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const { finalUrl, html } = await atsFetchHtml(`${jobsoidOrigin(company)}/`, { provider: "jobsoid" });
+    const { finalUrl, html } = await atsFetchHtml(`${tenantOrigin(company)}/`, { provider: "jobsoid" });
     return parseJobsoidList(html, finalUrl, company);
   },
 

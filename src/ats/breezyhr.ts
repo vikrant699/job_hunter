@@ -6,7 +6,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchHtml } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, tenantOriginOr } from "./shared.js";
 
 // BreezyHR public boards: <tenant>.breezy.hr
 //   list: GET https://<tenant>.breezy.hr/json  (no auth; ?limit= is ignored,
@@ -51,14 +51,7 @@ export type BreezyJob = z.infer<typeof BreezyJobSchema>;
 /** Tenant host origin, e.g. "https://talentmovers.breezy.hr". Prefers an
  *  explicit tenant_url host when set, else builds it from the slug. */
 export function breezyBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}.breezy.hr`;
+  return tenantOriginOr(company, (slug) => `https://${slug}.breezy.hr`);
 }
 
 /**

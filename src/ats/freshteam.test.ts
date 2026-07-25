@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  freshteamBase,
   freshteamListUrl,
   parseFreshteamHref,
   parseFreshteamList,
@@ -67,10 +66,9 @@ const JD_HTML = `
 </body></html>
 `;
 
-test("freshteamBase / freshteamListUrl derive the tenant origin and listing URL", () => {
-  assert.equal(freshteamBase(company), "https://krazybee.freshteam.com");
+test("freshteamListUrl builds the listing URL from the tenant origin", () => {
   assert.equal(freshteamListUrl(company), "https://krazybee.freshteam.com/jobs");
-  assert.equal(freshteamBase({ ...company, tenantUrl: null }), "https://krazybee.freshteam.com");
+  assert.equal(freshteamListUrl({ ...company, tenantUrl: null }), "https://krazybee.freshteam.com/jobs");
 });
 
 test("parseFreshteamHref extracts id + slug from a /jobs/<id>/<slug> path", () => {

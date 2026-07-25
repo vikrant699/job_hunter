@@ -1,5 +1,6 @@
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
+import type { AdapterCompany } from "../types.js";
 
 export const REMOTE_RE = /\b(remote|work from home|wfh|anywhere|virtual)\b/i;
 
@@ -127,6 +128,25 @@ export function dateToIso(s: string | null | undefined): string | null {
 export function epochMsToIso(ms: number | null | undefined): string | null {
   if (!ms) return null;
   return new Date(ms).toISOString();
+}
+
+/** Origin of the tenant's board: tenant_url wins, else careers_url. Throws on
+ *  an unparseable URL (config error worth failing the company). */
+export function tenantOrigin(c: Pick<AdapterCompany, "tenantUrl" | "careersUrl">): string {
+  return new URL(c.tenantUrl ?? c.careersUrl).origin;
+}
+
+/** Like tenantOrigin but an unparseable/absent URL falls back to a
+ *  slug-derived host. */
+export function tenantOriginOr(
+  c: Pick<AdapterCompany, "tenantUrl" | "careersUrl" | "slug">,
+  fallback: (slug: string) => string,
+): string {
+  try {
+    return new URL(c.tenantUrl ?? c.careersUrl).origin;
+  } catch {
+    return fallback(c.slug);
+  }
 }
 
 // Workday returns relative date strings like "Posted Today" / "5 Days Ago".

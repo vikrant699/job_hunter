@@ -34,7 +34,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, dateToIso } from "./shared.js";
+import { REMOTE_RE, dateToIso, tenantOriginOr } from "./shared.js";
 
 // Only statusId observed for a publicly listed/open requisition (and the
 // only one the public "careers" source endpoint has ever returned).
@@ -59,14 +59,7 @@ const ListResponseSchema = z.object({
  *  explicit tenant_url host when set, else builds it from the slug (the
  *  subdomain). */
 export function mynexthireBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}.mynexthire.com`;
+  return tenantOriginOr(company, (slug) => `https://${slug}.mynexthire.com`);
 }
 
 /**

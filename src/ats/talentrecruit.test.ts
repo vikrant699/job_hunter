@@ -14,7 +14,6 @@ import {
   decryptWithHealing,
   parseJobListPage,
   normalizeTalentRecruit,
-  talentRecruitOrigin,
   EncryptedBlobSchema,
   type EncryptedBlob,
   type SeedStore,
@@ -202,10 +201,6 @@ test("normalizeTalentRecruit falls back to jobid, city/state/country, remote fla
   assert.equal(p.externalId, "U2FsdGVkX1+abc");
   assert.equal(p.location, "Bengaluru, Karnataka, India");
   assert.equal(p.isRemote, true);
-});
-
-test("talentRecruitOrigin derives the tenant origin", () => {
-  assert.equal(talentRecruitOrigin(company), "https://zepto.talentrecruit.com");
 });
 
 // End-to-end pure path: encrypt an envelope, decrypt with healing, unwrap, normalize.

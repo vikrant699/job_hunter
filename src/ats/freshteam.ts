@@ -20,16 +20,11 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
-
-/** Origin (https://<tenant>.freshteam.com) from the tenant/careers URL. */
-export function freshteamBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
+import { REMOTE_RE, tenantOrigin } from "./shared.js";
 
 /** The one (unpaginated) listing page. */
 export function freshteamListUrl(company: AdapterCompany): string {
-  return `${freshteamBase(company)}/jobs`;
+  return `${tenantOrigin(company)}/jobs`;
 }
 
 function cleanText(s: string): string {
@@ -51,7 +46,7 @@ export function parseFreshteamHref(href: string): { id: string; slug: string } |
  *  jobs_list container (returns []) and skips any row missing an href, id, or
  *  title. Dedups by job id in case markup ever renders a row twice. */
 export function parseFreshteamList(html: string, company: AdapterCompany): NormalizedPosting[] {
-  const base = freshteamBase(company);
+  const base = tenantOrigin(company);
   const $ = cheerio.load(html);
   const postings: NormalizedPosting[] = [];
   const seen = new Set<string>();

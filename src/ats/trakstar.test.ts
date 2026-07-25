@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  trakstarBase,
   trakstarListUrl,
   parseTrakstarHref,
   parseTrakstarList,
@@ -51,11 +50,10 @@ const JD_HTML = `
 </body></html>
 `;
 
-test("trakstarBase / trakstarListUrl derive the tenant origin and listing URL", () => {
-  assert.equal(trakstarBase(company), "https://acme.hire.trakstar.com");
+test("trakstarListUrl derives the tenant origin for page 1 (bare origin)", () => {
   assert.equal(trakstarListUrl(company), "https://acme.hire.trakstar.com");
   assert.equal(
-    trakstarBase({ ...company, tenantUrl: null }),
+    trakstarListUrl({ ...company, tenantUrl: null }),
     "https://acme.hire.trakstar.com",
   );
 });

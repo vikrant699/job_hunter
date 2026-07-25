@@ -29,7 +29,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
 const PAGE = 10;
@@ -54,10 +54,6 @@ const SfunifyListSchema = z.object({
   jobSearchResult: z.array(z.object({ response: SfunifyJobSchema })).nullable().optional(),
   totalJobs: z.number().nullable().optional(),
 });
-
-function origin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /**
  * Request body for one page. `locale` defaults to "en_US"; some tenants
@@ -126,7 +122,7 @@ export function parseSfunifyStartDate(s: string | null | undefined): string | nu
  */
 export function sfunifyJobUrl(company: AdapterCompany, job: SfunifyJob, locale: string): string {
   const slug = job.urlTitle ?? job.unifiedUrlTitle ?? "";
-  return `${origin(company)}/job/${slug}/${job.id}-${locale}`;
+  return `${tenantOrigin(company)}/job/${slug}/${job.id}-${locale}`;
 }
 
 /**
@@ -208,7 +204,7 @@ export const sfunifyAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const locale = company.apiMeta?.locale ?? "en_US";
-    const url = `${origin(company)}/services/recruiting/v1/jobs`;
+    const url = `${tenantOrigin(company)}/services/recruiting/v1/jobs`;
     const seen = new Set<string>();
 
     const fetchOnce = async (page: number) => {

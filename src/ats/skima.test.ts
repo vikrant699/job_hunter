@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  skimaBaseUrl,
   skimaPageUrl,
   parseSkimaListingHtml,
   normalizeSkimaItem,
@@ -60,16 +59,7 @@ const DETAIL_HTML = `
 </div>
 </main></body></html>`;
 
-// --- skimaBaseUrl / skimaPageUrl ------------------------------------------
-
-test("skimaBaseUrl uses the careersUrl origin", () => {
-  assert.equal(skimaBaseUrl(company), "https://careers.nykaa.com");
-});
-
-test("skimaBaseUrl prefers tenantUrl and strips paths", () => {
-  const c: AdapterCompany = { ...company, tenantUrl: "https://careers.shiprocket.in/some/path" };
-  assert.equal(skimaBaseUrl(c), "https://careers.shiprocket.in");
-});
+// --- skimaPageUrl ----------------------------------------------------------
 
 test("skimaPageUrl returns the bare URL for page 1 and ?page=N beyond", () => {
   assert.equal(skimaPageUrl("https://careers.nykaa.com", 1), "https://careers.nykaa.com");

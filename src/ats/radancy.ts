@@ -46,7 +46,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, tenantOrigin } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 // Runaway backstop for when `data-total-pages` is missing/unparseable and
@@ -62,11 +62,6 @@ const JD_CLASS_TIERS = ["ats-description", "job-description", "__description"];
 
 function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();
-}
-
-/** Origin (e.g. https://www.careers.ford.com) the job/list URLs resolve against. */
-export function radancyOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
 /** Listing URL for page N (1-based). Page 1 is the bare careersUrl, unmodified. */
@@ -104,7 +99,7 @@ export function parseRadancyJobId(href: string): string | null {
  * tenant genuinely rendering a duplicate card.
  */
 export function parseRadancyList(html: string, company: AdapterCompany): NormalizedPosting[] {
-  const base = radancyOrigin(company);
+  const base = tenantOrigin(company);
   const $ = cheerio.load(html);
   const postings: NormalizedPosting[] = [];
   const seen = new Set<string>();

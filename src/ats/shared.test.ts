@@ -8,7 +8,10 @@ import {
   parsePostedOn,
   paginate,
   INTER_PAGE_DELAY_MS,
+  tenantOrigin,
+  tenantOriginOr,
 } from "./shared.js";
+import type { AdapterCompany } from "../types.js";
 
 // helper: days between a past ISO string and now
 function dayDelta(iso: string | null): number {
@@ -74,6 +77,50 @@ describe("epochMsToIso", () => {
     assert.strictEqual(epochMsToIso(null), null));
   it("returns null for undefined", () =>
     assert.strictEqual(epochMsToIso(undefined), null));
+});
+
+const originCompany: AdapterCompany = {
+  provider: "successfactors",
+  slug: "acme",
+  name: "Acme",
+  careersUrl: "https://acme.example.com/careers",
+  tenantUrl: null,
+  apiMeta: null,
+};
+
+describe("tenantOrigin", () => {
+  it("prefers tenantUrl's origin when set", () => {
+    assert.strictEqual(
+      tenantOrigin({ ...originCompany, tenantUrl: "https://tenant.acme.com/board?x=1" }),
+      "https://tenant.acme.com",
+    );
+  });
+  it("falls back to careersUrl's origin when tenantUrl is unset", () => {
+    assert.strictEqual(tenantOrigin(originCompany), "https://acme.example.com");
+  });
+  it("throws on an unparseable URL", () => {
+    assert.throws(() => tenantOrigin({ ...originCompany, careersUrl: "not a url" }));
+  });
+});
+
+describe("tenantOriginOr", () => {
+  const fallback = (slug: string) => `https://${slug}.fallback.example.com`;
+
+  it("prefers tenantUrl's origin when set", () => {
+    assert.strictEqual(
+      tenantOriginOr({ ...originCompany, tenantUrl: "https://tenant.acme.com/board" }, fallback),
+      "https://tenant.acme.com",
+    );
+  });
+  it("falls back to careersUrl's origin when tenantUrl is unset", () => {
+    assert.strictEqual(tenantOriginOr(originCompany, fallback), "https://acme.example.com");
+  });
+  it("calls the fallback on an unparseable URL instead of throwing", () => {
+    assert.strictEqual(
+      tenantOriginOr({ ...originCompany, careersUrl: "not a url" }, fallback),
+      "https://acme.fallback.example.com",
+    );
+  });
 });
 
 describe("parsePostedOn", () => {

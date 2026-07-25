@@ -18,21 +18,14 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, tenantOriginOr } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 /** Tenant origin, e.g. "https://hackerearth.applytojob.com". Prefers an
  *  explicit tenant_url host when set, else builds it from the slug (the
  *  subdomain — an arbitrary JazzHR account name). */
 export function jazzhrBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}.applytojob.com`;
+  return tenantOriginOr(company, (slug) => `https://${slug}.applytojob.com`);
 }
 
 export interface JazzhrListing {

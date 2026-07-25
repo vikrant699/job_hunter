@@ -21,7 +21,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 
 const PAGE = 45; // vendor-fixed page size
 // Safety cap: 225,000 jobs (PAGE 45 x MAX_PAGES 5000). Largest known tenant
@@ -50,11 +50,6 @@ export const PeoplestrongJdSchema = z.object({
     .nullable()
     .optional(),
 });
-
-/** Origin (https://<tenant>.peoplestrong.com) from the tenant/careers URL. */
-export function peoplestrongBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Paged list endpoint at the given 0-based offset. */
 export function peoplestrongListUrl(base: string, offset: number, limit = PAGE): string {
@@ -93,7 +88,7 @@ export function normalizePeoplestrong(
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.jobTitle ?? "",
-    jobUrl: peoplestrongJobUrl(peoplestrongBase(company), j),
+    jobUrl: peoplestrongJobUrl(tenantOrigin(company), j),
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
@@ -112,7 +107,7 @@ export const peoplestrongAdapter: AtsAdapter = {
   provider: "peoplestrong",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const base = peoplestrongBase(company);
+    const base = tenantOrigin(company);
     // Boxed in an object: a bare `let total` mutated only inside the fetchPage
     // closure defeats TS's narrowing (it can't see paginate() invoking the
     // closure, so it treats `total` as permanently its initial `null`); a
@@ -164,7 +159,7 @@ export const peoplestrongAdapter: AtsAdapter = {
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const base = peoplestrongBase(company);
+    const base = tenantOrigin(company);
     const raw = await atsFetchJson(peoplestrongJdUrl(base, posting.externalId), {
       provider: "peoplestrong",
     });

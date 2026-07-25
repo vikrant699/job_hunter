@@ -6,7 +6,6 @@ import {
   senseHqInitialJobsData,
   senseHqPaginatedJobsData,
   senseHqPageUrl,
-  senseHqOrigin,
   normalizeSenseHq,
   SenseHqRowSchema,
   sensehqAdapter,
@@ -96,11 +95,6 @@ test("senseHqPaginatedJobsData tolerates a genuinely empty rows page (end of pag
   const parsed = senseHqPaginatedJobsData(page);
   assert.ok(parsed);
   assert.equal(parsed?.rows.length, 0);
-});
-
-test("senseHqOrigin prefers tenantUrl, falls back to careersUrl origin", () => {
-  assert.equal(senseHqOrigin(company), "https://tiger-analytics.sensehq.com");
-  assert.equal(senseHqOrigin({ ...company, tenantUrl: null }), "https://tiger-analytics.sensehq.com");
 });
 
 test("senseHqPageUrl builds the _next/data pagination URL with all query params, 0-indexed page", () => {
