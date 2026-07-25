@@ -9,37 +9,9 @@
  * ATS and reports the first hit. Used during seed compilation to classify names
  * into ats-api vs llm-scrape strategies.
  */
-import { config } from "../src/config.js";
-import { probeWithTimeout } from "../src/util/probe.js";
+import { ATS_URL_BUILDERS, probeJsonBoard } from "./ats-probes.js";
 
-const PROBES: Array<{ provider: string; url: (slug: string) => string }> = [
-  {
-    provider: "greenhouse",
-    url: (s) => `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(s)}/jobs?content=false`,
-  },
-  {
-    provider: "lever",
-    url: (s) => `https://api.lever.co/v0/postings/${encodeURIComponent(s)}?mode=json`,
-  },
-  {
-    provider: "ashby",
-    url: (s) => `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(s)}?includeCompensation=false`,
-  },
-];
-
-async function probeUrl(url: string): Promise<boolean> {
-  const res = await probeWithTimeout(url, {
-    timeoutMs: 8_000,
-    headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-  });
-  if (!res.ok) return false;
-  // Validate response body looks right — some boards return 200 with empty/redirect.
-  if (res.body.length < 10) return false;
-  // Quick sniff for a real job board response (avoid HTML error pages).
-  const lc = res.body.slice(0, 200).toLowerCase();
-  if (lc.includes("<!doctype") || lc.includes("<html")) return false;
-  return true;
-}
+const PROBE_PROVIDERS = ["greenhouse", "lever", "ashby"] as const;
 
 export function slugVariants(name: string): string[] {
   const base = name.toLowerCase().trim();
@@ -59,8 +31,10 @@ export interface ProbeHit {
 
 export async function probeOne(name: string): Promise<ProbeHit | null> {
   for (const slug of slugVariants(name)) {
-    for (const { provider, url } of PROBES) {
-      const ok = await probeUrl(url(slug));
+    for (const provider of PROBE_PROVIDERS) {
+      const build = ATS_URL_BUILDERS[provider];
+      if (!build) continue;
+      const ok = await probeJsonBoard(build(slug));
       if (ok) return { name, provider, slug };
     }
   }
