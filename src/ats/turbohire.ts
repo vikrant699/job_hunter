@@ -132,6 +132,13 @@ export function normalizeTurboHire(company: AdapterCompany, j: TurboHireJob): No
  * mismatch, since a silent `break` here would return a partial list that
  * looks complete (page 1 already throws loudly on the same mismatch, so a
  * mid-stream one must too).
+ *
+ * Jobs already in `out` are skipped by `JobId`: this endpoint ignores
+ * pageNumber/pageSize and answers with the whole board (Total ===
+ * Result.length on all 10 live tenants, 2026-07-25), so a tenant that ever
+ * reported a larger Total while still ignoring pageNumber would serve page 1
+ * again for every "next page" — and stacking those would inflate the board
+ * with duplicates instead of paginating.
  */
 export function mergeTurboHirePages(
   company: AdapterCompany,
@@ -139,6 +146,7 @@ export function mergeTurboHirePages(
   pages: unknown[],
   total: number,
 ): void {
+  const seen = new Set(out.map((p) => p.externalId));
   for (const raw of pages) {
     const parsed = TurboHireListSchema.safeParse(raw);
     if (!parsed.success) {
@@ -148,7 +156,11 @@ export function mergeTurboHirePages(
       );
     }
     if (parsed.data.Result.length === 0) break;
-    for (const j of parsed.data.Result) out.push(normalizeTurboHire(company, j));
+    for (const j of parsed.data.Result) {
+      if (seen.has(j.JobId)) continue;
+      seen.add(j.JobId);
+      out.push(normalizeTurboHire(company, j));
+    }
     if (out.length >= total) break;
   }
 }

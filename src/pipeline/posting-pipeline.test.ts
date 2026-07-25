@@ -1,7 +1,56 @@
 // src/pipeline/posting-pipeline.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { droppedResult, verdictResult } from "./posting-pipeline.js";
+import { droppedResult, verdictResult, lateLocationCheck } from "./posting-pipeline.js";
+import type { NormalizedPosting } from "../types.js";
+
+function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
+  return {
+    provider: "ralphlauren",
+    externalId: "1",
+    companySlug: "ralph-lauren",
+    companyName: "Ralph Lauren",
+    jobTitle: "Analyst, Planning Applications",
+    jobUrl: "https://careers.ralphlauren.com/en_US/CareersCorporate/JobDetailCorporate?jobId=57886",
+    location: null,
+    isRemote: false,
+    jdText: "",
+    postedAt: null,
+    ...over,
+  };
+}
+
+// An adapter may only learn the real location while fetching the JD (Avature's
+// list API gives lat/lon and leaves many jobs ungeocoded). When it resolves one,
+// that metadata must face the STRICT check — the text heuristic is the
+// no-metadata fallback and would defer a foreign role to the LLM gate.
+test("lateLocationCheck applies the strict metadata check when fetchJd resolved a location", () => {
+  // "hong kong" is a listed rejectRegion, so that rule fires first.
+  const listed = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon, Hong Kong SAR" }));
+  assert.equal(listed.accept, false);
+  assert.equal(listed.reason, "geo-rejected");
+
+  // A foreign place NOT on the reject list still fails for want of any
+  // in-region signal — which is the whole point of using the strict check here.
+  const unlisted = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon" }));
+  assert.equal(unlisted.accept, false);
+  assert.equal(unlisted.reason, "out-of-region");
+
+  const india = lateLocationCheck(posting({ location: "Bangalore, Karnataka, India" }));
+  assert.equal(india.accept, true);
+});
+
+test("lateLocationCheck falls back to the text heuristic when the location is still unknown", () => {
+  const r = lateLocationCheck(posting({ location: null, jdText: "Join our Bengaluru team." }));
+  assert.equal(r.accept, true);
+  assert.equal(r.reason, "in-region-text");
+});
+
+test("lateLocationCheck treats an empty-string location as unknown, not as a metadata reject", () => {
+  const r = lateLocationCheck(posting({ location: "", jdText: "A frontend role." }));
+  assert.equal(r.accept, true);
+  assert.equal(r.reason, "unknown-defer");
+});
 
 test("droppedResult defaults confidence/yoe to null and always sets llmRelevant 0, notifiedAt null", () => {
   const r = droppedResult("no-jd", "no-jd");

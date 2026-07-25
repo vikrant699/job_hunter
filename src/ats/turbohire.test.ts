@@ -115,6 +115,23 @@ test("mergeTurboHirePages stops once total is reached", () => {
   assert.deepEqual(out.map((p) => p.externalId), ["ef888dcf-c65a-4fd2-a10e-b8dd2b7c131e"]);
 });
 
+// The filteredjobs endpoint ignores pageNumber/pageSize and returns the whole
+// board in one call (verified live on all 10 tenants 2026-07-25: Total ===
+// Result.length). Should a tenant ever report a Total larger than one response
+// while still ignoring pageNumber, every "next page" would repeat page 1 — so
+// the merge must not stack the same job twice on the way to Total.
+test("mergeTurboHirePages ignores a repeated page instead of duplicating jobs", () => {
+  const out: NormalizedPosting[] = [];
+  mergeTurboHirePages(company, out, [page([job]), page([job]), page([{ ...job, JobId: "2" }])], 3);
+  assert.deepEqual(out.map((p) => p.externalId), ["ef888dcf-c65a-4fd2-a10e-b8dd2b7c131e", "2"]);
+});
+
+test("mergeTurboHirePages does not re-add a job already collected from page 1", () => {
+  const out: NormalizedPosting[] = [normalizeTurboHire(company, job)];
+  mergeTurboHirePages(company, out, [page([job, { ...job, JobId: "2" }])], 3);
+  assert.deepEqual(out.map((p) => p.externalId), ["ef888dcf-c65a-4fd2-a10e-b8dd2b7c131e", "2"]);
+});
+
 test("mergeTurboHirePages stops on an empty page", () => {
   const out: NormalizedPosting[] = [];
   mergeTurboHirePages(company, out, [page([]), page([{ ...job, JobId: "2" }])], 5);

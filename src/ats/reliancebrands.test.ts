@@ -44,3 +44,34 @@ test("normalizeReliance falls back to a title slug id when no id field", () => {
   const p = normalizeReliance(company, { title: "Area Sales Lead (West)" })!;
   assert.equal(p.externalId, "area-sales-lead-west-");
 });
+
+// A bare ISO country code is what the jobSearch filter itself sends
+// (`{match:{Country:"IN"}}`), so it is the most likely country value to come
+// back. Emitting the raw "IN" as the location made the pipeline's strict
+// checkLocation() drop the posting — the profile's country hints are "india" /
+// "in," and neither matches "in" — so an India-only req would be discarded as
+// out-of-region. Expanding the code keeps it in.
+test("normalizeReliance expands a bare country code so it carries geo signal", () => {
+  const p = normalizeReliance(company, { title: "Buyer", Country: "IN" })!;
+  assert.equal(p.location, "India");
+});
+
+test("normalizeReliance appends the country to a city so both signals survive", () => {
+  const p = normalizeReliance(company, { title: "Buyer", City: "Mumbai", Country: "IN" })!;
+  assert.equal(p.location, "Mumbai, India");
+});
+
+test("normalizeReliance does not duplicate a country already named in the city field", () => {
+  const p = normalizeReliance(company, { title: "Buyer", Location: "Mumbai, India", country: "India" })!;
+  assert.equal(p.location, "Mumbai, India");
+});
+
+test("normalizeReliance leaves an unrecognized country code alone rather than guessing", () => {
+  const p = normalizeReliance(company, { title: "Buyer", Country: "AE" })!;
+  assert.equal(p.location, "AE");
+});
+
+test("normalizeReliance yields a null location when no location field is present", () => {
+  const p = normalizeReliance(company, { title: "Buyer" })!;
+  assert.equal(p.location, null);
+});
