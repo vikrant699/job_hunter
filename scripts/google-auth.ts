@@ -14,12 +14,9 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { z } from "zod";
+import { config } from "../src/config.js";
 
-const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.compose",
-  "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/spreadsheets",
-].join(" ");
+const SCOPES = config.google.scopes.join(" ");
 
 const TokenResponseSchema = z.object({
   access_token: z.string(),

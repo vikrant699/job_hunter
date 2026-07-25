@@ -59,11 +59,9 @@ export const config = {
      *  valid sheet sync; read back only when the sheet is unreachable
      *  (sheet-registry.ts) or by read-only ops scripts. */
     registryPath: "data/registry-cache.json",
-    postingRetentionDays: 90,
   },
 
   discord: {
-    embedDescriptionMaxChars: 300,
     /** Prefix on every embed title — useful when sharing a channel with other bots. */
     titlePrefix: "[job-hunter]",
     /** Shared channel for the bot's run status: mid-run progress heartbeats + the
