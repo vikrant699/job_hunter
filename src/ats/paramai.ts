@@ -6,11 +6,10 @@
 // apiMeta.subdomain selects the tenant (e.g. "maruti"). JD inline. Verified
 // live on Maruti Suzuki (784 jobs across 32 departments, 2026-07-18).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
@@ -58,14 +57,10 @@ export const paramaiAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const sub = subdomain(company);
     const raw = await atsFetchJson(`https://${sub}.app.param.ai/api/career/get_job/`, { provider: "paramai" });
-    const parsed = ParamAiResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "paramai schema mismatch");
-      throw new Error(`paramai response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(ParamAiResponseSchema, raw, { provider: "paramai", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const dept of Object.values(parsed.data.data)) {
+    for (const dept of Object.values(parsed.data)) {
       for (const j of dept.jobs ?? []) {
         const p = normalizeParamAi(company, sub, j);
         if (seen.has(p.externalId)) continue;

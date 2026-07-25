@@ -26,11 +26,10 @@
 // modal board) — stable and unique per posting, even though the fragment
 // isn't a real anchor the page listens for.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const API_URL = "https://blogbackend.99games.in/BackendCms/jobOpportunities/opportunities";
@@ -89,15 +88,8 @@ export const nineNineGamesAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(API_URL, { provider: "nineninegames" });
-    const parsed = NineNineGamesListSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "nineninegames list schema mismatch",
-      );
-      throw new Error(`nineninegames list response failed schema for ${company.slug}`);
-    }
-    return parsed.data
+    const parsed = parseOrThrow(NineNineGamesListSchema, raw, { provider: "nineninegames", slug: company.slug });
+    return parsed
       .filter(nineNineGamesShouldKeep)
       .map((j) => normalizeNineNineGamesJob(company, j));
   },

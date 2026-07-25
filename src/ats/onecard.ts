@@ -37,10 +37,9 @@
 //   (rendered into a bare `<pre>` in the template, i.e. plain text) — no
 //   fetchJd needed.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const API_ORIGIN = "https://ibffpublic6f2461135ffd1b6a80db296ec15abf.onrender.com";
@@ -136,17 +135,10 @@ export const onecardAdapter: AtsAdapter = {
           provider: "onecard",
           headers: { "x-api-key": API_KEY },
         });
-        const parsed = OnecardResponseSchema.safeParse(json);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-            "onecard list schema mismatch",
-          );
-          throw new Error(`onecard list response failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(OnecardResponseSchema, json, { provider: "onecard", slug: company.slug });
         return {
-          items: parsed.data.data.data,
-          total: parsed.data.data.meta?.pagination?.total ?? null,
+          items: parsed.data.data,
+          total: parsed.data.meta?.pagination?.total ?? null,
         };
       },
     });

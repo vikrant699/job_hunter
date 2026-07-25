@@ -22,11 +22,10 @@
 //           The list response carries no date field, so postedAt is always
 //           null.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const API_ORIGIN = "https://api.rippling.com";
@@ -104,23 +103,17 @@ export const ripplingAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(ripplingListUrl(company.slug), { provider: "rippling" });
-    const parsed = RipplingListSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "rippling list schema mismatch",
-      );
-      throw new Error(`rippling list response failed schema for ${company.slug}`);
-    }
-    return parsed.data.map((j) => normalizeRipplingJob(company, j));
+    const parsed = parseOrThrow(RipplingListSchema, raw, { provider: "rippling", slug: company.slug });
+    return parsed.map((j) => normalizeRipplingJob(company, j));
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const raw = await atsFetchJson(ripplingDetailUrl(company.slug, posting.externalId), { provider: "rippling" });
-    const parsed = RipplingDetailSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(`rippling: job detail failed schema for uuid "${posting.externalId}"`);
-    }
-    return buildRipplingJd(parsed.data);
+    const parsed = parseOrThrow(RipplingDetailSchema, raw, {
+      provider: "rippling",
+      slug: company.slug,
+      what: `detail ${posting.externalId}`,
+    });
+    return buildRipplingJd(parsed);
   },
 };

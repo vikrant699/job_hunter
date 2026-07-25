@@ -105,5 +105,5 @@ test("a response failing the meta/results schema rejects", async (t) => {
       () => jsonResponse({ notMeta: true }),
     ),
   );
-  await assert.rejects(ongigAdapter.listPostings(company), /ongig response failed schema/);
+  await assert.rejects(ongigAdapter.listPostings(company), /ongig list p1 response failed schema/);
 });

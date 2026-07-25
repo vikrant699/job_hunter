@@ -28,10 +28,9 @@
 // JD: Description is already plain text (verified: 0/163 records contain any
 //   HTML tags) — no fetchJd needed.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.sage.com/api/sagedotcom/CareerSearch/GetCareerSearchData/";
@@ -86,15 +85,8 @@ export const sageAdapter: AtsAdapter = {
   provider: "sage",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "sage" });
-    const parsed = SageResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "sage list schema mismatch",
-      );
-      throw new Error(`sage list response failed schema for ${company.slug}`);
-    }
-    const india = filterIndiaSage(parsed.data.vacancies.Records);
+    const parsed = parseOrThrow(SageResponseSchema, raw, { provider: "sage", slug: company.slug });
+    const india = filterIndiaSage(parsed.vacancies.Records);
     return india.map((r) => normalizeSage(company, r));
   },
   // Description is already plain text in the list response — no fetchJd needed.

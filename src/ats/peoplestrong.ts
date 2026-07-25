@@ -20,7 +20,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const PAGE = 45; // vendor-fixed page size
@@ -136,23 +136,20 @@ export const peoplestrongAdapter: AtsAdapter = {
           body: {},
           provider: "peoplestrong",
         });
-        const parsed = PeoplestrongListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, offset, issues: parsed.error.issues.slice(0, 2) },
-            "peoplestrong list schema mismatch",
-          );
-          throw new Error(`peoplestrong list response failed schema for ${company.slug}`);
+        const parsed = parseOrThrow(PeoplestrongListSchema, raw, {
+          provider: "peoplestrong",
+          slug: company.slug,
+          what: `list (offset ${offset})`,
+        });
+        if (state.total === null && typeof parsed.totalRecords === "number") {
+          state.total = parsed.totalRecords;
         }
-        if (state.total === null && typeof parsed.data.totalRecords === "number") {
-          state.total = parsed.data.totalRecords;
-        }
-        const items = parsed.data.response
+        const items = parsed.response
           .map((j) => normalizePeoplestrong(company, j))
           .filter((p): p is NormalizedPosting => p !== null);
         // Advance by the raw record count, not the filtered count, so jobs
         // dropped for a missing jobCode don't shorten the page and stop early.
-        return { items, total: parsed.data.totalRecords ?? null, rawCount: parsed.data.response.length };
+        return { items, total: parsed.totalRecords ?? null, rawCount: parsed.response.length };
       },
     });
 
