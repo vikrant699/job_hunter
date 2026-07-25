@@ -33,7 +33,7 @@ export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boo
     postedAt: p.postedAt,
     discoveredAt: new Date().toISOString(),
   });
-  return (result.changes ?? 0) > 0;
+  return result.changes > 0;
 }
 
 const postingExistsStmt = db.prepare(`

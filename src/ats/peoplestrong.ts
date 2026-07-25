@@ -119,7 +119,11 @@ export const peoplestrongAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = peoplestrongBase(company);
-    let total: number | null = null;
+    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
+    // closure defeats TS's narrowing (it can't see paginate() invoking the
+    // closure, so it treats `total` as permanently its initial `null`); a
+    // property write is narrowed correctly at each read below.
+    const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({
       provider: "peoplestrong",
@@ -140,8 +144,8 @@ export const peoplestrongAdapter: AtsAdapter = {
           );
           throw new Error(`peoplestrong list response failed schema for ${company.slug}`);
         }
-        if (total === null && typeof parsed.data.totalRecords === "number") {
-          total = parsed.data.totalRecords;
+        if (state.total === null && typeof parsed.data.totalRecords === "number") {
+          state.total = parsed.data.totalRecords;
         }
         const items = parsed.data.response
           .map((j) => normalizePeoplestrong(company, j))
@@ -152,6 +156,7 @@ export const peoplestrongAdapter: AtsAdapter = {
       },
     });
 
+    const total = state.total;
     if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
       logger.warn(
         { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },

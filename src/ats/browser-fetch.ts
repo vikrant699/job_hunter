@@ -237,7 +237,7 @@ export async function browserCaptureText(
       const bodies: string[] = [];
       for (const req of requests) {
         const body = await page.evaluate(async ({ url, headers }) => {
-          const res = await fetch(url, { headers: { Accept: "application/json", ...(headers ?? {}) } });
+          const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
           if (!res.ok) throw new Error("HTTP " + res.status);
           return await res.text();
         }, { url: req.url, headers: req.headers ?? {} });

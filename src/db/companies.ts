@@ -234,7 +234,7 @@ const applyDormancyStmt = db.prepare(`
  */
 export function applyDormancy(minStreak: number = 3): number {
   const result = applyDormancyStmt.run({ minStreak });
-  return Number(result.changes ?? 0);
+  return Number(result.changes);
 }
 
 const bumpMatchedStmt = db.prepare(`

@@ -169,7 +169,11 @@ export const ripplehireAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = ripplehireBase(company);
     const token = await resolveRipplehireToken(company, base);
-    let total: number | null = null;
+    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
+    // closure defeats TS's narrowing (it can't see paginate() invoking the
+    // closure, so it treats `total` as permanently its initial `null`); a
+    // property write is narrowed correctly at each read below.
+    const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({
       provider: "ripplehire",
@@ -188,8 +192,8 @@ export const ripplehireAdapter: AtsAdapter = {
           );
           throw new Error(`ripplehire list response failed schema for ${company.slug}`);
         }
-        if (total === null && typeof parsed.data.totalJobCount === "number") {
-          total = parsed.data.totalJobCount;
+        if (state.total === null && typeof parsed.data.totalJobCount === "number") {
+          state.total = parsed.data.totalJobCount;
         }
         const rawJobs = parsed.data.jobVoList ?? [];
         const items = rawJobs
@@ -201,6 +205,7 @@ export const ripplehireAdapter: AtsAdapter = {
       },
     });
 
+    const total = state.total;
     if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
       logger.warn(
         { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },

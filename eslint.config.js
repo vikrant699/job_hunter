@@ -71,4 +71,17 @@ export default tseslint.config(
       "@typescript-eslint/no-non-null-assertion": "error",
     },
   },
+  {
+    // Unnecessary-condition checks enforced in production code only. Test
+    // files carry 111 pre-existing sites (mostly `?.` chains on fixture
+    // objects whose types are wider than the literal test data) that are out
+    // of scope for this pass; revisit if that debt is ever paid down.
+    files: ["**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "**/*.test.ts"],
+    languageOptions,
+    plugins,
+    rules: {
+      "@typescript-eslint/no-unnecessary-condition": "error",
+    },
+  },
 );

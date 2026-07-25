@@ -23,7 +23,6 @@ import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const DEFAULT_ORG = "183";
-const BOARD_URL = "https://careers.talview.com/";
 
 export const TalviewCategorySchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -71,7 +70,7 @@ export function normalizeTalviewJob(company: AdapterCompany, j: TalviewJob): Nor
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: company.tenantUrl ?? company.careersUrl ?? BOARD_URL,
+    jobUrl: company.tenantUrl ?? company.careersUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText,
