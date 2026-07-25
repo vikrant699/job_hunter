@@ -33,7 +33,7 @@ async function runOnce(registryResult: RegistrySyncResult): Promise<void> {
     // known-dead address would get drafted to again.
     verifyResult = await runVerify({ profileId, runId: outcome.runId });
     outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
-    await projectToSheet(profileId, undefined, outcome.runId);
+    await projectToSheet(profileId, outcome.runId);
     // The happy path above is otherwise silent — without this line a clean
     // run's log just stops at "production tick complete".
     logger.info(
@@ -93,10 +93,8 @@ async function main(): Promise<void> {
   // The Google token check is likewise fail-fast pre-flight: abort BEFORE any
   // scraping so a revoked/expired refresh token surfaces immediately, instead
   // of discovering it only after a multi-hour tick when outreach runs.
-  if (once) {
-    await assertOllamaAvailable();
-    await assertGoogleTokenValid(profile.id ?? "default");
-  }
+  await assertOllamaAvailable();
+  await assertGoogleTokenValid(profile.id ?? "default");
 
   const profileId = profile.id ?? "default";
   const registryResult = await syncRegistryFromSheet(profileId);

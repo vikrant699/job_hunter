@@ -72,7 +72,7 @@ test("projectToSheet writes the Drafts tab with all draft-status rows across pro
     status: "sent", // must NOT appear in Drafts tab
   }));
 
-  await projectToSheet("default", deps);
+  await projectToSheet("default", undefined, deps);
 
   const draftsWrite = rewrites.find((r) => r.tab === config.google.tabs.drafts);
   assert.ok(draftsWrite);
@@ -101,7 +101,7 @@ test("projectToSheet: Drafts severity/score picks highest score within the same 
     ]),
   }));
 
-  await projectToSheet("default", deps);
+  await projectToSheet("default", undefined, deps);
 
   const draftsWrite = rewrites.find((r) => r.tab === config.google.tabs.drafts);
   assert.ok(draftsWrite);
@@ -121,7 +121,7 @@ test("projectToSheet degrades a corrupt roles_json row to blank Roles/Severity/S
     rolesJson: "{not json",
   }));
 
-  await projectToSheet("default", deps);
+  await projectToSheet("default", undefined, deps);
 
   const draftsWrite = rewrites.find((r) => r.tab === config.google.tabs.drafts);
   assert.ok(draftsWrite);
@@ -140,7 +140,7 @@ test("projectToSheet writes the Sent tab with sent/bounced/verified rows, newest
   const id = insertOutreach(baseRow({ recruiterEmail: email, companyName: `SentCo-${tag}`, status: "sent" }));
   updateOutreachStatus({ id, status: "sent", sentAt });
 
-  await projectToSheet("default", deps);
+  await projectToSheet("default", undefined, deps);
 
   const sentWrite = rewrites.find((r) => r.tab === config.google.tabs.sent);
   assert.ok(sentWrite);
@@ -176,7 +176,7 @@ test("projectToSheet appends Undrafted rows for THIS runId only, never rewrites"
   insertUndrafted(mkRow(earlierRunId, `EarlierCo-${tag}`));
   insertUndrafted(mkRow(thisRunId, `UndraftedCo-${tag}`));
 
-  await projectToSheet("default", deps, thisRunId);
+  await projectToSheet("default", thisRunId, deps);
 
   assert.ok(!rewrites.some((r) => r.tab === config.google.tabs.undrafted));
   const undraftedAppend = appends.find((a) => a.tab === config.google.tabs.undrafted);
@@ -191,7 +191,7 @@ test("projectToSheet appends Undrafted rows for THIS runId only, never rewrites"
 
 test("projectToSheet skips the Undrafted append entirely when runId is absent", async () => {
   const { deps, appends } = harness();
-  await projectToSheet("default", deps, null);
+  await projectToSheet("default", null, deps);
   assert.ok(!appends.some((a) => a.tab === config.google.tabs.undrafted));
 });
 
