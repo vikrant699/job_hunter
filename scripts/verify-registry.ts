@@ -5,6 +5,7 @@ import { z } from "zod";
 import { config } from "../src/config.js";
 import { RegistryEntrySchema, type RegistryEntry } from "../src/schemas.js";
 import { probeOne } from "./slug-probe.js";
+import { ATS_URL_BUILDERS, probeJsonBoard } from "./ats-probes.js";
 import { BROWSER_UA } from "../src/util/user-agent.js";
 import { probeWithTimeout } from "../src/util/probe.js";
 
@@ -20,13 +21,6 @@ interface Result {
   probe: Probe | null;
   suggestion: { provider: string; slug: string } | null;
 }
-
-const ATS_URL_BUILDERS: Record<string, (slug: string) => string> = {
-  greenhouse: (s) => `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(s)}/jobs?content=false`,
-  lever: (s) => `https://api.lever.co/v0/postings/${encodeURIComponent(s)}?mode=json`,
-  ashby: (s) => `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(s)}?includeCompensation=false`,
-  smartrecruiters: (s) => `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(s)}/postings?limit=1`,
-};
 
 const VERIFY_UA = "Mozilla/5.0 (verify-registry/0.1)";
 
@@ -68,18 +62,6 @@ async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
   return res.ok || res.status === 403;
 }
 
-async function probeAtsBody(url: string): Promise<boolean> {
-  const res = await probeWithTimeout(url, {
-    timeoutMs: 10_000,
-    headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" },
-  });
-  if (!res.ok) return false;
-  if (res.body.length < 10) return false;
-  const lc = res.body.slice(0, 200).toLowerCase();
-  if (lc.includes("<!doctype") || lc.includes("<html")) return false;
-  return true;
-}
-
 async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result> {
   const slug = entry.source_slug ?? "";
 
@@ -108,7 +90,7 @@ async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result>
   }
 
   const url = builder(slug);
-  const ok = await probeAtsBody(url);
+  const ok = await probeJsonBoard(url, 10_000);
   let suggestion: Result["suggestion"] = null;
   if (!ok && suggest) {
     const hit = await probeOne(entry.name);
