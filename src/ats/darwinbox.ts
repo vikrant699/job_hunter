@@ -51,8 +51,29 @@ export function darwinboxV2Token(company: AdapterCompany): string | null {
   return match ? match[1]! : null;
 }
 
+/**
+ * Darwinbox writes the literal placeholder `"Multiple locations"` into
+ * `officelocation_show_arr` for multi-city requisitions — 569 postings across
+ * 41 of 70 live tenants (swept 2026-07-25), e.g. 139/267 of Kotak Securities'
+ * board. It carries no geo signal, so passing it through as a location makes
+ * the pipeline's strict `checkLocation()` drop the posting as out-of-region
+ * before the JD is ever fetched. Returning null instead routes it to the
+ * recall-safe title/JD/URL filter, which is exactly the no-metadata case.
+ *
+ * Only an EXACT match is a placeholder: a value that merely contains the
+ * phrase alongside real cities ("Multiple locations - Mumbai, Pune") still
+ * carries usable signal and is kept.
+ */
+const PLACEHOLDER_LOCATION_RE = /^multiple locations?$/i;
+
+export function darwinboxLocation(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed || PLACEHOLDER_LOCATION_RE.test(trimmed)) return null;
+  return trimmed;
+}
+
 export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): NormalizedPosting {
-  const location = j.officelocation_show_arr ?? null;
+  const location = darwinboxLocation(j.officelocation_show_arr);
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
   return {
     provider: "darwinbox",
@@ -70,6 +91,18 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
 
 const CAREERS_PATH = "/ms/candidate/careers";
 const API = (page: number) => `/ms/candidateapi/job?page=${page}&companyId=main`;
+
+// Runaway backstop only — fetch every page, never truncate (matches turbohire).
+// The legacy list API serves 10 jobs/page, so the previous cap of 100 was a
+// silent 1000-job-per-tenant ceiling; the biggest live tenant (Yes Bank, 684)
+// sat close enough to it to be worth removing.
+const MAX_LIST_PAGES = 5000;
+
+/** Pages required to cover `total` items at `pageSize` per page. `pageSize` is
+ *  derived from the live page-1 length, so guard a zero/absent value. */
+export function darwinboxPagesNeeded(total: number, pageSize: number): number {
+  return Math.min(Math.ceil(total / (pageSize || 1)), MAX_LIST_PAGES);
+}
 
 /**
  * Accumulate already-fetched darwinbox list pages (page 2+) into `out`,
@@ -115,8 +148,8 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   // If more pages are needed, fetch them ALL in one browserFetchJson call
   // (one navigation → multiple in-page XHR fetches), instead of N navigations.
   if (out.length < total) {
-    const pageSize = parsed0.data.message.jobs.length || 1;
-    const pagesNeeded = Math.min(Math.ceil(total / pageSize), 100);
+    const pageSize = parsed0.data.message.jobs.length;
+    const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
     if (pagesNeeded >= 2) {
       const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2));
       const results = await browserFetchJson(careersUrl, remainingApis);
@@ -177,7 +210,7 @@ const V2ListSchema = z.object({
 });
 
 export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: DarwinboxV2Job): NormalizedPosting {
-  const location = j.officelocation_show_arr ?? null;
+  const location = darwinboxLocation(j.officelocation_show_arr);
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
   // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;);
   // decode entities once to get real HTML, then strip tags to plain text.
@@ -237,7 +270,9 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   for (const j of parsed0.data.data) out.push(normalizeDarwinboxV2(company, token, j));
   const total = parsed0.data.job_counts ?? out.length;
   if (out.length < total) {
-    const pagesNeeded = Math.min(Math.ceil(total / V2_PAGE_SIZE), 100);
+    // Page-1 length over the requested limit: the API honors `limit` (verified
+    // live on lgsihrms), but deriving it keeps a limit-ignoring tenant correct.
+    const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.data.length || V2_PAGE_SIZE);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
         path: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),

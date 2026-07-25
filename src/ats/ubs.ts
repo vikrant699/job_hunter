@@ -15,9 +15,14 @@
 // Each job's Questions carry reqid, jobtitle, jobdescription (full JD inline),
 // formtext23 (location), formtext21 (job function), department, lastupdated.
 // Server-side location filtering returns the full India set in one response
-// (18 at capture time, under the page size), so no pagination is needed;
-// if a tenant/location ever exceeds one page this returns the first page and
-// logs — completeness would then need UI "show more" driving.
+// (20 at the 2026-07-25 audit, matching the site's own "20 India results"), so
+// no pagination is needed today. The response DOES cap at 50 jobs, though —
+// verified by searching with no location filter: `JobsCount=577`, 50 returned.
+// There is no paging cursor (`TotalJobsCount`/`PageSize` are both 0), so a
+// crossing of that cap is detected, not repaired: `ubsTruncationWarning` logs
+// the shortfall against the server's own `JobsCount`. Recovering the remainder
+// would need UI "show more" driving, or splitting the search across the city
+// facets the response returns.
 //
 // apiMeta.location overrides the search term (default "India"). partnerid /
 // siteid are read from the careers URL's query string.
@@ -41,6 +46,33 @@ const MatchedJobsSchema = z.object({
   Jobs: z.object({ Job: z.array(UbsJobSchema).optional() }).optional(),
 });
 type UbsJob = z.infer<typeof UbsJobSchema>;
+
+const JobsCountSchema = z.object({ JobsCount: z.number() });
+
+/** The server's own job count for the executed search, or null when absent.
+ *  This is the only completeness signal available: the response has no paging
+ *  cursor, and `TotalJobsCount`/`PageSize` come back as 0. */
+export function ubsReportedJobsCount(payload: unknown): number | null {
+  const parsed = JobsCountSchema.safeParse(payload);
+  return parsed.success ? parsed.data.JobsCount : null;
+}
+
+/**
+ * The truncation message to log, or null when the response looks complete.
+ *
+ * The MatchedJobs response caps at 50 jobs — verified live 2026-07-25: an
+ * unfiltered search reports `JobsCount=577` and returns exactly 50 (the site's
+ * own UI says "Refine 50 results"). India sits at 20 today, so nothing is lost,
+ * but this adapter has no pagination: were the India set to cross the cap the
+ * loss would otherwise be completely silent.
+ *
+ * `parsed` can legitimately fall below the raw array length (dedup / rows with
+ * no title), so only a shortfall against the SERVER's count is reported.
+ */
+export function ubsTruncationWarning(parsed: number, reported: number | null): string | null {
+  if (reported === null || parsed >= reported) return null;
+  return `ubs: returned ${parsed} of ${reported} reported jobs — response is truncated`;
+}
 
 /** Read one Questions field's value as a trimmed string. */
 export function ubsField(job: UbsJob, name: string): string | null {
@@ -130,7 +162,10 @@ export const ubsAdapter: AtsAdapter = {
           return [];
         }
         const payload: unknown = await resp.json();
-        return parseUbsMatchedJobs(payload, company, homeUrl, siteId);
+        const postings = parseUbsMatchedJobs(payload, company, homeUrl, siteId);
+        const truncated = ubsTruncationWarning(postings.length, ubsReportedJobsCount(payload));
+        if (truncated) logger.warn({ slug: company.slug }, truncated);
+        return postings;
       } finally {
         await ctx.close();
       }

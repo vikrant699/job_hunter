@@ -83,6 +83,34 @@ export function normalizeRalphLauren(
   };
 }
 
+/**
+ * The true location of an ungeocoded posting, read from the labelled fields in
+ * the job-detail page's first `article--details` block (`City`, `State/Region`,
+ * `Location` = country). Verified live 2026-07-25: an India role reads
+ * "Bangalore / Karnataka / India", a Hong Kong one "Tsim Sha Tsui / Kowloon /
+ * Hong Kong SAR".
+ *
+ * This is the only place a real location exists for the `","` bucket, and
+ * `fetchJd` is the only pass that loads the detail page — so it resolves the
+ * location there and the pipeline re-applies the strict check (see
+ * `lateLocationCheck`). Without it a foreign role reaches the LLM gate as
+ * "unknown-defer", since the flattened JD text has no `Location:` label line.
+ */
+export function ralphLaurenDetailLocation(html: string): string | null {
+  if (!html.trim()) return null;
+  const $ = cheerio.load(html);
+  const fields = new Map<string, string>();
+  $(".article__content__view__field").each((_i, el) => {
+    const label = $(el).find(".article__content__view__field__label").first().text().trim();
+    const value = $(el).find(".article__content__view__field__value").first().text().trim();
+    if (label && value && !fields.has(label)) fields.set(label, value);
+  });
+  const parts = ["City", "State/Region", "Location"]
+    .map((k) => fields.get(k))
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export const ralphlaurenAdapter: AtsAdapter = {
   provider: "ralphlauren",
 
@@ -112,6 +140,8 @@ export const ralphlaurenAdapter: AtsAdapter = {
     return out;
   },
 
+  // Also resolves `posting.location` for the ungeocoded bucket — see
+  // `ralphLaurenDetailLocation` and the AtsAdapter.fetchJd contract.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     // The JobDetail content is React-hydrated — an XHR returns an empty shell, so
     // we navigate in the browser and read the rendered DOM. The JD lives in the
@@ -135,6 +165,12 @@ export const ralphlaurenAdapter: AtsAdapter = {
         } catch { /* fall through: parse whatever rendered */ }
         await page.waitForTimeout(1500);
         const html = await page.content();
+        // Backfill the location the list API couldn't give us, so the pipeline
+        // judges this posting on real metadata instead of deferring on text.
+        if (!posting.location) {
+          const resolved = ralphLaurenDetailLocation(html);
+          if (resolved) posting.location = resolved;
+        }
         const $ = cheerio.load(html);
         const parts = $("article.article--details")
           .map((_i, el) => htmlToText($.html(el)))

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages,
   darwinboxV2Token, normalizeDarwinboxV2, mergeDarwinboxV2Pages,
+  darwinboxLocation, darwinboxPagesNeeded,
 } from "./darwinbox.js";
 import type { DarwinboxJob, DarwinboxV2Job } from "./darwinbox.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -52,6 +53,54 @@ test("normalizeDarwinbox maps fields, prefers title, converts epoch", () => {
 test("normalizeDarwinbox falls back to designation when title empty", () => {
   const p = normalizeDarwinbox(company, { ...job, title: "" });
   assert.equal(p.jobTitle, "Team Leader");
+});
+
+// Darwinbox writes the literal placeholder "Multiple locations" on multi-city
+// requisitions (139/267 of Kotak Securities' board, 41 of 70 tenants swept
+// 2026-07-25). Carrying it through as a location makes the pipeline's strict
+// checkLocation() drop the posting as out-of-region before the JD is ever
+// fetched; null instead defers to the recall-safe title/JD/URL filter.
+test("darwinboxLocation nulls the 'Multiple locations' placeholder", () => {
+  assert.equal(darwinboxLocation("Multiple locations"), null);
+  assert.equal(darwinboxLocation("Multiple Locations"), null);
+  assert.equal(darwinboxLocation("multiple location"), null);
+  assert.equal(darwinboxLocation("  Multiple locations  "), null);
+});
+
+test("darwinboxLocation keeps a real location and nulls empty/missing ones", () => {
+  assert.equal(darwinboxLocation("Mumbai, Maharashtra, India"), "Mumbai, Maharashtra, India");
+  // A location that merely CONTAINS the phrase still carries real geo signal.
+  assert.equal(darwinboxLocation("Multiple locations - Mumbai, Pune"), "Multiple locations - Mumbai, Pune");
+  assert.equal(darwinboxLocation(""), null);
+  assert.equal(darwinboxLocation("   "), null);
+  assert.equal(darwinboxLocation(null), null);
+  assert.equal(darwinboxLocation(undefined), null);
+});
+
+test("normalizeDarwinbox emits null location for the placeholder", () => {
+  const p = normalizeDarwinbox(company, { ...job, officelocation_show_arr: "Multiple locations" });
+  assert.equal(p.location, null);
+  assert.equal(p.isRemote, false);
+});
+
+test("normalizeDarwinboxV2 emits null location for the placeholder", () => {
+  const p = normalizeDarwinboxV2(v2Company, "a6914476a29263", { ...v2Job, officelocation_show_arr: "Multiple locations" });
+  assert.equal(p.location, null);
+});
+
+// The legacy list API serves 10 jobs/page (verified live). Clamping the page
+// count silently truncates a big tenant's board, so the cap is a runaway
+// backstop only — matching turbohire's "fetch every page, never truncate".
+test("darwinboxPagesNeeded covers the whole board without truncating", () => {
+  assert.equal(darwinboxPagesNeeded(684, 10), 69);
+  assert.equal(darwinboxPagesNeeded(20, 10), 2);
+  // >100 pages must NOT be clamped to 100 (the old silent 1000-job ceiling).
+  assert.equal(darwinboxPagesNeeded(4000, 10), 400);
+});
+
+test("darwinboxPagesNeeded guards against a zero/absent page size", () => {
+  assert.equal(darwinboxPagesNeeded(50, 0), 50);
+  assert.equal(darwinboxPagesNeeded(0, 10), 0);
 });
 
 function page(jobs: DarwinboxJob[]) {

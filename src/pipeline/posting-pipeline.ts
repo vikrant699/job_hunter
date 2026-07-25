@@ -7,7 +7,7 @@ import {
 } from "../db/index.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
-import { checkLocation, checkLocationFromText } from "../filter/location.js";
+import { checkLocation, checkLocationFromText, type LocationCheck } from "../filter/location.js";
 import { notifyKey } from "../filter/dedup.js";
 import { checkTitle } from "../filter/title.js";
 import { runGate } from "../llm/gate.js";
@@ -87,6 +87,23 @@ export function verdictResult(
   };
 }
 
+/**
+ * The location verdict for a posting once its JD has been fetched.
+ *
+ * An adapter may resolve `location` during `fetchJd` when only the detail page
+ * carries it (ralphlauren: Avature's list API gives lat/lon and leaves many
+ * jobs ungeocoded). A location learned that late must still face the STRICT
+ * metadata check — `checkLocationFromText` is the no-metadata fallback and
+ * deliberately defers when it finds no signal, so routing resolved metadata
+ * through it would let a foreign role reach the LLM gate.
+ */
+export function lateLocationCheck(posting: NormalizedPosting): LocationCheck {
+  if (posting.location !== null && posting.location !== "") {
+    return checkLocation(posting.location, posting.isRemote);
+  }
+  return checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "", undefined, posting.jobUrl);
+}
+
 export async function processOnePosting(
   adapter: AtsAdapter,
   adapterCompany: AdapterCompany,
@@ -133,11 +150,9 @@ export async function processOnePosting(
     }
   }
 
-  // Late location filter from title/JD/URL when listing had no location metadata.
-  if (posting.location === null || posting.location === "") {
-    const loc = checkLocationFromText(posting.jobTitle ?? "", posting.jdText ?? "", undefined, posting.jobUrl);
-    if (!loc.accept) return;
-  }
+  // Late location filter: strict metadata if the adapter resolved a location
+  // during fetchJd, otherwise the title/JD/URL heuristic.
+  if (!lateLocationCheck(posting).accept) return;
 
   const inserted = insertPostingIfNew(posting, stats.profileId);
   if (!inserted) return; // race: another worker beat us; leave it for next tick

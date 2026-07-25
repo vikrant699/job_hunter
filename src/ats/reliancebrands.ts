@@ -38,7 +38,16 @@ const MAX_PAGES = 100;
 
 const TITLE_KEYS = ["JobTitle", "jobTitle", "title", "PositionName", "positionName", "Position", "Designation", "designation"];
 const ID_KEYS = ["ReqId", "reqId", "reqid", "JobId", "jobId", "id", "PositionId", "RequisitionId", "requisitionId"];
-const LOCATION_KEYS = ["Location", "location", "City", "city", "WorkLocation", "workLocation", "JobLocation", "Country", "country"];
+const LOCATION_KEYS = ["Location", "location", "City", "city", "WorkLocation", "workLocation", "JobLocation"];
+// Kept OUT of LOCATION_KEYS: a bare ISO code like "IN" (exactly what this
+// adapter's own filter sends) carries no signal the pipeline's checkLocation()
+// can match — the profile's hints are "india" / "in," — so surfacing it as the
+// whole location would drop an India-only req as out-of-region. It is expanded
+// and appended to the city instead (see `composeLocation`).
+const COUNTRY_KEYS = ["Country", "country", "CountryCode", "countryCode"];
+/** Only the codes this adapter actually filters on; anything else is passed
+ *  through verbatim rather than guessed at. */
+const COUNTRY_CODE_NAMES: Record<string, string> = { IN: "India" };
 const JD_KEYS = ["JobDescription", "jobDescription", "Description", "description", "JD", "jd", "RoleDescription"];
 const DATE_KEYS = ["PostedDate", "postedDate", "PostingDate", "postingDate", "CreatedDate", "createdDate", "lastUpdated", "LastUpdated"];
 
@@ -51,11 +60,22 @@ function pick(job: Record<string, unknown>, keys: string[]): string | null {
   return null;
 }
 
+/** City-ish location plus the country, de-duplicated: "Mumbai" + "IN" ->
+ *  "Mumbai, India". Either half may be absent; null when both are. */
+export function composeLocation(city: string | null, country: string | null): string | null {
+  const countryName = country ? (COUNTRY_CODE_NAMES[country.toUpperCase()] ?? country) : null;
+  if (!city) return countryName;
+  if (!countryName) return city;
+  return new RegExp(`\\b${countryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(city)
+    ? city
+    : `${city}, ${countryName}`;
+}
+
 export function normalizeReliance(company: AdapterCompany, job: Record<string, unknown>): NormalizedPosting | null {
   const jobTitle = pick(job, TITLE_KEYS);
   if (!jobTitle) return null;
   const externalId = pick(job, ID_KEYS) ?? jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-  const location = pick(job, LOCATION_KEYS);
+  const location = composeLocation(pick(job, LOCATION_KEYS), pick(job, COUNTRY_KEYS));
   const jdRaw = pick(job, JD_KEYS) ?? "";
   return {
     provider: "reliancebrands",

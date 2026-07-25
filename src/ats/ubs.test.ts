@@ -1,7 +1,7 @@
 // src/ats/ubs.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ubsField, parseUbsMatchedJobs } from "./ubs.js";
+import { ubsField, parseUbsMatchedJobs, ubsReportedJobsCount, ubsTruncationWarning } from "./ubs.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -54,4 +54,26 @@ test("parseUbsMatchedJobs maps fields, strips JD HTML, dedups, builds deep link"
 test("parseUbsMatchedJobs returns [] on an empty/absent Jobs array", () => {
   assert.deepEqual(parseUbsMatchedJobs({}, company, company.careersUrl, "5012"), []);
   assert.deepEqual(parseUbsMatchedJobs({ Jobs: { Job: [] } }, company, company.careersUrl, "5012"), []);
+});
+
+// The MatchedJobs response caps at 50 jobs (verified live: an unfiltered search
+// reports JobsCount=577 and returns 50), and this adapter has no pagination.
+// `JobsCount` is the server's own count for the search, so a shortfall against
+// it is the ONLY signal that the India set has outgrown one response.
+test("ubsReportedJobsCount reads the server's own count for the search", () => {
+  assert.equal(ubsReportedJobsCount({ ...PAYLOAD, JobsCount: 20 }), 20);
+  assert.equal(ubsReportedJobsCount(PAYLOAD), null);
+  assert.equal(ubsReportedJobsCount({ JobsCount: "not-a-number" }), null);
+});
+
+test("ubsTruncationWarning fires when fewer jobs came back than the server reported", () => {
+  assert.equal(ubsTruncationWarning(50, 577), "ubs: returned 50 of 577 reported jobs — response is truncated");
+});
+
+test("ubsTruncationWarning stays silent on a complete response", () => {
+  assert.equal(ubsTruncationWarning(20, 20), null);
+  // Dedup/skipped rows legitimately shrink the parsed count below the raw one;
+  // only a shortfall against the SERVER's count means jobs were never sent.
+  assert.equal(ubsTruncationWarning(20, null), null);
+  assert.equal(ubsTruncationWarning(21, 20), null);
 });
