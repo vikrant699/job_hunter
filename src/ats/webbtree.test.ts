@@ -165,7 +165,7 @@ test("parseServerAppState throws an actionable error when the shape is wrong", (
   // TransferState serialization changed shape.
   assert.throws(
     () => parseServerAppState(encodeIsland([1, 2, 3]), SLUG),
-    /webbtree serverApp-state island failed schema for ideaforge/,
+    /webbtree serverApp-state island response failed schema for ideaforge/,
   );
 });
 

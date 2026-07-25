@@ -1,10 +1,9 @@
 // src/ats/workable.ts
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 
 // Workable public widget API:
 //   GET apply.workable.com/api/v1/widget/accounts/<slug>?details=true
@@ -38,12 +37,8 @@ export const workableAdapter: AtsAdapter = {
     const account = company.apiMeta?.boardSlug ?? company.slug;
     const url = `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(account)}?details=true`;
     const raw = await atsFetchJson(url, { provider: "workable" });
-    const parsed = ResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "workable schema mismatch");
-      throw new Error(`workable response failed schema for ${company.slug}`);
-    }
-    return parsed.data.jobs.map((j) => normalizeWorkable(company, j));
+    const parsed = parseOrThrow(ResponseSchema, raw, { provider: "workable", slug: company.slug });
+    return parsed.jobs.map((j) => normalizeWorkable(company, j));
   },
 };
 

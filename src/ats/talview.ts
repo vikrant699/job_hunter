@@ -15,11 +15,10 @@
 // "Based in: <City>, <State>, <Country>" line instead, parsed here.
 // apiMeta.organizationId selects the tenant (default 183 = Talview Inc).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const DEFAULT_ORG = "183";
@@ -84,25 +83,18 @@ export const talviewAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const org = orgId(company);
     const rawCats = await atsFetchJson(talviewCategoriesUrl(org), { provider: "talview" });
-    const cats = TalviewCategoriesSchema.safeParse(rawCats);
-    if (!cats.success) {
-      logger.warn({ slug: company.slug, issues: cats.error.issues.slice(0, 3) }, "talview categories schema mismatch");
-      throw new Error(`talview categories response failed schema for ${company.slug}`);
-    }
+    const cats = parseOrThrow(TalviewCategoriesSchema, rawCats, { provider: "talview", slug: company.slug, what: "categories" });
 
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const cat of cats.data) {
+    for (const cat of cats) {
       const rawJobs = await atsFetchJson(talviewJobsUrl(org, String(cat.id)), { provider: "talview" });
-      const jobs = TalviewJobsSchema.safeParse(rawJobs);
-      if (!jobs.success) {
-        logger.warn(
-          { slug: company.slug, category: cat.id, issues: jobs.error.issues.slice(0, 3) },
-          "talview jobs schema mismatch",
-        );
-        throw new Error(`talview jobs response failed schema for ${company.slug}`);
-      }
-      for (const j of jobs.data) {
+      const jobs = parseOrThrow(TalviewJobsSchema, rawJobs, {
+        provider: "talview",
+        slug: company.slug,
+        what: `jobs (category ${cat.id})`,
+      });
+      for (const j of jobs) {
         if (!j.first_assessment_section_id) continue; // unpublished
         const p = normalizeTalviewJob(company, j);
         if (seen.has(p.externalId)) continue;

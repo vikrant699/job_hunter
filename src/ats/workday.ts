@@ -3,7 +3,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
 import { discoverIndiaFacet } from "./workday-facet.js";
 import type { JsonValue } from "../util/json.js";
@@ -118,18 +118,11 @@ export const workdayAdapter: AtsAdapter = {
         provider: "workday",
       });
 
-      const parsed = WorkdayListResponseSchema.safeParse(data);
-      if (!parsed.success) {
-        logger.warn(
-          { company: company.slug, issues: parsed.error.issues.slice(0, 2) },
-          "workday list schema mismatch"
-        );
-        throw new Error(`workday list response failed schema for ${company.slug}`);
-      }
+      const parsed = parseOrThrow(WorkdayListResponseSchema, data, { provider: "workday", slug: company.slug });
 
-      const items = parsed.data.jobPostings.map((j) => normalizeWorkdayListing(company, j, parts));
-      const total = typeof parsed.data.total === "number" && parsed.data.total > 0 ? parsed.data.total : null;
-      return { items, total, facets: parsed.data.facets ?? null };
+      const items = parsed.jobPostings.map((j) => normalizeWorkdayListing(company, j, parts));
+      const total = typeof parsed.total === "number" && parsed.total > 0 ? parsed.total : null;
+      return { items, total, facets: parsed.facets ?? null };
     });
   },
 

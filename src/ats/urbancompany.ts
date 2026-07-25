@@ -1,10 +1,9 @@
 // src/ats/urbancompany.ts
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 // Urban Company single-tenant board API (backed by TurboHire under the hood,
@@ -36,12 +35,8 @@ export const urbancompanyAdapter: AtsAdapter = {
   provider: "urbancompany",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { method: "POST", body: {}, provider: "urbancompany" });
-    const parsed = ResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "urbancompany schema mismatch");
-      throw new Error(`urbancompany response failed schema for ${company.slug}`);
-    }
-    return parsed.data.jobs.map((j) => normalizeUrbancompany(company, j));
+    const parsed = parseOrThrow(ResponseSchema, raw, { provider: "urbancompany", slug: company.slug });
+    return parsed.jobs.map((j) => normalizeUrbancompany(company, j));
   },
 };
 

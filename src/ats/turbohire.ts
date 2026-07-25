@@ -14,11 +14,11 @@
 //
 // The full JD is inline (`JobDescV2`, HTML) — no per-job fetchJd needed.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJsonSteps } from "./browser-fetch.js";
+import { parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
@@ -148,15 +148,13 @@ export function mergeTurboHirePages(
 ): void {
   const seen = new Set(out.map((p) => p.externalId));
   for (const raw of pages) {
-    const parsed = TurboHireListSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(
-        `turbohire: page schema mismatch mid-pagination for ${company.slug} ` +
-        `(fetched ${out.length}/${total} so far): ${JSON.stringify(parsed.error.issues.slice(0, 2))}`,
-      );
-    }
-    if (parsed.data.Result.length === 0) break;
-    for (const j of parsed.data.Result) {
+    const parsed = parseOrThrow(TurboHireListSchema, raw, {
+      provider: "turbohire",
+      slug: company.slug,
+      what: `page (fetched ${out.length}/${total} so far)`,
+    });
+    if (parsed.Result.length === 0) break;
+    for (const j of parsed.Result) {
       if (seen.has(j.JobId)) continue;
       seen.add(j.JobId);
       out.push(normalizeTurboHire(company, j));
@@ -193,24 +191,18 @@ export const turbohireAdapter: AtsAdapter = {
       return null;
     }, { blockHeavyAssets: false });
 
-    const tokenParsed = TurboHireTokenSchema.safeParse(first[0]);
-    if (!tokenParsed.success) {
-      logger.warn({ slug: company.slug, issues: tokenParsed.error.issues.slice(0, 2) }, "turbohire token schema mismatch");
-      throw new Error(`turbohire token fetch failed for ${company.slug}`);
-    }
-    const parsed0 = TurboHireListSchema.safeParse(first[1]);
-    if (!parsed0.success) {
-      logger.warn({ slug: company.slug, issues: parsed0.error.issues.slice(0, 2) }, "turbohire list schema mismatch");
-      throw new Error(`turbohire list failed schema for ${company.slug}`);
-    }
-    for (const j of parsed0.data.Result) out.push(normalizeTurboHire(company, j));
-    const total = parsed0.data.Total ?? out.length;
+    // Validation-only: the token itself was already consumed inside the
+    // browserFetchJsonSteps callback above to build the list request.
+    parseOrThrow(TurboHireTokenSchema, first[0], { provider: "turbohire", slug: company.slug, what: "token" });
+    const parsed0 = parseOrThrow(TurboHireListSchema, first[1], { provider: "turbohire", slug: company.slug });
+    for (const j of parsed0.Result) out.push(normalizeTurboHire(company, j));
+    const total = parsed0.Total ?? out.length;
 
     // If more pages are needed, fetch them ALL in one more browser session
     // (one navigation → re-derive the token → N in-page XHR fetches), instead
     // of one navigation per page.
     if (out.length < total) {
-      const pageSize = parsed0.data.Result.length || 1;
+      const pageSize = parsed0.Result.length || 1;
       const pagesNeeded = Math.min(Math.ceil(total / pageSize), MAX_PAGES);
       if (pagesNeeded >= 2) {
         const rest = await browserFetchJsonSteps(careersUrl, (soFar) => {

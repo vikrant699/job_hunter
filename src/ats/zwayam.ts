@@ -26,7 +26,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJsonMultipart } from "./http.js";
+import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
@@ -104,9 +104,14 @@ export function zwayamFilterCri(paginationStartNo: number): string {
 }
 
 /** Unwrap one jobs/search page. Throws on a schema mismatch — callers should
- *  let that propagate (a silently-truncated page looks like a complete one). */
-export function zwayamPage(raw: unknown): { hits: ZwayamHit[]; total: number | null; hasMoreData: boolean } {
-  const parsed = SearchResponseSchema.parse(raw);
+ *  let that propagate (a silently-truncated page looks like a complete one).
+ *  `slug` defaults to the provider name for callers (tests) with no company
+ *  context; the adapter itself passes the real company slug. */
+export function zwayamPage(
+  raw: unknown,
+  slug = "zwayam",
+): { hits: ZwayamHit[]; total: number | null; hasMoreData: boolean } {
+  const parsed = parseOrThrow(SearchResponseSchema, raw, { provider: "zwayam", slug, what: "page" });
   return {
     hits: parsed.data.data,
     total: parsed.data.totalCount ?? null,
@@ -175,7 +180,7 @@ export const zwayamAdapter: AtsAdapter = {
           // same shape as Jibe.
           userAgent: BROWSER_UA,
         });
-        const { hits, total } = zwayamPage(raw);
+        const { hits, total } = zwayamPage(raw, company.slug);
         return {
           items: hits.map((h) => normalizeZwayam(company, h, origin, company.slug)),
           total,

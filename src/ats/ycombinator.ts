@@ -14,7 +14,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { decodeNumericEntities } from "./html-text.js";
 import { matchGroup } from "../util/regex.js";
@@ -95,12 +95,8 @@ export function ycJobUrl(relativeOrAbsolute: string): string {
 
 /** Extract jobPostings[] from a parsed jobs-list page's data-page payload. Throws on schema mismatch. */
 export function ycJobsFromListPage(pageData: unknown, slug: string): YcJobListing[] {
-  const parsed = YcJobsListPageSchema.safeParse(pageData);
-  if (!parsed.success) {
-    logger.warn({ slug, issues: parsed.error.issues.slice(0, 3) }, "ycombinator schema mismatch");
-    throw new Error(`ycombinator: jobPostings schema mismatch for ${slug}`);
-  }
-  return parsed.data.props.jobPostings;
+  const parsed = parseOrThrow(YcJobsListPageSchema, pageData, { provider: "ycombinator", slug, what: "jobPostings" });
+  return parsed.props.jobPostings;
 }
 
 /** Extract props.job from a parsed job-detail page's data-page payload. Null (not throw) on mismatch — fetchJd falls back to an empty JD. */
