@@ -63,6 +63,9 @@ export type UndraftedReason = z.infer<typeof UndraftedReasonSchema>;
 export const SeveritySchema = z.enum(["green", "yellow"]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
+/** Adapter-specific token map persisted as JSON (keka orgGuid, eightfold domain, oracle siteNumber). */
+export const ApiMetaSchema = z.record(z.string(), z.string());
+
 /** Registry entry as decoded from the Companies tab (or its local cache snapshot). */
 export const RegistryEntrySchema = z.object({
   name: z.string().min(1),
@@ -78,7 +81,7 @@ export const RegistryEntrySchema = z.object({
   /** Workday tenant URL when source=workday. Ignored otherwise. */
   tenant_url: z.string().url().optional(),
   /** Adapter-specific tokens persisted as JSON (keka orgGuid, eightfold domain, oracle siteNumber). */
-  api_meta: z.record(z.string()).optional(),
+  api_meta: ApiMetaSchema.optional(),
   /** Sector taxonomy (Phase 3 categorization, 2026-06-19). Curated; reporting + gate domain context. */
   category: z.string().optional(),
   /** product (kept) vs service (staffing/consultancy/IT-services — excluded). */
