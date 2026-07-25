@@ -33,7 +33,7 @@ import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
-import { logger } from "../logger.js";
+import { parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 
 const JOBS_URL = "https://www.metacareers.com/jobs/";
@@ -215,16 +215,12 @@ export async function fetchIndiaJobs(): Promise<MetaJob[]> {
         );
       }
 
-      const locationParsed = LocationFilterResponseSchema.safeParse(
+      const locationParsed = parseOrThrow(
+        LocationFilterResponseSchema,
         parseJsonUnknown(stripForLoopPrefix(locationCall.body)),
+        { provider: "metacareers", slug: "metacareers", what: "location-filter" },
       );
-      if (!locationParsed.success) {
-        throw new Error(
-          `metacareers: location-filter response schema mismatch: ` +
-          `${JSON.stringify(locationParsed.error.issues.slice(0, 2))}`,
-        );
-      }
-      const indiaOffices = locationParsed.data.data.job_search_filters.locations
+      const indiaOffices = locationParsed.data.job_search_filters.locations
         .filter((l) => l.country === "India")
         .map((l) => l.id);
       if (indiaOffices.length === 0) {
@@ -255,15 +251,12 @@ export async function fetchIndiaJobs(): Promise<MetaJob[]> {
         return await res.text();
       }, args);
 
-      const resultsParsed = SearchResultsResponseSchema.safeParse(parseJsonUnknown(stripForLoopPrefix(raw)));
-      if (!resultsParsed.success) {
-        logger.warn({ issues: resultsParsed.error.issues.slice(0, 2) }, "metacareers search-results schema mismatch");
-        throw new Error(
-          `metacareers: search-results response schema mismatch: ` +
-          `${JSON.stringify(resultsParsed.error.issues.slice(0, 2))}`,
-        );
-      }
-      return resultsParsed.data.data.job_search_with_featured_jobs_v2.all_jobs;
+      const resultsParsed = parseOrThrow(SearchResultsResponseSchema, parseJsonUnknown(stripForLoopPrefix(raw)), {
+        provider: "metacareers",
+        slug: "metacareers",
+        what: "search-results",
+      });
+      return resultsParsed.data.job_search_with_featured_jobs_v2.all_jobs;
     } finally {
       await ctx.close();
     }

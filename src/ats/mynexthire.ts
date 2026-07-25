@@ -33,9 +33,8 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
-import { logger } from "../logger.js";
 
 // Only statusId observed for a publicly listed/open requisition (and the
 // only one the public "careers" source endpoint has ever returned).
@@ -118,16 +117,9 @@ export const mynexthireAdapter: AtsAdapter = {
       provider: "mynexthire",
     });
 
-    const parsed = ListResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "mynexthire list schema mismatch",
-      );
-      throw new Error(`mynexthire list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "mynexthire", slug: company.slug });
 
-    const jobs = parsed.data.reqDetailsBOList ?? [];
+    const jobs = parsed.reqDetailsBOList ?? [];
     return jobs
       .filter((j) => j.statusId === OPEN_STATUS_ID)
       .map((j) => normalizeMyNextHire(company, j));

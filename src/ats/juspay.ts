@@ -16,10 +16,9 @@
 // 1000. JD is inline in job_description_career (markdown-ish text); no
 // per-job detail endpoint exists.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://joinus.juspay.in/api/careerJobOpening?limit=1000";
@@ -62,14 +61,10 @@ export const juspayAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "juspay" });
-    const parsed = JuspayResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "juspay schema mismatch");
-      throw new Error(`juspay list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(JuspayResponseSchema, raw, { provider: "juspay", slug: company.slug });
     const seen = new Set<string>();
     const out: NormalizedPosting[] = [];
-    for (const j of parsed.data.allJobs) {
+    for (const j of parsed.allJobs) {
       const id = String(j.job_id);
       if (seen.has(id)) continue;
       seen.add(id);

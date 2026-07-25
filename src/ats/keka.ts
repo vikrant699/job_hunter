@@ -4,7 +4,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 // Keka careers API — two UI generations, same Job[] response shape:
@@ -55,12 +55,8 @@ export function kekaJobsUrl(slug: string): string {
 
 async function fetchKeka(company: AdapterCompany, url: string): Promise<NormalizedPosting[]> {
   const raw = await atsFetchJson(url, { provider: "keka" });
-  const parsed = ResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "keka schema mismatch");
-    throw new Error(`keka response failed schema for ${company.slug}`);
-  }
-  return parsed.data.map((j) => normalizeKeka(company, j));
+  const parsed = parseOrThrow(ResponseSchema, raw, { provider: "keka", slug: company.slug });
+  return parsed.map((j) => normalizeKeka(company, j));
 }
 
 export const kekaAdapter: AtsAdapter = {

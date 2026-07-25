@@ -62,5 +62,5 @@ test("apiMeta.boardSlug overrides the registry slug in the requested URL", async
 
 test("a response failing the jobs-array schema rejects", async (t) => {
   stubFetch(t, fetchSequence(() => jsonResponse({ notJobs: [] })));
-  await assert.rejects(greenhouseAdapter.listPostings(company), /greenhouse response failed schema/);
+  await assert.rejects(greenhouseAdapter.listPostings(company), /greenhouse list response failed schema/);
 });

@@ -1,10 +1,9 @@
 // src/ats/kula.ts
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 // Kula ATS public board API:
@@ -71,14 +70,10 @@ export const kulaAdapter: AtsAdapter = {
       fetchPage: async (_offset, page) => {
         const url = kulaListUrl(slug, page + 1);
         const raw = await atsFetchJson(url, { provider: "kula" });
-        const parsed = ListResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug, issues: parsed.error.issues.slice(0, 2) }, "kula schema mismatch");
-          throw new Error(`kula response failed schema for ${slug}`);
-        }
-        const rawItems = parsed.data.data;
+        const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "kula", slug });
+        const rawItems = parsed.data;
         const items = rawItems.filter((j) => j.listed !== false).map((j) => normalizeKula(company, j));
-        const total = parsed.data.meta?.count ?? null;
+        const total = parsed.meta?.count ?? null;
         return { items, total, rawCount: rawItems.length };
       },
     });

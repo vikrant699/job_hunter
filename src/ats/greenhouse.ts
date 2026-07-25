@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 // Greenhouse public board API: GET boards-api.greenhouse.io/v1/boards/<slug>/jobs?content=true
@@ -36,13 +35,9 @@ export const greenhouseAdapter: AtsAdapter = {
 
     const raw = await atsFetchJson(url, { provider: "greenhouse" });
 
-    const parsed = GhJobsResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug, issues: parsed.error.issues.slice(0, 3) }, "greenhouse schema mismatch");
-      throw new Error(`greenhouse response failed schema for ${slug}`);
-    }
+    const parsed = parseOrThrow(GhJobsResponseSchema, raw, { provider: "greenhouse", slug });
 
-    return parsed.data.jobs.map((j) => normalize(company, j));
+    return parsed.jobs.map((j) => normalize(company, j));
   },
 };
 
