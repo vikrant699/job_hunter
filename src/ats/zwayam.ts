@@ -3,8 +3,8 @@
 // shared Angular SPA, so unlike most adapters there is no common host
 // pattern to detect a tenant from — the two tokens the API needs
 // (companyId, tenantGroupId) have to be discovered from the tenant's own
-// bundle/API and cached in api_meta, same as Keka's orgGuid (see
-// discoverZwayamMeta in discovery/ats-validate.ts).
+// bundle/API and cached in api_meta, same as Keka's orgGuid (companyId is
+// discovered from the tenant page's JS bundle at registry-seeding time).
 //
 //   GET  https://public.zwayam.com/tenant_management/tenant/group?domain_name=<host>
 //        -> { reponseObject: { tenantGroupId } }        [sic: vendor typo]
