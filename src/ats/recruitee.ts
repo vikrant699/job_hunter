@@ -15,11 +15,10 @@
 // returning status:"published" offers, but we filter defensively anyway
 // (verified live 2026-07-10 against flextrade + fullcreative tenants).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 export const RecruiteeOfferSchema = z.object({
@@ -87,15 +86,8 @@ export function normalizeRecruitee(company: AdapterCompany, o: RecruiteeOffer): 
  *  message (rather than letting a zod error bubble raw) on a schema
  *  mismatch — mirrors zohorecruit's parseJobsIsland. */
 export function parseRecruiteeOffers(raw: unknown, slug: string): RecruiteeOffer[] {
-  const parsed = ListResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    logger.warn(
-      { slug, issues: parsed.error.issues.slice(0, 2) },
-      "recruitee list schema mismatch",
-    );
-    throw new Error(`recruitee list response failed schema for ${slug}`);
-  }
-  return parsed.data.offers;
+  const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "recruitee", slug });
+  return parsed.offers;
 }
 
 /** Full JSON -> postings pipeline, exposed so tests cover filtering + mapping

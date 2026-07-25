@@ -14,11 +14,10 @@
 // and description/jobDescription for the JD body. Extra/unknown keys on the
 // item are ignored (.passthrough()), not rejected.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 
@@ -74,14 +73,10 @@ export interface PeerlistPageProps {
 
 /** Validate + unwrap `props.pageProps`. Throws a labeled error on shape mismatch. */
 export function parsePeerlistPageProps(nextData: unknown, slug: string): PeerlistPageProps {
-  const parsed = NextDataSchema.safeParse(nextData);
-  if (!parsed.success) {
-    logger.warn({ slug, issues: parsed.error.issues.slice(0, 3) }, "peerlist __NEXT_DATA__ schema mismatch");
-    throw new Error(`peerlist: unexpected __NEXT_DATA__ shape for ${slug}`);
-  }
+  const parsed = parseOrThrow(NextDataSchema, nextData, { provider: "peerlist", slug, what: "__NEXT_DATA__" });
   return {
-    careersList: parsed.data.props.pageProps.careersList ?? [],
-    jobData: parsed.data.props.pageProps.jobData ?? null,
+    careersList: parsed.props.pageProps.careersList ?? [],
+    jobData: parsed.props.pageProps.jobData ?? null,
   };
 }
 

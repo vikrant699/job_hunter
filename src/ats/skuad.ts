@@ -13,10 +13,9 @@
 // (allremote.jobs). jdText is synthesized from the structured fields so the
 // posting is still gate-able; the apply_link is kept as jobUrl.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL =
@@ -67,14 +66,10 @@ export const skuadAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "skuad" });
-    const parsed = SkuadResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "skuad schema mismatch");
-      throw new Error(`skuad list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(SkuadResponseSchema, raw, { provider: "skuad", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const j of parsed.data.data) {
+    for (const j of parsed.data) {
       const p = normalizeSkuadJob(company, j);
       if (seen.has(p.externalId)) continue;
       seen.add(p.externalId);

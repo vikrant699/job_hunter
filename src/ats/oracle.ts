@@ -1,10 +1,9 @@
 // src/ats/oracle.ts
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 // Oracle HCM Cloud Recruiting (CE) public REST API:
@@ -68,12 +67,8 @@ export const oracleAdapter: AtsAdapter = {
           `?onlyData=true&expand=requisitionList.secondaryLocations` +
           `&finder=findReqs;siteNumber=${encodeURIComponent(site)},limit=${PAGE},offset=${offset}`;
         const raw = await atsFetchJson(url, { provider: "oracle" });
-        const parsed = ListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "oracle list schema mismatch");
-          throw new Error(`oracle list failed schema for ${company.slug}`);
-        }
-        const item = parsed.data.items[0];
+        const parsed = parseOrThrow(ListSchema, raw, { provider: "oracle", slug: company.slug });
+        const item = parsed.items[0];
         const reqs = item?.requisitionList ?? [];
         const items = reqs.map((r) => normalizeOracle(company, r));
         const total = typeof item?.TotalJobsCount === "number" ? item.TotalJobsCount : null;
@@ -87,9 +82,9 @@ export const oracleAdapter: AtsAdapter = {
       `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails` +
       `?onlyData=true&expand=all&finder=ById;Id=${encodeURIComponent(posting.externalId)},siteNumber=${encodeURIComponent(site)}`;
     const raw = await atsFetchJson(url, { provider: "oracle" });
-    const parsed = DetailSchema.safeParse(raw);
-    if (!parsed.success) return "";
-    const d = parsed.data.items[0];
+    const parsed = parseOrNull(DetailSchema, raw, { provider: "oracle", slug: company.slug, what: "detail" });
+    if (!parsed) return "";
+    const d = parsed.items[0];
     if (!d) return "";
     const body = [d.ExternalDescriptionStr, d.ExternalResponsibilitiesStr, d.ExternalQualificationsStr]
       .filter((s): s is string => typeof s === "string" && s.length > 0)

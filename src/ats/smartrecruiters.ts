@@ -3,7 +3,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { paginate } from "./shared.js";
 
 // SmartRecruiters public Posting API.
@@ -86,19 +86,12 @@ export const smartRecruitersAdapter: AtsAdapter = {
 
         const raw = await atsFetchJson(url, { provider: "smartrecruiters" });
 
-        const parsed = ListResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug, issues: parsed.error.issues.slice(0, 2) },
-            "smartrecruiters list schema mismatch"
-          );
-          throw new Error(`smartrecruiters list response failed schema for ${slug}`);
-        }
+        const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "smartrecruiters", slug });
 
-        const items = parsed.data.content.map((p) => normalize(company, p));
+        const items = parsed.content.map((p) => normalize(company, p));
         // total-based stop was added during the paginate() migration — this tenant
         // previously relied on short-page detection only, `totalFound` went unused.
-        const total = typeof parsed.data.totalFound === "number" ? parsed.data.totalFound : null;
+        const total = typeof parsed.totalFound === "number" ? parsed.totalFound : null;
         return { items, total };
       },
     });

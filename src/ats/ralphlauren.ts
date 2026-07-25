@@ -22,13 +22,13 @@
 // the job content lives in the page's <article>.
 import * as cheerio from "cheerio";
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { browserFetchJson } from "./browser-fetch.js";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
+import { parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const HOST = "https://careers.ralphlauren.com";
@@ -116,14 +116,10 @@ export const ralphlaurenAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const [raw] = await browserFetchJson(SEARCH_PAGE, [DATA_URL]);
-    const parsed = DataSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 2) }, "ralphlauren schema mismatch");
-      throw new Error(`ralphlauren response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(DataSchema, raw, { provider: "ralphlauren", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const loc of Object.values(parsed.data.locations)) {
+    for (const loc of Object.values(parsed.locations)) {
       const latlon = (loc.latlon ?? "").trim();
       const ungeocoded = latlon === "" || latlon === ",";
       const city = ungeocoded ? null : indiaCityFromLatlon(latlon);

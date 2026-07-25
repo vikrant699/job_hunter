@@ -96,7 +96,7 @@ test("parsePeerlistPageProps unwraps the synthetic two-job careersList", () => {
 });
 
 test("parsePeerlistPageProps throws a labeled error on an unrecognizable shape", () => {
-  assert.throws(() => parsePeerlistPageProps({ nope: true }, "acme"), /unexpected __NEXT_DATA__ shape/);
+  assert.throws(() => parsePeerlistPageProps({ nope: true }, "acme"), /peerlist __NEXT_DATA__ response failed schema for acme/);
 });
 
 test("peerlistExternalId prefers id, then jobId, then slug, then a slugified title", () => {

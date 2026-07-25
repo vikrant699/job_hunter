@@ -28,7 +28,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, atsFetchFormJson, atsFetchHtml } from "./http.js";
+import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
@@ -184,24 +184,21 @@ export const ripplehireAdapter: AtsAdapter = {
         const raw = await atsFetchFormJson(ripplehireListUrl(base), ripplehireListBody(token, page), {
           provider: "ripplehire",
         });
-        const parsed = RipplehireListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, page, issues: parsed.error.issues.slice(0, 2) },
-            "ripplehire list schema mismatch",
-          );
-          throw new Error(`ripplehire list response failed schema for ${company.slug}`);
+        const parsed = parseOrThrow(RipplehireListSchema, raw, {
+          provider: "ripplehire",
+          slug: company.slug,
+          what: `list (page ${page})`,
+        });
+        if (state.total === null && typeof parsed.totalJobCount === "number") {
+          state.total = parsed.totalJobCount;
         }
-        if (state.total === null && typeof parsed.data.totalJobCount === "number") {
-          state.total = parsed.data.totalJobCount;
-        }
-        const rawJobs = parsed.data.jobVoList ?? [];
+        const rawJobs = parsed.jobVoList ?? [];
         const items = rawJobs
           .map((j) => normalizeRipplehire(company, token, j))
           .filter((p): p is NormalizedPosting => p !== null);
         // Advance by the raw record count, not the filtered count, so jobs
         // dropped for a missing id don't shorten the page and stop early.
-        return { items, total: parsed.data.totalJobCount ?? null, rawCount: rawJobs.length };
+        return { items, total: parsed.totalJobCount ?? null, rawCount: rawJobs.length };
       },
     });
 

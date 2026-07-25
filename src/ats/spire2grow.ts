@@ -8,11 +8,11 @@
 //          country,fqLocationName}], departmentName, jobDescription (HTML) }] }
 // Verified live on Myntra (70 jobs, 2026-07-18). Paged by page/size.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
+import { parseOrThrow } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const SIZE = 100;
@@ -72,12 +72,12 @@ export const spire2growAdapter: AtsAdapter = {
       const url = `https://io.spire2grow.com/ies/v1/p/requisition/_search?page=${page}&size=${SIZE}&selectedSortOrder=desc&selectedSortField=postedOn`;
       const res = await fetch(url, { headers: { workspaceid: ws, "user-agent": BROWSER_UA, accept: "application/json" } });
       if (!res.ok) throw new Error(`spire2grow HTTP ${res.status} for ${company.slug}`);
-      const parsed = Spire2GrowResponseSchema.safeParse(await res.json());
-      if (!parsed.success) {
-        logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "spire2grow schema mismatch");
-        throw new Error(`spire2grow response failed schema for ${company.slug}`);
-      }
-      const rows = parsed.data.entities ?? [];
+      const parsed = parseOrThrow(Spire2GrowResponseSchema, await res.json(), {
+        provider: "spire2grow",
+        slug: company.slug,
+        what: `list p${page}`,
+      });
+      const rows = parsed.entities ?? [];
       const before = out.length;
       for (const j of rows) {
         const p = normalizeSpire2Grow(company, j);

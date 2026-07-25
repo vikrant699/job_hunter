@@ -18,10 +18,10 @@
 // total_pages. Requesting content.raw (not the truncated snippet) yields the
 // full JD.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
+import { parseOrThrow } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const PAGE = 10;
@@ -153,19 +153,19 @@ export const ongigAdapter: AtsAdapter = {
         body: JSON.stringify(ongigBody(gid, countryFilter, current)),
       });
       if (!res.ok) throw new Error(`ongig HTTP ${res.status} for ${company.slug}`);
-      const parsed = OngigResponseSchema.safeParse(await res.json());
-      if (!parsed.success) {
-        logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "ongig schema mismatch");
-        throw new Error(`ongig response failed schema for ${company.slug}`);
-      }
-      totalPages = parsed.data.meta.page.total_pages ?? current;
-      for (const r of parsed.data.results) {
+      const parsed = parseOrThrow(OngigResponseSchema, await res.json(), {
+        provider: "ongig",
+        slug: company.slug,
+        what: `list p${current}`,
+      });
+      totalPages = parsed.meta.page.total_pages ?? current;
+      for (const r of parsed.results) {
         const p = normalizeOngig(company, org, r);
         if (!p || seen.has(p.externalId)) continue;
         seen.add(p.externalId);
         out.push(p);
       }
-      if (parsed.data.results.length === 0) break;
+      if (parsed.results.length === 0) break;
       if (current < totalPages) await sleep(INTER_PAGE_DELAY_MS);
     }
 

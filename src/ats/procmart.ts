@@ -13,11 +13,10 @@
 // Noida). New openings appear as new numbered pages, so the listing is
 // re-derived each run rather than assuming a contiguous id range.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 
 const JOB_SLUG_RE = /^job-opening-\d+$/;
 const FIXED_LOCATION = "India";
@@ -52,14 +51,10 @@ export const procmartAdapter: AtsAdapter = {
       `${base}/wp-json/wp/v2/pages?per_page=100&_fields=id,slug,link,content`,
       { provider: "procmart" },
     );
-    const parsed = ProcmartListSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "procmart schema mismatch");
-      throw new Error(`procmart pages response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(ProcmartListSchema, raw, { provider: "procmart", slug: company.slug, what: "pages" });
 
     const out: NormalizedPosting[] = [];
-    for (const page of parsed.data) {
+    for (const page of parsed) {
       if (!JOB_SLUG_RE.test(page.slug)) continue;
       const html = page.content?.rendered ?? "";
       const title = procmartTitle(html);
