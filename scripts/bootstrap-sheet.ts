@@ -10,7 +10,7 @@
  *
  * Safe to re-run: tabs that already contain data are left untouched.
  *
- *   npm run bootstrap-sheet            (uses the vikrant token by default)
+ *   npm run bootstrap-sheet            (uses the default profile's token)
  *   npm run bootstrap-sheet -- --profile <name>
  */
 import "dotenv/config";
@@ -48,7 +48,7 @@ async function seedIfEmpty(
 }
 
 async function main(): Promise<void> {
-  const profileId = argValue("--profile") ?? "vikrant";
+  const profileId = argValue("--profile") ?? "default";
   const t = config.google.tabs;
 
   const before = await listTabs(profileId);
