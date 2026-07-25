@@ -23,7 +23,7 @@ const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 async function withBrowserPage<T>(
   pageUrl: string,
   run: (page: Page) => Promise<T>,
-  opts: { blockHeavyAssets?: boolean } = {},
+  opts: { blockHeavyAssets?: boolean; navTimeoutMs?: number; beforeGoto?: (page: Page) => void } = {},
 ): Promise<T> {
   const blockHeavyAssets = opts.blockHeavyAssets ?? true;
   // Outer try guarantees the page slot is released even if getBrowser /
@@ -41,7 +41,8 @@ async function withBrowserPage<T>(
     }
     try {
       const page = await ctx.newPage();
-      page.setDefaultNavigationTimeout(30_000);
+      page.setDefaultNavigationTimeout(opts.navTimeoutMs ?? 30_000);
+      opts.beforeGoto?.(page);
       try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
       await page.waitForTimeout(SETTLE_MS);
       return await run(page);
@@ -230,37 +231,26 @@ export async function browserCaptureText(
   pageUrl: string,
   requests: InPageRequest[],
 ): Promise<BrowserCapture> {
-  const release = await acquirePageSlot();
-  try {
-    const browser = await getBrowser();
-    const ctx = await browser.newContext({
-      userAgent: BROWSER_UA, viewport: { width: 1280, height: 800 },
-      locale: "en-US", timezoneId: "Asia/Kolkata",
-    });
-    await ctx.route("**/*", (route) =>
-      HEAVY.test(route.request().url()) ? route.abort() : route.continue());
-    try {
-      const page = await ctx.newPage();
-      page.setDefaultNavigationTimeout(45_000);
-      const responseUrls: string[] = [];
-      page.on("response", (resp) => { responseUrls.push(resp.url()); });
-      try { await page.goto(pageUrl, { waitUntil: "domcontentloaded" }); } catch { /* CF interstitial */ }
-      await page.waitForTimeout(SETTLE_MS);
-      const bodies: string[] = [];
+  const responseUrls: string[] = [];
+  const bodies = await withBrowserPage(
+    pageUrl,
+    async (page) => {
+      const out: string[] = [];
       for (const req of requests) {
         const body = await page.evaluate(async ({ url, headers }) => {
           const res = await fetch(url, { headers: { Accept: "application/json", ...headers } });
           if (!res.ok) throw new Error("HTTP " + res.status);
           return await res.text();
         }, { url: req.url, headers: req.headers ?? {} });
-        bodies.push(body);
+        out.push(body);
       }
-      return { bodies, responseUrls };
-    } finally {
-      await ctx.close();
-    }
-  } finally {
-    release();
-  }
+      return out;
+    },
+    {
+      navTimeoutMs: 45_000,
+      beforeGoto: (page) => { page.on("response", (resp) => { responseUrls.push(resp.url()); }); },
+    },
+  );
+  return { bodies, responseUrls };
 }
 

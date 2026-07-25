@@ -11,6 +11,7 @@ import { OllamaUnavailableError } from "../llm/client.js";
 import { toAdapterCompany } from "./index.js";
 import type { RunContext } from "./index.js";
 import { processOnePosting } from "./posting-pipeline.js";
+import { sleep } from "../util/sleep.js";
 
 /** Collapse a raw fetch error into a short tag for the Discord issue list. */
 export function classifyFetchError(msg: string): string {
@@ -48,7 +49,7 @@ export async function processBucket(
       // scanned reaches its total — this drives the progress heartbeat.
       if (progress) progress.scanned++;
       if (config.fetch.interCallDelayMs > 0) {
-        await new Promise((r) => setTimeout(r, config.fetch.interCallDelayMs));
+        await sleep(config.fetch.interCallDelayMs);
       }
     }
   }

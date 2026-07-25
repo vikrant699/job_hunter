@@ -3,15 +3,10 @@ import { logger } from "../logger.js";
 import { postWebhookJson } from "./webhook.js";
 import type { ProductionTickOutcome } from "../pipeline/index.js";
 import type { VerifyResult } from "../outreach/verify.js";
+import type { RunOutreachResult } from "../outreach/run.js";
 
 const COLOR_GREEN = 0x2ecc71;
 const COLOR_ORANGE = 0xe67e22;
-
-export interface OutreachSummary {
-  draftsCreated: number;
-  undrafted: number;
-  companiesMatched: number;
-}
 
 export interface RegistrySyncSummary {
   source: string;
@@ -21,7 +16,7 @@ export interface RegistrySyncSummary {
 export interface StatusInput {
   profileId: string;
   stats: ProductionTickOutcome["stats"];
-  outreach: OutreachSummary | null;
+  outreach: RunOutreachResult | null;
   outreachError: string | null;
   verify: VerifyResult | null;
   registry: RegistrySyncSummary | null;
