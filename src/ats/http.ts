@@ -12,13 +12,7 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
  *  The timeout covers the whole call — headers AND body consumption — so a
  *  stalled body read aborts too. */
 async function withAtsTimeout<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    return await fn(controller.signal);
-  } finally {
-    clearTimeout(timer);
-  }
+  return fn(AbortSignal.timeout(config.fetch.timeoutMs));
 }
 
 /** fetch() that throws `atsHttpError` on a non-OK response. */

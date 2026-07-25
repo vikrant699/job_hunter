@@ -28,15 +28,13 @@ export interface ProbeResponse {
  * callers can treat "couldn't check" uniformly with "checked and it's broken".
  */
 export async function probeWithTimeout(url: string, opts: ProbeOptions = {}): Promise<ProbeResponse> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 8_000);
   try {
     const res = await fetch(url, {
       method: opts.method ?? "GET",
       headers: opts.headers,
       body: opts.body,
       redirect: opts.redirect ?? "follow",
-      signal: controller.signal,
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 8_000),
     });
     const finalUrl = res.url || url;
     let body = "";
@@ -48,7 +46,5 @@ export async function probeWithTimeout(url: string, opts: ProbeOptions = {}): Pr
     return { status: res.status, finalUrl, body, ok: res.ok };
   } catch {
     return { status: 0, finalUrl: url, body: "", ok: false };
-  } finally {
-    clearTimeout(timer);
   }
 }

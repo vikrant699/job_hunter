@@ -12,15 +12,13 @@ const WEBHOOK_MAX_429_RETRIES = 3;
  */
 export async function postWebhookJson(url: string, body: JsonValue): Promise<void> {
   for (let attempt = 0; attempt <= WEBHOOK_MAX_429_RETRIES; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     let res: Response;
     try {
       res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
     } catch (err) {
       // Timeout abort or transient network failure — retry like a 429 rather
@@ -31,8 +29,6 @@ export async function postWebhookJson(url: string, body: JsonValue): Promise<voi
         continue;
       }
       throw err;
-    } finally {
-      clearTimeout(timer);
     }
 
     if (res.status === 429 && attempt < WEBHOOK_MAX_429_RETRIES) {
