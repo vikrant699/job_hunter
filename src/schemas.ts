@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { UserProfile } from "./types.js"; // type-only: no runtime cycle (types.ts only imports types from schemas.ts)
 
 /**
  * Lower bound below which we treat the gate's match score as noise and silently
@@ -85,7 +86,7 @@ export const RegistryEntrySchema = z.object({
 });
 export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;
 
-// Documented hand-edited contract is the UserProfile interface in types.ts; keep in sync.
+// Documented hand-edited contract is the UserProfile interface in types.ts; compile-enforced by the satisfies clause in schemas.ts.
 export const UserProfileSchema = z.object({
   id: z.string().optional(),
   gatePrompt: z.string().optional(),
@@ -119,4 +120,4 @@ export const UserProfileSchema = z.object({
     slugFragments: z.array(z.string()),
     namePatterns: z.array(z.instanceof(RegExp)).readonly(),
   }),
-});
+}) satisfies z.ZodType<UserProfile>;

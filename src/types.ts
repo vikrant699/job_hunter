@@ -31,7 +31,7 @@ export interface Company {
 /** Subset of Company passed to ATS adapters — strips runtime/stats fields. */
 export type AdapterCompany = Pick<Company, "provider" | "slug" | "name" | "careersUrl" | "tenantUrl" | "apiMeta">;
 
-// Runtime validator for this shape lives in schemas.ts (UserProfileSchema); keep them in sync.
+// Runtime validator for this shape lives in schemas.ts (UserProfileSchema); compile-enforced by the satisfies clause in schemas.ts.
 /** Everything personal about who you are and what roles you want. */
 export interface UserProfile {
   /** Stable per-profile id — stamped onto every posting/run row. Defaults to
