@@ -154,27 +154,35 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   }
   const stopHeartbeat = startProgressHeartbeat({ stats, startedAt, profileId });
 
+  let runClosed = false;
+  const closeRun = (error: string | null): void => {
+    if (runClosed) return;
+    runClosed = true;
+    finishRun({
+      id: runId,
+      endedAt: new Date().toISOString(),
+      companiesScanned: stats.companiesScanned,
+      postingsSeen: stats.postingsSeen,
+      postingsNew: stats.postingsNew,
+      postingsNotified: stats.postingsGreen + stats.postingsYellow,
+      candidatesAdded: null,
+      error,
+    });
+  };
+
   try {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
     );
   } catch (err) {
+    // Close out the run row with the abort reason so the partial run is
+    // recorded, then propagate to exit non-zero. Dormancy/summary are skipped -
+    // the data this run produced is suspect.
+    const reason = err instanceof OllamaUnavailableError ? `aborted: ${err.message}` : `crashed: ${String(err).slice(0, 300)}`;
     if (err instanceof OllamaUnavailableError) {
-      // Backend died mid-run. Close out the run row with the abort reason so the
-      // partial run is recorded, then propagate to exit non-zero. We deliberately
-      // skip dormancy/discovery/summary — the data this run produced is suspect.
       logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
-      finishRun({
-        id: runId,
-        endedAt: new Date().toISOString(),
-        companiesScanned: stats.companiesScanned,
-        postingsSeen: stats.postingsSeen,
-        postingsNew: stats.postingsNew,
-        postingsNotified: stats.postingsGreen + stats.postingsYellow,
-        candidatesAdded: null,
-        error: `aborted: ${err.message}`,
-      });
     }
+    closeRun(reason);
     throw err;
   } finally {
     stopHeartbeat();
@@ -188,16 +196,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   const endedAt = Date.now();
   const errorBlob = stats.errors.length > 0 ? stats.errors.slice(0, 10).join("\n") : null;
 
-  finishRun({
-    id: runId,
-    endedAt: new Date(endedAt).toISOString(),
-    companiesScanned: stats.companiesScanned,
-    postingsSeen: stats.postingsSeen,
-    postingsNew: stats.postingsNew,
-    postingsNotified: stats.postingsGreen + stats.postingsYellow,
-    candidatesAdded: null,
-    error: errorBlob,
-  });
+  closeRun(errorBlob);
 
   // The single end-of-run Discord message is the status embed, posted by the
   // caller via postRunStatus after the outreach stage runs — no separate
