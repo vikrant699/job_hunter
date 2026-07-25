@@ -15,10 +15,9 @@
 // + experience fields. No location field exists; Gullak is a Bengaluru
 // fintech, so a fixed India location is stamped.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 
 const LIST_URL = "https://autohire.internal.svc.uat.glkmny.tech/public/jobs";
 const BOARD_URL = "https://candid.hub.gullak.money/jobs/";
@@ -64,17 +63,14 @@ export const gullakAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "gullak" });
-    const parsed = GullakResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 3) },
-        "gullak schema mismatch (their UAT-named host may have rotated)",
-      );
-      throw new Error(`gullak list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(GullakResponseSchema, raw, {
+      provider: "gullak",
+      slug: company.slug,
+      what: "list (their UAT host may have rotated)",
+    });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const j of parsed.data.pipelines) {
+    for (const j of parsed.pipelines) {
       if (j.status && j.status !== "active") continue;
       const p = normalizeGullakJob(company, j);
       if (seen.has(p.externalId)) continue;

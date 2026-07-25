@@ -121,7 +121,7 @@ test("happyeasygoAdapter.listPostings throws when data is empty", async () => {
 test("happyeasygoAdapter.listPostings throws on schema mismatch", async () => {
   stubFetch({ code: 0, succ: true, data: "not-an-array" });
   try {
-    await assert.rejects(() => happyeasygoAdapter.listPostings(company), /schema mismatch/);
+    await assert.rejects(() => happyeasygoAdapter.listPostings(company), /happyeasygo list response failed schema/);
   } finally {
     restoreFetch();
   }

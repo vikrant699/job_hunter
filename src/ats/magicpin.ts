@@ -43,11 +43,10 @@
 // (route + query param name traced from the careers bundle's onClick
 // handler: `router.push("/careers/jobdescription?jobId=" + job._id)`).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 // Single-tenant: this is magicpin's own site, not a SaaS ATS host pattern.
@@ -117,15 +116,13 @@ export function normalizeMagicpin(company: AdapterCompany, j: MagicpinListJob): 
  * concatenate whichever are non-empty after HTML-stripping.
  */
 export function magicpinJdFromDetail(detailJson: unknown, ctx: { slug: string; jobId: string }): string {
-  const parsed = MagicpinDetailSchema.safeParse(detailJson);
-  if (!parsed.success) {
-    logger.warn(
-      { slug: ctx.slug, jobId: ctx.jobId, issues: parsed.error.issues.slice(0, 2) },
-      "magicpin job detail schema mismatch",
-    );
-    return "";
-  }
-  const parts = [parsed.data.requirements, parsed.data.responsibilities]
+  const parsed = parseOrNull(MagicpinDetailSchema, detailJson, {
+    provider: "magicpin",
+    slug: ctx.slug,
+    what: `detail ${ctx.jobId}`,
+  });
+  if (!parsed) return "";
+  const parts = [parsed.requirements, parsed.responsibilities]
     .map((s) => htmlToText(s))
     .filter((s) => s.length > 0);
   return parts.join("\n\n");

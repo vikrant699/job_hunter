@@ -11,7 +11,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
@@ -87,15 +87,12 @@ export const happyeasygoAdapter: AtsAdapter = {
   provider: "happyeasygo",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "happyeasygo", userAgent: BROWSER_UA });
-    const parsed = ListSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(`happyeasygo: schema mismatch for ${company.slug}: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`);
-    }
-    if (parsed.data.succ === false || parsed.data.data.length === 0) {
+    const parsed = parseOrThrow(ListSchema, raw, { provider: "happyeasygo", slug: company.slug });
+    if (parsed.succ === false || parsed.data.length === 0) {
       throw new Error(`happyeasygo: empty/unsuccessful department list for ${company.slug}`);
     }
     const out: NormalizedPosting[] = [];
-    for (const dept of parsed.data.data) out.push(...flattenDepartment(company, dept));
+    for (const dept of parsed.data) out.push(...flattenDepartment(company, dept));
     return out;
   },
   // The list response carries the full description — no fetchJd needed.

@@ -47,11 +47,10 @@
 // with a browser UA.
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
@@ -203,15 +202,13 @@ export const icicibankAdapter: AtsAdapter = {
       provider: "icicibank",
       userAgent: BROWSER_UA,
     });
-    const parsed = JdEnvelopeSchema.safeParse(json);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: posting.companySlug, jobId: posting.externalId, issues: parsed.error.issues.slice(0, 2) },
-        "icicibank getMobileJd schema mismatch",
-      );
-      return "";
-    }
-    const jd = parsed.data.Data?.[0]?.JD ?? "";
+    const parsed = parseOrNull(JdEnvelopeSchema, json, {
+      provider: "icicibank",
+      slug: posting.companySlug,
+      what: `getMobileJd ${posting.externalId}`,
+    });
+    if (!parsed) return "";
+    const jd = parsed.Data?.[0]?.JD ?? "";
     return htmlToText(jd);
   },
 };

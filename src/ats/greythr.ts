@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 
 // greytHR public recruitment board ("careerbuild" SPA). Each tenant is a
 // subdomain: <slug>.greythr.com. The board is a JS app backed by a JSON API:
@@ -51,16 +50,9 @@ export const greythrAdapter: AtsAdapter = {
     const url = `${greythrBase(company)}/hire/api/career/published_jobs/`;
     const raw = await atsFetchJson(url, { method: "POST", body: {}, provider: "greythr" });
 
-    const parsed = ListResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-        "greythr list schema mismatch",
-      );
-      throw new Error(`greythr list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "greythr", slug: company.slug });
 
-    return parsed.data.data.map((j) => normalizeGreythr(company, j));
+    return parsed.data.map((j) => normalizeGreythr(company, j));
   },
 };
 

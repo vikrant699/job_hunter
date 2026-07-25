@@ -18,11 +18,10 @@
 // for Gurgaon) scopes the search server-side to the tenant's India cities;
 // empty => all locations.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const PAGE = 50;
@@ -116,13 +115,13 @@ export const feishuAdapter: AtsAdapter = {
             offset,
           },
         });
-        const parsed = ResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, offset, issues: parsed.error.issues.slice(0, 2) }, "feishu search schema mismatch");
-          throw new Error(`feishu search failed schema for ${company.slug}`);
-        }
-        const list = parsed.data.data.job_post_list ?? [];
-        return { items: list.map((j) => normalizeFeishu(company, m, j)), total: parsed.data.data.count ?? null };
+        const parsed = parseOrThrow(ResponseSchema, raw, {
+          provider: "feishu",
+          slug: company.slug,
+          what: `search (offset ${offset})`,
+        });
+        const list = parsed.data.job_post_list ?? [];
+        return { items: list.map((j) => normalizeFeishu(company, m, j)), total: parsed.data.count ?? null };
       },
     });
   },
