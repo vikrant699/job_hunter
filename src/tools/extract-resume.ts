@@ -1,3 +1,5 @@
+// NOTE: imported by src/profile.ts at startup (ensureResumeText) - this is
+// runtime code with a CLI entry, not a dev tool.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
