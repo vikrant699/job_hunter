@@ -56,39 +56,6 @@ const SearchResponseSchema = z.object({
   }),
 });
 
-const TenantGroupResponseSchema = z.object({
-  reponseObject: z.object({ tenantGroupId: z.string() }), // vendor typo, verified live
-});
-
-/** Extract the base64 COMPANYID constant embedded in the tenant's Angular
- *  bundle (e.g. `const Zs={COMPANYID:"MTU0ODY=",...}`). The variable name
- *  the minifier assigns varies per build, so match on the key alone. */
-const COMPANY_ID_RE = /COMPANYID\s*:\s*"([^"]*)"/;
-export function extractZwayamCompanyId(bundleJs: string): string | null {
-  const id = bundleJs.match(COMPANY_ID_RE)?.[1];
-  return id ? id : null;
-}
-
-/** Find the Angular main bundle's script src on a Zwayam careers page
- *  (`<script src="main.<hash>.js">`), so it can be fetched and grepped for
- *  the COMPANYID constant. */
-const BUNDLE_SRC_RE = /<script[^>]*\ssrc="(main\.[a-z0-9]+\.js)"/i;
-export function extractZwayamBundleSrc(html: string): string | null {
-  return html.match(BUNDLE_SRC_RE)?.[1] ?? null;
-}
-
-/** Shared public.zwayam.com endpoint that maps a tenant's careers host to
- *  its tenantGroupId. */
-export function zwayamTenantGroupUrl(host: string): string {
-  return `https://public.zwayam.com/tenant_management/tenant/group?domain_name=${encodeURIComponent(host)}`;
-}
-
-/** Parse the (typo'd) tenant/group response. Null on any schema mismatch. */
-export function parseZwayamTenantGroupId(raw: unknown): string | null {
-  const parsed = TenantGroupResponseSchema.safeParse(raw);
-  return parsed.success ? parsed.data.reponseObject.tenantGroupId : null;
-}
-
 export function zwayamJobsSearchUrl(): string {
   return "https://public.zwayam.com/jobs/search";
 }

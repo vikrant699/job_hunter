@@ -27,7 +27,6 @@ export const ProcmartPageSchema = z.object({
   link: z.string().nullable().optional(),
   content: z.object({ rendered: z.string().nullable().optional() }).nullable().optional(),
 });
-export type ProcmartPage = z.infer<typeof ProcmartPageSchema>;
 const ProcmartListSchema = z.array(ProcmartPageSchema);
 
 function apiBase(company: AdapterCompany): string {

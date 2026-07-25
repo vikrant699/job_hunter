@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  avatureOrigin,
   avatureSearchUrl,
   parseJobDetailHref,
   parseAvatureNextHref,
@@ -124,14 +123,6 @@ const JD_HTML = `
     </article>
   </div>
 </body></html>`;
-
-test("avatureOrigin derives origin from careersUrl (or tenantUrl when set)", () => {
-  assert.equal(avatureOrigin(company), "https://jobs.lenovo.com");
-  assert.equal(
-    avatureOrigin({ ...company, tenantUrl: "https://jobs.siemens.com/en_US/externaljobs/SearchJobs" }),
-    "https://jobs.siemens.com",
-  );
-});
 
 test("avatureSearchUrl appends /SearchJobs to a portal-root careersUrl", () => {
   assert.equal(

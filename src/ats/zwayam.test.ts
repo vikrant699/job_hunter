@@ -2,10 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  extractZwayamCompanyId,
-  extractZwayamBundleSrc,
-  zwayamTenantGroupUrl,
-  parseZwayamTenantGroupId,
   zwayamFilterCri,
   zwayamPage,
   normalizeZwayam,
@@ -49,43 +45,6 @@ const hitWithMediumJd: ZwayamHit = {
     jobCreatedDate: 1783488717000,
   },
 };
-
-test("extractZwayamCompanyId pulls the base64 COMPANYID constant out of the Angular bundle", () => {
-  const js = 'const Zs={COMPANYID:"MTU0ODY=",COMPANYURL:"x",DOMAIN:"careers.cyient.com"};';
-  assert.equal(extractZwayamCompanyId(js), "MTU0ODY=");
-});
-
-test("extractZwayamCompanyId returns null with no match or an empty value", () => {
-  assert.equal(extractZwayamCompanyId("no companyid here"), null);
-  assert.equal(extractZwayamCompanyId('COMPANYID:""'), null);
-});
-
-test("extractZwayamBundleSrc finds the Angular main.<hash>.js script src", () => {
-  const html = '<script src="runtime.abc123.js" type="text/javascript"></script>' +
-    '<script src="main.4fcd9e101053ed04.js" type="text/javascript"></script>';
-  assert.equal(extractZwayamBundleSrc(html), "main.4fcd9e101053ed04.js");
-});
-
-test("extractZwayamBundleSrc returns null when no main bundle script is present", () => {
-  assert.equal(extractZwayamBundleSrc("<html><body>no scripts</body></html>"), null);
-});
-
-test("zwayamTenantGroupUrl builds the shared public.zwayam.com lookup URL from a bare host", () => {
-  assert.equal(
-    zwayamTenantGroupUrl("careers.cyient.com"),
-    "https://public.zwayam.com/tenant_management/tenant/group?domain_name=careers.cyient.com",
-  );
-});
-
-test("parseZwayamTenantGroupId reads tenantGroupId out of the (typo'd) reponseObject envelope", () => {
-  const raw = { responseStatus: "SUCCESS", responseCode: 200, reponseObject: { name: "Cyient", tenantGroupId: "G1" } };
-  assert.equal(parseZwayamTenantGroupId(raw), "G1");
-});
-
-test("parseZwayamTenantGroupId returns null on a malformed envelope", () => {
-  assert.equal(parseZwayamTenantGroupId({ foo: "bar" }), null);
-  assert.equal(parseZwayamTenantGroupId(null), null);
-});
 
 test("zwayamFilterCri encodes the fixed sort criteria with the given pagination offset", () => {
   assert.deepEqual(JSON.parse(zwayamFilterCri(20)), {

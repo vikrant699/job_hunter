@@ -24,8 +24,9 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const PAGE = 45; // vendor-fixed page size
-// Safety cap. Largest known tenant (Larsen & Toubro) is ~1311 jobs -> ~30 pages;
-// 60 pages (~2700 jobs) leaves generous headroom. listPostings logs if hit.
+// Safety cap: 225,000 jobs (PAGE 45 x MAX_PAGES 5000). Largest known tenant
+// (Larsen & Toubro) is ~1311 jobs -> ~30 pages, so this is generous headroom,
+// not a real ceiling. listPostings logs if hit.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 export const PeoplestrongJobSchema = z.object({

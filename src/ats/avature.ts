@@ -43,11 +43,6 @@ function cleanText(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-/** Origin the board is served from — prefers tenant_url when set, else careers_url. */
-export function avatureOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
-
 /**
  * Build the initial SearchJobs URL from careers_url/tenant_url. Accepts either
  * the portal root (".../en_US/careers") or the SearchJobs URL itself
