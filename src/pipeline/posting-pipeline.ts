@@ -231,8 +231,8 @@ export async function processOnePosting(
     return;
   }
 
-  // Within-run dedup: reserve dupKey before the await so concurrent workers
-  // can't both notify the same role.
+  // Within-run dedup: check-and-reserve is atomic here (no await between
+  // has() and add()), so two workers can't both record the same role.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     writePostingResult(

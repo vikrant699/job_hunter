@@ -82,8 +82,9 @@ const upsertCompanyStmt = db.prepare(`
 `);
 // Intentionally NOT updated on conflict:
 //   discovered_via / discovered_at — provenance of the FIRST discovery, frozen.
-//   broken status — a re-import alone doesn't prove the source recovered; repair
-//   goes through url-repair, which resets broken -> candidate alongside a fixed URL.
+//   broken status — a re-import alone doesn't prove the source recovered;
+//   recovery from broken requires a human fixing the row on the Companies tab
+//   (status cell back to active/candidate).
 //   dormant status — set by applyDormancy from runtime yield data; a registry
 //   re-sync must not wake a parked company (markFetchSuccess wakes it on jobs).
 

@@ -1,5 +1,5 @@
 // Shared AbortController+setTimeout+fetch+clearTimeout mechanics for the
-// ops/maintenance scripts (slug-probe, url-repair, verify-registry) that each
+// ops/maintenance scripts (slug-probe, verify-registry) that each
 // independently probe a URL and inspect the result. Only the fetch plumbing
 // is unified here; each script keeps its own status/body interpretation.
 

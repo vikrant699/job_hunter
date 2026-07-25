@@ -62,7 +62,7 @@ export type UndraftedReason = z.infer<typeof UndraftedReasonSchema>;
 export const SeveritySchema = z.enum(["green", "yellow"]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
-/** Registry entry as stored in JSON (seed or discovery-written working file). */
+/** Registry entry as decoded from the Companies tab (or its local cache snapshot). */
 export const RegistryEntrySchema = z.object({
   name: z.string().min(1),
   careers_url: z.string().url(),

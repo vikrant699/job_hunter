@@ -166,8 +166,9 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
       // Zero-yield triage: if we're about to return nothing AND the page
       // doesn't even look like a careers page (or silently redirected to the
-      // site root), the URL is the suspect — flag it for the url-repair pass
-      // instead of letting the dormancy policy file it under "not hiring".
+      // site root), the URL is the suspect — flag it url_suspect (surfaced by
+      // scripts/registry-health.ts) instead of letting the dormancy policy
+      // file it under "not hiring".
       const flagIfSuspectUrl = (): void => {
         const sig = analyzeCareersPage(page.html, page.finalUrl, company.careersUrl);
         if (!sig.looksLikeCareersPage || sig.redirectedToRoot) {
