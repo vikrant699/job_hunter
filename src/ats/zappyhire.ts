@@ -22,11 +22,10 @@
 //     GET  .../api/resourcerequirements/job/career/?job=<id>
 //       -> { results: { ..., description } }                     (JD, via fetchJd)
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS } from "./shared.js";
 
 // ---------- api_meta ----------
@@ -114,15 +113,8 @@ export function normalizeZappyhireNew(company: AdapterCompany, j: NewGenJob): No
 async function listNewGen(company: AdapterCompany, m: ZappyhireMeta): Promise<NormalizedPosting[]> {
   const url = `https://${m.backendHost}/api/job_portal/dashboard/?sortOrder=descend`;
   const raw = await atsFetchJson(url, { method: "POST", body: {}, provider: "zappyhire" });
-  const parsed = NewGenResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    logger.warn(
-      { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-      "zappyhire new-gen dashboard schema mismatch",
-    );
-    throw new Error(`zappyhire new-gen response failed schema for ${company.slug}`);
-  }
-  return parsed.data.results.open_jobs.map((j) => normalizeZappyhireNew(company, j));
+  const parsed = parseOrThrow(NewGenResponseSchema, raw, { provider: "zappyhire", slug: company.slug, what: "new-gen" });
+  return parsed.results.open_jobs.map((j) => normalizeZappyhireNew(company, j));
 }
 
 // ---------- legacy (dept -> jobs -> JD chain) ----------
@@ -172,31 +164,26 @@ async function listLegacy(company: AdapterCompany, m: ZappyhireMeta): Promise<No
 
   const deptUrl = `https://${m.backendHost}/api/resourcerequirements/career/dashboard/?source=${encodeURIComponent(source)}`;
   const deptRaw = await atsFetchJson(deptUrl, { provider: "zappyhire" });
-  const deptParsed = DeptResponseSchema.safeParse(deptRaw);
-  if (!deptParsed.success) {
-    logger.warn(
-      { slug: company.slug, issues: deptParsed.error.issues.slice(0, 2) },
-      "zappyhire legacy department schema mismatch",
-    );
-    throw new Error(`zappyhire legacy department response failed schema for ${company.slug}`);
-  }
+  const deptParsed = parseOrThrow(DeptResponseSchema, deptRaw, {
+    provider: "zappyhire",
+    slug: company.slug,
+    what: "legacy department",
+  });
 
   // Dedup by id: a job could in principle be double-listed across departments.
   const out = new Map<string, NormalizedPosting>();
-  for (const dept of deptParsed.data.results) {
+  for (const dept of deptParsed.results) {
     const jobsUrl =
       `https://${m.backendHost}/api/resourcerequirements/job/dashboard/` +
       `?group=${encodeURIComponent(String(dept.id))}&source=${encodeURIComponent(source)}`;
     const jobsRaw = await atsFetchJson(jobsUrl, { provider: "zappyhire" });
-    const jobsParsed = LegacyJobsResponseSchema.safeParse(jobsRaw);
-    if (!jobsParsed.success) {
-      logger.warn(
-        { slug: company.slug, dept: dept.id, issues: jobsParsed.error.issues.slice(0, 2) },
-        "zappyhire legacy jobs schema mismatch",
-      );
-      continue; // one bad department shouldn't abort the whole tenant
-    }
-    for (const j of jobsParsed.data.results) {
+    const jobsParsed = parseOrNull(LegacyJobsResponseSchema, jobsRaw, {
+      provider: "zappyhire",
+      slug: company.slug,
+      what: `legacy jobs (dept ${dept.id})`,
+    });
+    if (!jobsParsed) continue; // one bad department shouldn't abort the whole tenant
+    for (const j of jobsParsed.results) {
       out.set(String(j.id), normalizeZappyhireLegacy(company, j));
     }
     await sleep(INTER_PAGE_DELAY_MS);
@@ -256,15 +243,12 @@ async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promi
   for (;;) {
     const url = `https://${m.backendHost}/api/jobs/jobsearch/?page=${page}&page_size=${MT_PAGE_SIZE}`;
     const raw = await atsFetchJson(url, { provider: "zappyhire" });
-    const parsed = MtResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, page, issues: parsed.error.issues.slice(0, 2) },
-        "zappyhire multitenant jobsearch schema mismatch",
-      );
-      throw new Error(`zappyhire multitenant response failed schema for ${company.slug}`);
-    }
-    const { hits, total } = parsed.data.results;
+    const parsed = parseOrThrow(MtResponseSchema, raw, {
+      provider: "zappyhire",
+      slug: company.slug,
+      what: `multitenant (page ${page})`,
+    });
+    const { hits, total } = parsed.results;
     const before = out.size;
     for (const h of hits) out.set(String(h._source.job), normalizeZappyhireMt(company, h._source));
     const expected = total?.value ?? hits.length;
@@ -300,16 +284,24 @@ export const zappyhireAdapter: AtsAdapter = {
     if (m.generation === "multitenant") {
       const url = `https://${m.backendHost}/api/careers/jobs/${encodeURIComponent(posting.externalId)}/`;
       const raw = await atsFetchJson(url, { provider: "zappyhire" });
-      const parsed = MtDetailResponseSchema.safeParse(raw);
-      if (!parsed.success) return "";
-      return htmlToText(parsed.data.results.description ?? "");
+      const parsed = parseOrNull(MtDetailResponseSchema, raw, {
+        provider: "zappyhire",
+        slug: company.slug,
+        what: `multitenant detail ${posting.externalId}`,
+      });
+      if (!parsed) return "";
+      return htmlToText(parsed.results.description ?? "");
     }
 
     const url = `https://${m.backendHost}/api/resourcerequirements/job/career/?job=${encodeURIComponent(posting.externalId)}`;
     const raw = await atsFetchJson(url, { provider: "zappyhire" });
-    const parsed = LegacyDetailResponseSchema.safeParse(raw);
-    if (!parsed.success) return "";
-    return htmlToText(parsed.data.results.description ?? "");
+    const parsed = parseOrNull(LegacyDetailResponseSchema, raw, {
+      provider: "zappyhire",
+      slug: company.slug,
+      what: `legacy detail ${posting.externalId}`,
+    });
+    if (!parsed) return "";
+    return htmlToText(parsed.results.description ?? "");
   },
 };
 

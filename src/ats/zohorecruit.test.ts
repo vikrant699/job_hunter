@@ -134,7 +134,7 @@ test("parseJobsIsland throws an actionable error when the shape is wrong", () =>
   const bad = attrEscape(JSON.stringify([{ Posting_Title: "X", id: 42 }]));
   assert.throws(
     () => parseJobsIsland(bad, "acowale"),
-    /zohorecruit jobs island failed schema for acowale/,
+    /zohorecruit jobs island response failed schema for acowale/,
   );
 });
 

@@ -13,11 +13,10 @@
 // listPostings and no fetchJd is needed. An empty board serializes as
 // value="[]". The default bot UA is accepted (verified live 2026-07-10).
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchText, parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 
 export const ZohoRecruitJobSchema = z.object({
@@ -98,22 +97,15 @@ export function extractJobsIsland(html: string): string | null {
 /** Entity-decode + JSON-parse + zod-validate the island. Throws with an
  *  actionable message on garbage (each failure mode named separately). */
 export function parseJobsIsland(raw: string, slug: string): ZohoRecruitJob[] {
-  let parsed;
+  let json: unknown;
   try {
-    parsed = JobsIslandSchema.safeParse(JSON.parse(decodeAttrEntities(raw)));
+    json = JSON.parse(decodeAttrEntities(raw));
   } catch (err) {
     throw new Error(
       `zohorecruit jobs island is not valid JSON for ${slug} (serialization change?): ${String(err).slice(0, 120)}`,
     );
   }
-  if (!parsed.success) {
-    logger.warn(
-      { slug, issues: parsed.error.issues.slice(0, 2) },
-      "zohorecruit island schema mismatch",
-    );
-    throw new Error(`zohorecruit jobs island failed schema for ${slug}`);
-  }
-  return parsed.data;
+  return parseOrThrow(JobsIslandSchema, json, { provider: "zohorecruit", slug, what: "jobs island" });
 }
 
 /**

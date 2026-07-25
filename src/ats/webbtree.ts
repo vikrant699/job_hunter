@@ -36,11 +36,10 @@
 // field is a dead legacy route (an Angular SPA route, not a fetchable JD
 // endpoint) — never used for fetching, only as a human-facing job link.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, atsFetchText } from "./http.js";
+import { atsFetchJson, atsFetchText, parseOrThrow, parseOrNull } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 
 const JOB_DETAILS_URL = "https://appapi.webbtree.com/candidate/jobs/getjobdetails";
@@ -115,15 +114,7 @@ export function parseServerAppState(raw: string, slug: string): WebbtreeIsland {
       `webbtree serverApp-state island is not valid JSON for ${slug} (serialization change?): ${String(err).slice(0, 120)}`,
     );
   }
-  const result = WebbtreeIslandSchema.safeParse(parsed);
-  if (!result.success) {
-    logger.warn(
-      { slug, issues: result.error.issues.slice(0, 2) },
-      "webbtree island schema mismatch",
-    );
-    throw new Error(`webbtree serverApp-state island failed schema for ${slug}`);
-  }
-  return result.data;
+  return parseOrThrow(WebbtreeIslandSchema, parsed, { provider: "webbtree", slug, what: "serverApp-state island" });
 }
 
 function findIslandEntry(island: WebbtreeIsland, urlSubstring: string): WebbtreeIsland[string] | undefined {
@@ -137,15 +128,8 @@ export function webbtreeJobsFromIsland(island: WebbtreeIsland, slug: string): We
   if (!entry) {
     throw new Error(`webbtree: no getjobs entry in serverApp-state island for ${slug} — layout/route change`);
   }
-  const parsed = WebbtreeJobsResponseSchema.safeParse(entry.body);
-  if (!parsed.success) {
-    logger.warn(
-      { slug, issues: parsed.error.issues.slice(0, 2) },
-      "webbtree getjobs response schema mismatch",
-    );
-    throw new Error(`webbtree getjobs response failed schema for ${slug}`);
-  }
-  return parsed.data.message;
+  const parsed = parseOrThrow(WebbtreeJobsResponseSchema, entry.body, { provider: "webbtree", slug, what: "getjobs" });
+  return parsed.message;
 }
 
 const CE_TOKEN_RE = /[?&]c_e=([A-Za-z0-9_-]+)/;
@@ -264,14 +248,12 @@ export const webbtreeAdapter: AtsAdapter = {
       headers: { customurl: webbtreeCustomUrlHeader(company.slug, ceToken) },
       provider: "webbtree",
     });
-    const parsed = WebbtreeJobDetailsResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn(
-        { slug: company.slug, externalId: posting.externalId, issues: parsed.error.issues.slice(0, 2) },
-        "webbtree getjobdetails response schema mismatch",
-      );
-      return "";
-    }
-    return htmlToText(parsed.data.message?.details?.jobdescription ?? "");
+    const parsed = parseOrNull(WebbtreeJobDetailsResponseSchema, raw, {
+      provider: "webbtree",
+      slug: company.slug,
+      what: `getjobdetails ${posting.externalId}`,
+    });
+    if (!parsed) return "";
+    return htmlToText(parsed.message?.details?.jobdescription ?? "");
   },
 };

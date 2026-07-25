@@ -29,12 +29,11 @@
 //      (seen literally in one live Fibe posting).
 //   5. Otherwise null — the pipeline's text-based location filter decides.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const PER_PAGE = 100; // WP REST API max page size
@@ -181,18 +180,11 @@ export const wpjobsAdapter: AtsAdapter = {
       pageSize: PER_PAGE,
       fetchPage: async (_offset, page) => {
         const raw = await atsFetchJson(wpjobsApiUrl(company, page + 1), { provider: "wpjobs" });
-        const parsed = WpListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-            "wpjobs list schema mismatch",
-          );
-          throw new Error(`wpjobs list response failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(WpListSchema, raw, { provider: "wpjobs", slug: company.slug });
         return {
-          items: parsed.data.map((p) => normalizeWpjobs(company, p)),
+          items: parsed.map((p) => normalizeWpjobs(company, p)),
           total: null,
-          rawCount: parsed.data.length,
+          rawCount: parsed.length,
         };
       },
     });

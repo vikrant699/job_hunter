@@ -142,7 +142,7 @@ test("mergeTurboHirePages throws (not warn+truncate) on a mid-pagination schema 
   const out: NormalizedPosting[] = [{ ...normalizeTurboHire(company, job) }];
   assert.throws(
     () => mergeTurboHirePages(company, out, [{ Total: 5, Result: "not-an-array" }], 5),
-    /turbohire: page schema mismatch mid-pagination for flipkart/,
+    /turbohire page \(fetched \d+\/\d+ so far\) response failed schema for flipkart/,
   );
   // Must not silently keep only the partial list — the throw happens before
   // any further mutation from this malformed page.

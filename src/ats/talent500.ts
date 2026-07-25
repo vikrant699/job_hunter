@@ -24,11 +24,10 @@
 // dropped. No country filter here: the board is already India-scoped and the
 // pipeline's own location gate handles the rest.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const API_ORIGIN = "https://prod-warmachine.talent500.co";
@@ -149,21 +148,18 @@ export const talent500Adapter: AtsAdapter = {
       maxPages: MAX_PAGES,
       fetchPage: async (offset) => {
         const raw = await atsFetchJson(talent500ListUrl(company.slug, offset), { provider: "talent500" });
-        const parsed = TalentListSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, offset, issues: parsed.error.issues.slice(0, 2) },
-            "talent500 list schema mismatch",
-          );
-          throw new Error(`talent500 list response failed schema for ${company.slug}`);
-        }
-        const items = parsed.data.data
+        const parsed = parseOrThrow(TalentListSchema, raw, {
+          provider: "talent500",
+          slug: company.slug,
+          what: `list (offset ${offset})`,
+        });
+        const items = parsed.data
           .filter(talent500ShouldKeep)
           .map((j) => normalizeTalent500Job(company, j));
         // Advance by the raw record count, not the filtered count, so
         // closed/undisplayable rows dropped above don't shorten the page and
         // cause the next page to be fetched at the wrong offset.
-        return { items, total: parsed.data.total ?? null, rawCount: parsed.data.data.length };
+        return { items, total: parsed.total ?? null, rawCount: parsed.data.length };
       },
     });
   },
@@ -171,10 +167,7 @@ export const talent500Adapter: AtsAdapter = {
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const jobSlug = talent500SlugFromUrl(posting.jobUrl);
     const raw = await atsFetchJson(talent500DetailUrl(jobSlug), { provider: "talent500" });
-    const parsed = TalentDetailSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(`talent500: job detail failed schema for slug "${jobSlug}"`);
-    }
-    return buildTalent500Jd(parsed.data);
+    const parsed = parseOrThrow(TalentDetailSchema, raw, { provider: "talent500", slug: jobSlug, what: "detail" });
+    return buildTalent500Jd(parsed);
   },
 };

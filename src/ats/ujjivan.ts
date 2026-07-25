@@ -7,12 +7,11 @@
 // One GET returns all ~226 postings. Many are multi-branch banking roles with
 // a large location[] array (branch list). JD inline. Verified live 2026-07-18.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.ujjivansfb.bank.in/api/jobs";
@@ -54,14 +53,10 @@ export const ujjivanAdapter: AtsAdapter = {
   provider: "ujjivan",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "ujjivan", userAgent: BROWSER_UA });
-    const parsed = UjjivanResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "ujjivan schema mismatch");
-      throw new Error(`ujjivan response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(UjjivanResponseSchema, raw, { provider: "ujjivan", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const j of parsed.data.data) {
+    for (const j of parsed.data) {
       const p = normalizeUjjivan(company, j);
       if (seen.has(p.externalId)) continue;
       seen.add(p.externalId);
