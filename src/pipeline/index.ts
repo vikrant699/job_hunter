@@ -129,7 +129,14 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   const buckets = new Map<string, { adapter: AtsAdapter; companies: Company[]; key: string }>();
   for (const c of companies) {
     const adapter = resolveAdapter(c);
-    if (!adapter) continue;
+    if (!adapter) {
+      // ats-api row whose provider has no registered adapter (or an unexpected
+      // strategy) - surface it as a failed board instead of vanishing silently.
+      logger.error({ provider: c.provider, slug: c.slug, strategy: c.parsingStrategy }, "no adapter resolves for company - skipped");
+      stats.errors.push(`${c.provider}/${c.slug}: no adapter`);
+      stats.failedCompanies.push({ provider: c.provider, slug: c.slug, reason: "config" });
+      continue;
+    }
     const key =
       c.parsingStrategy === "llm-scrape" ? "llm-scrape" :
       c.parsingStrategy === "playwright-llm-scrape" ? "playwright-llm-scrape" :
