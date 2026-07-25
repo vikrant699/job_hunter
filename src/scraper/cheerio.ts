@@ -9,26 +9,20 @@ export interface FetchedHtml {
 
 // Fetch with a browser UA + follow-redirects so we land on the real page.
 export async function fetchHtml(url: string): Promise<FetchedHtml> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": BROWSER_UA,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-      redirect: "follow",
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} fetching ${url}`);
-    }
-    const html = await res.text();
-    return { finalUrl: res.url || url, html };
-  } finally {
-    clearTimeout(timer);
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(config.fetch.timeoutMs),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching ${url}`);
   }
+  const html = await res.text();
+  return { finalUrl: res.url || url, html };
 }
 
 export interface CandidateLink {

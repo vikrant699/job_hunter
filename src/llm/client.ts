@@ -48,9 +48,9 @@ export function isConnectionError(err: unknown): boolean {
 const MAX_CONSECUTIVE_CONN_FAILURES = 5;
 let consecutiveConnFailures = 0;
 
-// Ollama serializes on the GPU, so the AbortController is started AFTER the
-// semaphore slot is held — otherwise deep queues caused tail calls to time out
-// before generation began.
+// Ollama serializes on the GPU, so the abort timeout signal is created AFTER
+// the semaphore slot is held — otherwise deep queues caused tail calls to
+// time out before generation began.
 const acquire = makeSemaphore(() => config.llm.maxConcurrent);
 
 /**
@@ -83,8 +83,6 @@ export async function assertOllamaAvailable(): Promise<void> {
 
 async function once(prompt: string, opts: GenerateOpts): Promise<string> {
   const release = await acquire();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.llm.timeoutMs);
   try {
     const res = await fetch(`${config.llm.ollamaHost}/api/generate`, {
       method: "POST",
@@ -100,7 +98,7 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
         think: false,
         options: { temperature: opts.temperature ?? 0.2, num_ctx: config.llm.numCtx },
       }),
-      signal: controller.signal,
+      signal: AbortSignal.timeout(config.llm.timeoutMs),
     });
     if (!res.ok) {
       const body = await res.text();
@@ -112,7 +110,6 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
     }
     return data.response;
   } finally {
-    clearTimeout(timer);
     release();
   }
 }
