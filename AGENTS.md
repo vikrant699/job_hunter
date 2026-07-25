@@ -27,6 +27,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends; own JSON state at `data/blast-state-<name>.json`, projects a Blast Log tab). Flags: `--limit N` (default 100), `--verify-only`, `--force`. Delete `src/blast/`, `scripts/blast.ts`, and this row when the campaign ends. |
 | `npm run eval` | Replay the labelled eval dataset through the gate. |
+| `npm run health` | Read-only registry health report (status/strategy/provider yield tallies from the local DB + cache). |
 | `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
 
 ## Before you commit (non-negotiable)
@@ -68,10 +69,10 @@ npm run lint        # ZERO violations
 src/
   ats/         one file per ATS provider; registry.ts = provider->adapter map;
                  http.ts (shared atsFetchJson/atsFetchText); shared.ts (REMOTE_RE,
-                 unixToIso, parsePostedOn); html-text.ts; workday-facet.ts; types.ts (AtsAdapter)
-  db/          per-table modules (companies, postings, runs, quota, link-cache, api-meta)
-                 behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
-  discovery/   ats-patterns + ats-validate (ATS detection + capabilities); ats.ts; host-match.ts; registry-writer.ts
+                 unixToIso, parsePostedOn); html-text.ts; workday-facet.ts; types.ts (AtsAdapter);
+                 detect.ts (ATS-redirect detection patterns used by llm-scrape)
+  db/          per-table modules (companies, postings, runs, recruiters, outreach, link-cache,
+                 api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
@@ -91,9 +92,12 @@ src/
   registry/    sheet-registry.ts (syncs the Companies tab, with a registry-cache.json
                  fallback, into the DB); companies.ts (shared upsert+prune core, JSON
                  file reader for the cache); sheet-codec.ts (Companies-tab row <->
-                 RegistryEntry codec)
+                 RegistryEntry codec); sheet-writer.ts (Companies-tab mutations:
+                 SPA-sentinel strategy flip + appendToRegistry, the blessed write
+                 path for registry-maintenance sessions)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
-  util/        semaphore, user-agent, slug, json (JsonValue), csv (escape/build), probe
+  util/        semaphore, sleep, user-agent, slug, json (JsonValue), csv (parse + build),
+                 probe, fs (writeFileAtomic), regex (matchGroup), env (envInt)
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
   config.ts profile.ts logger.ts index.ts
@@ -111,18 +115,25 @@ data/          SQLite DB + caches (gitignored)
   `data/registry-cache.json` is a bot-maintained local snapshot/fallback used only when the
   sheet is unreachable, not itself a source of truth. To add/remove a company, edit the tab
   (and check it isn't already present under a non-obvious slug), not the DB or the cache file.
-- **New ATS adapter (4-file wiring):** implement the `AtsAdapter` interface, then wire it into
-  all four: (1) add the provider to the `ProviderSchema` enum in `src/schemas.ts`; (2) register
-  the adapter in `src/ats/registry.ts` (`ATS_ADAPTERS`); (3) add it to the `AtsProvider` union +
-  `CAPABILITIES` in `src/discovery/ats-patterns.ts` (`hasAdapter: true`; `canValidate: true` + a
-  host `PATTERN` only if there's a derivable host signature, else `canValidate: false` and no
-  pattern - mirror `jibe`/`eightfoldpcs`); (4) if `canValidate: true`, add a `case` in
-  `src/discovery/ats-validate.ts`. Write fixture tests (TDD). Reuse `atsFetchJson`/`atsFetchText`,
-  `REMOTE_RE`, `unixToIso`, and the location helpers from `src/ats/shared.ts` rather than
-  re-rolling them; for WAF/anti-bot hosts use the browser-backed helpers in
-  `src/ats/browser-fetch.ts` (shared headless-Chromium pool) instead of adding evasion code.
-  There are ~70 providers now; some are browser-backed, and a few crack an encrypted payload or
-  lift a token from the page bundle (see `icicibank`, `moglix`, `magicpin`, `metacareers`).
+- **Registry appends from maintenance sessions** go through `appendToRegistry` in
+  `src/registry/sheet-writer.ts` (dedupes by (source, slug) key and mirrors the local cache);
+  never hand-append rows via raw Sheets calls.
+- **New ATS adapter (2 wiring points + 1 optional):** implement the `AtsAdapter` interface, then:
+  (1) add the provider to the `ProviderSchema` enum in `src/schemas.ts`;
+  (2) register the adapter in `src/ats/registry.ts` (`ATS_ADAPTERS`). The map is
+  compile-enforced against the enum (`satisfies Record<Exclude<Provider, "custom">, AtsAdapter>`),
+  so forgetting either side is a tsc error, and `src/ats/registry.test.ts` pins it.
+  (3) OPTIONAL: if the vendor has a shared host signature (e.g. `*.vendor.com` tenant
+  subdomains), add a `PatternDef` to `src/ats/detect.ts` so llm-scrape's ATS-redirect
+  detection can recognize boards that link out to it. No pattern for single-company
+  or custom-domain vendors.
+  Write fixture tests (TDD) using `src/ats/test-helpers.ts` (stubFetch/fetchSequence/
+  jsonResponse/mkAdapterCompany). Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`,
+  `unixToIso`, and `paginate` from `src/ats/shared.ts`; for WAF/anti-bot hosts use
+  `src/ats/browser-fetch.ts`.
+  There are just over 100 providers now (see `ProviderSchema`); some are browser-backed, and a few
+  crack an encrypted payload or lift a token from the page bundle (see `icicibank`, `moglix`,
+  `magicpin`, `metacareers`).
 - **NEVER truncate a board.** Adapters must page to the end; pagination backstops in
   `src/ats/shared.ts` are runaway guards (5000), not limits. If a board looks capped, find the
   real pagination mechanism.
