@@ -50,7 +50,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const API_ORIGIN = "https://app.advantageclub.ai";
 const PUBLIC_ORIGIN = "https://www.advantageclub.ai";
@@ -109,14 +109,6 @@ export function advantageClubJobUrl(id: number): string {
   return `${PUBLIC_ORIGIN}/pages/ac_career/vacancy_details/${id}`;
 }
 
-/** published_at ("2026-05-19T00:00:00.000Z") -> plain ISO, or null if
- *  absent/unparseable. */
-function parseAdvantageClubPostedAt(publishedAt: string | null | undefined): string | null {
-  if (!publishedAt) return null;
-  const ms = Date.parse(publishedAt);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 export function normalizeAdvantageClubJob(company: AdapterCompany, j: AdvantageClubJob): NormalizedPosting {
   const location = j.location ?? null;
   return {
@@ -129,7 +121,7 @@ export function normalizeAdvantageClubJob(company: AdapterCompany, j: AdvantageC
     location,
     isRemote: (j.remote_policy ?? "").trim().toLowerCase() === "remote" || REMOTE_RE.test(location ?? ""),
     jdText: "",
-    postedAt: parseAdvantageClubPostedAt(j.published_at),
+    postedAt: dateToIso(j.published_at),
   };
 }
 

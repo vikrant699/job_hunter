@@ -14,7 +14,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, epochMsToIso } from "./shared.js";
 
 const CAREERS_LIST_URL = "https://sharechat.com/api/careersList?limit=100";
 
@@ -55,7 +55,7 @@ export function normalizeShareChat(company: AdapterCompany, j: ShareChatJob): No
     location,
     isRemote: REMOTE_RE.test(location ?? ""),
     jdText: j.jobDescription ? htmlToText(j.jobDescription) : "",
-    postedAt: j.createdDate ? new Date(j.createdDate).toISOString() : null,
+    postedAt: epochMsToIso(j.createdDate),
   };
 }
 

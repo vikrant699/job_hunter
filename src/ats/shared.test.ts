@@ -3,6 +3,8 @@ import { describe, it } from "node:test";
 import {
   REMOTE_RE,
   unixToIso,
+  dateToIso,
+  epochMsToIso,
   parsePostedOn,
   paginate,
   INTER_PAGE_DELAY_MS,
@@ -42,6 +44,36 @@ describe("unixToIso", () => {
   it("returns null for undefined", () =>
     assert.strictEqual(unixToIso(undefined), null));
   it("returns null for 0", () => assert.strictEqual(unixToIso(0), null));
+});
+
+describe("dateToIso", () => {
+  it("converts a Date.parse-able string to ISO", () => {
+    assert.strictEqual(
+      dateToIso("2026-06-02"),
+      new Date(Date.parse("2026-06-02")).toISOString(),
+    );
+  });
+  it("returns null for an unparseable string", () =>
+    assert.strictEqual(dateToIso("not a date"), null));
+  it("returns null for null", () => assert.strictEqual(dateToIso(null), null));
+  it("returns null for undefined", () =>
+    assert.strictEqual(dateToIso(undefined), null));
+  it("returns null for an empty string", () =>
+    assert.strictEqual(dateToIso(""), null));
+});
+
+describe("epochMsToIso", () => {
+  it("converts positive epoch milliseconds to ISO", () => {
+    assert.strictEqual(
+      epochMsToIso(1_719_800_000_000),
+      new Date(1_719_800_000_000).toISOString(),
+    );
+  });
+  it("returns null for 0", () => assert.strictEqual(epochMsToIso(0), null));
+  it("returns null for null", () =>
+    assert.strictEqual(epochMsToIso(null), null));
+  it("returns null for undefined", () =>
+    assert.strictEqual(epochMsToIso(undefined), null));
 });
 
 describe("parsePostedOn", () => {

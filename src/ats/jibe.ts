@@ -8,7 +8,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const PAGE = 10; // server-fixed; page-size params are ignored
@@ -53,7 +53,6 @@ export function jibePageJobs(pageJson: unknown): { jobs: JibeJob[]; totalCount: 
 export function normalizeJibe(company: AdapterCompany, j: JibeJob): NormalizedPosting {
   const slug = String(j.slug);
   const location = j.full_location ?? j.short_location ?? j.location_name ?? j.country ?? null;
-  const postedMs = j.posted_date ? Date.parse(j.posted_date) : Number.NaN;
   return {
     provider: "jibe",
     externalId: slug,
@@ -64,7 +63,7 @@ export function normalizeJibe(company: AdapterCompany, j: JibeJob): NormalizedPo
     location,
     isRemote: REMOTE_RE.test(`${j.location_type ?? ""} ${location ?? ""}`),
     jdText: j.description ? htmlToText(j.description) : "",
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(j.posted_date),
   };
 }
 

@@ -15,7 +15,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchFormHtml, atsFetchText } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const PAGE = 10;
 
@@ -48,7 +48,6 @@ export function parseGohireListPage(html: string, company: AdapterCompany): Norm
 
     const location = $(el).find("p.careers-location").text().trim() || null;
     const postedRaw = $(el).find("p.date-posted").text().trim().replace(/^Posted\s+/i, "");
-    const postedMs = postedRaw ? Date.parse(postedRaw) : Number.NaN;
 
     out.push({
       provider: "gohire",
@@ -60,7 +59,7 @@ export function parseGohireListPage(html: string, company: AdapterCompany): Norm
       location,
       isRemote: location ? REMOTE_RE.test(location) : false,
       jdText: "",
-      postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+      postedAt: dateToIso(postedRaw),
     });
   });
 

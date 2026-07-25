@@ -31,7 +31,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 const RF_ORIGIN = "https://recruiterflow.com";
 
@@ -166,12 +166,6 @@ export function parseRecruiterflowJd(html: string): string {
   return htmlToText(parsed.data.description ?? "");
 }
 
-function parseRfDate(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
 export function normalizeRecruiterflow(company: AdapterCompany, slug: string, job: RfJobStub): NormalizedPosting {
   const location = job.details ?? null;
   const isRemote = !!job.remote_type || (location ? REMOTE_RE.test(location) : false);
@@ -185,7 +179,7 @@ export function normalizeRecruiterflow(company: AdapterCompany, slug: string, jo
     location,
     isRemote,
     jdText: "",
-    postedAt: parseRfDate(job.last_opened),
+    postedAt: dateToIso(job.last_opened),
   };
 }
 

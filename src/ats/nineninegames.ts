@@ -30,7 +30,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, dateToIso } from "./shared.js";
 
 const API_URL = "https://blogbackend.99games.in/BackendCms/jobOpportunities/opportunities";
 
@@ -57,16 +57,6 @@ export function nineNineGamesJobUrl(company: AdapterCompany, id: string): string
   return `${company.careersUrl.replace(/\/+$/, "")}#job-${id}`;
 }
 
-/** `last_modified_on` ("2026-01-13T05:45:39.000Z") -> plain ISO, or null if
- *  absent/unparseable. This is a last-*modified* stamp, not a created/posted
- *  one — the API exposes nothing better, so it's the closest available proxy
- *  for postedAt. */
-function parseNineNineGamesModifiedAt(s: string | null | undefined): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s);
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 export function normalizeNineNineGamesJob(company: AdapterCompany, j: NineNineGamesJob): NormalizedPosting {
   const location = j.jobLocation ?? null;
   return {
@@ -79,7 +69,9 @@ export function normalizeNineNineGamesJob(company: AdapterCompany, j: NineNineGa
     location,
     isRemote: REMOTE_RE.test(location ?? ""),
     jdText: htmlToText(j.description),
-    postedAt: parseNineNineGamesModifiedAt(j.last_modified_on),
+    // last_modified_on is a last-*modified* stamp, not a created/posted one —
+    // the API exposes nothing better, so it's the closest available proxy.
+    postedAt: dateToIso(j.last_modified_on),
   };
 }
 

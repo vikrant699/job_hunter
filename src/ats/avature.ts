@@ -32,7 +32,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso } from "./shared.js";
 
 // Safety cap on page hops in case a tenant's Next link never disappears
 // (loops back on itself, etc.) — pagination normally ends on its own once the
@@ -111,13 +111,6 @@ function pickPostedFromSpans(spanTexts: string[]): string | null {
   return null;
 }
 
-/** Tenant date formats vary ("10-Jul-2026", "Jul 10, 2026"); both parse. */
-function parseAvatureDate(s: string | null): string | null {
-  if (!s) return null;
-  const ms = Date.parse(s.trim());
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /** Parse one SearchJobs page: its postings and the absolute Next-page URL (if any). */
 export function parseAvatureSearch(
   html: string,
@@ -177,7 +170,7 @@ export function parseAvatureSearch(
       location,
       isRemote: location ? REMOTE_RE.test(location) : false,
       jdText: "",
-      postedAt: parseAvatureDate(postedRaw),
+      postedAt: dateToIso(postedRaw),
     });
   });
 

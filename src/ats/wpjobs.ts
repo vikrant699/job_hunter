@@ -34,7 +34,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const PER_PAGE = 100; // WP REST API max page size
 
@@ -142,17 +142,13 @@ export function wpjobsLocation(post: WpPost): string | null {
   );
 }
 
-/** Prefer date_gmt (true UTC) over the site-local `date` field; null if neither parses. */
+/** Prefer date_gmt (true UTC) over the site-local `date` field; null if
+ *  neither parses. date_gmt has no zone designator of its own (WP serializes
+ *  it as bare local-looking wall-clock UTC), so "Z" is appended before
+ *  parsing — otherwise `Date.parse` would read it in the machine's local
+ *  timezone instead of UTC. */
 function wpjobsPostedAt(post: WpPost): string | null {
-  if (post.date_gmt) {
-    const ms = Date.parse(`${post.date_gmt}Z`);
-    if (!Number.isNaN(ms)) return new Date(ms).toISOString();
-  }
-  if (post.date) {
-    const ms = Date.parse(post.date);
-    if (!Number.isNaN(ms)) return new Date(ms).toISOString();
-  }
-  return null;
+  return dateToIso(post.date_gmt ? `${post.date_gmt}Z` : null) ?? dateToIso(post.date);
 }
 
 export function normalizeWpjobs(company: AdapterCompany, post: WpPost): NormalizedPosting {

@@ -12,7 +12,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const LIST_URL = "https://www.happyeasygo.com/heg_api/join/getDepartmentJobList.do";
@@ -79,7 +79,7 @@ export function normalizeHappyEasyGo(
     jdText: htmlToText(jdParts.join("\n\n")),
     // createTime is already a millisecond epoch (13-digit, e.g. 1547475963000),
     // unlike Workday's seconds-based fields that `unixToIso` targets.
-    postedAt: p.createTime ? new Date(p.createTime).toISOString() : null,
+    postedAt: epochMsToIso(p.createTime),
   };
 }
 

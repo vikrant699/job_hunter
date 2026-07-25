@@ -7,7 +7,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 const BASE = "https://www.amazon.jobs";
@@ -49,7 +49,6 @@ export function normalizeAmazonJobs(company: AdapterCompany, j: AmazonJob): Norm
     .filter((v): v is string => typeof v === "string" && v.length > 0)
     .join(", ");
   const location = j.location ?? (cityCountry.length > 0 ? cityCountry : null);
-  const postedMs = j.posted_date ? Date.parse(j.posted_date) : Number.NaN;
   return {
     provider: "amazonjobs",
     externalId: j.id_icims,
@@ -60,7 +59,7 @@ export function normalizeAmazonJobs(company: AdapterCompany, j: AmazonJob): Norm
     location,
     isRemote: REMOTE_RE.test(location ?? ""),
     jdText: htmlToText(j.description ?? j.description_short ?? ""),
-    postedAt: Number.isNaN(postedMs) ? null : new Date(postedMs).toISOString(),
+    postedAt: dateToIso(j.posted_date),
   };
 }
 

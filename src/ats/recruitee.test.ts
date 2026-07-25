@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import {
   recruiteeBase,
   normalizeRecruitee,
-  parseRecruiteeDate,
   postingsFromRecruiteeJson,
   RecruiteeOfferSchema,
   type RecruiteeOffer,
@@ -76,16 +75,6 @@ test("RecruiteeOfferSchema accepts the real shape and tolerates missing optional
     }).success,
   );
   assert.equal(RecruiteeOfferSchema.safeParse({ title: "no id or status" }).success, false);
-});
-
-test("parseRecruiteeDate converts the space-separated UTC format to ISO", () => {
-  assert.equal(parseRecruiteeDate("2026-07-09 07:03:45 UTC"), "2026-07-09T07:03:45.000Z");
-});
-
-test("parseRecruiteeDate returns null for missing or unparsable input", () => {
-  assert.equal(parseRecruiteeDate(null), null);
-  assert.equal(parseRecruiteeDate(undefined), null);
-  assert.equal(parseRecruiteeDate("not a date"), null);
 });
 
 test("normalizeRecruitee maps fields, strips HTML, concatenates description+requirements", () => {
