@@ -29,7 +29,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 
 const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
 // Safety cap: 500,000 jobs (PAGE 100 x MAX_PAGES 5000). Largest known tenant
@@ -62,11 +62,6 @@ export const RipplehireJdSchema = z.object({
     .nullable()
     .optional(),
 });
-
-/** Origin (https://<tenant>.ripplehire.com) from the tenant/careers URL. */
-export function ripplehireBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Extract the `token` query param from a URL string. Null if absent or unparseable. */
 export function extractRipplehireToken(url: string): string | null {
@@ -142,7 +137,7 @@ export function normalizeRipplehire(
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.jobTitle ?? "",
-    jobUrl: ripplehireBoardUrl(ripplehireBase(company), token),
+    jobUrl: ripplehireBoardUrl(tenantOrigin(company), token),
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
@@ -161,7 +156,7 @@ export const ripplehireAdapter: AtsAdapter = {
   provider: "ripplehire",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const base = ripplehireBase(company);
+    const base = tenantOrigin(company);
     const token = await resolveRipplehireToken(company, base);
     // Boxed in an object: a bare `let total` mutated only inside the fetchPage
     // closure defeats TS's narrowing (it can't see paginate() invoking the
@@ -213,7 +208,7 @@ export const ripplehireAdapter: AtsAdapter = {
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const base = ripplehireBase(company);
+    const base = tenantOrigin(company);
     const token = await resolveRipplehireToken(company, base);
     const raw = await atsFetchJson(ripplehireJdUrl(base, token, posting.externalId), { provider: "ripplehire" });
     return parseRipplehireJd(raw);

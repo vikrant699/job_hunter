@@ -17,6 +17,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
+import { tenantOrigin } from "./shared.js";
 
 const JOB_SLUG_RE = /^job-opening-\d+$/;
 const FIXED_LOCATION = "India";
@@ -28,10 +29,6 @@ export const ProcmartPageSchema = z.object({
   content: z.object({ rendered: z.string().nullable().optional() }).nullable().optional(),
 });
 const ProcmartListSchema = z.array(ProcmartPageSchema);
-
-function apiBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Title = first <h2> text in the Elementor content; null if none. */
 export function procmartTitle(html: string): string | null {
@@ -45,7 +42,7 @@ export const procmartAdapter: AtsAdapter = {
   provider: "procmart",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const base = apiBase(company);
+    const base = tenantOrigin(company);
     const raw = await atsFetchJson(
       `${base}/wp-json/wp/v2/pages?per_page=100&_fields=id,slug,link,content`,
       { provider: "procmart" },

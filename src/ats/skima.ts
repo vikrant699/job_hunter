@@ -21,7 +21,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 // Runaway backstop for when the "Showing X of N" counter is missing and
@@ -43,11 +43,6 @@ export interface SkimaListingPage {
   items: SkimaListItem[];
   /** Total job count from the "Showing X of N" chrome, if parseable. */
   total: number | null;
-}
-
-/** Tenant board origin: the stored tenantUrl if set, else careersUrl. */
-export function skimaBaseUrl(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
 /** Listing URL for page N (1-based). Page 1 is the bare board URL. */
@@ -135,7 +130,7 @@ export const skimaAdapter: AtsAdapter = {
   provider: "skima",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const baseUrl = skimaBaseUrl(company);
+    const baseUrl = tenantOrigin(company);
     const out: NormalizedPosting[] = [];
     const seenIds = new Set<string>();
     let total: number | null = null;

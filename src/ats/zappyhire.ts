@@ -25,7 +25,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
-import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS } from "./shared.js";
+import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS, tenantOriginOr } from "./shared.js";
 
 // ---------- api_meta ----------
 
@@ -52,14 +52,7 @@ function meta(company: AdapterCompany): ZappyhireMeta {
  *  `<x>careers.zappyhire.com` host from the slug (only used to build fallback
  *  job URLs -- the real API host lives in apiMeta.backendHost). */
 function tenantBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}careers.zappyhire.com`;
+  return tenantOriginOr(company, (slug) => `https://${slug}careers.zappyhire.com`);
 }
 
 // ---------- new-gen (single-call dashboard, JD inline) ----------

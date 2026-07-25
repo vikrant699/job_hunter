@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  successfactorsOrigin,
   successfactorsSearchUrl,
   parseSuccessfactorsTotal,
   parseJobHref,
@@ -64,14 +63,6 @@ const JD_HTML = `
   <span class="jobdescription"><div><H2><b>Function</b></H2><p>Operations</p></div>
   <ul><li>Own the weld shop</li><li>Lead the team</li></ul></span>
 </body></html>`;
-
-test("successfactorsOrigin derives origin from careersUrl (or tenantUrl when set)", () => {
-  assert.equal(successfactorsOrigin(company), "https://jobs.heromotocorp.com");
-  assert.equal(
-    successfactorsOrigin({ ...company, tenantUrl: "https://careers.sunpharma.com/search/" }),
-    "https://careers.sunpharma.com",
-  );
-});
 
 test("successfactorsSearchUrl builds the paged /search/ URL at the row offset", () => {
   assert.equal(

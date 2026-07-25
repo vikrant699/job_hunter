@@ -22,7 +22,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { parseOrThrow, withAtsTimeout } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
+import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, tenantOrigin } from "./shared.js";
 
 const PAGE = 10;
 const MAX_PAGES = 100;
@@ -55,10 +55,6 @@ function raw(v: { raw?: string | number | null } | null | undefined): string | n
   if (typeof r === "string") return r.trim() || null;
   if (typeof r === "number") return String(r);
   return null;
-}
-
-function origin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
 function groupId(company: AdapterCompany): string {
@@ -132,7 +128,7 @@ export const ongigAdapter: AtsAdapter = {
   provider: "ongig",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const org = origin(company);
+    const org = tenantOrigin(company);
     const gid = groupId(company);
     const countryFilter = company.apiMeta?.countryFilter ?? "india";
     const { token, cookie } = await ongigSession(org);

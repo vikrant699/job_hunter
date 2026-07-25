@@ -17,7 +17,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, tenantOrigin } from "./shared.js";
 import * as cheerio from "cheerio";
 
 export const SuperopsCareerSchema = z.object({
@@ -31,10 +31,6 @@ export type SuperopsCareer = z.infer<typeof SuperopsCareerSchema>;
 const PageDataSchema = z.object({ staticQueryHashes: z.array(z.union([z.string(), z.number()])) });
 const SqBlobSchema = z.object({ data: z.record(z.unknown()) });
 const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
-
-function base(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Find the careers[] array inside any sq-data blob (shape:
  *  data.<Anything>.careers). Returns null when this blob isn't the one. */
@@ -52,7 +48,7 @@ export const superopsAdapter: AtsAdapter = {
   provider: "superops",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const origin = base(company);
+    const origin = tenantOrigin(company);
     const pageData = await atsFetchJson(`${origin}/page-data/careers/page-data.json`, { provider: "superops" });
     const pd = PageDataSchema.safeParse(pageData);
     if (!pd.success) throw new Error(`superops page-data failed schema for ${company.slug}`);

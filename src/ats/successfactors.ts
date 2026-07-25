@@ -25,19 +25,13 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 
 const PAGE = 25; // engine-fixed page size
 // Safety cap: 125,000 jobs (PAGE 25 x MAX_PAGES 5000). paginate stops earlier
 // once it reaches the parsed total; this only bites pathologically large
 // boards. listPostings logs when hit.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
-
-/** Origin (scheme + host) that serves the board — the custom career domain.
- *  Prefers tenant_url when set, else the careers_url (root or /search/ page). */
-export function successfactorsOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 /** Paged search URL at the given 0-based row offset. */
 export function successfactorsSearchUrl(origin: string, startrow: number): string {
@@ -75,7 +69,7 @@ export function parseSuccessfactorsSearch(
   html: string,
   company: AdapterCompany,
 ): { postings: NormalizedPosting[]; rowCount: number; total: number | null } {
-  const origin = successfactorsOrigin(company);
+  const origin = tenantOrigin(company);
   const $ = cheerio.load(html);
   const postings: NormalizedPosting[] = [];
   const rows = $("tr.data-row");
@@ -176,7 +170,7 @@ export const successfactorsAdapter: AtsAdapter = {
   provider: "successfactors",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const origin = successfactorsOrigin(company);
+    const origin = tenantOrigin(company);
     // Boxed in an object: a bare `let total` mutated only inside the fetchPage
     // closure defeats TS's narrowing (it can't see paginate() invoking the
     // closure, so it treats `total` as permanently its initial `null`); a

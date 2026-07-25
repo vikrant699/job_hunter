@@ -33,16 +33,11 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
-
-/** Origin (https://<slug>.superworks.com) from the tenant/careers URL. */
-export function superworksBase(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
+import { REMOTE_RE, tenantOrigin } from "./shared.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
-  return `${superworksBase(company)}/job/listing`;
+  return `${tenantOrigin(company)}/job/listing`;
 }
 
 function cleanText(s: string): string {
@@ -144,7 +139,7 @@ export function parseSuperworksList(html: string, company: AdapterCompany): Norm
   const result = InitialDataSchema.safeParse(parsed);
   if (!result.success) return [];
 
-  const base = superworksBase(company);
+  const base = tenantOrigin(company);
   const postings: NormalizedPosting[] = [];
 
   for (const job of result.data.jobList) {

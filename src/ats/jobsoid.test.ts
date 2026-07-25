@@ -1,7 +1,7 @@
 // src/ats/jobsoid.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { jobsoidOrigin, jobsoidIdFromHref, parseJobsoidList, jobsoidJdFromHtml } from "./jobsoid.js";
+import { jobsoidIdFromHref, parseJobsoidList, jobsoidJdFromHtml } from "./jobsoid.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -85,11 +85,6 @@ const EMPTY_BOARD_HTML = `
 <html><body>
 <div class="empty-state">No Current Openings</div>
 </body></html>`;
-
-test("jobsoidOrigin derives the tenant origin, preferring tenant_url", () => {
-  assert.equal(jobsoidOrigin(company), "https://vibvzw.jobsoid.com");
-  assert.equal(jobsoidOrigin({ ...company, tenantUrl: null }), "https://vibvzw.jobsoid.com");
-});
 
 test("jobsoidIdFromHref extracts the numeric id from a /j/<id>/<slug> href", () => {
   assert.equal(jobsoidIdFromHref("/j/136131/aankoper"), "136131");

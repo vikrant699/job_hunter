@@ -2,7 +2,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  radancyOrigin,
   radancyListUrl,
   parseRadancyTotals,
   parseRadancyJobId,
@@ -148,15 +147,6 @@ const INTUIT_JD_HTML = `
     </section>
 </body></html>
 `;
-
-test("radancyOrigin derives the origin from careersUrl, or tenantUrl when set", () => {
-  assert.equal(radancyOrigin(fordCompany), "https://www.careers.ford.com");
-  assert.equal(radancyOrigin(intuitCompany), "https://jobs.intuit.com");
-  assert.equal(
-    radancyOrigin({ ...fordCompany, tenantUrl: "https://alt.careers.ford.com/" }),
-    "https://alt.careers.ford.com",
-  );
-});
 
 test("radancyListUrl leaves page 1 unchanged and appends ?p=N / &p=N depending on an existing query string", () => {
   assert.equal(radancyListUrl(intuitCompany.careersUrl, 1), intuitCompany.careersUrl);

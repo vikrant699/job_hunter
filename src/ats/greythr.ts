@@ -3,6 +3,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
+import { tenantOriginOr } from "./shared.js";
 
 // greytHR public recruitment board ("careerbuild" SPA). Each tenant is a
 // subdomain: <slug>.greythr.com. The board is a JS app backed by a JSON API:
@@ -33,14 +34,7 @@ const ListResponseSchema = z.object({ data: z.array(GreythrJobSchema) });
 /** Tenant host origin, e.g. "https://firstclub.greythr.com". Prefers an explicit
  *  tenant_url host when set, else builds it from the slug (the subdomain). */
 export function greythrBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}.greythr.com`;
+  return tenantOriginOr(company, (slug) => `https://${slug}.greythr.com`);
 }
 
 export const greythrAdapter: AtsAdapter = {

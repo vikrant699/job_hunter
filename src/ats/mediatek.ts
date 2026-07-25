@@ -10,7 +10,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { paginate } from "./shared.js";
+import { paginate, tenantOrigin } from "./shared.js";
 
 const TRPC_PATH = "/api/trpc/job.getJobs";
 const PAGE_LIMIT = 100;
@@ -68,10 +68,6 @@ const MediatekResponseSchema = z.array(
   }),
 );
 
-function mediatekOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
-
 /** Builds the batched tRPC GET URL for one city's page. */
 export function mediatekApiUrl(company: AdapterCompany, cityCode: string, page: number, limit = PAGE_LIMIT): string {
   const input = {
@@ -87,7 +83,7 @@ export function mediatekApiUrl(company: AdapterCompany, cityCode: string, page: 
       },
     },
   };
-  return `${mediatekOrigin(company)}${TRPC_PATH}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
+  return `${tenantOrigin(company)}${TRPC_PATH}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
 }
 
 /** Unwraps the tRPC batch envelope down to `{ jobs, pagination }`. */
@@ -106,7 +102,7 @@ export function normalizeMediatek(company: AdapterCompany, j: MediatekJob, queri
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: `${mediatekOrigin(company)}/en/jobs/${j.id}`,
+    jobUrl: `${tenantOrigin(company)}/en/jobs/${j.id}`,
     location: cityLabel(queriedCityCode),
     isRemote: false,
     jdText: j.description ? htmlToText(j.description) : "",

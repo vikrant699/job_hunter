@@ -19,7 +19,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, dateToIso } from "./shared.js";
+import { REMOTE_RE, dateToIso, tenantOriginOr } from "./shared.js";
 
 export const RecruiteeOfferSchema = z.object({
   id: z.number(),
@@ -43,14 +43,7 @@ const ListResponseSchema = z.object({ offers: z.array(RecruiteeOfferSchema) });
 /** Tenant host origin, e.g. "https://flextrade.recruitee.com". Prefers an
  *  explicit tenant_url host when set, else builds it from the slug. */
 export function recruiteeBase(company: AdapterCompany): string {
-  if (company.tenantUrl) {
-    try {
-      return new URL(company.tenantUrl).origin;
-    } catch {
-      /* fall through to slug-derived host */
-    }
-  }
-  return `https://${company.slug}.recruitee.com`;
+  return tenantOriginOr(company, (slug) => `https://${slug}.recruitee.com`);
 }
 
 /** Concatenate description + requirements (both full HTML) into plain-text JD. */

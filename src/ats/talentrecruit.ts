@@ -26,7 +26,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { withAtsTimeout } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, tenantOrigin } from "./shared.js";
 import { browserCaptureText } from "./browser-fetch.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { config } from "../config.js";
@@ -263,7 +263,7 @@ export function normalizeTalentRecruit(company: AdapterCompany, j: TalentRecruit
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: (j.title ?? "").trim(),
-    jobUrl: `${talentRecruitOrigin(company)}/career-page`,
+    jobUrl: `${tenantOrigin(company)}/career-page`,
     location,
     isRemote,
     jdText: htmlToText(j.description ?? ""),
@@ -272,11 +272,6 @@ export function normalizeTalentRecruit(company: AdapterCompany, j: TalentRecruit
 }
 
 // ---- orchestration (impure) ----
-
-/** https://<tenant>.talentrecruit.com from the tenant/careers URL. */
-export function talentRecruitOrigin(company: AdapterCompany): string {
-  return new URL(company.tenantUrl ?? company.careersUrl).origin;
-}
 
 function jobListUrl(offset: number): string {
   return `${API_ORIGIN}${JOB_LIST_PATH}?limit=${PAGE_LIMIT}&offset=${offset}`;
@@ -294,7 +289,7 @@ async function fetchBundle(bundleUrl: string): Promise<string> {
 export const talentRecruitAdapter: AtsAdapter = {
   provider: "talentrecruit",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const origin = talentRecruitOrigin(company);
+    const origin = tenantOrigin(company);
     const tenantHost = new URL(origin).host;
     const careerPage = `${origin}/career-page`;
     const shortname = origin; // the tenant-context header value the SPA sends

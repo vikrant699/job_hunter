@@ -3,7 +3,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import {
-  ripplehireBase,
   extractRipplehireToken,
   ripplehireListUrl,
   ripplehireListBody,
@@ -58,14 +57,6 @@ const JOB_NO_CODE: RipplehireJob = {
   jobPostingDate: null,
   createDttm: null,
 };
-
-test("ripplehireBase derives origin from careersUrl (or tenantUrl when set)", () => {
-  assert.equal(ripplehireBase(company), "https://tatasteel.ripplehire.com");
-  assert.equal(
-    ripplehireBase({ ...company, tenantUrl: "https://usource.ripplehire.com/candidate/careers" }),
-    "https://usource.ripplehire.com",
-  );
-});
 
 test("extractRipplehireToken reads the token query param from the post-redirect URL", () => {
   assert.equal(
