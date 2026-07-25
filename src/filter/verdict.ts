@@ -11,10 +11,10 @@ import { SILENT_SCORE_FLOOR } from "../schemas.js";
  *   silent → hard reject (services / staffing / fresher / location / score below noise);
  *            do not notify at all
  */
-export type Severity = "green" | "yellow" | "silent";
+export type VerdictSeverity = "green" | "yellow" | "silent";
 
 export interface VerdictDetail {
-  severity: Severity;
+  severity: VerdictSeverity;
   reason: string;
 }
 

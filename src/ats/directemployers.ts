@@ -71,11 +71,8 @@ export function normalizeDeJob(company: AdapterCompany, j: DeJob): NormalizedPos
   const title = j.title_exact ?? j.title ?? null;
   if (!title) return null;
   const externalId = String(j.guid ?? j.id ?? j.reqid ?? title);
-  const location =
-    j.location_exact ??
-    [j.city_exact, j.country_exact].filter(Boolean).join(", ") ??
-    j.country_exact ??
-    null;
+  const joined = [j.city_exact, j.country_exact].filter(Boolean).join(", ");
+  const location = j.location_exact ?? (joined || null);
   return {
     provider: "directemployers",
     externalId,
@@ -83,7 +80,7 @@ export function normalizeDeJob(company: AdapterCompany, j: DeJob): NormalizedPos
     companyName: company.name,
     jobTitle: title,
     jobUrl: j.url ?? company.tenantUrl ?? company.careersUrl,
-    location: location || null,
+    location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: (j.description ?? "").trim(),
     postedAt: null,
