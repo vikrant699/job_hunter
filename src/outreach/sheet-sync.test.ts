@@ -111,6 +111,27 @@ test("projectToSheet: Drafts severity/score picks highest score within the same 
   assert.equal(row[5], "0.95");
 });
 
+test("projectToSheet degrades a corrupt roles_json row to blank Roles/Severity/Score cells instead of aborting", async () => {
+  const { deps, rewrites } = harness();
+  const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const email = mkEmail(`corrupt-${tag}`);
+  insertOutreach(baseRow({
+    recruiterEmail: email,
+    companyName: `CorruptCo-${tag}`,
+    rolesJson: "{not json",
+  }));
+
+  await projectToSheet("default", deps);
+
+  const draftsWrite = rewrites.find((r) => r.tab === config.google.tabs.drafts);
+  assert.ok(draftsWrite);
+  const row = draftsWrite.rows.find((r) => r[6] === email);
+  assert.ok(row);
+  assert.equal(row[3], ""); // Roles cell blank, not thrown
+  assert.equal(row[4], ""); // Severity blank
+  assert.equal(row[5], ""); // Score blank
+});
+
 test("projectToSheet writes the Sent tab with sent/bounced/verified rows, newest first, raw status, computed Check After", async () => {
   const { deps, rewrites } = harness();
   const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
