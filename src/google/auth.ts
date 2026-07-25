@@ -1,7 +1,8 @@
 // src/google/auth.ts
-import { readFileSync, writeFileSync, existsSync, renameSync, unlinkSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { z } from "zod";
 import { config } from "../config.js";
+import { writeFileAtomic } from "../util/fs.js";
 
 const TokenFileSchema = z.object({
   refresh_token: z.string(),
@@ -43,28 +44,13 @@ export interface GoogleAuthDeps {
   now: () => number;
 }
 
-function defaultWriteFileAtomic(path: string, contents: string): void {
-  const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, contents, "utf-8");
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    try {
-      unlinkSync(tmp);
-    } catch {
-      /* ignore */
-    }
-    throw err;
-  }
-}
-
 function defaultDeps(profileId: string): GoogleAuthDeps {
   return {
     fetchFn: fetch,
     tokenPath: config.google.tokenPathFor(profileId),
     readFile: (path: string) => readFileSync(path, "utf-8"),
     existsSync,
-    writeFileAtomic: defaultWriteFileAtomic,
+    writeFileAtomic,
     now: () => Date.now(),
   };
 }
