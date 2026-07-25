@@ -3,15 +3,16 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { readTab as defaultReadTab, appendRows as defaultAppendRows, updateRange as defaultUpdateRange } from "../google/sheets.js";
 import type { RegistryEntry } from "../schemas.js";
-import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "../registry/sheet-codec.js";
+import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "./sheet-codec.js";
 import { writeAtomic } from "../util/registry-file.js";
 import { registryKey as entryKey } from "../util/slug.js";
 
 /**
- * Registry-mutation surface for discovery/runtime callers, writing against
- * the Companies tab (the registry source of truth). Every write also mirrors
- * into data/registry-cache.json so the local cache stays a faithful snapshot
- * for the offline fallback in sheet-registry.ts.
+ * Registry-mutation surface for the Companies tab (the registry source of
+ * truth): the SPA sentinel's strategy writeback and the append path used by
+ * registry-maintenance scripts/sessions. Every write also mirrors into
+ * data/registry-cache.json so the local cache stays a faithful snapshot for
+ * the offline fallback in sheet-registry.ts.
  */
 
 export interface RegistryWriterDeps {
@@ -118,8 +119,8 @@ export async function appendToRegistry(
 /**
  * Patch arbitrary fields of one registry entry in place on the Companies tab
  * (full-row rewrite at the located row, other rows untouched), mirroring the
- * cache. Used by the URL-repair flow to apply careers_url fixes directly to
- * the source of truth. Returns false when no row matches the key.
+ * cache. Used by updateRegistryStrategy and registry-maintenance sessions.
+ * Returns false when no row matches the key.
  */
 export async function updateRegistryEntry(
   key: { source: string; source_slug?: string | null; name: string },

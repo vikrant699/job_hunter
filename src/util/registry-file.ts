@@ -3,8 +3,8 @@ import type { RegistryEntry } from "../schemas.js";
 
 /**
  * Atomically overwrite `path` with `entries` (write to a temp file, then
- * rename). Used by the sheet-backed registry writers (src/discovery/
- * registry-writer.ts, src/registry/sheet-registry.ts) for their
+ * rename). Used by the sheet-backed registry writers (src/registry/
+ * sheet-writer.ts, src/registry/sheet-registry.ts) for their
  * data/registry-cache.json snapshot writes — a crash mid-write must never
  * leave a half-written cache file behind.
  */
