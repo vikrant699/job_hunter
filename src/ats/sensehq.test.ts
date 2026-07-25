@@ -13,6 +13,7 @@ import {
 } from "./sensehq.js";
 import type { SenseHqRow } from "./sensehq.js";
 import type { AdapterCompany } from "../types.js";
+import { stubFetch } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "sensehq",
@@ -154,48 +155,32 @@ test("normalizeSenseHq: no location and no JD map to null/empty, not throw", () 
 
 // --- listPostings (full flow, mocked fetch) -------------------------------
 
-const realFetch = globalThis.fetch;
-function stubFetch(fn: typeof globalThis.fetch): void {
-  globalThis.fetch = fn;
-}
-function restoreFetch(): void {
-  globalThis.fetch = realFetch;
-}
-
 function rowN(id: number): SenseHqRow {
   return { ...row, id, title: `Job ${id}` };
 }
 
-test("listPostings: small board — the initial page already has every row, no _next/data fetch", async () => {
+test("listPostings: small board — the initial page already has every row, no _next/data fetch", async (t) => {
   let calls = 0;
-  stubFetch(async (input) => {
+  stubFetch(t, async (input) => {
     calls++;
     const url = String(input);
     assert.match(url, /\/careers$/, "small board should only ever fetch the SSR careers page");
     return new Response(initialHtml([row], 1), { status: 200 });
   });
-  try {
-    const postings = await sensehqAdapter.listPostings(company);
-    assert.equal(postings.length, 1);
-    assert.equal(postings[0]?.externalId, "56903");
-    assert.equal(calls, 1);
-  } finally {
-    restoreFetch();
-  }
+  const postings = await sensehqAdapter.listPostings(company);
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0]?.externalId, "56903");
+  assert.equal(calls, 1);
 });
 
-test("listPostings: empty board returns [] from the shortcut branch", async () => {
-  stubFetch(async () => new Response(initialHtml([], 0), { status: 200 }));
-  try {
-    const postings = await sensehqAdapter.listPostings(company);
-    assert.deepEqual(postings, []);
-  } finally {
-    restoreFetch();
-  }
+test("listPostings: empty board returns [] from the shortcut branch", async (t) => {
+  stubFetch(t, async () => new Response(initialHtml([], 0), { status: 200 }));
+  const postings = await sensehqAdapter.listPostings(company);
+  assert.deepEqual(postings, []);
 });
 
-test("listPostings: paginates via _next/data, stopping on a short page", async () => {
-  stubFetch(async (input) => {
+test("listPostings: paginates via _next/data, stopping on a short page", async (t) => {
+  stubFetch(t, async (input) => {
     const url = String(input);
     if (url.endsWith("/careers")) {
       // Initial page only has 10 of the 113; must paginate via _next/data.
@@ -214,20 +199,16 @@ test("listPostings: paginates via _next/data, stopping on a short page", async (
     }
     throw new Error(`unexpected page ${page}`);
   });
-  try {
-    const postings = await sensehqAdapter.listPostings(company);
-    assert.equal(postings.length, 63);
-    assert.equal(postings[0]?.externalId, "2000");
-    assert.equal(postings.at(-1)?.externalId, "3012");
-  } finally {
-    restoreFetch();
-  }
+  const postings = await sensehqAdapter.listPostings(company);
+  assert.equal(postings.length, 63);
+  assert.equal(postings[0]?.externalId, "2000");
+  assert.equal(postings.at(-1)?.externalId, "3012");
 });
 
-test("listPostings: stops on a zero-row page even when the prior page was full-sized and count is stale", async () => {
+test("listPostings: stops on a zero-row page even when the prior page was full-sized and count is stale", async (t) => {
   // count (999) deliberately doesn't match reality — the spec warns SenseHQ's
   // count can be stale, so termination must not rely on it.
-  stubFetch(async (input) => {
+  stubFetch(t, async (input) => {
     const url = String(input);
     if (url.endsWith("/careers")) {
       return new Response(initialHtml(Array.from({ length: 10 }, (_, i) => rowN(1000 + i)), 999), { status: 200 });
@@ -240,33 +221,23 @@ test("listPostings: stops on a zero-row page even when the prior page was full-s
     }
     return Response.json({ pageProps: { jobsData: { rows: [], count: 999 } } });
   });
-  try {
-    const postings = await sensehqAdapter.listPostings(company);
-    assert.equal(postings.length, 50);
-  } finally {
-    restoreFetch();
-  }
+  const postings = await sensehqAdapter.listPostings(company);
+  assert.equal(postings.length, 50);
 });
 
-test("listPostings: throws a clear error when the careers page has no __NEXT_DATA__ island", async () => {
-  stubFetch(async () => new Response("<html>no island</html>", { status: 200 }));
-  try {
-    await assert.rejects(sensehqAdapter.listPostings(company), /sensehq/);
-  } finally {
-    restoreFetch();
-  }
+test("listPostings: throws a clear error when the careers page has no __NEXT_DATA__ island", async (t) => {
+  stubFetch(t, async () => new Response("<html>no island</html>", { status: 200 }));
+  await assert.rejects(sensehqAdapter.listPostings(company), /sensehq/);
 });
 
-test("listPostings: throws a clear error when __NEXT_DATA__ is present but has an unexpected shape", async () => {
-  stubFetch(async () =>
-    new Response(
-      `<script id="__NEXT_DATA__" type="application/json">{"buildId":"x","props":{"pageProps":{}}}</script>`,
-      { status: 200 },
-    ),
+test("listPostings: throws a clear error when __NEXT_DATA__ is present but has an unexpected shape", async (t) => {
+  stubFetch(
+    t,
+    async () =>
+      new Response(
+        `<script id="__NEXT_DATA__" type="application/json">{"buildId":"x","props":{"pageProps":{}}}</script>`,
+        { status: 200 },
+      ),
   );
-  try {
-    await assert.rejects(sensehqAdapter.listPostings(company), /sensehq/);
-  } finally {
-    restoreFetch();
-  }
+  await assert.rejects(sensehqAdapter.listPostings(company), /sensehq/);
 });

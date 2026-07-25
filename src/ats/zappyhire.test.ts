@@ -12,21 +12,7 @@ import {
 } from "./zappyhire.js";
 import type { NewGenJob, LegacyJobSummary, MtSource } from "./zappyhire.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-
-const realFetch = globalThis.fetch;
-function stubFetchSeq(responses: Array<() => Response>): void {
-  let i = 0;
-  const fetchStub: typeof fetch = async () => {
-    const make = responses[i];
-    i += 1;
-    if (!make) throw new Error(`unexpected extra fetch call (#${i})`);
-    return make();
-  };
-  globalThis.fetch = fetchStub;
-}
-function restoreFetch(): void {
-  globalThis.fetch = realFetch;
-}
+import { stubFetch, fetchSequence, jsonResponse } from "./test-helpers.js";
 
 const newGenCompany: AdapterCompany = {
   provider: "zappyhire", slug: "federalbank", name: "Federal Bank",
@@ -123,148 +109,114 @@ test("normalizeZappyhireLegacy prefers an explicit tenantUrl over the slug-deriv
 
 // ---------- listPostings / fetchJd: new-gen (single call, JD inline) ----------
 
-function jsonResponse(body: unknown): Response {
-  return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-}
-
-test("zappyhireAdapter.listPostings (new-gen): one POST, maps every open_job", async () => {
-  stubFetchSeq([
-    () =>
+test("zappyhireAdapter.listPostings (new-gen): one POST, maps every open_job", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(() =>
       jsonResponse({
         status: 1,
         errors: "",
         results: { open_jobs: [newJob, { ...newJob, id: 3219, title: "Second Job" }], registration_open_jobs_count: 0 },
       }),
-  ]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(newGenCompany);
-    assert.equal(postings.length, 2);
-    assert.equal(postings[0]?.externalId, "3218");
-    assert.equal(postings[1]?.externalId, "3219");
-    assert.match(postings[0]?.jdText ?? "", /sales professionals/);
-  } finally {
-    restoreFetch();
-  }
+    ),
+  );
+  const postings = await zappyhireAdapter.listPostings(newGenCompany);
+  assert.equal(postings.length, 2);
+  assert.equal(postings[0]?.externalId, "3218");
+  assert.equal(postings[1]?.externalId, "3219");
+  assert.match(postings[0]?.jdText ?? "", /sales professionals/);
 });
 
-test("zappyhireAdapter.listPostings (new-gen): empty open_jobs -> []", async () => {
-  stubFetchSeq([() => jsonResponse({ status: 1, errors: "", results: { open_jobs: [] } })]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(newGenCompany);
-    assert.deepEqual(postings, []);
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (new-gen): empty open_jobs -> []", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ status: 1, errors: "", results: { open_jobs: [] } })));
+  const postings = await zappyhireAdapter.listPostings(newGenCompany);
+  assert.deepEqual(postings, []);
 });
 
-test("zappyhireAdapter.listPostings (new-gen): malformed response (no results) rejects", async () => {
-  stubFetchSeq([() => jsonResponse({ status: 0, errors: "boom" })]);
-  try {
-    await assert.rejects(zappyhireAdapter.listPostings(newGenCompany));
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (new-gen): malformed response (no results) rejects", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ status: 0, errors: "boom" })));
+  await assert.rejects(zappyhireAdapter.listPostings(newGenCompany));
 });
 
-test("zappyhireAdapter.fetchJd (new-gen): returns the already-inline jdText without any network call", async () => {
-  stubFetchSeq([]); // any fetch call here is a bug -- fail loudly if hit
-  try {
-    const posting: NormalizedPosting = {
-      provider: "zappyhire", externalId: "3218", companySlug: "federalbank", companyName: "Federal Bank",
-      jobTitle: "x", jobUrl: "https://x", location: null, isRemote: false,
-      jdText: "already populated", postedAt: null,
-    };
-    const jd = await zappyhireAdapter.fetchJd!(newGenCompany, posting);
-    assert.equal(jd, "already populated");
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.fetchJd (new-gen): returns the already-inline jdText without any network call", async (t) => {
+  stubFetch(t, fetchSequence()); // any fetch call here is a bug -- fail loudly if hit
+  const posting: NormalizedPosting = {
+    provider: "zappyhire", externalId: "3218", companySlug: "federalbank", companyName: "Federal Bank",
+    jobTitle: "x", jobUrl: "https://x", location: null, isRemote: false,
+    jdText: "already populated", postedAt: null,
+  };
+  const jd = await zappyhireAdapter.fetchJd!(newGenCompany, posting);
+  assert.equal(jd, "already populated");
 });
 
 // ---------- listPostings / fetchJd: legacy (dept -> jobs -> JD chain) ----------
 
-test("zappyhireAdapter.listPostings (legacy): dept dashboard then per-dept jobs, deduped by id, source param honored", async () => {
-  stubFetchSeq([
-    (): Response => {
-      return jsonResponse({
-        status: 1, errors: "",
-        results: [{ id: 2, name: "Micro Banking", job_count: 2 }, { id: 11, name: "Branch Banking", job_count: 1 }],
-      });
-    },
-    () => jsonResponse({ status: 1, errors: "", results: [legacyJob, { id: 900, title: "Teller", locations: "Kochi" }] }),
-    // Second department re-lists job 804 -- must collapse to one posting.
-    () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }),
-  ]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(legacyCompany);
-    const ids = postings.map((p) => p.externalId).sort();
-    assert.deepEqual(ids, ["804", "900"]);
-    assert.equal(postings.find((p) => p.externalId === "804")?.jdText, "");
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (legacy): dept dashboard then per-dept jobs, deduped by id, source param honored", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(
+      (): Response => {
+        return jsonResponse({
+          status: 1, errors: "",
+          results: [{ id: 2, name: "Micro Banking", job_count: 2 }, { id: 11, name: "Branch Banking", job_count: 1 }],
+        });
+      },
+      () => jsonResponse({ status: 1, errors: "", results: [legacyJob, { id: 900, title: "Teller", locations: "Kochi" }] }),
+      // Second department re-lists job 804 -- must collapse to one posting.
+      () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }),
+    ),
+  );
+  const postings = await zappyhireAdapter.listPostings(legacyCompany);
+  const ids = postings.map((p) => p.externalId).sort();
+  assert.deepEqual(ids, ["804", "900"]);
+  assert.equal(postings.find((p) => p.externalId === "804")?.jdText, "");
 });
 
-test("zappyhireAdapter.listPostings (legacy): no departments -> []", async () => {
-  stubFetchSeq([() => jsonResponse({ status: 1, errors: "", results: [] })]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(legacyCompany);
-    assert.deepEqual(postings, []);
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (legacy): no departments -> []", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ status: 1, errors: "", results: [] })));
+  const postings = await zappyhireAdapter.listPostings(legacyCompany);
+  assert.deepEqual(postings, []);
 });
 
-test("zappyhireAdapter.listPostings (legacy): malformed department response rejects", async () => {
-  stubFetchSeq([() => jsonResponse({ status: 0 })]);
-  try {
-    await assert.rejects(zappyhireAdapter.listPostings(legacyCompany));
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (legacy): malformed department response rejects", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ status: 0 })));
+  await assert.rejects(zappyhireAdapter.listPostings(legacyCompany));
 });
 
-test("zappyhireAdapter.listPostings (legacy): one malformed department's jobs response is skipped, others still returned", async () => {
-  stubFetchSeq([
-    () => jsonResponse({ status: 1, errors: "", results: [{ id: 2, name: "A" }, { id: 11, name: "B" }] }),
-    () => jsonResponse({ status: 0 }), // dept 2's jobs call: malformed
-    () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }), // dept 11's jobs call: fine
-  ]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(legacyCompany);
-    assert.deepEqual(postings.map((p) => p.externalId), ["804"]);
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.listPostings (legacy): one malformed department's jobs response is skipped, others still returned", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(
+      () => jsonResponse({ status: 1, errors: "", results: [{ id: 2, name: "A" }, { id: 11, name: "B" }] }),
+      () => jsonResponse({ status: 0 }), // dept 2's jobs call: malformed
+      () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }), // dept 11's jobs call: fine
+    ),
+  );
+  const postings = await zappyhireAdapter.listPostings(legacyCompany);
+  assert.deepEqual(postings.map((p) => p.externalId), ["804"]);
 });
 
-test("zappyhireAdapter.fetchJd (legacy): fetches the JD-detail call and strips HTML", async () => {
-  stubFetchSeq([
-    () =>
+test("zappyhireAdapter.fetchJd (legacy): fetches the JD-detail call and strips HTML", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(() =>
       jsonResponse({
         status: 1, errors: "",
         results: { id: 804, title: "Quality Assurance- MH", description: "<ul><li>Visit assigned branches</li></ul>" },
       }),
-  ]);
-  try {
-    const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
-    const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
-    assert.match(jd, /Visit assigned branches/);
-    assert.doesNotMatch(jd, /<ul>|<li>/);
-  } finally {
-    restoreFetch();
-  }
+    ),
+  );
+  const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
+  const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
+  assert.match(jd, /Visit assigned branches/);
+  assert.doesNotMatch(jd, /<ul>|<li>/);
 });
 
-test("zappyhireAdapter.fetchJd (legacy): malformed detail response returns empty string, not a throw", async () => {
-  stubFetchSeq([() => jsonResponse({ status: 0 })]);
-  try {
-    const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
-    const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
-    assert.equal(jd, "");
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.fetchJd (legacy): malformed detail response returns empty string, not a throw", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ status: 0 })));
+  const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
+  const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
+  assert.equal(jd, "");
 });
 
 // ---------- multitenant (recruitcareers.zappyhire.com) ----------
@@ -280,34 +232,29 @@ test("normalizeZappyhireMt maps fields, builds the recruitcareers apply URL, lea
   assert.equal(p.postedAt, null);
 });
 
-test("zappyhireAdapter.listPostings (multitenant): reads results.hits[]._source and dedups by job id", async () => {
-  stubFetchSeq([
-    () =>
+test("zappyhireAdapter.listPostings (multitenant): reads results.hits[]._source and dedups by job id", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(() =>
       jsonResponse({
         status: 1, errors: "",
         results: { total: { value: 2 }, hits: [{ _source: mtSource }, { _source: { ...mtSource, job: 35, title: "SDE II" } }] },
       }),
-  ]);
-  try {
-    const postings = await zappyhireAdapter.listPostings(mtCompany);
-    assert.deepEqual(postings.map((p) => p.externalId), ["34", "35"]);
-  } finally {
-    restoreFetch();
-  }
+    ),
+  );
+  const postings = await zappyhireAdapter.listPostings(mtCompany);
+  assert.deepEqual(postings.map((p) => p.externalId), ["34", "35"]);
 });
 
-test("zappyhireAdapter.fetchJd (multitenant): fetches the careers/jobs detail and strips HTML", async () => {
-  stubFetchSeq([
-    () => jsonResponse({ status: 1, errors: "", results: { description: "<p>Own <strong>growth</strong> loops</p>" } }),
-  ]);
-  try {
-    const posting = normalizeZappyhireMt(mtCompany, mtSource);
-    const jd = await zappyhireAdapter.fetchJd!(mtCompany, posting);
-    assert.match(jd, /Own growth loops/);
-    assert.doesNotMatch(jd, /<p>|<strong>/);
-  } finally {
-    restoreFetch();
-  }
+test("zappyhireAdapter.fetchJd (multitenant): fetches the careers/jobs detail and strips HTML", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(() => jsonResponse({ status: 1, errors: "", results: { description: "<p>Own <strong>growth</strong> loops</p>" } })),
+  );
+  const posting = normalizeZappyhireMt(mtCompany, mtSource);
+  const jd = await zappyhireAdapter.fetchJd!(mtCompany, posting);
+  assert.match(jd, /Own growth loops/);
+  assert.doesNotMatch(jd, /<p>|<strong>/);
 });
 
 // ---------- apiMeta validation ----------
