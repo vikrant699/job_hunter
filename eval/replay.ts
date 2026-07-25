@@ -3,7 +3,6 @@ import { writeFileSync } from "node:fs";
 import { config } from "../src/config.js";
 import { buildCsv } from "../src/util/csv.js";
 import { runGate } from "../src/llm/gate.js";
-import { GATE_PROMPT as GATE_V2 } from "../src/llm/prompts/gate.js";
 import { loadLabels } from "./labels.js";
 import { loadLabeledPostings } from "./dataset.js";
 import {
@@ -26,7 +25,8 @@ const outPath = flag("out", null);
 const tempArg = flag("temp", null); // e.g. 0 for deterministic scoring
 const temperature = tempArg != null ? Number(tempArg) : undefined;
 
-const CANDIDATES: Record<string, string> = { v1: config.prompts.gate, v2: GATE_V2 };
+// When a genuinely new prompt variant is being evaluated, add it here with a real name.
+const CANDIDATES: Record<string, string> = { current: config.prompts.gate };
 
 function stratifiedSample(rows: ReturnType<typeof loadLabeledPostings>, n: number) {
   const pos = rows.filter((r) => r.relevant);
@@ -77,7 +77,7 @@ report("BASELINE (stored llm_confidence)", baseline);
 if (promptName !== "baseline") {
   const template = CANDIDATES[promptName];
   if (!template) {
-    console.error(`unknown --prompt '${promptName}' (use: baseline | v1 | v2)`);
+    console.error(`unknown --prompt '${promptName}' (use: baseline | current)`);
     process.exit(1);
   }
 
