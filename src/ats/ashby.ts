@@ -1,9 +1,8 @@
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 
 // Ashby public board: GET api.ashbyhq.com/posting-api/job-board/<slug>?includeCompensation=false
 const AshbyJobSchema = z.object({
@@ -41,12 +40,8 @@ export const ashbyAdapter: AtsAdapter = {
 
     const raw = await atsFetchJson(url, { provider: "ashby" });
 
-    const parsed = AshbyResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug, issues: parsed.error.issues.slice(0, 3) }, "ashby schema mismatch");
-      throw new Error(`ashby response failed schema for ${slug}`);
-    }
-    return parsed.data.jobs.map((j) => normalize(company, j));
+    const parsed = parseOrThrow(AshbyResponseSchema, raw, { provider: "ashby", slug });
+    return parsed.jobs.map((j) => normalize(company, j));
   },
 };
 

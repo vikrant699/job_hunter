@@ -11,8 +11,8 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
-import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
+import { parseOrThrow } from "./http.js";
 import { browserFetchJson, browserFetchJsonRequests } from "./browser-fetch.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
@@ -119,15 +119,13 @@ export function mergeDarwinboxPages(
   total: number,
 ): void {
   for (const raw of results) {
-    const parsed = ListSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(
-        `darwinbox: page schema mismatch mid-pagination for ${company.slug} ` +
-        `(fetched ${out.length}/${total} so far): ${JSON.stringify(parsed.error.issues.slice(0, 2))}`,
-      );
-    }
-    if (parsed.data.message.jobs.length === 0) break;
-    for (const j of parsed.data.message.jobs) out.push(normalizeDarwinbox(company, j));
+    const parsed = parseOrThrow(ListSchema, raw, {
+      provider: "darwinbox",
+      slug: company.slug,
+      what: `page (fetched ${out.length}/${total} so far)`,
+    });
+    if (parsed.message.jobs.length === 0) break;
+    for (const j of parsed.message.jobs) out.push(normalizeDarwinbox(company, j));
     if (out.length >= total) break;
   }
 }
@@ -138,17 +136,13 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   const out: NormalizedPosting[] = [];
   // First page (in-browser; clears Cloudflare) reveals jobscount.
   const [first] = await browserFetchJson(careersUrl, [API(1)]);
-  const parsed0 = ListSchema.safeParse(first);
-  if (!parsed0.success) {
-    logger.warn({ slug: company.slug, issues: parsed0.error.issues.slice(0, 2) }, "darwinbox schema mismatch");
-    throw new Error(`darwinbox list failed schema for ${company.slug}`);
-  }
-  for (const j of parsed0.data.message.jobs) out.push(normalizeDarwinbox(company, j));
-  const total = parsed0.data.message.jobscount ?? out.length;
+  const parsed0 = parseOrThrow(ListSchema, first, { provider: "darwinbox", slug: company.slug });
+  for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
+  const total = parsed0.message.jobscount ?? out.length;
   // If more pages are needed, fetch them ALL in one browserFetchJson call
   // (one navigation → multiple in-page XHR fetches), instead of N navigations.
   if (out.length < total) {
-    const pageSize = parsed0.data.message.jobs.length;
+    const pageSize = parsed0.message.jobs.length;
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
     if (pagesNeeded >= 2) {
       const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2));
@@ -243,15 +237,13 @@ export function mergeDarwinboxV2Pages(
   total: number,
 ): void {
   for (const raw of results) {
-    const parsed = V2ListSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(
-        `darwinbox(v2): page schema mismatch mid-pagination for ${company.slug} ` +
-        `(fetched ${out.length}/${total} so far): ${JSON.stringify(parsed.error.issues.slice(0, 2))}`,
-      );
-    }
-    if (parsed.data.data.length === 0) break;
-    for (const j of parsed.data.data) out.push(normalizeDarwinboxV2(company, token, j));
+    const parsed = parseOrThrow(V2ListSchema, raw, {
+      provider: "darwinbox",
+      slug: company.slug,
+      what: `v2 page (fetched ${out.length}/${total} so far)`,
+    });
+    if (parsed.data.length === 0) break;
+    for (const j of parsed.data) out.push(normalizeDarwinboxV2(company, token, j));
     if (out.length >= total) break;
   }
 }
@@ -262,17 +254,13 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   const [first] = await browserFetchJsonRequests(pageUrl, [
     { path: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
   ]);
-  const parsed0 = V2ListSchema.safeParse(first);
-  if (!parsed0.success) {
-    logger.warn({ slug: company.slug, issues: parsed0.error.issues.slice(0, 2) }, "darwinbox(v2) schema mismatch");
-    throw new Error(`darwinbox(v2) list failed schema for ${company.slug}`);
-  }
-  for (const j of parsed0.data.data) out.push(normalizeDarwinboxV2(company, token, j));
-  const total = parsed0.data.job_counts ?? out.length;
+  const parsed0 = parseOrThrow(V2ListSchema, first, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
+  for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, token, j));
+  const total = parsed0.job_counts ?? out.length;
   if (out.length < total) {
     // Page-1 length over the requested limit: the API honors `limit` (verified
     // live on lgsihrms), but deriving it keeps a limit-ignoring tenant correct.
-    const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.data.length || V2_PAGE_SIZE);
+    const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.length || V2_PAGE_SIZE);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
         path: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),

@@ -46,11 +46,10 @@
 //   whitespace). short_description is included last purely as a safety net
 //   in case a future posting is missing every other field.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const API_ORIGIN = "https://app.advantageclub.ai";
@@ -162,17 +161,14 @@ export const advantageclubAdapter: AtsAdapter = {
       maxPages: MAX_PAGES,
       fetchPage: async (_offset, page) => {
         const json = await atsFetchJson(advantageClubListUrl(page + 1, PAGE_SIZE), { provider: "advantageclub" });
-        const parsed = AdvantageClubListSchema.safeParse(json);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, page: page + 1, issues: parsed.error.issues.slice(0, 2) },
-            "advantageclub list schema mismatch",
-          );
-          throw new Error(`advantageclub list response failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(AdvantageClubListSchema, json, {
+          provider: "advantageclub",
+          slug: company.slug,
+          what: `list p${page + 1}`,
+        });
         return {
-          items: parsed.data.jobs,
-          total: parsed.data.meta?.total_count ?? null,
+          items: parsed.jobs,
+          total: parsed.meta?.total_count ?? null,
         };
       },
     });
@@ -182,10 +178,11 @@ export const advantageclubAdapter: AtsAdapter = {
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const id = Number(posting.externalId);
     const raw = await atsFetchJson(advantageClubDetailUrl(id), { provider: "advantageclub" });
-    const parsed = AdvantageClubDetailSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new Error(`advantageclub: job detail failed schema for id "${posting.externalId}"`);
-    }
-    return buildAdvantageClubJd(parsed.data.job);
+    const parsed = parseOrThrow(AdvantageClubDetailSchema, raw, {
+      provider: "advantageclub",
+      slug: posting.externalId,
+      what: "detail",
+    });
+    return buildAdvantageClubJd(parsed.job);
   },
 };

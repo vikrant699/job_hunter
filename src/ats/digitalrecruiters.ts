@@ -15,11 +15,10 @@
 // config (Decathlon: "annonces"). localePath/jobPathSlug/locale are cached in
 // api_meta so the adapter stays fetch-only.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
 const API = "https://api.digitalrecruiters.com/public/v1/careers-site/job-ads";
@@ -100,14 +99,14 @@ export const digitalRecruitersAdapter: AtsAdapter = {
       fetchPage: async (_offset, page) => {
         const url = `${API}?domainName=${encodeURIComponent(m.domainName)}&limit=${PAGE}&page=${page + 1}&locale=${encodeURIComponent(m.locale)}`;
         const raw = await atsFetchJson(url, { method: "POST", body: {}, provider: "digitalrecruiters" });
-        const parsed = ListResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn({ slug: company.slug, page, issues: parsed.error.issues.slice(0, 2) }, "digitalrecruiters list schema mismatch");
-          throw new Error(`digitalrecruiters list failed schema for ${company.slug}`);
-        }
+        const parsed = parseOrThrow(ListResponseSchema, raw, {
+          provider: "digitalrecruiters",
+          slug: company.slug,
+          what: `list page ${page}`,
+        });
         return {
-          items: parsed.data.items.map((j) => normalizeDigitalRecruiters(company, m, j)),
-          total: parsed.data.count ?? null,
+          items: parsed.items.map((j) => normalizeDigitalRecruiters(company, m, j)),
+          total: parsed.count ?? null,
         };
       },
     });
@@ -117,11 +116,11 @@ export const digitalRecruitersAdapter: AtsAdapter = {
     const m = meta(company);
     const url = `${API}/${encodeURIComponent(posting.externalId)}?domainName=${encodeURIComponent(m.domainName)}&locale=${encodeURIComponent(m.locale)}`;
     const raw = await atsFetchJson(url, { provider: "digitalrecruiters" });
-    const parsed = DetailResponseSchema.safeParse(raw);
-    if (!parsed.success) return "";
+    const parsed = parseOrNull(DetailResponseSchema, raw, { provider: "digitalrecruiters", slug: company.slug });
+    if (!parsed) return "";
     // Prefer the root body; fall back to the {item:{...}} envelope only when the
     // root carries neither field.
-    const d = (parsed.data.description || parsed.data.profile) ? parsed.data : (parsed.data.item ?? parsed.data);
+    const d = (parsed.description || parsed.profile) ? parsed : (parsed.item ?? parsed);
     return htmlToText([d.description ?? "", d.profile ?? ""].filter(Boolean).join("\n\n"));
   },
 };

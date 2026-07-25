@@ -40,7 +40,7 @@ import type { Request as PlaywrightRequest } from "playwright";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsHttpError } from "./http.js";
+import { atsHttpError, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
@@ -209,16 +209,11 @@ export const adityabirlaAdapter: AtsAdapter = {
       pageSize: PAGE_SIZE,
       fetchPage: async (_offset, page) => {
         const raw = await fetchPageWithRetry(page);
-        const parsed = ListSchema.safeParse(raw);
-        if (!parsed.success) {
-          throw new Error(
-            `adityabirla: schema mismatch for ${company.slug} page ${page}: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`,
-          );
-        }
+        const parsed = parseOrThrow(ListSchema, raw, { provider: "adityabirla", slug: company.slug, what: `page ${page}` });
         return {
-          items: parsed.data.data.map((j) => normalizeAdityaBirla(company, j)),
+          items: parsed.data.map((j) => normalizeAdityaBirla(company, j)),
           total: null,
-          rawCount: parsed.data.data.length,
+          rawCount: parsed.data.length,
         };
       },
     });

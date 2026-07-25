@@ -10,10 +10,9 @@
 // postings (8, all "Hyderabad, India"), full JD fields inline, no
 // pagination params observed. Only publish:true rows are surfaced.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.amplelogic.com/api/careers?locale=en";
@@ -74,14 +73,10 @@ export const amplelogicAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const raw = await atsFetchJson(LIST_URL, { provider: "amplelogic" });
-    const parsed = AmpleLogicResponseSchema.safeParse(raw);
-    if (!parsed.success) {
-      logger.warn({ slug: company.slug, issues: parsed.error.issues.slice(0, 3) }, "amplelogic schema mismatch");
-      throw new Error(`amplelogic list response failed schema for ${company.slug}`);
-    }
+    const parsed = parseOrThrow(AmpleLogicResponseSchema, raw, { provider: "amplelogic", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (const j of parsed.data.data) {
+    for (const j of parsed.data) {
       if (j.publish === false) continue;
       const p = normalizeAmpleLogicJob(company, j);
       if (!p || seen.has(p.externalId)) continue;

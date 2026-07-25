@@ -14,11 +14,10 @@
 // the `num` param is accepted but ignored (verified live against Qualcomm),
 // same as Jibe. Two-phase: job_description is absent from the list response.
 import { z } from "zod";
-import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
@@ -110,15 +109,8 @@ export const eightfoldPcsAdapter: AtsAdapter = {
           provider: "eightfoldpcs",
           userAgent: BROWSER_UA,
         });
-        const parsed = SearchResponseSchema.safeParse(raw);
-        if (!parsed.success) {
-          logger.warn(
-            { slug: company.slug, issues: parsed.error.issues.slice(0, 2) },
-            "eightfoldpcs list schema mismatch",
-          );
-          throw new Error(`eightfoldpcs list failed schema for ${company.slug}`);
-        }
-        const { positions, count } = parsed.data.data;
+        const parsed = parseOrThrow(SearchResponseSchema, raw, { provider: "eightfoldpcs", slug: company.slug });
+        const { positions, count } = parsed.data;
         return {
           items: positions.map((p) => normalizeEightfoldPcs(company, p)),
           total: count ?? null,
@@ -132,8 +124,8 @@ export const eightfoldPcsAdapter: AtsAdapter = {
       provider: "eightfoldpcs",
       userAgent: BROWSER_UA,
     });
-    const parsed = DetailSchema.safeParse(raw);
-    if (!parsed.success) return "";
-    return htmlToText(parsed.data.data.jobDescription ?? "");
+    const parsed = parseOrNull(DetailSchema, raw, { provider: "eightfoldpcs", slug: company.slug, what: "detail" });
+    if (!parsed) return "";
+    return htmlToText(parsed.data.jobDescription ?? "");
   },
 };
