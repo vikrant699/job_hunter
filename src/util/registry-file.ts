@@ -1,4 +1,4 @@
-import { writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { writeFileAtomic } from "./fs.js";
 import type { RegistryEntry } from "../schemas.js";
 
 /**
@@ -7,14 +7,9 @@ import type { RegistryEntry } from "../schemas.js";
  * sheet-writer.ts, src/registry/sheet-registry.ts) for their
  * data/registry-cache.json snapshot writes — a crash mid-write must never
  * leave a half-written cache file behind.
+ *
+ * Thin typed wrapper over util/fs writeFileAtomic (JSON-array serialization).
  */
 export function writeAtomic(path: string, entries: RegistryEntry[]): void {
-  const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, JSON.stringify(entries, null, 2), "utf-8");
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    try { unlinkSync(tmp); } catch { /* ignore */ }
-    throw err;
-  }
+  writeFileAtomic(path, JSON.stringify(entries, null, 2));
 }

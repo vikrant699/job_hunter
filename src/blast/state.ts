@@ -4,9 +4,10 @@
 // (docs/superpowers/specs/2026-07-09-divya-blast-design.md). Deliberately NOT
 // the job_hunter SQLite DB: the whole blast lives in src/blast/ + one state
 // file so it can be deleted cleanly when the campaign ends.
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { z } from "zod";
+import { writeFileAtomic } from "../util/fs.js";
 
 export const BlastStatusSchema = z.enum(["drafted", "bounced", "skipped_invalid"]);
 export type BlastStatus = z.infer<typeof BlastStatusSchema>;
@@ -52,17 +53,9 @@ export function loadState(path: string): BlastState {
 }
 
 /** Write-then-rename so a crash mid-write can't truncate the campaign state.
- *  Mirrors src/util/registry-file.ts writeAtomic (PID-scoped temp + cleanup). */
+ *  Delegates to src/util/fs.ts writeFileAtomic (PID-scoped temp + cleanup). */
 export function saveState(path: string, state: BlastState): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, JSON.stringify(state, null, 2), "utf-8");
-  try {
-    renameSync(tmp, path);
-  } catch (err) {
-    try { unlinkSync(tmp); } catch { /* ignore */ }
-    throw err;
-  }
+  writeFileAtomic(path, JSON.stringify(state, null, 2));
 }
 
 /** All profiles' campaign states, for the shared Blast Log projection: every
