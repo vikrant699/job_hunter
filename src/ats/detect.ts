@@ -1,4 +1,5 @@
-import { fetchHtml } from "../scraper/cheerio.js";
+import { ProviderSchema } from "../schemas.js";
+import type { Provider } from "../schemas.js";
 
 /**
  * Universal ATS detection + pattern extraction.
@@ -8,157 +9,14 @@ import { fetchHtml } from "../scraper/cheerio.js";
  * reporting but need an adapter before they can be promoted.
  */
 
-export type AtsProvider =
-  // adapter exists
-  | "greenhouse" | "lever" | "ashby" | "workday"
-  | "smartrecruiters" | "recruitee"
-  | "ainterviews" | "freshteam" | "gohire" | "jobsoid" | "ceipal"
-  | "ripplehire" | "zwayam" | "sensehq" | "breezyhr"
-  | "turbohire" | "jazzhr" | "webbtree" | "zappyhire" | "talentrecruit" | "trakstar"
-  | "sharechat" | "amazonjobs" | "wpjobs" | "mynexthire" | "metacareers"
-  | "gem" | "dover" | "ycombinator" | "icicibank" | "reliance" | "magicpin" | "tatacareers"
-  | "peoplehum" | "leapscholar" | "setu" | "radancy" | "atlassian" | "kula" | "urbancompany"
-  | "happyeasygo" | "adityabirla" | "comeet" | "pyjamahr" | "goodfit"
-  | "superworks" | "recruiterflow" | "sfunify" | "apple" | "mercedes"
-  | "snapdeal" | "sonyresearch" | "peerlist" | "mediatek" | "redbus"
-  | "sage" | "onecard" | "moglix" | "talent500" | "rippling" | "talentsoft"
-  | "nineninegames" | "dronahq" | "advantageclub" | "digitalrecruiters" | "feishu" | "skima"
-  | "htmlboard" | "nextdata" | "jsvar"
-  | "juspay" | "amplelogic" | "talview" | "skuad" | "gullak" | "ongig" | "directemployers" | "procmart" | "superops" | "bmw" | "ubs" | "reliancebrands" | "paramai" | "spire2grow" | "bajajauto" | "ujjivan"
-  // detect-only
-  | "icims" | "successfactors" | "phenom" | "eightfold" | "eightfoldpcs"
-  | "avature" | "workable" | "personio" | "teamtailor"
-  | "jobvite" | "bamboohr" | "oracle" | "keka" | "darwinbox" | "greythr"
-  | "zohorecruit" | "peoplestrong" | "jibe";
-
-export interface AtsCapability {
-  /** We have an AtsAdapter that can fetch postings. */
-  hasAdapter: boolean;
-  /** We can probe the provider's public API to confirm the slug is live. */
-  canValidate: boolean;
-}
-
-export const CAPABILITIES: Record<AtsProvider, AtsCapability> = {
-  greenhouse:     { hasAdapter: true,  canValidate: true  },
-  lever:          { hasAdapter: true,  canValidate: true  },
-  ashby:          { hasAdapter: true,  canValidate: true  },
-  workday:        { hasAdapter: true,  canValidate: true  },
-  smartrecruiters:{ hasAdapter: true,  canValidate: true  },
-  recruitee:      { hasAdapter: true,  canValidate: true  },
-  ainterviews:    { hasAdapter: true,  canValidate: true  },
-  freshteam:      { hasAdapter: true,  canValidate: true  },
-  gohire:         { hasAdapter: true,  canValidate: true  },
-  jobsoid:        { hasAdapter: true,  canValidate: true  },
-  ceipal:         { hasAdapter: true,  canValidate: false },
-  ripplehire:     { hasAdapter: true,  canValidate: true  },
-  zwayam:         { hasAdapter: true,  canValidate: false },
-  sensehq:        { hasAdapter: true,  canValidate: true  },
-  breezyhr:       { hasAdapter: true,  canValidate: true  },
-  turbohire:      { hasAdapter: true,  canValidate: false },
-  jazzhr:         { hasAdapter: true,  canValidate: true  },
-  webbtree:       { hasAdapter: true,  canValidate: true  },
-  zappyhire:      { hasAdapter: true,  canValidate: false },
-  talentrecruit:  { hasAdapter: true,  canValidate: false },
-  trakstar:       { hasAdapter: true,  canValidate: true  },
-  sharechat:      { hasAdapter: true,  canValidate: false },
-  amazonjobs:     { hasAdapter: true,  canValidate: false },
-  wpjobs:         { hasAdapter: true,  canValidate: false },
-  mynexthire:     { hasAdapter: true,  canValidate: true  },
-  metacareers:    { hasAdapter: true,  canValidate: false },
-  gem:            { hasAdapter: true,  canValidate: true  },
-  dover:          { hasAdapter: true,  canValidate: true  },
-  ycombinator:    { hasAdapter: true,  canValidate: true  },
-  icicibank:      { hasAdapter: true,  canValidate: false },
-  reliance:       { hasAdapter: true,  canValidate: false },
-  magicpin:       { hasAdapter: true,  canValidate: false },
-  tatacareers:    { hasAdapter: true,  canValidate: false },
-  peoplehum:      { hasAdapter: true,  canValidate: false },
-  leapscholar:    { hasAdapter: true,  canValidate: false },
-  setu:           { hasAdapter: true,  canValidate: false },
-  radancy:        { hasAdapter: true,  canValidate: false },
-  atlassian:      { hasAdapter: true,  canValidate: false },
-  kula:           { hasAdapter: true,  canValidate: true  },
-  urbancompany:   { hasAdapter: true,  canValidate: false },
-  happyeasygo:    { hasAdapter: true,  canValidate: false },
-  adityabirla:    { hasAdapter: true,  canValidate: false },
-  jibe:           { hasAdapter: true,  canValidate: false },
-  icims:          { hasAdapter: false, canValidate: false },
-  successfactors: { hasAdapter: true,  canValidate: true  },
-  phenom:         { hasAdapter: true,  canValidate: true  },
-  eightfold:      { hasAdapter: true,  canValidate: false },
-  eightfoldpcs:   { hasAdapter: true,  canValidate: false },
-  avature:        { hasAdapter: true,  canValidate: true  },
-  workable:       { hasAdapter: true,  canValidate: true  },
-  personio:       { hasAdapter: false, canValidate: false },
-  teamtailor:     { hasAdapter: true,  canValidate: true  },
-  comeet:         { hasAdapter: true,  canValidate: false },
-  pyjamahr:       { hasAdapter: true,  canValidate: false },
-  goodfit:        { hasAdapter: true,  canValidate: true  },
-  superworks:     { hasAdapter: true,  canValidate: true  },
-  recruiterflow:  { hasAdapter: true,  canValidate: true  },
-  sfunify:        { hasAdapter: true,  canValidate: false },
-  apple:          { hasAdapter: true,  canValidate: false },
-  mercedes:       { hasAdapter: true,  canValidate: false },
-  snapdeal:       { hasAdapter: true,  canValidate: false },
-  sonyresearch:   { hasAdapter: true,  canValidate: false },
-  peerlist:       { hasAdapter: true,  canValidate: false },
-  mediatek:       { hasAdapter: true,  canValidate: false },
-  redbus:         { hasAdapter: true,  canValidate: false },
-  sage:           { hasAdapter: true,  canValidate: false },
-  onecard:        { hasAdapter: true,  canValidate: false },
-  moglix:         { hasAdapter: true,  canValidate: false },
-  // No talent500 URL pattern: a shared-host aggregator (prod-warmachine.
-  // talent500.co) keyed only by company_slug in the query string, with no
-  // derivable per-company host/path signature — relies on registry seeding,
-  // like eightfoldpcs/jibe.
-  talent500:      { hasAdapter: true,  canValidate: false },
-  rippling:       { hasAdapter: true,  canValidate: false },
-  talentsoft:     { hasAdapter: true,  canValidate: false },
-  nineninegames:  { hasAdapter: true,  canValidate: false },
-  dronahq:        { hasAdapter: true,  canValidate: false },
-  advantageclub:  { hasAdapter: true,  canValidate: false },
-  digitalrecruiters: { hasAdapter: true, canValidate: false },
-  feishu:         { hasAdapter: true,  canValidate: false },
-  // Skima tenants live on custom domains (careers.nykaa.com); the only shared
-  // signature is the canonical "<domain>.skima.ai" alias, matched below.
-  skima:          { hasAdapter: true,  canValidate: false },
-  // htmlboard is a generic selector-driven adapter for bespoke SSR careers
-  // pages — per-company config in apiMeta, no shared host signature at all.
-  htmlboard:      { hasAdapter: true,  canValidate: false },
-  // nextdata is a generic __NEXT_DATA__-island adapter — per-company JSON
-  // paths in apiMeta, no shared host signature.
-  nextdata:       { hasAdapter: true,  canValidate: false },
-  jsvar:          { hasAdapter: true,  canValidate: false },
-  // Single-company custom-API adapters (see each module's header).
-  juspay:         { hasAdapter: true,  canValidate: false },
-  amplelogic:     { hasAdapter: true,  canValidate: false },
-  // Talview boards are keyed by apiMeta.organizationId — shared vendor.
-  talview:        { hasAdapter: true,  canValidate: false },
-  skuad:          { hasAdapter: true,  canValidate: false },
-  gullak:         { hasAdapter: true,  canValidate: false },
-  ongig:          { hasAdapter: true,  canValidate: false },
-  directemployers:{ hasAdapter: true,  canValidate: false },
-  procmart:       { hasAdapter: true,  canValidate: false },
-  superops:       { hasAdapter: true,  canValidate: false },
-  bmw:            { hasAdapter: true,  canValidate: false },
-  ubs:            { hasAdapter: true,  canValidate: false },
-  reliancebrands: { hasAdapter: true,  canValidate: false },
-  paramai:        { hasAdapter: true,  canValidate: false },
-  spire2grow:     { hasAdapter: true,  canValidate: false },
-  bajajauto:      { hasAdapter: true,  canValidate: false },
-  ujjivan:        { hasAdapter: true,  canValidate: false },
-  jobvite:        { hasAdapter: false, canValidate: false },
-  bamboohr:       { hasAdapter: true,  canValidate: true  },
-  oracle:         { hasAdapter: true,  canValidate: false },
-  keka:           { hasAdapter: true,  canValidate: false },
-  darwinbox:      { hasAdapter: true,  canValidate: true  },
-  greythr:        { hasAdapter: true,  canValidate: true  },
-  zohorecruit:    { hasAdapter: true,  canValidate: true  },
-  peoplestrong:   { hasAdapter: true,  canValidate: true  },
-} as const;
+/** Providers the detector can recognize in page HTML. A recognized provider
+ *  "hasAdapter" exactly when it is a ProviderSchema enum value - detect-only
+ *  vendors (icims, personio, jobvite) are recognized for logging but cannot
+ *  be promoted to ats-api. */
+export type DetectableProvider = Provider | "icims" | "personio" | "jobvite";
 
 interface PatternDef {
-  provider: AtsProvider;
+  provider: DetectableProvider;
   re: RegExp;
   parse(match: string): { url: string; slug: string } | null;
 }
@@ -228,8 +86,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.recruitee\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -247,9 +106,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.freshteam\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/jobs`, slug };
+      return { url: `https://${u.host}/jobs`, slug };
     },
   },
   {
@@ -257,9 +117,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.hire\.trakstar\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/`, slug };
+      return { url: `https://${u.host}/`, slug };
     },
   },
   {
@@ -267,9 +128,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.mynexthire\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/`, slug };
+      return { url: `https://${u.host}/`, slug };
     },
   },
   {
@@ -318,9 +180,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.jobsoid\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/`, slug };
+      return { url: `https://${u.host}/`, slug };
     },
   },
   {
@@ -328,9 +191,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.applytojob\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/apply`, slug };
+      return { url: `https://${u.host}/apply`, slug };
     },
   },
   {
@@ -347,15 +211,16 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.talentrecruit\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       // app/appcareer/api are the vendor's shared hosts, not tenants.
       if (!slug || ["app", "appcareer", "api", "www"].includes(slug)) return null;
-      return { url: `https://${u!.host}/career-page`, slug };
+      return { url: `https://${u.host}/career-page`, slug };
     },
   },
   // No turbohire URL pattern: custom accountName + orgId (careerpage UUID) needed,
   // browser-backed. No zappyhire pattern: backend host baked per-tenant in the JS
-  // bundle. Both rely on registry seeding (canValidate:false).
+  // bundle. Both rely on registry seeding.
   // No eightfoldpcs URL pattern: each tenant runs the PCSX API on its OWN
   // careers domain (careers.qualcomm.com, apply.careers.microsoft.com) with no
   // shared host signature — relies on registry seeding, like jibe/successfactors.
@@ -370,8 +235,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.ripplehire\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -379,9 +245,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.sensehq\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/careers`, slug };
+      return { url: `https://${u.host}/careers`, slug };
     },
   },
   {
@@ -389,9 +256,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.breezy\.hr\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}`, slug };
+      return { url: `https://${u.host}`, slug };
     },
   },
   {
@@ -416,8 +284,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.phenompeople\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -425,12 +294,13 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.eightfold\.ai\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug) return null;
       // Shared infrastructure hosts, not customer tenants.
       const SHARED = new Set(["app", "static", "www", "vs-errors", "fonts", "cdn"]);
       if (SHARED.has(slug)) return null;
-      return { url: `https://${u!.host}`, slug };
+      return { url: `https://${u.host}`, slug };
     },
   },
   {
@@ -438,8 +308,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.avature\.net\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -456,8 +327,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.jobs\.personio\.(?:com|de)\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -465,8 +337,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.teamtailor\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -483,8 +356,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.bamboohr\.com\/careers\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}/careers`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}/careers`, slug } : null;
     },
   },
   {
@@ -511,9 +385,10 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.superworks\.com\/job\/listing/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       if (!slug || slug === "www" || slug === "jobs") return null;
-      return { url: `https://${u!.host}/job/listing`, slug };
+      return { url: `https://${u.host}/job/listing`, slug };
     },
   },
   {
@@ -540,8 +415,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/([a-z0-9-]+)\.keka\.com\/careers\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}/careers/`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}/careers/`, slug } : null;
     },
   },
   {
@@ -549,8 +425,9 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.darwinbox\.(?:in|com)\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
-      return slug ? { url: `https://${u!.host}`, slug } : null;
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
     },
   },
   {
@@ -559,10 +436,11 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.greythr\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       // www.greythr.com is the vendor's own marketing/careers site, not a tenant.
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}/hire/jobs/`, slug };
+      return { url: `https://${u.host}/hire/jobs/`, slug };
     },
   },
   {
@@ -573,11 +451,12 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.zohorecruit\.(?:com|in)\b[^\s"'<>]*/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       // www.zohorecruit.com is the vendor's marketing site, not a tenant.
       if (!slug || slug === "www") return null;
-      const page = u!.pathname.match(/^\/jobs\/([^/]+)/)?.[1] ?? "Careers";
-      return { url: `https://${u!.host}/jobs/${page}`, slug };
+      const page = u.pathname.match(/^\/jobs\/([^/]+)/)?.[1] ?? "Careers";
+      return { url: `https://${u.host}/jobs/${page}`, slug };
     },
   },
   {
@@ -586,10 +465,11 @@ const PATTERNS: PatternDef[] = [
     re: /https?:\/\/[a-z0-9-]+\.peoplestrong\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
-      const slug = u?.host.split(".")[0];
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
       // www.peoplestrong.com is the vendor's marketing site, not a tenant.
       if (!slug || slug === "www") return null;
-      return { url: `https://${u!.host}`, slug };
+      return { url: `https://${u.host}`, slug };
     },
   },
   {
@@ -610,12 +490,11 @@ const PATTERNS: PatternDef[] = [
 ] as const;
 
 export interface AtsCandidate {
-  provider: AtsProvider;
+  provider: DetectableProvider;
   /** Canonical, deduped URL we'd save in YAML. */
   url: string;
   slug: string;
   hasAdapter: boolean;
-  canValidate: boolean;
 }
 
 /**
@@ -631,6 +510,8 @@ function normalize(html: string): string {
     .replace(/&#47;/g, "/");
 }
 
+const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(ProviderSchema.options);
+
 export function extractAtsCandidates(html: string, careersUrl: string): AtsCandidate[] {
   const haystack = normalize(html) + " " + careersUrl;
   const seen = new Set<string>();  // dedup by `${provider}::${url}`
@@ -645,31 +526,13 @@ export function extractAtsCandidates(html: string, careersUrl: string): AtsCandi
       const key = `${pat.provider}::${parsed.url}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const cap = CAPABILITIES[pat.provider];
       out.push({
         provider: pat.provider,
         url: parsed.url,
         slug: parsed.slug,
-        hasAdapter: cap.hasAdapter,
-        canValidate: cap.canValidate,
+        hasAdapter: KNOWN_PROVIDERS.has(pat.provider),
       });
     }
   }
   return out;
-}
-
-export interface AtsFetchResult {
-  finalUrl: string;
-  candidates: AtsCandidate[];
-}
-
-/**
- * Fetch the careers page with a browser UA and extract every ATS candidate.
- * Returns the resolved (post-redirect) URL so callers can detect a redirect
- * to a different domain.
- */
-export async function discoverFromUrl(careersUrl: string): Promise<AtsFetchResult> {
-  // fetchHtml uses our standard UA + timeout + redirect follow.
-  const { finalUrl, html } = await fetchHtml(careersUrl);
-  return { finalUrl, candidates: extractAtsCandidates(html, finalUrl) };
 }
