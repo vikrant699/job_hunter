@@ -21,7 +21,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
-import { parseOrThrow } from "./http.js";
+import { parseOrThrow, withAtsTimeout } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const PAGE = 10;
@@ -116,7 +116,9 @@ export function normalizeOngig(company: AdapterCompany, org: string, r: OngigRes
 
 /** GET the board root to obtain the XSRF-TOKEN cookie; returns { token, cookie }. */
 async function ongigSession(org: string): Promise<{ token: string; cookie: string }> {
-  const res = await fetch(`${org}/`, { headers: { "user-agent": BROWSER_UA } });
+  // Raw fetch (not atsFetchJson/atsFetchHtml): needs the actual Response to
+  // read getSetCookie(), which those JSON/text-returning helpers discard.
+  const res = await withAtsTimeout((signal) => fetch(`${org}/`, { headers: { "user-agent": BROWSER_UA }, signal }));
   // Node fetch folds multiple Set-Cookie into getSetCookie().
   const setCookies = res.headers.getSetCookie();
   const cookie = setCookies.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
@@ -140,18 +142,24 @@ export const ongigAdapter: AtsAdapter = {
     let totalPages = 1;
 
     for (let current = 1; current <= Math.min(totalPages, MAX_PAGES); current++) {
-      const res = await fetch(`${org}/api/appSearch`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-          "x-xsrf-token": token,
-          cookie,
-          referer: `${org}/`,
-          "user-agent": BROWSER_UA,
-        },
-        body: JSON.stringify(ongigBody(gid, countryFilter, current)),
-      });
+      // Raw fetch (not atsFetchJson): needs the bespoke cookie/xsrf-token
+      // headers from the session handshake above, which atsFetchJson has no
+      // option for.
+      const res = await withAtsTimeout((signal) =>
+        fetch(`${org}/api/appSearch`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+            "x-xsrf-token": token,
+            cookie,
+            referer: `${org}/`,
+            "user-agent": BROWSER_UA,
+          },
+          body: JSON.stringify(ongigBody(gid, countryFilter, current)),
+          signal,
+        }),
+      );
       if (!res.ok) throw new Error(`ongig HTTP ${res.status} for ${company.slug}`);
       const parsed = parseOrThrow(OngigResponseSchema, await res.json(), {
         provider: "ongig",

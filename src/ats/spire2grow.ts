@@ -12,7 +12,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
-import { parseOrThrow } from "./http.js";
+import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep } from "./shared.js";
 
 const SIZE = 100;
@@ -70,9 +70,12 @@ export const spire2growAdapter: AtsAdapter = {
     const seen = new Set<string>();
     for (let page = 1; page <= MAX_PAGES; page++) {
       const url = `https://io.spire2grow.com/ies/v1/p/requisition/_search?page=${page}&size=${SIZE}&selectedSortOrder=desc&selectedSortField=postedOn`;
-      const res = await fetch(url, { headers: { workspaceid: ws, "user-agent": BROWSER_UA, accept: "application/json" } });
-      if (!res.ok) throw new Error(`spire2grow HTTP ${res.status} for ${company.slug}`);
-      const parsed = parseOrThrow(Spire2GrowResponseSchema, await res.json(), {
+      const raw = await atsFetchJson(url, {
+        provider: "spire2grow",
+        userAgent: BROWSER_UA,
+        headers: { workspaceid: ws },
+      });
+      const parsed = parseOrThrow(Spire2GrowResponseSchema, raw, {
         provider: "spire2grow",
         slug: company.slug,
         what: `list p${page}`,

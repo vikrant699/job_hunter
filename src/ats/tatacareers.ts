@@ -32,10 +32,9 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsHttpError } from "./http.js";
+import { atsFetchFormJson } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
-import { config } from "../config.js";
 
 const HOST = "https://www.tata.com";
 const SEARCH_URL = `${HOST}/bin/tata/jobPostingsFilterServlet?`;
@@ -138,27 +137,17 @@ export function normalizeTataCareers(company: AdapterCompany, j: TataJob): Norma
 /** POST one page to the shared servlet. No cookie/session warm-up is needed
  *  (verified live) but the WAF 403s without a browser UA + these headers. */
 async function tataFetchPage(company: AdapterCompany, start: number): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
-  try {
-    const res = await fetch(SEARCH_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": BROWSER_UA,
-        Referer: REFERER,
-        Origin: HOST,
-        Accept: "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-      body: tataSearchParams(company, start).toString(),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw atsHttpError("tatacareers", res.status, await res.text());
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  const form = Object.fromEntries(tataSearchParams(company, start));
+  return atsFetchFormJson(SEARCH_URL, form, {
+    provider: "tatacareers",
+    userAgent: BROWSER_UA,
+    headers: {
+      Referer: REFERER,
+      Origin: HOST,
+      Accept: "application/json, text/javascript, */*; q=0.01",
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
 }
 
 export const tatacareersAdapter: AtsAdapter = {

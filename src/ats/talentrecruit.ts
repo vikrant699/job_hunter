@@ -25,6 +25,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
+import { withAtsTimeout } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { browserCaptureText } from "./browser-fetch.js";
 import { BROWSER_UA } from "../util/user-agent.js";
@@ -282,16 +283,12 @@ function jobListUrl(offset: number): string {
 }
 
 async function fetchBundle(bundleUrl: string): Promise<string> {
-  const controller = new AbortController();
   // The bundle is ~25MB; give it well beyond the standard ATS timeout.
-  const timer = setTimeout(() => controller.abort(), Math.max(config.fetch.timeoutMs, 60_000));
-  try {
-    const res = await fetch(bundleUrl, { headers: { "User-Agent": BROWSER_UA }, signal: controller.signal });
+  return withAtsTimeout(async (signal) => {
+    const res = await fetch(bundleUrl, { headers: { "User-Agent": BROWSER_UA }, signal });
     if (!res.ok) throw new Error(`talentrecruit bundle HTTP ${res.status}`);
     return await res.text();
-  } finally {
-    clearTimeout(timer);
-  }
+  }, Math.max(config.fetch.timeoutMs, 60_000));
 }
 
 export const talentRecruitAdapter: AtsAdapter = {

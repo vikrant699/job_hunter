@@ -45,8 +45,8 @@ test("atsFetchText is a thin wrapper that discards finalUrl", async (t) => {
   assert.equal(text, "plain text body");
 });
 
-// withAtsTimeout (private) builds the signal via AbortSignal.timeout(config.fetch.timeoutMs)
-// — the 60s duration itself is untestable without config injection (out of scope), but
+// withAtsTimeout builds the signal via AbortSignal.timeout(timeoutMs ?? config.fetch.timeoutMs)
+// — the default duration itself is untestable without config injection (out of scope), but
 // the two tests below pin what is pinnable: the signal reaches fetch, and an abort
 // rejection propagates out of atsFetchJson rather than being swallowed.
 test("atsFetchJson passes an abortable timeout signal to fetch", async (t) => {
