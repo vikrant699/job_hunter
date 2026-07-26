@@ -28,6 +28,7 @@
 //         metadata, and description all render inside it; grabbing the whole
 //         block satisfies "full JD present" even though it isn't JD-only).
 import * as cheerio from "cheerio";
+import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
@@ -193,8 +194,17 @@ export const avatureAdapter: AtsAdapter = {
     const out: NormalizedPosting[] = [];
     let url: string | null = avatureSearchUrl(company);
     let page = 0;
+    let hitCap = false;
 
-    while (url && page < MAX_PAGES) {
+    while (url) {
+      // Checked first (before fetching another page) so this is the ONLY
+      // path that sets hitCap — the empty-page and no-next-link stops below
+      // are genuine, unambiguous completions and must never be confused with
+      // a cap truncation.
+      if (page >= MAX_PAGES) {
+        hitCap = true;
+        break;
+      }
       const { html, finalUrl } = await atsFetchHtml(url, { provider: "avature" });
       const { postings, nextHref } = parseAvatureSearch(html, finalUrl, company);
       // A page past the real last one can render a stale "No jobs found"
@@ -209,6 +219,13 @@ export const avatureAdapter: AtsAdapter = {
       warnDeepPagination("avature", company.slug, page, out.length);
       await sleep(INTER_PAGE_DELAY_MS);
       url = nextHref;
+    }
+
+    if (hitCap) {
+      logger.warn(
+        { slug: company.slug, maxPages: MAX_PAGES },
+        "avature pagination hit the runaway cap - board may be truncated"
+      );
     }
 
     return out;
