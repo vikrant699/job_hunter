@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { normalizeHappyEasyGo, flattenDepartment, happyeasygoAdapter } from "./happyeasygo.js";
 import type { HappyEasyGoDepartment, HappyEasyGoPosition } from "./happyeasygo.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "happyeasygo", slug: "happyeasygo", name: "HappyEasyGo",
@@ -36,8 +37,13 @@ const marketingDept: HappyEasyGoDepartment = {
   ],
 };
 
+const marketingMessages = marketingDept.joinUsMessages;
+assert.ok(marketingMessages);
+const firstMarketingMessage = at(marketingMessages, 0);
+const secondMarketingMessage = at(marketingMessages, 1);
+
 test("normalizeHappyEasyGo maps fields, joins JD + requirements, strips HTML", () => {
-  const p = normalizeHappyEasyGo(company, marketingDept.joinUsMessages![0]!, marketingDept, 0);
+  const p = normalizeHappyEasyGo(company, firstMarketingMessage, marketingDept, 0);
   assert.equal(p.provider, "happyeasygo");
   assert.equal(p.externalId, "19");
   assert.equal(p.jobTitle, "Executive - Marketing Operations");
@@ -50,18 +56,18 @@ test("normalizeHappyEasyGo maps fields, joins JD + requirements, strips HTML", (
 });
 
 test("normalizeHappyEasyGo falls back to Gurugram, India when workPlace is null", () => {
-  const p = normalizeHappyEasyGo(company, { ...marketingDept.joinUsMessages![0]!, workPlace: null }, marketingDept, 0);
+  const p = normalizeHappyEasyGo(company, { ...firstMarketingMessage, workPlace: null }, marketingDept, 0);
   assert.equal(p.location, "Gurugram, India");
 });
 
 test("normalizeHappyEasyGo synthesizes externalId from departmentId+index when id is missing", () => {
-  const noId: HappyEasyGoPosition = { ...marketingDept.joinUsMessages![0]!, id: null };
+  const noId: HappyEasyGoPosition = { ...firstMarketingMessage, id: null };
   const p = normalizeHappyEasyGo(company, noId, marketingDept, 2);
   assert.equal(p.externalId, "6-2");
 });
 
 test("normalizeHappyEasyGo omits a null workRequirements from the JD instead of joining an empty section", () => {
-  const p = normalizeHappyEasyGo(company, marketingDept.joinUsMessages![1]!, marketingDept, 1);
+  const p = normalizeHappyEasyGo(company, secondMarketingMessage, marketingDept, 1);
   assert.match(p.jdText, /Own marketing strategy/);
 });
 

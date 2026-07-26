@@ -124,7 +124,7 @@ test("insertUndrafted + selectUndraftedByRun round-trips", () => {
   const rows = selectUndraftedByRun(runId);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.company, "NoContact Inc");
-  assert.equal(rows[0]?.reason, "no_contact");
+  assert.equal(rows[0].reason, "no_contact");
 });
 
 test("selectOutreachSentTab returns sent/bounced/verified rows across all profiles, newest sent_at first", () => {

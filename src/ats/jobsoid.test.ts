@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { jobsoidIdFromHref, parseJobsoidList, jobsoidJdFromHtml } from "./jobsoid.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "jobsoid",
@@ -96,7 +97,7 @@ test("parseJobsoidList extracts every posting with title, location, and an absol
   const postings = parseJobsoidList(LIST_HTML, "https://jobs.vib.be/", company);
   assert.equal(postings.length, 2);
 
-  const first = postings[0]!;
+  const first = at(postings, 0);
   assert.equal(first.provider, "jobsoid");
   assert.equal(first.externalId, "136131");
   assert.equal(first.jobTitle, "Aankoper");
@@ -106,7 +107,7 @@ test("parseJobsoidList extracts every posting with title, location, and an absol
   assert.equal(first.jdText, "");
   assert.equal(first.postedAt, null);
 
-  const second = postings[1]!;
+  const second = at(postings, 1);
   assert.equal(second.externalId, "135914");
   assert.equal(second.jobTitle, "Machine Learning (ML) Engineer at VIB.AI");
   assert.equal(second.location, "Brussels");

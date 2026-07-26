@@ -105,7 +105,8 @@ test("ripplehireBoardUrl builds the token-bearing candidate board link", () => {
 });
 
 test("normalizeRipplehire maps fields from a live-shaped job", () => {
-  const p = normalizeRipplehire(company, TOKEN, JOB_WITH_CODE)!;
+  const p = normalizeRipplehire(company, TOKEN, JOB_WITH_CODE);
+  assert(p);
   assert.equal(p.provider, "ripplehire");
   assert.equal(p.externalId, "640521");
   assert.equal(p.companySlug, "tatasteel");
@@ -124,7 +125,8 @@ test("normalizeRipplehire falls back to jobId when jobSeq is missing, and detect
     jobSeq: null,
     jobId: "61661",
     locations: "Remote - India",
-  })!;
+  });
+  assert(p);
   assert.equal(p.externalId, "61661");
   assert.equal(p.location, "Remote - India");
   assert.equal(p.isRemote, true);
@@ -140,14 +142,17 @@ test("normalizeRipplehire falls back to jobLocation then null; parses a real pos
     jobSeq: "1",
     locations: null,
     jobLocation: "Mumbai",
-  })!;
+  });
+  assert(fallback);
   assert.equal(fallback.location, "Mumbai");
 
-  const none = normalizeRipplehire(company, TOKEN, { jobSeq: "2" })!;
+  const none = normalizeRipplehire(company, TOKEN, { jobSeq: "2" });
+  assert(none);
   assert.equal(none.location, null);
   assert.equal(none.isRemote, false);
 
-  const dated = normalizeRipplehire(company, TOKEN, { jobSeq: "3", jobPostingDate: "2026-07-01" })!;
+  const dated = normalizeRipplehire(company, TOKEN, { jobSeq: "3", jobPostingDate: "2026-07-01" });
+  assert(dated);
   assert.equal(dated.postedAt, new Date("2026-07-01").toISOString());
 });
 
@@ -163,7 +168,9 @@ test("RipplehireListSchema parses the wrapper and totalJobCount pagination math"
   assert.equal(parsed.data.totalJobCount, 1355);
   assert.equal(parsed.data.jobVoList?.length, 2);
   // 1355 records at page size 100 -> 14 pages.
-  assert.equal(Math.ceil(parsed.data.totalJobCount! / 100), 14);
+  const total = parsed.data.totalJobCount;
+  assert(typeof total === "number");
+  assert.equal(Math.ceil(total / 100), 14);
 });
 
 test("empty board: jobVoList present but empty", () => {

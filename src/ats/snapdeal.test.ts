@@ -54,24 +54,25 @@ test("parseSnapdealOpenings extracts one opening per Title/Role paragraph, skipp
 
 test("parseSnapdealOpenings keeps the whole block (skill set + experience) as jdText", () => {
   const [ios] = parseSnapdealOpenings(CONTENT_FIXTURE);
-  assert.match(ios!.jdText, /Title\/Role: iOS/);
-  assert.match(ios!.jdText, /Skill Set \(Area of Expertise\): Objective C and Swift/);
-  assert.match(ios!.jdText, /Experience: 3 yrs- 10 yrs/);
-  assert.doesNotMatch(ios!.jdText, /<p>|<strong>/);
+  assert(ios);
+  assert.match(ios.jdText, /Title\/Role: iOS/);
+  assert.match(ios.jdText, /Skill Set \(Area of Expertise\): Objective C and Swift/);
+  assert.match(ios.jdText, /Experience: 3 yrs- 10 yrs/);
+  assert.doesNotMatch(ios.jdText, /<p>|<strong>/);
 });
 
 test("parseSnapdealOpenings handles a Title/Role split mid-<strong> tag (live 'Fullstack' shape)", () => {
   const openings = parseSnapdealOpenings(CONTENT_FIXTURE);
   const fullstack = openings.find((o) => o.title === "Fullstack");
   assert.ok(fullstack);
-  assert.match(fullstack!.jdText, /Front end and backend/);
+  assert.match(fullstack.jdText, /Front end and backend/);
 });
 
 test("parseSnapdealOpenings handles a Title/Role split across two <strong> runs (live 'Account Manager' shape)", () => {
   const openings = parseSnapdealOpenings(CONTENT_FIXTURE);
   const am = openings.find((o) => o.title === "Account Manager – Cross Border Trade");
   assert.ok(am);
-  assert.match(am!.jdText, /Mandarin, account management/);
+  assert.match(am.jdText, /Mandarin, account management/);
 });
 
 test("parseSnapdealOpenings trims a literal non-breaking space after the marker (live 'Openstack Engineer' shape)", () => {

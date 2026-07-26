@@ -8,6 +8,7 @@ import {
   extractHtmlBoardJd,
 } from "./htmlboard.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 function company(apiMeta: Record<string, string>): AdapterCompany {
   return {
@@ -71,10 +72,11 @@ test("parseHtmlBoardListing extracts linked cards with dedup", () => {
   }));
   const items = parseHtmlBoardListing(LINKED_HTML, cfg);
   assert.equal(items.length, 2); // duplicate senior-engineer dropped
-  assert.equal(items[0]!.jobTitle, "Senior Engineer");
-  assert.equal(items[0]!.jobUrl, "https://acme.example/careers/senior-engineer");
-  assert.equal(items[0]!.location, "Noida, India");
-  assert.equal(items[0]!.jdText, "");
+  const item0 = at(items, 0);
+  assert.equal(item0.jobTitle, "Senior Engineer");
+  assert.equal(item0.jobUrl, "https://acme.example/careers/senior-engineer");
+  assert.equal(item0.location, "Noida, India");
+  assert.equal(item0.jdText, "");
 });
 
 test("parseHtmlBoardListing extracts inline-JD blocks with location regex", () => {
@@ -87,13 +89,15 @@ test("parseHtmlBoardListing extracts inline-JD blocks with location regex", () =
   }));
   const items = parseHtmlBoardListing(INLINE_HTML, cfg);
   assert.equal(items.length, 2);
-  assert.equal(items[0]!.jobTitle, "Solar Design Lead");
-  assert.match(items[0]!.jdText, /Own PV layouts/);
-  assert.equal(items[0]!.location, "Mumbai");
+  const item0 = at(items, 0);
+  const item1 = at(items, 1);
+  assert.equal(item0.jobTitle, "Solar Design Lead");
+  assert.match(item0.jdText, /Own PV layouts/);
+  assert.equal(item0.location, "Mumbai");
   // Second block has no Location line -> fixedLocation fallback.
-  assert.equal(items[1]!.location, "India");
+  assert.equal(item1.location, "India");
   // No links on this board -> title-slug ids.
-  assert.equal(items[0]!.externalId, "solar-design-lead");
+  assert.equal(item0.externalId, "solar-design-lead");
 });
 
 test("extractHtmlBoardJd honors detailJdSelector and falls back to main", () => {

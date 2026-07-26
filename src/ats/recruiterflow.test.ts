@@ -11,6 +11,7 @@ import {
   recruiterflowAdapter,
 } from "./recruiterflow.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "recruiterflow",
@@ -72,7 +73,7 @@ test("parseRecruiterflowJobsList flattens the department grouping and dedups by 
   );
   const brand = stubs.find((s) => s.job_id === 692);
   assert.equal(brand?.job_name, "Senior Associate - Brand; Growth");
-  assert.equal(brand?.details, "Bengaluru");
+  assert.equal(brand.details, "Bengaluru");
 });
 
 test("parseRecruiterflowJobsList returns [] when window.jobsList is absent (empty board / layout change)", () => {
@@ -102,8 +103,10 @@ test("parseRecruiterflowJd returns '' when the ld+json block is absent or malfor
 
 test("normalizeRecruiterflow maps fields and flags remote via remote_type or REMOTE_RE", () => {
   const stubs = parseRecruiterflowJobsList(LIST_HTML);
-  const brand = stubs.find((s) => s.job_id === 692)!;
-  const remote = stubs.find((s) => s.job_id === 676)!;
+  const brand = stubs.find((s) => s.job_id === 692);
+  const remote = stubs.find((s) => s.job_id === 676);
+  assert(brand);
+  assert(remote);
 
   const p1 = normalizeRecruiterflow(company, "coinswitch", brand);
   assert.equal(p1.provider, "recruiterflow");
@@ -147,8 +150,9 @@ test("recruiterflowAdapter.fetchJd fetches the job detail page and extracts the 
     return new Response(JD_HTML, { status: 200, headers: { "content-type": "text/html" } });
   });
   try {
-    const posting = normalizeRecruiterflow(company, "coinswitch", parseRecruiterflowJobsList(LIST_HTML)[0]!);
-    const jd = await recruiterflowAdapter.fetchJd!(company, posting);
+    const posting = normalizeRecruiterflow(company, "coinswitch", at(parseRecruiterflowJobsList(LIST_HTML), 0));
+    assert(recruiterflowAdapter.fetchJd);
+    const jd = await recruiterflowAdapter.fetchJd(company, posting);
     assert.match(jd, /Lead our brand campaigns/);
   } finally {
     restoreFetch();

@@ -9,6 +9,7 @@ import {
 } from "./mercedes.js";
 import type { MercedesDescriptor } from "./mercedes.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const SearchUrlQuerySchema = z.object({
   SearchParameters: z.object({ FirstItem: z.number(), CountItem: z.number() }),
@@ -42,7 +43,7 @@ const descriptor: MercedesDescriptor = {
 test("mercedesSearchUrl encodes an India-filtered, paged HR-Open query", () => {
   const url = mercedesSearchUrl(51, 50);
   assert.ok(url.startsWith("https://jobs.api.mercedes-benz.com/search?data="));
-  const data = SearchUrlQuerySchema.parse(JSON.parse(decodeURIComponent(url.split("data=")[1]!)));
+  const data = SearchUrlQuerySchema.parse(JSON.parse(decodeURIComponent(at(url.split("data="), 1))));
   assert.equal(data.SearchParameters.FirstItem, 51);
   assert.equal(data.SearchParameters.CountItem, 50);
   assert.deepEqual(data.SearchCriteria, [

@@ -109,21 +109,21 @@ test("parseSuperworksList maps the embedded initialData.jobList into postings", 
 
   const [cse, pe, intern] = postings;
   assert.equal(cse?.provider, "superworks");
-  assert.equal(cse?.externalId, "6a3d21dedb596783b0df9e72");
-  assert.equal(cse?.companySlug, "refrens");
-  assert.equal(cse?.companyName, "Refrens");
-  assert.equal(cse?.jobTitle, "Customer Support Executive");
-  assert.equal(cse?.jobUrl, "https://refrens.superworks.com/job/details/6a3d21dedb596783b0df9e72");
-  assert.equal(cse?.location, "Surat");
-  assert.equal(cse?.isRemote, false);
-  assert.equal(cse?.jdText, "");
-  assert.equal(cse?.postedAt, null);
+  assert.equal(cse.externalId, "6a3d21dedb596783b0df9e72");
+  assert.equal(cse.companySlug, "refrens");
+  assert.equal(cse.companyName, "Refrens");
+  assert.equal(cse.jobTitle, "Customer Support Executive");
+  assert.equal(cse.jobUrl, "https://refrens.superworks.com/job/details/6a3d21dedb596783b0df9e72");
+  assert.equal(cse.location, "Surat");
+  assert.equal(cse.isRemote, false);
+  assert.equal(cse.jdText, "");
+  assert.equal(cse.postedAt, null);
 
   assert.equal(pe?.jobTitle, "Prompt Engineer");
-  assert.equal(pe?.externalId, "692ed7bae0a1666f81672944");
+  assert.equal(pe.externalId, "692ed7bae0a1666f81672944");
 
   assert.equal(intern?.jobTitle, "Founder's office intern");
-  assert.equal(intern?.location, null);
+  assert.equal(intern.location, null);
 });
 
 test("parseSuperworksList returns [] when initialData/jobList is absent (layout change / empty board)", () => {

@@ -9,6 +9,7 @@ import {
   parseAvatureJd,
 } from "./avature.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "avature",
@@ -182,7 +183,7 @@ test("parseAvatureSearch parses both skins: plain-span subtitle and list-item-lo
   assert.equal(postings.length, 2);
   assert.equal(nextHref, "https://jobs.lenovo.com/en_US/careers/SearchJobs/?jobRecordsPerPage=10&jobOffset=10");
 
-  const first = postings[0]!;
+  const first = at(postings, 0);
   assert.equal(first.provider, "avature");
   assert.equal(first.externalId, "79246");
   assert.equal(first.companySlug, "lenovo");
@@ -193,7 +194,7 @@ test("parseAvatureSearch parses both skins: plain-span subtitle and list-item-lo
   assert.equal(first.jdText, "");
   assert.equal(first.postedAt, new Date("10-Jul-2026").toISOString());
 
-  const second = postings[1]!;
+  const second = at(postings, 1);
   assert.equal(second.externalId, "507993"); // from the JobDetail URL, not "Job ID: 507993" text
   assert.equal(second.jobUrl, "https://jobs.siemens.com/en_US/externaljobs/JobDetail/507993");
   assert.equal(second.location, "Pune, Maharashtra, India");
@@ -203,8 +204,8 @@ test("parseAvatureSearch parses both skins: plain-span subtitle and list-item-lo
 test("parseAvatureSearch marks a remote-flavored location as remote", () => {
   const html = SEARCH_HTML.replace("India, Karnataka, BANGALORE", "Remote - India");
   const { postings } = parseAvatureSearch(html, "https://jobs.lenovo.com", company);
-  assert.equal(postings[0]!.location, "Remote - India");
-  assert.equal(postings[0]!.isRemote, true);
+  assert.equal(at(postings, 0).location, "Remote - India");
+  assert.equal(at(postings, 0).isRemote, true);
 });
 
 test("parseAvatureSearch drops the stale 'No jobs found' placeholder (no title link) and does not loop on its bogus Next link", () => {

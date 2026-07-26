@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseAtlassianListings, normalizeAtlassian, atlassianJdText, AtlassianJobSchema } from "./atlassian.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "atlassian",
@@ -37,7 +38,7 @@ const listing = [
 test("parseAtlassianListings keeps valid entries and skips malformed ones", () => {
   const jobs = parseAtlassianListings(listing);
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0]!.title, "Account Executive, Enterprise");
+  assert.equal(at(jobs, 0).title, "Account Executive, Enterprise");
 });
 
 test("atlassianJdText joins the three HTML JD fields into plain text", () => {

@@ -4,10 +4,11 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { parseLiteral, jsVarPostings } from "./jsvar.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", () => {
   const v = z.array(z.record(z.string())).parse(parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false));
-  assert.equal(v[0]!.title, "A");
+  assert.equal(at(v, 0).title, "A");
 });
 
 test("parseLiteral cannot reach host globals (sandboxed)", () => {
@@ -38,10 +39,11 @@ test("jsVarPostings maps an array literal", () => {
   ];</script>`;
   const p = jsVarPostings(arrayCompany, html);
   assert.equal(p.length, 2);
-  assert.equal(p[0]!.jobTitle, "Ops Lead");
-  assert.equal(p[0]!.location, "Gurugram");
-  assert.match(p[0]!.jdText, /Run ops/);
-  assert.equal(p[1]!.isRemote, true);
+  const p0 = at(p, 0);
+  assert.equal(p0.jobTitle, "Ops Lead");
+  assert.equal(p0.location, "Gurugram");
+  assert.match(p0.jdText, /Run ops/);
+  assert.equal(at(p, 1).isRemote, true);
 });
 
 test("jsVarPostings maps an object-container literal using keys as ids", () => {
@@ -63,8 +65,9 @@ test("jsVarPostings maps an object-container literal using keys as ids", () => {
   };`;
   const p = jsVarPostings(company, js);
   assert.equal(p.length, 2);
-  assert.equal(p[0]!.externalId, "REQ-001");
-  assert.equal(p[0]!.jobTitle, "CBO");
+  const p0 = at(p, 0);
+  assert.equal(p0.externalId, "REQ-001");
+  assert.equal(p0.jobTitle, "CBO");
 });
 
 test("jsVarPostings unescapes and JSON-parses a flight-style blob", () => {
@@ -84,7 +87,8 @@ test("jsVarPostings unescapes and JSON-parses a flight-style blob", () => {
   const html = `self.__next_f.push([1,"...\\"initialJobs\\":[{\\"id\\":1,\\"designation\\":\\"Vehicle Architecture\\",\\"location\\":\\"Manesar\\",\\"short_text\\":\\"Build EVs.\\"}]..."])`;
   const p = jsVarPostings(company, html);
   assert.equal(p.length, 1);
-  assert.equal(p[0]!.jobTitle, "Vehicle Architecture");
-  assert.equal(p[0]!.location, "Manesar");
-  assert.equal(p[0]!.externalId, "1");
+  const p0 = at(p, 0);
+  assert.equal(p0.jobTitle, "Vehicle Architecture");
+  assert.equal(p0.location, "Manesar");
+  assert.equal(p0.externalId, "1");
 });

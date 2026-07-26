@@ -71,7 +71,7 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
   assert.equal(result.pruned, 0); // prune disabled by the bad row
   assert.equal(result.invalidRows.length, 1);
   assert.equal(result.invalidRows[0]?.rowIndex, 3); // header=row1, good=row2, bad=row3
-  assert.match(result.invalidRows[0]?.issues ?? "", /source/);
+  assert.match(result.invalidRows[0].issues, /source/);
 
   const all = selectAllCompanies();
   assert.ok(all.some((c) => c.slug === `${tag}-good`));

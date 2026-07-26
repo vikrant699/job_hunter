@@ -119,7 +119,7 @@ test("drafts up to limit, records state, projects Blast Log, reports remaining",
     ]);
     const log = h.rewrites.at(-1);
     assert.equal(log?.tab, BLAST_LOG_TAB);
-    assert.equal(log?.rows.length, 2);
+    assert.equal(log.rows.length, 2);
   } finally {
     rmSync(h.dir, { recursive: true, force: true });
   }
@@ -210,8 +210,8 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     // with the profile in column A.
     const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[1] === "old1@x.com");
     assert.equal(bouncedRow?.[0], "divya");
-    assert.equal(bouncedRow?.[4], "bounced");
-    assert.equal(bouncedRow?.[8], "Address not found");
+    assert.equal(bouncedRow[4], "bounced");
+    assert.equal(bouncedRow[8], "Address not found");
   } finally {
     rmSync(h.dir, { recursive: true, force: true });
   }
@@ -269,8 +269,8 @@ test("shared Blast Log merges every profile's records with a Profile column", as
     await runBlast({ profileId: "divya", limit: 1, deps: h.deps, paths: h.paths });
     const log = h.rewrites.at(-1);
     assert.equal(log?.tab, BLAST_LOG_TAB);
-    assert.equal(log?.header[0], "Profile");
-    const profiles = (log?.rows ?? []).map((r) => [r[0], r[1]]);
+    assert.equal(log.header[0], "Profile");
+    const profiles = log.rows.map((r) => [r[0], r[1]]);
     assert.deepEqual(profiles.sort(), [
       ["divya", "a@a.com"],
       ["vikrant", "v@x.com"],

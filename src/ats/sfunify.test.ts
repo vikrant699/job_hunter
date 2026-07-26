@@ -12,6 +12,7 @@ import {
   SfunifyJobSchema,
 } from "./sfunify.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "sfunify", slug: "skyworks", name: "Skyworks Solutions India",
@@ -119,7 +120,7 @@ test("parseSfunifyStartDate returns null for missing/unparseable input", () => {
 });
 
 test("sfunifyJobUrl interpolates the API's pre-encoded urlTitle as-is (no double-encoding)", () => {
-  const job = SfunifyJobSchema.parse(listFixture.jobSearchResult[1]!.response);
+  const job = SfunifyJobSchema.parse(at(listFixture.jobSearchResult, 1).response);
   assert.equal(
     sfunifyJobUrl(company, job, "en_US"),
     "https://careers.skyworksinc.com/job/Sr_-Buyer-2%E3%80%80%28Strategic-Sourcing-Specialist%29/77184-en_US",
@@ -127,7 +128,7 @@ test("sfunifyJobUrl interpolates the API's pre-encoded urlTitle as-is (no double
 });
 
 test("normalizeSfunify maps fields: trims location, builds job url, ISO postedAt", () => {
-  const job = SfunifyJobSchema.parse(listFixture.jobSearchResult[0]!.response);
+  const job = SfunifyJobSchema.parse(at(listFixture.jobSearchResult, 0).response);
   const p = normalizeSfunify(company, job, "en_US");
   assert.equal(p.provider, "sfunify");
   assert.equal(p.externalId, "76824");
