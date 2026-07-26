@@ -10,7 +10,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
 import { makeJsonListAdapter } from "./json-list.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, joinLocation } from "./shared.js";
 
 const LIST_URL = "https://www.bajajauto.com/handlers/careers/get-requisitions.ashx";
 const BOARD = "https://www.bajajauto.com/careers/why-us";
@@ -30,8 +30,7 @@ export type BajajAutoJob = z.infer<typeof BajajAutoJobSchema>;
 export const BajajAutoResponseSchema = z.object({ jobRequisitions: z.array(BajajAutoJobSchema) });
 
 export function normalizeBajajAuto(company: AdapterCompany, j: BajajAutoJob): NormalizedPosting {
-  const location =
-    [j.custCity || j.location, j.State, j.country].map((s) => (s ?? "").trim()).filter(Boolean).join(", ") || null;
+  const location = joinLocation(j.custCity || j.location, j.State, j.country);
   return {
     provider: "bajajauto",
     externalId: String(j.jobReqId),

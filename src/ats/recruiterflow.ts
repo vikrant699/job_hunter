@@ -32,7 +32,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { REMOTE_RE, dateToIso } from "./shared.js";
+import { REMOTE_RE, dateToIso, extractBalanced } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 
 const RF_ORIGIN = "https://recruiterflow.com";
@@ -72,39 +72,6 @@ export type RfJobStub = z.infer<typeof RfJobStubSchema>;
 const RfGroupSchema = z.array(z.tuple([z.string(), z.array(RfJobStubSchema)]));
 const RfJobsListSchema = z.object({ department: RfGroupSchema }).passthrough();
 
-/** Scan `text` from an opening `{` at `startIndex` for its matching `}`,
- *  respecting (double-)quoted strings and escapes. Returns the balanced
- *  substring (inclusive) or null if the braces never close. Needed because
- *  `window.jobsList = {...};` can't be pulled out with a naive non-greedy
- *  regex — job descriptions/titles may themselves contain "};" sequences. */
-function extractBalancedObject(text: string, startIndex: number): string | null {
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = startIndex; i < text.length; i++) {
-    const ch = text[i];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (ch === "\\") {
-        escaped = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-    } else if (ch === "{") {
-      depth++;
-    } else if (ch === "}") {
-      depth--;
-      if (depth === 0) return text.slice(startIndex, i + 1);
-    }
-  }
-  return null;
-}
-
 const JOBS_LIST_MARKER = "window.jobsList = ";
 
 /** Extract + flatten the board's inline job-list literal. Dedups by job_id
@@ -113,13 +80,7 @@ const JOBS_LIST_MARKER = "window.jobsList = ";
  *  never throws on a missing/empty board, only on a marker present but
  *  malformed (schema mismatch), which the caller logs and surfaces. */
 export function parseRecruiterflowJobsList(html: string): RfJobStub[] {
-  const markerIndex = html.indexOf(JOBS_LIST_MARKER);
-  if (markerIndex === -1) return [];
-
-  const braceIndex = html.indexOf("{", markerIndex);
-  if (braceIndex === -1) return [];
-
-  const objectText = extractBalancedObject(html, braceIndex);
+  const objectText = extractBalanced(html, JOBS_LIST_MARKER, "{");
   if (!objectText) return [];
 
   const raw = tryParseJson(objectText);

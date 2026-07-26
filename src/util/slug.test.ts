@@ -12,6 +12,9 @@ describe("kebabCase", () => {
   it('converts slashes and dots in "a/b.c" to "a-b-c"', () => {
     assert.strictEqual(kebabCase("a/b.c"), "a-b-c");
   });
+  it('strips pure leading/trailing whitespace (no other punctuation) in "  Data Engineer  "', () => {
+    assert.strictEqual(kebabCase("  Data Engineer  "), "data-engineer");
+  });
 });
 
 describe("resolveSlug", () => {

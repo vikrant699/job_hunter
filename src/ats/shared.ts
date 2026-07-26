@@ -145,6 +145,46 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
   return out;
 }
 
+/** Join location fragments, skipping blank/null parts: joinLocation("Pune", null, "India") -> "Pune, India"; all-blank -> null. */
+export function joinLocation(...parts: Array<string | null | undefined>): string | null {
+  const joined = parts.map((s) => (s ?? "").trim()).filter(Boolean).join(", ");
+  return joined || null;
+}
+
+/** Collapse all whitespace runs to single spaces and trim. */
+export function collapseWs(s: string): string {
+  return s.replace(/\s+/g, " ").trim();
+}
+
+/** Slice out a bracket-balanced literal starting at the first `open` bracket
+ *  after `startMarker`. Tracks string state so brackets inside quoted values
+ *  (incl. backtick strings) don't miscount. Returns null if unbalanced. */
+export function extractBalanced(text: string, startMarker: string, open: "[" | "{"): string | null {
+  const markerAt = text.indexOf(startMarker);
+  if (markerAt < 0) return null;
+  const start = text.indexOf(open, markerAt + startMarker.length);
+  if (start < 0) return null;
+  const close = open === "[" ? "]" : "}";
+
+  let depth = 0;
+  let quote: string | null = null; // ' " or `
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i] ?? ""; // i < text.length, so always a real char in practice
+    if (quote) {
+      if (ch === "\\") { i++; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
+    if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
 export function unixToIso(seconds: number | null | undefined): string | null {
   if (!seconds) return null;
   return new Date(seconds * 1000).toISOString();

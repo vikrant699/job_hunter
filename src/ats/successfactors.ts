@@ -25,7 +25,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
 
 const PAGE = 25; // engine-fixed page size
 // Safety cap: 125,000 jobs (PAGE 25 x MAX_PAGES 5000). paginate stops earlier
@@ -58,10 +58,6 @@ export function parseJobHref(href: string): { slug: string; reqId: string } | nu
   return { slug: m[1], reqId: m[2] };
 }
 
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
-
 /** Parse one /search/ page: its postings, the raw `<tr class="data-row">` count
  *  (the server's page size — used to advance the row offset regardless of how
  *  many rows survive filtering), and the reported total (if present). */
@@ -78,18 +74,18 @@ export function parseSuccessfactorsSearch(
     const $row = $(row);
     const $link = $row.find("a.jobTitle-link").first();
     const href = $link.attr("href");
-    const title = cleanText($link.text());
+    const title = collapseWs($link.text());
     if (!href || !title) return;
 
     const parsed = parseJobHref(href);
     if (!parsed) return;
 
     const locEl = $row.find(".colLocation .jobLocation").first();
-    const locText = cleanText((locEl.length ? locEl : $row.find(".jobLocation").first()).text());
+    const locText = collapseWs((locEl.length ? locEl : $row.find(".jobLocation").first()).text());
     const location = locText || null;
 
     const dateEl = $row.find(".colDate .jobDate").first();
-    const dateText = cleanText((dateEl.length ? dateEl : $row.find(".jobDate").first()).text());
+    const dateText = collapseWs((dateEl.length ? dateEl : $row.find(".jobDate").first()).text());
 
     let jobUrl: string;
     try {
@@ -122,13 +118,13 @@ export function parseSuccessfactorsSearch(
       const $tile = $(tile);
       const $link = $tile.find("a.jobTitle-link").first();
       const href = $link.attr("href") ?? $tile.attr("data-url");
-      const title = cleanText($link.text());
+      const title = collapseWs($link.text());
       if (!href || !title) return;
 
       const parsed = parseJobHref(href);
       if (!parsed) return;
 
-      const locText = cleanText($tile.find(".section-field.location div[id$='-value']").first().text());
+      const locText = collapseWs($tile.find(".section-field.location div[id$='-value']").first().text());
       const location = locText || null;
 
       let jobUrl: string;
@@ -163,7 +159,7 @@ export function parseSuccessfactorsJd(html: string): string {
   const el = $("span.jobdescription").first();
   if (!el.length) return "";
   const inner = el.html();
-  return inner ? htmlToText(inner) : cleanText(el.text());
+  return inner ? htmlToText(inner) : collapseWs(el.text());
 }
 
 export const successfactorsAdapter: AtsAdapter = {

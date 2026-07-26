@@ -38,7 +38,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchJsonMultipart, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
 const REFERER = "https://jobsapi.ceipal.com/";
 const PAGE_SIZE = 20; // server-fixed page size, confirmed live
@@ -122,8 +122,7 @@ export function parseCeipalDate(s: string | null | undefined): string | null {
 export function ceipalLocation(j: CeipalJob): string | null {
   const bracketed = j.multpile_job_location?.trim();
   if (bracketed) return bracketed.replace(/^\(/, "").replace(/\)$/, "");
-  const parts = [j.city, j.state, j.country].map((s) => (s ?? "").trim()).filter(Boolean);
-  return parts.length ? parts.join(", ") : null;
+  return joinLocation(j.city, j.state, j.country);
 }
 
 /**

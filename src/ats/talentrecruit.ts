@@ -26,7 +26,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
 import { htmlToText } from "./html-text.js";
 import { withAtsTimeout } from "./http.js";
-import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, tenantOrigin, joinLocation } from "./shared.js";
 import { browserCaptureText } from "./browser-fetch.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { config } from "../config.js";
@@ -240,15 +240,10 @@ export function parseJobListPage(decrypted: unknown): JobListPage {
 
 // ---- normalize (pure) ----
 
-function joinLoc(...parts: (string | null | undefined)[]): string | null {
-  const s = parts.map((p) => (p ?? "").trim()).filter(Boolean).join(", ");
-  return s || null;
-}
-
 export function normalizeTalentRecruit(company: AdapterCompany, j: TalentRecruitJob): NormalizedPosting {
   const location = (j.joblocation && j.joblocation.trim())
     || (j.officelocation && j.officelocation.trim())
-    || joinLoc(j.city, j.state, j.country);
+    || joinLocation(j.city, j.state, j.country);
   // `code` is the stable requisition code; `jobid` is a per-request AES token, so
   // prefer code for the dedup key.
   const externalId = String(

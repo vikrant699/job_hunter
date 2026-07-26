@@ -21,7 +21,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 // The board's own "Showing 10 of N" chrome is the only live evidence of a
@@ -72,13 +72,13 @@ export function parseSkimaListingHtml(html: string, baseUrl: string): SkimaListi
     const rawId = matchGroup(UUID_PATH_RE, href);
     if (rawId === null) return;
     const externalId = rawId.toLowerCase();
-    const jobTitle = $a.text().replace(/\s+/g, " ").trim();
+    const jobTitle = collapseWs($a.text());
     if (!jobTitle || seen.has(externalId)) return;
 
     const chips = $a
       .closest(".w-full")
       .find("span.break-all")
-      .map((_i, s) => $(s).text().replace(/\s+/g, " ").trim())
+      .map((_i, s) => collapseWs($(s).text()))
       .get()
       .filter(Boolean);
     // Chips are [location, workMode, jobType]; workMode says Remote/In Office.

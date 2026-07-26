@@ -18,6 +18,7 @@ import { atsFetchText } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { matchGroup } from "../util/regex.js";
+import { kebabCase } from "../util/slug.js";
 
 export const SETU_CSV_URL =
   "https://raw.githubusercontent.com/SetuHQ/website-content/main/careers/Setu%20Website%20-%20CurrentOpenings.csv";
@@ -157,19 +158,12 @@ export function parseSetuCsv(text: string): SetuRow[] {
 
 const TURBOHIRE_CODE_RE = /\/get\/([^/?#]+)/;
 
-/** Slugify a role name for use as a fallback externalId. */
-export function slugifyRole(role: string): string {
-  return role
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
 /** externalId is the TurboHire job code embedded in the Link URL
- * (…/get/<code>); falls back to a slugified role if the URL doesn't match. */
+ * (…/get/<code>); falls back to a slugified role if the URL doesn't match.
+ * (The fallback slug is exactly `kebabCase` — its leading/trailing-hyphen
+ * strip makes a separate pre-trim of `role` redundant.) */
 export function setuExternalId(row: SetuRow): string {
-  return matchGroup(TURBOHIRE_CODE_RE, row.link) ?? slugifyRole(row.role);
+  return matchGroup(TURBOHIRE_CODE_RE, row.link) ?? kebabCase(row.role);
 }
 
 export function normalizeSetuRow(company: AdapterCompany, row: SetuRow): NormalizedPosting {

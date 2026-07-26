@@ -13,7 +13,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, joinLocation } from "./shared.js";
 
 const SIZE = 100;
 
@@ -44,7 +44,7 @@ function workspaceId(company: AdapterCompany): string {
 export function normalizeSpire2Grow(company: AdapterCompany, j: Spire2GrowJob): NormalizedPosting {
   const location =
     (j.jobLocation ?? [])
-      .map((l) => l.fqLocationName ?? [l.city, l.state, l.country].filter(Boolean).join(", "))
+      .map((l) => l.fqLocationName ?? joinLocation(l.city, l.state, l.country) ?? "")
       .filter(Boolean)
       .join("; ") || null;
   return {

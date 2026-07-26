@@ -1,7 +1,7 @@
 // src/ats/html-text.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { htmlToText, decodeNumericEntities } from "./html-text.js";
+import { htmlToText, decodeNumericEntities, decodeAttrEntities } from "./html-text.js";
 
 test("htmlToText strips tags, decodes entities, collapses whitespace", () => {
   const html = "<div><p>Senior&nbsp;Engineer &amp; Lead</p><ul><li>Build&#39;n&#39;ship</li></ul></div>";
@@ -29,4 +29,14 @@ test("decodeNumericEntities survives astral code points (emoji)", () => {
 
 test("decodeNumericEntities passes malformed/out-of-range entities through", () => {
   assert.equal(decodeNumericEntities("&#99999999; stays"), "&#99999999; stays");
+});
+
+test("decodeAttrEntities decodes numeric/hex/named entities exactly one layer", () => {
+  assert.equal(decodeAttrEntities("&#34;a&#34;"), '"a"');
+  assert.equal(decodeAttrEntities("&#x2F;path"), "/path");
+  assert.equal(decodeAttrEntities("&lt;p&gt; &amp; &#39;x&#39;"), "<p> & 'x'");
+  // Double-escaped input decodes one layer, not two: &amp;#34; -> &#34;
+  assert.equal(decodeAttrEntities("&amp;#34;"), "&#34;");
+  // Unknown named entities pass through untouched.
+  assert.equal(decodeAttrEntities("&bogus; &amp;"), "&bogus; &");
 });

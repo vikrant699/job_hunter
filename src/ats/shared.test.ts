@@ -10,6 +10,9 @@ import {
   INTER_PAGE_DELAY_MS,
   tenantOrigin,
   tenantOriginOr,
+  joinLocation,
+  collapseWs,
+  extractBalanced,
 } from "./shared.js";
 import type { AdapterCompany } from "../types.js";
 
@@ -120,6 +123,68 @@ describe("tenantOriginOr", () => {
       tenantOriginOr({ ...originCompany, careersUrl: "not a url" }, fallback),
       "https://acme.fallback.example.com",
     );
+  });
+});
+
+describe("joinLocation", () => {
+  it("joins non-blank parts with a comma", () => {
+    assert.strictEqual(joinLocation("Pune", null, "India"), "Pune, India");
+  });
+  it("joins three non-blank parts", () => {
+    assert.strictEqual(joinLocation("Pune", "MH", "India"), "Pune, MH, India");
+  });
+  it("trims each part before joining", () => {
+    assert.strictEqual(joinLocation("  Pune  ", " India "), "Pune, India");
+  });
+  it("skips null and undefined parts", () => {
+    assert.strictEqual(joinLocation(null, undefined, "India"), "India");
+  });
+  it("skips blank/whitespace-only parts", () => {
+    assert.strictEqual(joinLocation("", "  ", "India"), "India");
+  });
+  it("returns null when every part is blank", () => {
+    assert.strictEqual(joinLocation(null, undefined, "", "   "), null);
+  });
+  it("returns null for zero parts", () => {
+    assert.strictEqual(joinLocation(), null);
+  });
+});
+
+describe("collapseWs", () => {
+  it("collapses whitespace runs to a single space", () => {
+    assert.strictEqual(collapseWs("a    b"), "a b");
+  });
+  it("collapses tabs/newlines too", () => {
+    assert.strictEqual(collapseWs("a\t\nb"), "a b");
+  });
+  it("trims leading/trailing whitespace", () => {
+    assert.strictEqual(collapseWs("  a b  "), "a b");
+  });
+  it("returns an empty string for all-whitespace input", () => {
+    assert.strictEqual(collapseWs("   "), "");
+  });
+  it("leaves already-clean text unchanged", () => {
+    assert.strictEqual(collapseWs("a b c"), "a b c");
+  });
+});
+
+describe("extractBalanced", () => {
+  it("pulls a bracket-balanced array, ignoring brackets in strings", () => {
+    const src = `foo const ROLES = [{ title: 'A]B', note: "x[y" }, { title: 'C' }]; bar`;
+    const lit = extractBalanced(src, "const ROLES =", "[");
+    assert.ok(lit);
+    assert.equal(lit.startsWith("[{"), true);
+    assert.equal(lit.endsWith("}]"), true);
+  });
+
+  it("handles object container + backtick strings (a brace inside a backtick string doesn't miscount)", () => {
+    const src = "x jobData = { a: { t: `has } brace` }, b: { t: 'y' } } ;";
+    const lit = extractBalanced(src, "jobData =", "{");
+    assert.equal(lit, "{ a: { t: `has } brace` }, b: { t: 'y' } }");
+  });
+
+  it("returns null when the marker is absent", () => {
+    assert.equal(extractBalanced("nothing here", "const X =", "["), null);
   });
 });
 

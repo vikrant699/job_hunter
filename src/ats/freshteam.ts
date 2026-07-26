@@ -20,15 +20,11 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, tenantOrigin, collapseWs } from "./shared.js";
 
 /** The one (unpaginated) listing page. */
 export function freshteamListUrl(company: AdapterCompany): string {
   return `${tenantOrigin(company)}/jobs`;
-}
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 /** id + slug from a "/jobs/<id>/<slug>" href. Null when the shape doesn't match. */
@@ -60,7 +56,7 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     if (!parsed) return;
     if (seen.has(parsed.id)) return;
 
-    const title = cleanText($a.find(".job-title").first().text());
+    const title = collapseWs($a.find(".job-title").first().text());
     if (!title) return;
 
     let jobUrl: string;
@@ -70,7 +66,7 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
       return;
     }
 
-    const location = cleanText($a.attr("data-portal-location") ?? "") || null;
+    const location = collapseWs($a.attr("data-portal-location") ?? "") || null;
     const isRemote =
       $a.attr("data-portal-remote-location") === "true" ||
       (location ? REMOTE_RE.test(location) : false);
@@ -100,7 +96,7 @@ export function parseFreshteamJd(html: string): string {
   if (!el.length) return "";
   el.find(".application-form, script, style").remove();
   const inner = el.html();
-  return inner ? htmlToText(inner) : cleanText(el.text());
+  return inner ? htmlToText(inner) : collapseWs(el.text());
 }
 
 export const freshteamAdapter: AtsAdapter = {

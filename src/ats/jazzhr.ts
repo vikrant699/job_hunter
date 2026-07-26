@@ -18,7 +18,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
-import { REMOTE_RE, tenantOriginOr } from "./shared.js";
+import { REMOTE_RE, tenantOriginOr, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 /** Tenant origin, e.g. "https://hackerearth.applytojob.com". Prefers an
@@ -64,7 +64,7 @@ export function parseJazzhrList(html: string, baseUrl: string): JazzhrListing[] 
     const id = parseJazzhrJobId(url);
     if (!id) return;
 
-    const title = anchor.text().trim().replace(/\s+/g, " ");
+    const title = collapseWs(anchor.text());
     if (!title) return;
 
     const locationText = $(el)

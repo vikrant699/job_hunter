@@ -35,7 +35,7 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, extractBalanced } from "./shared.js";
 import { digString, jdFromFields } from "./nextdata.js";
 import { kebabCase } from "../util/slug.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
@@ -74,35 +74,6 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
     urlTemplate: m.urlTemplate ?? null,
     fixedLocation: m.fixedLocation ?? null,
   };
-}
-
-/** Slice out a bracket-balanced literal starting at the first `open` bracket
- *  after `startMarker`. Tracks string state so brackets inside quoted values
- *  (incl. backtick strings) don't miscount. Returns null if unbalanced. */
-export function extractBalanced(text: string, startMarker: string, open: "[" | "{"): string | null {
-  const markerAt = text.indexOf(startMarker);
-  if (markerAt < 0) return null;
-  const start = text.indexOf(open, markerAt + startMarker.length);
-  if (start < 0) return null;
-  const close = open === "[" ? "]" : "}";
-
-  let depth = 0;
-  let quote: string | null = null; // ' " or `
-  for (let i = start; i < text.length; i++) {
-    const ch = text[i] ?? ""; // i < text.length, so always a real char in practice
-    if (quote) {
-      if (ch === "\\") { i++; continue; }
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; continue; }
-    if (ch === open) depth++;
-    else if (ch === close) {
-      depth--;
-      if (depth === 0) return text.slice(start, i + 1);
-    }
-  }
-  return null;
 }
 
 /** Parse an extracted literal. JSON.parse for escaped-JSON blobs; a sandboxed

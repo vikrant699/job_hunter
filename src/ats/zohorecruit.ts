@@ -15,10 +15,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText, decodeAttrEntities } from "./html-text.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 import { tryParseJson } from "../util/json.js";
+import { joinLocation } from "./shared.js";
 
 export const ZohoRecruitJobSchema = z.object({
   id: z.string(),
@@ -36,26 +37,6 @@ export const ZohoRecruitJobSchema = z.object({
 export type ZohoRecruitJob = z.infer<typeof ZohoRecruitJobSchema>;
 
 const JobsIslandSchema = z.array(ZohoRecruitJobSchema);
-
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
-};
-
-/**
- * Decode HTML-attribute entity escaping (&#34; &#x2F; &amp; &lt; ...) in a
- * single pass, so a double-escaped sequence (&amp;#34;) decodes exactly one
- * layer. Unknown named entities pass through untouched.
- */
-export function decodeAttrEntities(s: string): string {
-  return s.replace(
-    /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([a-zA-Z]+));/g,
-    (m: string, dec?: string, hex?: string, name?: string): string => {
-      if (dec !== undefined) return String.fromCodePoint(Number(dec));
-      if (hex !== undefined) return String.fromCodePoint(parseInt(hex, 16));
-      return (name !== undefined ? NAMED_ENTITIES[name] : undefined) ?? m;
-    },
-  );
-}
 
 /**
  * Pull the raw (still entity-escaped) value of the `id="jobs"` hidden input.
@@ -117,7 +98,6 @@ export function zohoJobUrl(company: AdapterCompany, j: ZohoRecruitJob): string {
 }
 
 export function normalizeZohoRecruit(company: AdapterCompany, j: ZohoRecruitJob): NormalizedPosting {
-  const parts = [j.City, j.State, j.Country].map((s) => (s ?? "").trim()).filter(Boolean);
   return {
     provider: "zohorecruit",
     externalId: j.id,
@@ -125,7 +105,7 @@ export function normalizeZohoRecruit(company: AdapterCompany, j: ZohoRecruitJob)
     companyName: company.name,
     jobTitle: j.Posting_Title,
     jobUrl: zohoJobUrl(company, j),
-    location: parts.length ? parts.join(", ") : null,
+    location: joinLocation(j.City, j.State, j.Country),
     isRemote: j.Remote_Job === true,
     jdText: htmlToText(j.Job_Description),
     postedAt: j.Date_Opened ?? null,

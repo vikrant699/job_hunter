@@ -10,7 +10,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson } from "./http.js";
-import { paginate, tenantOrigin } from "./shared.js";
+import { paginate, tenantOrigin, dateToIso } from "./shared.js";
 
 const TRPC_PATH = "/api/trpc/job.getJobs";
 const PAGE_LIMIT = 100;
@@ -95,7 +95,6 @@ export function mediatekPageJobs(pageJson: unknown): { jobs: MediatekJob[]; tota
 }
 
 export function normalizeMediatek(company: AdapterCompany, j: MediatekJob, queriedCityCode: string): NormalizedPosting {
-  const publishedMs = j.publishedDate ? Date.parse(j.publishedDate) : Number.NaN;
   return {
     provider: "mediatek",
     externalId: j.id,
@@ -106,7 +105,7 @@ export function normalizeMediatek(company: AdapterCompany, j: MediatekJob, queri
     location: cityLabel(queriedCityCode),
     isRemote: false,
     jdText: j.description ? htmlToText(j.description) : "",
-    postedAt: Number.isNaN(publishedMs) ? null : new Date(publishedMs).toISOString(),
+    postedAt: dateToIso(j.publishedDate),
   };
 }
 
