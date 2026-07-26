@@ -46,13 +46,13 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
-// Runaway backstop for when `data-total-pages` is missing/unparseable and
-// pagination instead relies solely on the zero-job-page stop — high enough
-// that no real board is ever truncated.
-const MAX_PAGES_FALLBACK = 5000;
+// Both live tenants' pager chrome carries data-records-per-page="15"; not
+// otherwise parsed/used (pagination relies on data-total-results, not a
+// page-length comparison — see listPostings below), so this is informational.
+const NOMINAL_PAGE_SIZE = 15;
 
 const TOTAL_PAGES_RE = /data-total-pages="(\d+)"/;
 const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
@@ -181,39 +181,32 @@ export const radancyAdapter: AtsAdapter = {
   provider: "radancy",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const seen = new Set<string>();
-    const out: NormalizedPosting[] = [];
-
-    const firstHtml = await atsFetchText(radancyListUrl(company.careersUrl, 1), {
+    return paginate<NormalizedPosting>({
       provider: "radancy",
-      userAgent: BROWSER_UA,
+      company: company.slug,
+      pageSize: NOMINAL_PAGE_SIZE,
+      // No page-length comparison in the original loop either - termination
+      // is a zero-job page (defensive backstop) or reaching
+      // data-total-results, read once from page 1 and never reconsidered
+      // (mirrors the original's one-shot data-total-pages read - see below).
+      shortPageEndsPagination: false,
+      maxPages: DEFAULT_MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
+      fetchPage: async (_offset, page) => {
+        const html = await atsFetchText(radancyListUrl(company.careersUrl, page + 1), {
+          provider: "radancy",
+          userAgent: BROWSER_UA,
+        });
+        const items = parseRadancyList(html, company);
+        // totalResults (data-total-results) is a genuine item count, unlike
+        // totalPages (a page count the original loop used instead) - paginate()
+        // latches whichever value fetchPage first reports and ignores later
+        // ones, exactly matching the original reading this once from page 1
+        // and never reconsidering it on later pages.
+        const { totalResults } = parseRadancyTotals(html);
+        return { items, total: totalResults };
+      },
     });
-    const { totalPages } = parseRadancyTotals(firstHtml);
-    for (const p of parseRadancyList(firstHtml, company)) {
-      if (seen.has(p.externalId)) continue;
-      seen.add(p.externalId);
-      out.push(p);
-    }
-
-    const lastPage = totalPages && totalPages > 0 ? totalPages : MAX_PAGES_FALLBACK;
-    for (let page = 2; page <= lastPage; page++) {
-      const html = await atsFetchText(radancyListUrl(company.careersUrl, page), {
-        provider: "radancy",
-        userAgent: BROWSER_UA,
-      });
-      const pagePostings = parseRadancyList(html, company);
-      if (pagePostings.length === 0) break; // defensive: matches spec even if data-total-pages lied
-
-      for (const p of pagePostings) {
-        if (seen.has(p.externalId)) continue;
-        seen.add(p.externalId);
-        out.push(p);
-      }
-      warnDeepPagination("radancy", company.slug, page, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

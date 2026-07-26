@@ -23,8 +23,9 @@ export function warnDeepPagination(provider: string, slug: string, pagesDone: nu
 // short/empty page (would otherwise loop forever). Set high enough that no real
 // board is ever truncated — completeness matters more than the safety margin,
 // so we fetch every page and only this runaway guard can stop us early (it
-// logs loudly via warnDeepPagination well before here).
-const DEFAULT_MAX_PAGES = 5000;
+// logs loudly via warnDeepPagination well before here, and once more if the
+// cap itself is what ends the loop — see `paginate`).
+export const DEFAULT_MAX_PAGES = 5000;
 
 /**
  * Result of fetching one page: its items and, if known, the total item count
@@ -72,6 +73,16 @@ export interface PaginateOpts<T> {
    * `PaginatePage` for field semantics.
    */
   fetchPage: (offset: number, page: number) => Promise<PaginatePage<T>>;
+  /**
+   * When given, drops any item whose key (per this function) was already
+   * accumulated on an earlier page — for tenants whose pages can overlap
+   * (e.g. a job moves between two pages while the crawl is in flight).
+   * Purely a filter on what's ACCUMULATED: `rawCount`/`items.length` (and
+   * therefore the offset advance and short-page/total termination checks)
+   * are computed from the page exactly as fetched, so duplicates never shift
+   * later offsets.
+   */
+  dedupeBy?: (item: T) => string;
 }
 
 /**
@@ -81,19 +92,34 @@ export interface PaginateOpts<T> {
  * `total` being reached, or a hard page cap. The offset always advances by the
  * number of items actually received (not a fixed page size) — equivalent to
  * advancing by `pageSize` for full pages, but also correct for tenants whose
- * server may return fewer items than requested for a given call.
+ * server may return fewer items than requested for a given call. Reaching the
+ * hard page cap (as opposed to any of the other stop conditions) logs a
+ * runaway-cap warning, since it means the board may have been truncated.
  */
 export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
   const shortPageEndsPagination = opts.shortPageEndsPagination ?? true;
   const interPageDelayMs = opts.interPageDelayMs ?? INTER_PAGE_DELAY_MS;
+  const dedupeBy = opts.dedupeBy;
   const out: T[] = [];
+  const seenKeys = new Set<string>();
   let offset = 0;
   let total: number | null = null;
+  let page = 0;
 
-  for (let page = 0; page < maxPages; page++) {
+  for (; page < maxPages; page++) {
     const { items, total: pageTotal, rawCount } = await opts.fetchPage(offset, page);
-    out.push(...items);
+    if (dedupeBy) {
+      for (const item of items) {
+        const key = dedupeBy(item);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          out.push(item);
+        }
+      }
+    } else {
+      out.push(...items);
+    }
     const count = rawCount ?? items.length;
 
     if (total === null && typeof pageTotal === "number") {
@@ -107,6 +133,13 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
 
     warnDeepPagination(opts.provider, opts.company, page + 1, out.length);
     await sleep(interPageDelayMs);
+  }
+
+  if (page === maxPages) {
+    logger.warn(
+      { provider: opts.provider, company: opts.company, maxPages },
+      "pagination hit the runaway cap - board may be truncated"
+    );
   }
 
   return out;

@@ -50,11 +50,15 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, paginate } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;
+// No pageSize is evidenced anywhere (arbitrary hand-authored HTML boards);
+// termination for pageParam boards is "this page added nothing new" (see
+// listPostings), not a page-length comparison, so this is informational only.
+const NOMINAL_PAGE_SIZE = 20;
 
 function pageUrl(cfg: HtmlBoardConfig, page: number): string {
   if (!cfg.pageParam || page <= 1) return cfg.listUrl;
@@ -224,42 +228,65 @@ export function extractHtmlBoardJd(html: string, cfg: HtmlBoardConfig): string {
   return htmlToText($("body").html() ?? "");
 }
 
+function htmlBoardItemToPosting(company: AdapterCompany, cfg: HtmlBoardConfig, item: HtmlBoardItem): NormalizedPosting {
+  return {
+    provider: "htmlboard",
+    externalId: item.externalId,
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle: item.jobTitle,
+    jobUrl: item.jobUrl ?? cfg.listUrl,
+    location: item.location,
+    isRemote: item.location ? REMOTE_RE.test(item.location) : false,
+    jdText: item.jdText,
+    postedAt: null,
+  };
+}
+
 export const htmlboardAdapter: AtsAdapter = {
   provider: "htmlboard",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const cfg = htmlBoardConfig(company);
-    const items: HtmlBoardItem[] = [];
-    const seen = new Set<string>();
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const url = pageUrl(cfg, page);
-      const html = await atsFetchText(url, { provider: "htmlboard" });
-      const pageItems = parseHtmlBoardListing(html, cfg);
-      const before = items.length;
-      for (const item of pageItems) {
-        if (seen.has(item.externalId)) continue;
-        seen.add(item.externalId);
-        items.push(item);
-      }
-      // Single-page boards, or a page that added nothing new, end the loop.
-      if (!cfg.pageParam || items.length === before) break;
-      warnDeepPagination("htmlboard", company.slug, page, items.length);
-      await sleep(INTER_PAGE_DELAY_MS);
+    // Boards with no pageParam deliberately render their whole list in one
+    // response (see file header) - fetched directly, never through
+    // paginate(), so a single-page board can never spuriously trip the
+    // cap-exit warn paginate() now logs when a loop exhausts maxPages.
+    if (!cfg.pageParam) {
+      const html = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
+      return parseHtmlBoardListing(html, cfg).map((item) => htmlBoardItemToPosting(company, cfg, item));
     }
 
-    return items.map((item) => ({
+    // pageParam boards have no page-size/total metric to key termination off
+    // (arbitrary hand-authored HTML) - the original loop's stop signal was
+    // "this page added zero items not already seen on an earlier page",
+    // which needs the same cross-page identity-tracking a `dedupeBy` option
+    // would do internally. Since paginate() only exposes dedupeBy as a
+    // passive accumulation filter (not a termination signal), the seen-set
+    // is kept here directly: fetchPage returns ONLY the newly-seen items, so
+    // `count` (items.length, the paginate() default) is naturally 0 exactly
+    // when a page contributed nothing new - reproducing the original
+    // condition exactly without keeping two redundant sets.
+    const seen = new Set<string>();
+    const items = await paginate<HtmlBoardItem>({
       provider: "htmlboard",
-      externalId: item.externalId,
-      companySlug: company.slug,
-      companyName: company.name,
-      jobTitle: item.jobTitle,
-      jobUrl: item.jobUrl ?? cfg.listUrl,
-      location: item.location,
-      isRemote: item.location ? REMOTE_RE.test(item.location) : false,
-      jdText: item.jdText,
-      postedAt: null,
-    }));
+      company: company.slug,
+      pageSize: NOMINAL_PAGE_SIZE,
+      shortPageEndsPagination: false,
+      maxPages: MAX_PAGES,
+      fetchPage: async (_offset, page) => {
+        const html = await atsFetchText(pageUrl(cfg, page + 1), { provider: "htmlboard" });
+        const newItems = parseHtmlBoardListing(html, cfg).filter((item) => {
+          if (seen.has(item.externalId)) return false;
+          seen.add(item.externalId);
+          return true;
+        });
+        return { items: newItems, total: null };
+      },
+    });
+
+    return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

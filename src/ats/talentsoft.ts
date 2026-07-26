@@ -46,12 +46,13 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
 
-// Runaway backstop for when the `.resultat .gras` count is missing/unparseable
-// and pagination relies solely on the zero-item-page stop — high enough that
-// no real board is ever truncated.
-const MAX_PAGES = 5000;
+// The tenant's actual per-page item count isn't evidenced anywhere in this
+// file (no page-size query param exists to confirm it); pagination doesn't
+// rely on it (see shortPageEndsPagination below) so this placeholder value
+// is harmless either way.
+const NOMINAL_PAGE_SIZE = 20;
 
 const ID_RE = /_(\d+)\.aspx(?:[?#]|$)/i;
 const TOTAL_RE = /(\d+)/;
@@ -200,29 +201,22 @@ export const talentsoftAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const baseUrl = talentsoftListingUrl(company);
-    const out: NormalizedPosting[] = [];
-    const seenIds = new Set<string>();
-    let total: number | null = null;
-
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const html = await atsFetchText(talentsoftPageUrl(baseUrl, page), { provider: "talentsoft" });
-      const parsed = parseTalentsoftListingHtml(html, baseUrl);
-      if (total === null) total = parsed.total;
-
-      for (const item of parsed.items) {
-        if (seenIds.has(item.externalId)) continue;
-        seenIds.add(item.externalId);
-        out.push(normalizeTalentsoftItem(company, item));
-      }
-
-      if (parsed.items.length === 0) break; // defensive: holds even if `total` lied
-      if (total !== null && out.length >= total) break;
-
-      warnDeepPagination("talentsoft", company.slug, page, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "talentsoft",
+      company: company.slug,
+      pageSize: NOMINAL_PAGE_SIZE,
+      // Termination is zero-item-page or reaching the running total, NOT a
+      // short page - there is no page-size query param, so a "short page"
+      // was never a stop signal in the original loop either.
+      shortPageEndsPagination: false,
+      maxPages: DEFAULT_MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
+      fetchPage: async (_offset, page) => {
+        const html = await atsFetchText(talentsoftPageUrl(baseUrl, page + 1), { provider: "talentsoft" });
+        const parsed = parseTalentsoftListingHtml(html, baseUrl);
+        return { items: parsed.items.map((item) => normalizeTalentsoftItem(company, item)), total: parsed.total };
+      },
+    });
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

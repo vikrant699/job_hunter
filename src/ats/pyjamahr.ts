@@ -22,8 +22,8 @@ import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./sha
 const API_ORIGIN = "https://api.pyjamahr.com";
 const BOARD_ORIGIN = "https://app.pyjamahr.com";
 // `next`-chasing needs its own page cap (the shared offset paginator doesn't fit
-// URL-cursor pagination); 200 pages x 10/page is far beyond any tenant seen.
-const MAX_PAGES = 200;
+// URL-cursor pagination); 1000 pages x 10/page is far beyond any tenant seen.
+const MAX_PAGES = 1000;
 
 // other_locations has only been observed empty ([]); accept strings or {name}/{city}
 // objects so a non-empty tenant can't fail the whole listing on shape.
@@ -148,8 +148,9 @@ export const pyjamahrAdapter: AtsAdapter = {
     const uuid = pyjamahrCompanyUuid(company);
     const out: NormalizedPosting[] = [];
     let url: string | null = pyjamahrListUrl(uuid, 1);
+    let page = 0;
 
-    for (let page = 0; url !== null && page < MAX_PAGES; page++) {
+    for (; url !== null && page < MAX_PAGES; page++) {
       const raw = await atsFetchJson(url, { provider: "pyjamahr" });
       let parsed: PyjamahrList;
       try {
@@ -165,6 +166,16 @@ export const pyjamahrAdapter: AtsAdapter = {
         warnDeepPagination("pyjamahr", company.slug, page + 1, out.length);
         await sleep(INTER_PAGE_DELAY_MS);
       }
+    }
+
+    // The loop only exits with url still non-null by exhausting MAX_PAGES
+    // (the natural-completion path sets url to null via parsed.next first) —
+    // this is the runaway-cap-truncation case, worth a loud warning.
+    if (url !== null && page === MAX_PAGES) {
+      logger.warn(
+        { slug: company.slug, maxPages: MAX_PAGES },
+        "pyjamahr pagination hit the runaway cap - board may be truncated"
+      );
     }
 
     return out;

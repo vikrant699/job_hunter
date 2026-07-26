@@ -25,7 +25,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
-import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS, tenantOriginOr } from "./shared.js";
+import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS, DEFAULT_MAX_PAGES, paginate, tenantOriginOr } from "./shared.js";
 
 // ---------- api_meta ----------
 
@@ -230,28 +230,67 @@ export function normalizeZappyhireMt(company: AdapterCompany, s: MtSource): Norm
 }
 
 async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promise<NormalizedPosting[]> {
-  const out = new Map<string, NormalizedPosting>();
-  let page = 1;
-  for (;;) {
-    const url = `https://${m.backendHost}/api/jobs/jobsearch/?page=${page}&page_size=${MT_PAGE_SIZE}`;
-    const raw = await atsFetchJson(url, { provider: "zappyhire" });
-    const parsed = parseOrThrow(MtResponseSchema, raw, {
-      provider: "zappyhire",
-      slug: company.slug,
-      what: `multitenant (page ${page})`,
-    });
-    const { hits, total } = parsed.results;
-    const before = out.size;
-    for (const h of hits) out.set(String(h._source.job), normalizeZappyhireMt(company, h._source));
-    const expected = total?.value ?? hits.length;
-    // `out.size === before` catches a server that re-serves the same page
-    // forever (all hits dedup away) while `total` claims more — without it
-    // this loop would never terminate.
-    if (hits.length === 0 || out.size >= expected || out.size === before) break;
-    page += 1;
-    await sleep(INTER_PAGE_DELAY_MS);
-  }
-  return [...out.values()];
+  // The original loop had no cap at all (`for (;;)`) - maxPages here is a
+  // genuinely new safety net (the fleet's standard 5000), not a raised-too-
+  // low one; it also gains the cap-exit warn if it's ever actually reached.
+  const seen = new Set<string>();
+  let cumulativeCount = 0; // mirrors the original's `out.size`
+
+  return paginate<NormalizedPosting>({
+    provider: "zappyhire",
+    company: company.slug,
+    pageSize: MT_PAGE_SIZE,
+    // No page-length comparison in the original loop either - see the three
+    // conditions reproduced below.
+    shortPageEndsPagination: false,
+    maxPages: DEFAULT_MAX_PAGES,
+    fetchPage: async (offset, page) => {
+      const pageNo = page + 1; // API is 1-based
+      const url = `https://${m.backendHost}/api/jobs/jobsearch/?page=${pageNo}&page_size=${MT_PAGE_SIZE}`;
+      const raw = await atsFetchJson(url, { provider: "zappyhire" });
+      const parsed = parseOrThrow(MtResponseSchema, raw, {
+        provider: "zappyhire",
+        slug: company.slug,
+        what: `multitenant (page ${pageNo})`,
+      });
+      const { hits, total } = parsed.results;
+
+      // Cross-page dedup is kept as a direct seen-Set (not paginate()'s
+      // dedupeBy) because the termination condition below needs the exact
+      // same "was this job already counted" signal to compute cumulativeCount
+      // faithfully - keeping one mechanism instead of two redundant ones.
+      const before = cumulativeCount;
+      const newItems: NormalizedPosting[] = [];
+      for (const h of hits) {
+        const id = String(h._source.job);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        newItems.push(normalizeZappyhireMt(company, h._source));
+      }
+      cumulativeCount += newItems.length;
+
+      // Reproduces the original's `if (hits.length === 0 || out.size >=
+      // expected || out.size === before) break` exactly: `expected` is
+      // recomputed fresh from THIS page's own response every time (never
+      // latched), matching the original never trusting an earlier page's
+      // total once a later page is fetched. Translated into paginate()'s
+      // item-count `total` contract (see directemployers/ongig for the same
+      // technique): report a total exactly equal to the cumulative offset
+      // once any of the three conditions holds, so the loop stops right
+      // after this page; null otherwise. (hits.length === 0 is also, on its
+      // own, separately caught by paginate()'s own count===0 check via
+      // rawCount below - included here anyway to mirror the original
+      // condition's exact shape.)
+      const expected = total?.value ?? hits.length;
+      const isDone = hits.length === 0 || cumulativeCount >= expected || cumulativeCount === before;
+
+      return {
+        items: newItems,
+        rawCount: hits.length,
+        total: isDone ? offset + hits.length : null,
+      };
+    },
+  });
 }
 
 // ---------- adapter ----------
