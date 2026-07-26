@@ -28,7 +28,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
-import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
+import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const SEARCH_URL = "https://jobs.api.mercedes-benz.com/search";
@@ -103,36 +103,12 @@ export function normalizeMercedes(company: AdapterCompany, d: MercedesDescriptor
   };
 }
 
-function isJobPostingNode(node: JsonValue): node is Record<string, JsonValue> {
-  const obj = getObj(node);
-  return obj !== null && obj["@type"] === "JobPosting";
-}
-
-/** Pull the schema.org JobPosting node out of a job page's JSON-LD island(s).
- *  Nuxt emits one `<script type="application/ld+json">` with an `@graph`
- *  array; tolerates a bare JobPosting object too, and skips blocks that
- *  aren't valid JSON instead of failing the whole page. */
-export function extractMercedesJobPosting(html: string): Record<string, JsonValue> | null {
-  const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const raw = m[1];
-    if (raw === undefined) continue;
-    let node: JsonValue;
-    try {
-      node = JsonValueSchema.parse(JSON.parse(raw));
-    } catch {
-      continue;
-    }
-    if (isJobPostingNode(node)) return node;
-    const obj = getObj(node);
-    const graph = obj?.["@graph"];
-    if (Array.isArray(graph)) {
-      const jobPosting = graph.find(isJobPostingNode);
-      if (jobPosting) return jobPosting;
-    }
-  }
-  return null;
+/** JD text from a job page's JSON-LD JobPosting island. Nuxt emits one
+ *  `<script type="application/ld+json">` with an `@graph` array (which
+ *  extractJsonLdJobs already walks); "" when absent or malformed. */
+export function mercedesJdFromHtml(html: string): string {
+  const [job] = extractJsonLdJobs(html);
+  return job?.description ? htmlToText(job.description) : "";
 }
 
 export const mercedesAdapter: AtsAdapter = {
@@ -162,8 +138,6 @@ export const mercedesAdapter: AtsAdapter = {
   },
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "mercedes" });
-    const jobPosting = extractMercedesJobPosting(html);
-    const description = jobPosting?.["description"];
-    return typeof description === "string" ? htmlToText(description) : "";
+    return mercedesJdFromHtml(html);
   },
 };

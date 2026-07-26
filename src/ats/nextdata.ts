@@ -21,6 +21,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { REMOTE_RE } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 
@@ -51,37 +52,44 @@ export function nextDataConfig(company: AdapterCompany): NextDataConfig {
   };
 }
 
-/** Walk a dot-path into a nested unknown value; null when any hop is missing. */
-export function dig(value: unknown, path: string): unknown {
-  let cur: unknown = value;
-  for (const key of path.split(".")) {
-    if (cur === null || typeof cur !== "object") return null;
-    cur = Reflect.get(cur, key);
+/** Walk a tokenized dot-path into a nested JsonValue; null when any hop is
+ *  missing, the current node isn't an object/array, or (for an array hop) the
+ *  key isn't a valid numeric index. No Reflect.get — plain narrowed indexing. */
+export function dig(node: JsonValue, path: readonly string[]): JsonValue | null {
+  let cur: JsonValue = node;
+  for (const key of path) {
+    if (typeof cur !== "object" || cur === null) return null;
+    const next: JsonValue | undefined = Array.isArray(cur)
+      ? (/^\d+$/.test(key) ? cur[Number(key)] : undefined)
+      : cur[key];
+    if (next === undefined) return null;
+    cur = next;
   }
-  return cur ?? null;
+  return cur;
 }
 
-/** dig() a path and coerce the hit to a trimmed string (numbers stringified). */
-export function digString(value: unknown, path: string): string | null {
-  const v = dig(value, path);
+/** dig() a dot-path and coerce the hit to a trimmed string (numbers stringified). */
+export function digString(value: JsonValue, path: string): string | null {
+  const v = dig(value, path.split("."));
   if (typeof v === "string") return v.trim() || null;
   if (typeof v === "number") return String(v);
   return null;
 }
 
-/** Extract and parse the __NEXT_DATA__ island from a page's HTML. */
-export function parseNextDataIsland(html: string): unknown {
+/** Extract and parse the __NEXT_DATA__ island from a page's HTML. Throws if
+ *  the script tag is absent or its body isn't valid JSON. */
+export function parseNextDataIsland(html: string): JsonValue {
   const $ = cheerio.load(html);
   const raw = $("script#__NEXT_DATA__").first().text();
   if (!raw) throw new Error("nextdata: page has no __NEXT_DATA__ script tag");
-  return JSON.parse(raw);
+  return JsonValueSchema.parse(JSON.parse(raw));
 }
 
 /** Concatenate the string/string[] values at `fields` dot-paths as JD text. */
-export function jdFromFields(job: unknown, fields: string[]): string {
+export function jdFromFields(job: JsonValue, fields: string[]): string {
   const parts: string[] = [];
   for (const f of fields) {
-    const v = dig(job, f);
+    const v = dig(job, f.split("."));
     if (typeof v === "string" && v.trim()) parts.push(v);
     else if (Array.isArray(v)) {
       for (const item of v) if (typeof item === "string" && item.trim()) parts.push(item);
@@ -91,9 +99,9 @@ export function jdFromFields(job: unknown, fields: string[]): string {
   return parts.length > 0 ? htmlToText(parts.join("\n")) : "";
 }
 
-export function nextDataPostings(company: AdapterCompany, island: unknown): NormalizedPosting[] {
+export function nextDataPostings(company: AdapterCompany, island: JsonValue): NormalizedPosting[] {
   const cfg = nextDataConfig(company);
-  const arr = dig(island, cfg.jobsPath);
+  const arr = dig(island, cfg.jobsPath.split("."));
   if (!Array.isArray(arr)) {
     throw new Error(`nextdata: jobsPath "${cfg.jobsPath}" did not resolve to an array for ${company.slug}`);
   }

@@ -15,6 +15,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
+import { tryParseJson, type JsonValue } from "../util/json.js";
 
 const PAGE_SIZE = 50;
 
@@ -57,14 +58,10 @@ export interface SenseHqJobsData {
  * (unlike `buildId`, which lives inside the parsed payload). Returns null
  * when the script is absent or its body isn't valid JSON.
  */
-export function extractSenseHqNextData(html: string): unknown | null {
+export function extractSenseHqNextData(html: string): JsonValue | null {
   const raw = matchGroup(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/, html);
   if (raw === null) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return tryParseJson(raw);
 }
 
 /** Read `buildId` + `jobsData` off the initial page's parsed island. Null on shape mismatch. */

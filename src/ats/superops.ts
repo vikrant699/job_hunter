@@ -18,6 +18,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { JsonValueSchema } from "../util/json.js";
 import * as cheerio from "cheerio";
 
 export const SuperopsCareerSchema = z.object({
@@ -29,7 +30,7 @@ export const SuperopsCareerSchema = z.object({
 export type SuperopsCareer = z.infer<typeof SuperopsCareerSchema>;
 
 const PageDataSchema = z.object({ staticQueryHashes: z.array(z.union([z.string(), z.number()])) });
-const SqBlobSchema = z.object({ data: z.record(z.unknown()) });
+const SqBlobSchema = z.object({ data: z.record(z.string(), JsonValueSchema) });
 const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
 
 /** Find the careers[] array inside any sq-data blob (shape:

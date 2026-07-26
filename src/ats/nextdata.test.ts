@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dig, parseNextDataIsland, nextDataPostings } from "./nextdata.js";
 import type { AdapterCompany } from "../types.js";
+import type { JsonValue } from "../util/json.js";
 
 const company: AdapterCompany = {
   provider: "nextdata",
@@ -19,7 +20,7 @@ const company: AdapterCompany = {
   },
 };
 
-const ISLAND = {
+const ISLAND: JsonValue = {
   props: {
     pageProps: {
       data: {
@@ -44,14 +45,19 @@ const ISLAND = {
 
 const HTML = `<html><body><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(ISLAND)}</script></body></html>`;
 
-test("dig walks dot paths and returns null on missing hops", () => {
-  assert.equal(dig({ a: { b: 3 } }, "a.b"), 3);
-  assert.equal(dig({ a: {} }, "a.b.c"), null);
+test("dig walks a tokenized path and returns null on missing hops", () => {
+  assert.equal(dig({ a: { b: 3 } }, ["a", "b"]), 3);
+  assert.equal(dig({ a: {} }, ["a", "b", "c"]), null);
+});
+
+test("dig resolves a numeric hop as an array index", () => {
+  assert.equal(dig({ items: ["x", "y"] }, ["items", "1"]), "y");
+  assert.equal(dig({ items: ["x"] }, ["items", "5"]), null);
 });
 
 test("parseNextDataIsland extracts and parses the script tag", () => {
   const island = parseNextDataIsland(HTML);
-  assert.equal(dig(island, "props.pageProps.data.getJobList.count"), 2);
+  assert.equal(dig(island, ["props", "pageProps", "data", "getJobList", "count"]), 2);
 });
 
 test("parseNextDataIsland throws on pages without the island", () => {

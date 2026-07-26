@@ -15,6 +15,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
+import { tryParseJson, type JsonValue } from "../util/json.js";
 
 const ComeetLocationSchema = z.object({
   name: z.string().nullable().optional(),
@@ -50,7 +51,7 @@ export type ComeetPosition = z.infer<typeof ComeetPositionSchema>;
 /** Match an island assignment: greedy to the line's last bracket first (the
  * JSON is one line, so this survives literal "];"/"};" inside strings), then
  * a lazy multi-line fallback. Returns the parsed JSON or null. */
-function extractIsland(html: string, varName: string, open: "[" | "{"): unknown {
+function extractIsland(html: string, varName: string, open: "[" | "{"): JsonValue | null {
   const close = open === "[" ? "]" : "}";
   const esc = (c: string) => `\\${c}`;
   const greedy = new RegExp(`${varName}\\s*=\\s*(${esc(open)}.*${esc(close)});`, "m");
@@ -58,23 +59,20 @@ function extractIsland(html: string, varName: string, open: "[" | "{"): unknown 
   for (const re of [greedy, lazy]) {
     const m = html.match(re);
     if (!m?.[1]) continue;
-    try {
-      return JSON.parse(m[1]);
-    } catch {
-      continue;
-    }
+    const parsed = tryParseJson(m[1]);
+    if (parsed !== null) return parsed;
   }
   return null;
 }
 
 /** The board page's COMPANY_POSITIONS_DATA array, or null when absent/null. */
-export function extractComeetPositions(html: string): unknown[] | null {
+export function extractComeetPositions(html: string): JsonValue[] | null {
   const parsed = extractIsland(html, "COMPANY_POSITIONS_DATA", "[");
   return Array.isArray(parsed) ? parsed : null;
 }
 
 /** The position page's POSITION_DATA object, or null when absent/null. */
-export function extractComeetPosition(html: string): unknown {
+export function extractComeetPosition(html: string): Record<string, JsonValue> | null {
   const parsed = extractIsland(html, "POSITION_DATA", "{");
   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
 }
