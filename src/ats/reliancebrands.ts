@@ -28,12 +28,12 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { withBrowserPage } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
+import { JsonValueSchema, type JsonValue } from "../util/json.js";
 
 const JOBSEARCH_URL = "https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSearch";
 const WARM_URL = "https://peoplefirst.ril.com/ocandidate/";
 const PAGE_SIZE = 20;
-const MAX_PAGES = 100;
 
 const TITLE_KEYS = ["JobTitle", "jobTitle", "title", "PositionName", "positionName", "Position", "Designation", "designation"];
 const ID_KEYS = ["ReqId", "reqId", "reqid", "JobId", "jobId", "id", "PositionId", "RequisitionId", "requisitionId"];
@@ -50,7 +50,7 @@ const COUNTRY_CODE_NAMES: Record<string, string> = { IN: "India" };
 const JD_KEYS = ["JobDescription", "jobDescription", "Description", "description", "JD", "jd", "RoleDescription"];
 const DATE_KEYS = ["PostedDate", "postedDate", "PostingDate", "postingDate", "CreatedDate", "createdDate", "lastUpdated", "LastUpdated"];
 
-function pick(job: Record<string, unknown>, keys: string[]): string | null {
+function pick(job: Record<string, JsonValue>, keys: string[]): string | null {
   for (const k of keys) {
     const v = job[k];
     if (typeof v === "string" && v.trim()) return v.trim();
@@ -70,7 +70,7 @@ export function composeLocation(city: string | null, country: string | null): st
     : `${city}, ${countryName}`;
 }
 
-export function normalizeReliance(company: AdapterCompany, job: Record<string, unknown>): NormalizedPosting | null {
+export function normalizeReliance(company: AdapterCompany, job: Record<string, JsonValue>): NormalizedPosting | null {
   const jobTitle = pick(job, TITLE_KEYS);
   if (!jobTitle) return null;
   const externalId = pick(job, ID_KEYS) ?? jobTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -100,7 +100,7 @@ function searchBody(pageno: number, country: string, subtenant: string | null): 
   return body;
 }
 
-const JobRowSchema = z.record(z.unknown());
+const JobRowSchema = z.record(z.string(), JsonValueSchema);
 
 async function postJobSearch(page: Page, body: unknown): Promise<{ result: unknown[] }> {
   return page.evaluate(
@@ -129,29 +129,31 @@ export const reliancebrandsAdapter: AtsAdapter = {
 
     return withBrowserPage(
       WARM_URL,
-      async (page) => {
-        const out: NormalizedPosting[] = [];
-        const seen = new Set<string>();
-        for (let pageno = 0; pageno < MAX_PAGES; pageno++) {
-          let res: { result: unknown[] };
-          try {
-            res = await postJobSearch(page, searchBody(pageno, country, subtenant));
-          } catch (e) {
-            logger.warn({ slug: company.slug, pageno, err: String(e).slice(0, 80) }, "reliancebrands jobSearch failed");
-            break;
-          }
-          const before = out.length;
-          for (const row of res.result) {
-            const job = JobRowSchema.safeParse(row);
-            if (!job.success) continue;
-            const p = normalizeReliance(company, job.data);
-            if (!p || seen.has(p.externalId)) continue;
-            seen.add(p.externalId);
-            out.push(p);
-          }
-          if (res.result.length < PAGE_SIZE || out.length === before) break;
-        }
-        return out;
+      async (browserPage) => {
+        return paginate<NormalizedPosting>({
+          provider: "reliancebrands",
+          company: company.slug,
+          pageSize: PAGE_SIZE,
+          maxPages: DEFAULT_MAX_PAGES,
+          dedupeBy: (p) => p.externalId,
+          fetchPage: async (_offset, pageno) => {
+            let res: { result: unknown[] };
+            try {
+              res = await postJobSearch(browserPage, searchBody(pageno, country, subtenant));
+            } catch (e) {
+              logger.warn({ slug: company.slug, pageno, err: String(e).slice(0, 80) }, "reliancebrands jobSearch failed");
+              return { items: [], total: null };
+            }
+            const items: NormalizedPosting[] = [];
+            for (const row of res.result) {
+              const job = JobRowSchema.safeParse(row);
+              if (!job.success) continue;
+              const p = normalizeReliance(company, job.data);
+              if (p) items.push(p);
+            }
+            return { items, rawCount: res.result.length, total: null };
+          },
+        });
       },
       // WAF interstitial on goto is swallowed (default) — the in-page POST
       // below still runs in-origin even if the initial nav "failed".

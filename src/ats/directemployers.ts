@@ -17,10 +17,13 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
 
 const API = "https://prod-search-api.jobsyn.org/api/v1/solr/search";
-const MAX_PAGES = 500;
+// Solr's actual per-page item count isn't evidenced anywhere in this file;
+// pagination is driven by pagination.total_pages (see listPostings below),
+// not a page-size comparison, so this placeholder value is harmless.
+const NOMINAL_PAGE_SIZE = 10;
 
 export const DeJobSchema = z.object({
   id: z.union([z.string(), z.number()]).nullable().optional(),
@@ -94,26 +97,43 @@ export const directemployersAdapter: AtsAdapter = {
     const location = company.apiMeta?.location ?? null;
     const headers = { "x-origin": origin, Accept: "application/json" };
 
-    const out: NormalizedPosting[] = [];
-    const seen = new Set<string>();
-    let totalPages = 1;
-
-    for (let page = 1; page <= Math.min(totalPages, MAX_PAGES); page++) {
-      const raw = await atsFetchJson(deSearchUrl(page, location), { provider: "directemployers", headers });
-      const parsed = parseOrThrow(DeResponseSchema, raw, { provider: "directemployers", slug: company.slug, what: `list page ${page}` });
-      totalPages = parsed.pagination?.total_pages ?? page;
-      for (const j of parsed.jobs) {
-        const p = normalizeDeJob(company, j);
-        if (!p || seen.has(p.externalId)) continue;
-        seen.add(p.externalId);
-        out.push(p);
-      }
-      if (parsed.jobs.length === 0) break;
-      if (page < totalPages) {
-        warnDeepPagination("directemployers", company.slug, page, out.length);
-        await sleep(INTER_PAGE_DELAY_MS);
-      }
-    }
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "directemployers",
+      company: company.slug,
+      pageSize: NOMINAL_PAGE_SIZE,
+      // No page-size comparison in the original loop either - termination is
+      // a zero-item page or reaching pagination.total_pages (a PAGE count,
+      // re-read from every response - see below), so a "short page" was
+      // never a stop signal on its own.
+      shortPageEndsPagination: false,
+      maxPages: DEFAULT_MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
+      fetchPage: async (offset, page) => {
+        const currentPage = page + 1; // API is 1-based
+        const raw = await atsFetchJson(deSearchUrl(currentPage, location), { provider: "directemployers", headers });
+        const parsed = parseOrThrow(DeResponseSchema, raw, {
+          provider: "directemployers",
+          slug: company.slug,
+          what: `list page ${currentPage}`,
+        });
+        const items = parsed.jobs
+          .map((j) => normalizeDeJob(company, j))
+          .filter((p): p is NormalizedPosting => p !== null);
+        // total_pages is re-read from THIS page's own response (matching the
+        // original loop, which reassigned it every iteration rather than
+        // latching page 1's value) - translated into paginate()'s item-count
+        // `total` contract by reporting a total exactly equal to the
+        // cumulative offset once this page is the last one, so the loop
+        // stops right after fetching it regardless of how many items were
+        // on earlier pages.
+        const totalPagesNow = parsed.pagination?.total_pages ?? currentPage;
+        const isLastPage = currentPage >= totalPagesNow;
+        return {
+          items,
+          rawCount: parsed.jobs.length,
+          total: isLastPage ? offset + parsed.jobs.length : null,
+        };
+      },
+    });
   },
 };
