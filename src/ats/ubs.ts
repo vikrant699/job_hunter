@@ -40,7 +40,10 @@ const DEFAULT_LOCATION = "India";
 const NAV_TIMEOUT = 45_000;
 const CAPTURE_TIMEOUT = 30_000;
 
-const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: JsonValueSchema });
+// Value is optional: the pre-JsonValueSchema shape (z.unknown()) tolerated a
+// missing key, and ubsField already handles the absence — a required Value
+// would let one Value-less question zero the whole board.
+const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: JsonValueSchema.optional() });
 const UbsJobSchema = z.object({ Questions: z.array(UbsQuestionSchema).optional() });
 const MatchedJobsSchema = z.object({
   Jobs: z.object({ Job: z.array(UbsJobSchema).optional() }).optional(),
