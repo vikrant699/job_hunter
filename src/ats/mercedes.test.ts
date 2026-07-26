@@ -5,7 +5,7 @@ import { z } from "zod";
 import {
   mercedesSearchUrl,
   normalizeMercedes,
-  extractMercedesJobPosting,
+  mercedesJdFromHtml,
 } from "./mercedes.js";
 import type { MercedesDescriptor } from "./mercedes.js";
 import type { AdapterCompany } from "../types.js";
@@ -99,26 +99,23 @@ const jobPageHtml = `
 </head><body></body></html>
 `;
 
-test("extractMercedesJobPosting finds the JobPosting node inside the @graph array", () => {
-  const jp = extractMercedesJobPosting(jobPageHtml);
-  assert.ok(jp);
-  assert.equal(jp!["title"], "Senior Program Manager -IT Validation Solutions");
-  assert.match(String(jp!["description"]), /Lead the Engineering IT team/);
+test("mercedesJdFromHtml extracts + HTML-strips the description from the JobPosting node inside the @graph array", () => {
+  const jd = mercedesJdFromHtml(jobPageHtml);
+  assert.match(jd, /Lead the Engineering IT team/);
+  assert.doesNotMatch(jd, /<h2>|<p>/);
 });
 
-test("extractMercedesJobPosting tolerates a bare JobPosting object (no @graph wrapper)", () => {
-  const html = `<script type="application/ld+json">{"@type":"JobPosting","description":"Bare posting."}</script>`;
-  const jp = extractMercedesJobPosting(html);
-  assert.equal(jp?.["description"], "Bare posting.");
+test("mercedesJdFromHtml tolerates a bare JobPosting object (no @graph wrapper)", () => {
+  const html = `<script type="application/ld+json">{"@type":"JobPosting","title":"Bare Job","description":"Bare posting."}</script>`;
+  assert.equal(mercedesJdFromHtml(html), "Bare posting.");
 });
 
-test("extractMercedesJobPosting returns null when no ld+json script is present", () => {
-  assert.equal(extractMercedesJobPosting("<html><body>no scripts here</body></html>"), null);
+test("mercedesJdFromHtml returns '' when no ld+json script is present", () => {
+  assert.equal(mercedesJdFromHtml("<html><body>no scripts here</body></html>"), "");
 });
 
-test("extractMercedesJobPosting skips an invalid JSON script block instead of throwing", () => {
+test("mercedesJdFromHtml skips an invalid JSON script block instead of throwing", () => {
   const html = `<script type="application/ld+json">{not valid json</script>` + jobPageHtml;
-  const jp = extractMercedesJobPosting(html);
-  assert.ok(jp);
-  assert.equal(jp!["title"], "Senior Program Manager -IT Validation Solutions");
+  const jd = mercedesJdFromHtml(html);
+  assert.match(jd, /Lead the Engineering IT team/);
 });
