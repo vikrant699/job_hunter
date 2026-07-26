@@ -7,11 +7,10 @@
 // One GET returns all ~226 postings. Many are multi-branch banking roles with
 // a large location[] array (branch list). JD inline. Verified live 2026-07-18.
 import { z } from "zod";
-import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, parseOrThrow } from "./http.js";
+import { makeJsonListAdapter } from "./json-list.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.ujjivansfb.bank.in/api/jobs";
@@ -49,19 +48,11 @@ export function normalizeUjjivan(company: AdapterCompany, j: UjjivanJob): Normal
   };
 }
 
-export const ujjivanAdapter: AtsAdapter = {
+export const ujjivanAdapter = makeJsonListAdapter({
   provider: "ujjivan",
-  async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const raw = await atsFetchJson(LIST_URL, { provider: "ujjivan", userAgent: BROWSER_UA });
-    const parsed = parseOrThrow(UjjivanResponseSchema, raw, { provider: "ujjivan", slug: company.slug });
-    const out: NormalizedPosting[] = [];
-    const seen = new Set<string>();
-    for (const j of parsed.data) {
-      const p = normalizeUjjivan(company, j);
-      if (seen.has(p.externalId)) continue;
-      seen.add(p.externalId);
-      out.push(p);
-    }
-    return out;
-  },
-};
+  url: () => LIST_URL,
+  schema: UjjivanResponseSchema,
+  items: (parsed) => parsed.data,
+  normalize: normalizeUjjivan,
+  userAgent: BROWSER_UA,
+});

@@ -6,11 +6,10 @@
 // One GET returns all ~207 requisitions (India). JD inline. Verified live
 // 2026-07-18.
 import { z } from "zod";
-import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, parseOrThrow } from "./http.js";
+import { makeJsonListAdapter } from "./json-list.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.bajajauto.com/handlers/careers/get-requisitions.ashx";
@@ -47,19 +46,11 @@ export function normalizeBajajAuto(company: AdapterCompany, j: BajajAutoJob): No
   };
 }
 
-export const bajajautoAdapter: AtsAdapter = {
+export const bajajautoAdapter = makeJsonListAdapter({
   provider: "bajajauto",
-  async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const raw = await atsFetchJson(LIST_URL, { provider: "bajajauto", userAgent: BROWSER_UA });
-    const parsed = parseOrThrow(BajajAutoResponseSchema, raw, { provider: "bajajauto", slug: company.slug });
-    const out: NormalizedPosting[] = [];
-    const seen = new Set<string>();
-    for (const j of parsed.jobRequisitions) {
-      const p = normalizeBajajAuto(company, j);
-      if (seen.has(p.externalId)) continue;
-      seen.add(p.externalId);
-      out.push(p);
-    }
-    return out;
-  },
-};
+  url: () => LIST_URL,
+  schema: BajajAutoResponseSchema,
+  items: (parsed) => parsed.jobRequisitions,
+  normalize: normalizeBajajAuto,
+  userAgent: BROWSER_UA,
+});
