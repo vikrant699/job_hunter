@@ -7,6 +7,7 @@ import { entryToRow, REGISTRY_COLUMNS } from "./sheet-codec.js";
 import type { RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
 import { appendToRegistry, updateRegistryStrategy, updateRegistryEntry, type RegistryWriterDeps } from "./sheet-writer.js";
+import { at } from "../ats/test-helpers.js";
 
 function tmpCache(seed: RegistryEntry[] = []): string {
   const f = join(mkdtempSync(join(tmpdir(), "reg-writer-")), "registry-cache.json");
@@ -59,7 +60,7 @@ test("appendToRegistry appends only new entries to the tab and mirrors them into
   assert.equal(r.skippedDuplicates, 1);
   assert.equal(appended.length, 1);
   assert.equal(appended[0]?.rows.length, 1);
-  assert.equal(appended[0]?.rows[0]?.[0], `B-${tag}`);
+  assert.equal(appended[0].rows[0]?.[0], `B-${tag}`);
 
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));
   assert.equal(cached.length, 2);
@@ -143,8 +144,9 @@ test("updateRegistryEntry rewrites the located row and mirrors the cache", async
 
   assert.equal(ok, true);
   assert.equal(updatedRanges.length, 1);
-  assert.match(updatedRanges[0]!.rangeA1, /!A3:N3$/); // header row 1, a=row2, b=row3
-  const written = updatedRanges[0]!.rows[0]!;
+  const range0 = at(updatedRanges, 0);
+  assert.match(range0.rangeA1, /!A3:N3$/); // header row 1, a=row2, b=row3
+  const written = at(range0.rows, 0);
   assert.equal(written[REGISTRY_COLUMNS.indexOf("careers_url")], "https://fixed.example/careers");
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));
   assert.equal(cached.find((e) => e.source_slug === `${tag}-b`)?.careers_url, "https://fixed.example/careers");
@@ -171,7 +173,7 @@ test("updateRegistryStrategy targets the correct sheet row even with an invalid 
   );
 
   assert.equal(flipped, true);
-  assert.match(h.updatedRanges[0]!.rangeA1, /!A3:N3$/);
+  assert.match(at(h.updatedRanges, 0).rangeA1, /!A3:N3$/);
   // Cache mirror must be SKIPPED (partial decode) so the invalid row's company
   // is not pruned by a later offline fallback.
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));

@@ -9,6 +9,7 @@ import {
   parseSuccessfactorsJd,
 } from "./successfactors.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "successfactors",
@@ -101,7 +102,7 @@ test("parseSuccessfactorsSearch parses rows once each, mapping title/location/da
   assert.equal(rowCount, 2); // one <tr.data-row> per job — drives offset advancement
   assert.equal(postings.length, 2); // NOT 4 — the phone/desktop duplicates collapse
 
-  const first = postings[0]!;
+  const first = at(postings, 0);
   assert.equal(first.provider, "successfactors");
   assert.equal(first.externalId, "1332433066");
   assert.equal(first.companySlug, "heromotocorp");
@@ -112,7 +113,7 @@ test("parseSuccessfactorsSearch parses rows once each, mapping title/location/da
   assert.equal(first.jdText, ""); // JD populated by fetchJd, not the listing
   assert.equal(first.postedAt, new Date("10 Jul 2026").toISOString());
 
-  const second = postings[1]!;
+  const second = at(postings, 1);
   assert.equal(second.externalId, "998877");
   assert.equal(second.location, "Remote - India");
   assert.equal(second.isRemote, true);
@@ -133,10 +134,10 @@ test("rowCount counts every data-row; brand-prefixed rows are kept, only non-job
   const { postings, rowCount } = parseSuccessfactorsSearch(html, company);
   assert.equal(rowCount, 3);      // all rows counted for pagination offset
   assert.equal(postings.length, 2); // root-path AND brand-prefixed /job/ rows kept; ad row dropped
-  assert.equal(postings[0]!.externalId, "111");
+  assert.equal(at(postings, 0).externalId, "111");
   // Brand-prefixed subsidiary posting must NOT be silently dropped.
-  assert.equal(postings[1]!.externalId, "12345");
-  assert.equal(postings[1]!.jobUrl, "https://jobs.heromotocorp.com/SomeBrand/job/foo-bar/12345/");
+  assert.equal(at(postings, 1).externalId, "12345");
+  assert.equal(at(postings, 1).jobUrl, "https://jobs.heromotocorp.com/SomeBrand/job/foo-bar/12345/");
 });
 
 test("parseSuccessfactorsJd extracts and strips the jobdescription HTML", () => {
@@ -181,8 +182,8 @@ test("parseSuccessfactorsSearch falls back to tile-view cards when no table rows
   const { postings, rowCount } = parseSuccessfactorsSearch(tileHtml, company);
   assert.equal(rowCount, 1);
   assert.equal(postings.length, 1);
-  assert.equal(postings[0]!.externalId, "56793244");
-  assert.equal(postings[0]!.jobTitle, "Deputy Buyer - Kids wear");
-  assert.equal(postings[0]!.location, "Mumbai, Maharashtra, India");
-  assert.match(postings[0]!.jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
+  assert.equal(at(postings, 0).externalId, "56793244");
+  assert.equal(at(postings, 0).jobTitle, "Deputy Buyer - Kids wear");
+  assert.equal(at(postings, 0).location, "Mumbai, Maharashtra, India");
+  assert.match(at(postings, 0).jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
 });

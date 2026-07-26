@@ -73,18 +73,18 @@ test("parseTrakstarList maps rows: title, location (tolerating absence), isRemot
 
   const [ba, se] = postings;
   assert.equal(ba?.provider, "trakstar");
-  assert.equal(ba?.externalId, "business-analyst");
-  assert.equal(ba?.jobTitle, "Business Analyst");
-  assert.equal(ba?.jobUrl, "https://acme.hire.trakstar.com/jobs/business-analyst/");
-  assert.equal(ba?.location, "Bengaluru, India");
-  assert.equal(ba?.isRemote, false);
-  assert.equal(ba?.jdText, "");
-  assert.equal(ba?.postedAt, null);
+  assert.equal(ba.externalId, "business-analyst");
+  assert.equal(ba.jobTitle, "Business Analyst");
+  assert.equal(ba.jobUrl, "https://acme.hire.trakstar.com/jobs/business-analyst/");
+  assert.equal(ba.location, "Bengaluru, India");
+  assert.equal(ba.isRemote, false);
+  assert.equal(ba.jdText, "");
+  assert.equal(ba.postedAt, null);
 
   assert.equal(se?.externalId, "software-engineer-remote");
-  assert.equal(se?.jobTitle, "Software Engineer (Remote)");
-  assert.equal(se?.location, null);
-  assert.equal(se?.isRemote, false);
+  assert.equal(se.jobTitle, "Software Engineer (Remote)");
+  assert.equal(se.location, null);
+  assert.equal(se.isRemote, false);
 });
 
 test("parseTrakstarList detects remote via REMOTE_RE on the location text", () => {

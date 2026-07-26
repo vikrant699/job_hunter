@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ubsField, parseUbsMatchedJobs, ubsReportedJobsCount, ubsTruncationWarning } from "./ubs.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "ubs",
@@ -35,14 +36,14 @@ const PAYLOAD = {
 };
 
 test("ubsField reads a Questions value as a trimmed string", () => {
-  assert.equal(ubsField(PAYLOAD.Jobs.Job[0]!, "jobtitle"), "Test Automation Engineer - Python");
-  assert.equal(ubsField(PAYLOAD.Jobs.Job[0]!, "nope"), null);
+  assert.equal(ubsField(at(PAYLOAD.Jobs.Job, 0), "jobtitle"), "Test Automation Engineer - Python");
+  assert.equal(ubsField(at(PAYLOAD.Jobs.Job, 0), "nope"), null);
 });
 
 test("parseUbsMatchedJobs maps fields, strips JD HTML, dedups, builds deep link", () => {
   const p = parseUbsMatchedJobs(PAYLOAD, company, company.careersUrl, "5012");
   assert.equal(p.length, 1);
-  const j = p[0]!;
+  const j = at(p, 0);
   assert.equal(j.externalId, "330284");
   assert.equal(j.jobTitle, "Test Automation Engineer - Python");
   assert.equal(j.location, "India");

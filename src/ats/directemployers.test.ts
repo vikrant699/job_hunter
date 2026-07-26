@@ -60,7 +60,7 @@ test("city-only (no country) falls back to just the city", () => {
 test("no location_exact/city/country maps location to null", () => {
   const p = normalizeDeJob(company, { ...job, location_exact: null, city_exact: null, country_exact: null });
   assert.equal(p?.location, null);
-  assert.equal(p?.isRemote, false);
+  assert.equal(p.isRemote, false);
 });
 
 // --- listPostings: x-origin header + pagination ----------------------------

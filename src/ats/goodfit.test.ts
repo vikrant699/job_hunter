@@ -11,6 +11,7 @@ import {
   extractGoodfitJd,
 } from "./goodfit.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "goodfit",
@@ -111,35 +112,38 @@ test("extractGoodfitRscJobs isn't confused by an unbalanced brace inside a job's
 test("parseGoodfitLdItems reads the ItemList JSON-LD", () => {
   const items = parseGoodfitLdItems(v2Board);
   assert.equal(items.length, 2);
-  assert.equal(items[0]!.name, "Legal Associate 1");
-  assert.match(items[0]!.url, /Legal-Associate-1\?id=019eef20/);
+  const item0 = at(items, 0);
+  assert.equal(item0.name, "Legal Associate 1");
+  assert.match(item0.url, /Legal-Associate-1\?id=019eef20/);
   assert.deepEqual(parseGoodfitLdItems(v1Board), []);
 });
 
 test("parseGoodfitBoard (v2) merges JSON-LD titles/urls with RSC locations + dates", () => {
   const postings = parseGoodfitBoard(v2Board, "https://v2.app.goodfit.so/jobs/springworks", company);
   assert.equal(postings.length, 2);
-  const [legal, ba] = postings;
-  assert.equal(legal!.provider, "goodfit");
-  assert.equal(legal!.externalId, "019eef20-821d-75ea-adee-7797343e5654");
-  assert.equal(legal!.jobTitle, "Legal Associate 1");
-  assert.equal(legal!.jobUrl, "https://v2.app.goodfit.so/jobs/springworks/Legal-Associate-1?id=019eef20-821d-75ea-adee-7797343e5654");
-  assert.equal(legal!.location, null); // empty RSC locations -> null, NOT the board's "Remote" chip
-  assert.equal(legal!.postedAt, new Date("2026-06-22 11:39:05.63+00").toISOString());
-  assert.equal(ba!.location, "Chennai, Tamil Nadu, India");
-  assert.equal(ba!.jdText, "");
+  const legal = at(postings, 0);
+  const ba = at(postings, 1);
+  assert.equal(legal.provider, "goodfit");
+  assert.equal(legal.externalId, "019eef20-821d-75ea-adee-7797343e5654");
+  assert.equal(legal.jobTitle, "Legal Associate 1");
+  assert.equal(legal.jobUrl, "https://v2.app.goodfit.so/jobs/springworks/Legal-Associate-1?id=019eef20-821d-75ea-adee-7797343e5654");
+  assert.equal(legal.location, null); // empty RSC locations -> null, NOT the board's "Remote" chip
+  assert.equal(legal.postedAt, new Date("2026-06-22 11:39:05.63+00").toISOString());
+  assert.equal(ba.location, "Chennai, Tamil Nadu, India");
+  assert.equal(ba.jdText, "");
 });
 
 test("parseGoodfitBoard (v1) falls back to server-rendered anchors", () => {
   const postings = parseGoodfitBoard(v1Board, "https://app.goodfit.so/jobs/giva", { ...company, slug: "giva", name: "Giva" });
   assert.equal(postings.length, 2);
-  const [sm, rt] = postings;
-  assert.equal(sm!.externalId, "oDD5zV-T");
-  assert.equal(sm!.jobTitle, "Store Manager");
-  assert.equal(sm!.location, "Bangalore, Karnataka, India");
-  assert.equal(sm!.jobUrl, "https://app.goodfit.so/jobs/giva/Store-Manager?id=oDD5zV-T");
-  assert.equal(rt!.jobTitle, "Retail Trainer");
-  assert.equal(rt!.location, "Hyderabad, Telangana, India");
+  const sm = at(postings, 0);
+  const rt = at(postings, 1);
+  assert.equal(sm.externalId, "oDD5zV-T");
+  assert.equal(sm.jobTitle, "Store Manager");
+  assert.equal(sm.location, "Bangalore, Karnataka, India");
+  assert.equal(sm.jobUrl, "https://app.goodfit.so/jobs/giva/Store-Manager?id=oDD5zV-T");
+  assert.equal(rt.jobTitle, "Retail Trainer");
+  assert.equal(rt.location, "Hyderabad, Telangana, India");
 });
 
 test("parseGoodfitBoard throws on the 404 error page, returns [] for an empty board", () => {

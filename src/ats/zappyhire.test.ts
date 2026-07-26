@@ -122,7 +122,7 @@ test("zappyhireAdapter.listPostings (new-gen): one POST, maps every open_job", a
   assert.equal(postings.length, 2);
   assert.equal(postings[0]?.externalId, "3218");
   assert.equal(postings[1]?.externalId, "3219");
-  assert.match(postings[0]?.jdText ?? "", /sales professionals/);
+  assert.match(postings[0].jdText, /sales professionals/);
 });
 
 test("zappyhireAdapter.listPostings (new-gen): empty open_jobs -> []", async (t) => {
@@ -143,7 +143,8 @@ test("zappyhireAdapter.fetchJd (new-gen): returns the already-inline jdText with
     jobTitle: "x", jobUrl: "https://x", location: null, isRemote: false,
     jdText: "already populated", postedAt: null,
   };
-  const jd = await zappyhireAdapter.fetchJd!(newGenCompany, posting);
+  assert(zappyhireAdapter.fetchJd);
+  const jd = await zappyhireAdapter.fetchJd(newGenCompany, posting);
   assert.equal(jd, "already populated");
 });
 
@@ -205,7 +206,8 @@ test("zappyhireAdapter.fetchJd (legacy): fetches the JD-detail call and strips H
     ),
   );
   const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
-  const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
+  assert(zappyhireAdapter.fetchJd);
+  const jd = await zappyhireAdapter.fetchJd(legacyCompany, posting);
   assert.match(jd, /Visit assigned branches/);
   assert.doesNotMatch(jd, /<ul>|<li>/);
 });
@@ -213,7 +215,8 @@ test("zappyhireAdapter.fetchJd (legacy): fetches the JD-detail call and strips H
 test("zappyhireAdapter.fetchJd (legacy): malformed detail response returns empty string, not a throw", async (t) => {
   stubFetch(t, fetchSequence(() => jsonResponse({ status: 0 })));
   const posting = normalizeZappyhireLegacy(legacyCompany, legacyJob);
-  const jd = await zappyhireAdapter.fetchJd!(legacyCompany, posting);
+  assert(zappyhireAdapter.fetchJd);
+  const jd = await zappyhireAdapter.fetchJd(legacyCompany, posting);
   assert.equal(jd, "");
 });
 
@@ -250,7 +253,8 @@ test("zappyhireAdapter.fetchJd (multitenant): fetches the careers/jobs detail an
     fetchSequence(() => jsonResponse({ status: 1, errors: "", results: { description: "<p>Own <strong>growth</strong> loops</p>" } })),
   );
   const posting = normalizeZappyhireMt(mtCompany, mtSource);
-  const jd = await zappyhireAdapter.fetchJd!(mtCompany, posting);
+  assert(zappyhireAdapter.fetchJd);
+  const jd = await zappyhireAdapter.fetchJd(mtCompany, posting);
   assert.match(jd, /Own growth loops/);
   assert.doesNotMatch(jd, /<p>|<strong>/);
 });

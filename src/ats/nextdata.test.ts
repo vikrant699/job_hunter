@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { dig, parseNextDataIsland, nextDataPostings } from "./nextdata.js";
 import type { AdapterCompany } from "../types.js";
 import type { JsonValue } from "../util/json.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "nextdata",
@@ -67,7 +68,7 @@ test("parseNextDataIsland throws on pages without the island", () => {
 test("nextDataPostings maps configured fields and skips titleless rows", () => {
   const postings = nextDataPostings(company, ISLAND);
   assert.equal(postings.length, 2);
-  const p = postings[0]!;
+  const p = at(postings, 0);
   assert.equal(p.externalId, "101");
   assert.equal(p.jobTitle, "Data Scientist");
   assert.equal(p.location, "Gurugram");
@@ -77,8 +78,10 @@ test("nextDataPostings maps configured fields and skips titleless rows", () => {
 });
 
 test("nextDataPostings throws when jobsPath misses", () => {
+  const { apiMeta } = company;
+  assert(apiMeta);
   assert.throws(
-    () => nextDataPostings({ ...company, apiMeta: { ...company.apiMeta!, jobsPath: "props.nope" } }, ISLAND),
+    () => nextDataPostings({ ...company, apiMeta: { ...apiMeta, jobsPath: "props.nope" } }, ISLAND),
     /did not resolve to an array/,
   );
 });

@@ -88,8 +88,8 @@ test("urbancompanyAdapter.listPostings POSTs an empty JSON body and maps every j
     const postings = await urbancompanyAdapter.listPostings(company);
     assert.equal(postings.length, 2);
     assert.equal(capturedInit?.method, "POST");
-    assert.equal(capturedInit?.body, "{}");
-    assert.equal(new Headers(capturedInit?.headers).get("Content-Type"), "application/json");
+    assert.equal(capturedInit.body, "{}");
+    assert.equal(new Headers(capturedInit.headers).get("Content-Type"), "application/json");
   } finally {
     restoreFetch();
   }

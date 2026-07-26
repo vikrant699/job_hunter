@@ -14,7 +14,7 @@ import {
 } from "./reliance.js";
 import type { RelianceJobRow } from "./reliance.js";
 import type { AdapterCompany } from "../types.js";
-import { stubFetch } from "./test-helpers.js";
+import { stubFetch, at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "reliance", slug: "reliance", name: "Reliance Industries",
@@ -148,10 +148,10 @@ test("parseRelianceListPage: page 1 of 2 — parses rows and picks the real href
   assert.equal(page.totalPages, 2);
   assert.equal(page.rows.length, 2);
   assert.equal(page.rows[0]?.title, "CS Operations Lead 2 - CS ( 82861680 )");
-  assert.equal(page.rows[0]?.href, "frmJobSearch.aspx?JBTITLE=xyz0==&jbID=aaa1");
-  assert.equal(page.rows[0]?.location, "Jamnagar");
-  assert.equal(page.rows[0]?.functionalArea, "Corporate Services");
-  assert.equal(page.rows[0]?.postedOn, "10 Jul 2026");
+  assert.equal(page.rows[0].href, "frmJobSearch.aspx?JBTITLE=xyz0==&jbID=aaa1");
+  assert.equal(page.rows[0].location, "Jamnagar");
+  assert.equal(page.rows[0].functionalArea, "Corporate Services");
+  assert.equal(page.rows[0].postedOn, "10 Jul 2026");
 });
 
 test("parseRelianceListPage: page 2 of 2 — different rows, currentPage advances", () => {
@@ -188,7 +188,7 @@ test("parseRelianceDate parses the site's DD Mon YYYY format, null on garbage", 
 });
 
 test("normalizeReliance maps fields: resolved absolute job URL, requisition-code external id, no JD yet", () => {
-  const p = normalizeReliance(company, page1Rows.map(rowFromFixture)[0]!);
+  const p = normalizeReliance(company, at(page1Rows.map(rowFromFixture), 0));
   assert.equal(p.provider, "reliance");
   assert.equal(p.externalId, "82861680");
   assert.equal(p.jobTitle, "CS Operations Lead 2 - CS ( 82861680 )");
@@ -290,8 +290,9 @@ test("relianceAdapter.fetchJd fetches the posting's job URL and extracts the des
     fetchedUrl = String(input);
     return new Response(JD_HTML, { status: 200 });
   });
-  const posting = normalizeReliance(company, rowFromFixture(page1Rows[0]!));
-  const jd = await relianceAdapter.fetchJd!(company, posting);
+  const posting = normalizeReliance(company, rowFromFixture(at(page1Rows, 0)));
+  assert(relianceAdapter.fetchJd);
+  const jd = await relianceAdapter.fetchJd(company, posting);
   assert.equal(fetchedUrl, posting.jobUrl);
   assert.match(jd, /Job Responsibilities/);
 });

@@ -15,6 +15,7 @@ import {
   WebbtreeJobSchema,
 } from "./webbtree.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 function makeCompany(slug: string, overrides: Partial<AdapterCompany> = {}): AdapterCompany {
   return {
@@ -131,8 +132,8 @@ test("decodeWebbtreeEntities does not re-scan a decoded &a; as the start of a ne
 test("extractServerAppStateIsland finds the island script contents", () => {
   const raw = extractServerAppStateIsland(pageWith(fullIsland()));
   assert.ok(raw !== null);
-  assert.match(raw!, /^\{/);
-  assert.match(raw!, /&q;/); // still entity-escaped at this point
+  assert.match(raw, /^\{/);
+  assert.match(raw, /&q;/); // still entity-escaped at this point
 });
 
 test("extractServerAppStateIsland returns null when the island is absent", () => {
@@ -145,7 +146,8 @@ test("extractServerAppStateIsland returns null when the island is absent", () =>
 // ---------------------------------------------------------------------------
 
 test("parseServerAppState decodes, JSON-parses, and zod-validates the island", () => {
-  const raw = extractServerAppStateIsland(pageWith(fullIsland()))!;
+  const raw = extractServerAppStateIsland(pageWith(fullIsland()));
+  assert(raw);
   const island = parseServerAppState(raw, SLUG);
   const keys = Object.keys(island);
   assert.equal(keys.length, 2);
@@ -177,7 +179,7 @@ test("webbtreeJobsFromIsland extracts the jobs array from the getjobs entry", ()
   const island = parseServerAppState(encodeIsland(fullIsland()), SLUG);
   const jobs = webbtreeJobsFromIsland(island, SLUG);
   assert.equal(jobs.length, 2);
-  assert.equal(jobs[0]!.jobnumber, job1.jobnumber);
+  assert.equal(at(jobs, 0).jobnumber, job1.jobnumber);
 });
 
 test("webbtreeJobsFromIsland throws when no getjobs entry is present", () => {
@@ -274,8 +276,8 @@ test("postingsFromWebbtreeHtml maps the full island into postings", () => {
   const company = makeCompany(SLUG);
   const postings = postingsFromWebbtreeHtml(company, pageWith(fullIsland()));
   assert.equal(postings.length, 2);
-  assert.equal(postings[0]!.jobTitle, job1.jobname);
-  assert.equal(postings[1]!.jobTitle, job2.jobname);
+  assert.equal(at(postings, 0).jobTitle, job1.jobname);
+  assert.equal(at(postings, 1).jobTitle, job2.jobname);
 });
 
 test("postingsFromWebbtreeHtml returns [] for an empty board", () => {
@@ -333,7 +335,7 @@ test("webbtreeAdapter.listPostings fetches the board and returns mapped postings
     const postings = await webbtreeAdapter.listPostings(company);
     assert.equal(requestedUrl, "https://app.webbtree.com/company/ideaforge/jobs");
     assert.equal(postings.length, 2);
-    assert.equal(postings[0]!.externalId, job1.jobnumber);
+    assert.equal(at(postings, 0).externalId, job1.jobnumber);
   } finally {
     restoreFetch();
   }
@@ -364,12 +366,14 @@ test("webbtreeAdapter.fetchJd reuses the token cached by listPostings — no sec
     const company = makeCompany(slug);
     const postings = await webbtreeAdapter.listPostings(company);
     assert.equal(boardFetches, 1);
-    const jd = await webbtreeAdapter.fetchJd!(company, postings[0]!);
+    const posting0 = at(postings, 0);
+    assert(webbtreeAdapter.fetchJd);
+    const jd = await webbtreeAdapter.fetchJd(company, posting0);
     assert.equal(boardFetches, 1, "fetchJd should reuse the cached token, not re-fetch the board");
     assert.equal(jd, "Do the job.");
     assert.equal(jdCall?.url, "https://appapi.webbtree.com/candidate/jobs/getjobdetails");
-    assert.deepEqual(jdCall?.body, webbtreeJdRequestBody(slug, postings[0]!.externalId, CE_TOKEN));
-    assert.equal(jdCall?.headers.customurl, `/${slug}/${CE_TOKEN}`);
+    assert.deepEqual(jdCall.body, webbtreeJdRequestBody(slug, posting0.externalId, CE_TOKEN));
+    assert.equal(jdCall.headers.customurl, `/${slug}/${CE_TOKEN}`);
   } finally {
     restoreFetch();
   }
@@ -392,7 +396,8 @@ test("webbtreeAdapter.fetchJd uses company.apiMeta.c_e directly, skipping any bo
   try {
     const company = makeCompany(slug, { apiMeta: { c_e: "preset-token" } });
     const posting = normalizeWebbtree(company, job1);
-    const jd = await webbtreeAdapter.fetchJd!(company, posting);
+    assert(webbtreeAdapter.fetchJd);
+    const jd = await webbtreeAdapter.fetchJd(company, posting);
     assert.equal(boardFetches, 0);
     assert.equal(jd, "JD text");
   } finally {
@@ -417,7 +422,8 @@ test("webbtreeAdapter.fetchJd re-derives the token via a fresh board fetch when 
   try {
     const company = makeCompany(slug);
     const posting = normalizeWebbtree(company, job1);
-    const jd = await webbtreeAdapter.fetchJd!(company, posting);
+    assert(webbtreeAdapter.fetchJd);
+    const jd = await webbtreeAdapter.fetchJd(company, posting);
     assert.equal(boardFetches, 1);
     assert.equal(jd, "JD text");
   } finally {
@@ -439,7 +445,8 @@ test("webbtreeAdapter.fetchJd returns '' and logs a warning on a malformed getjo
   try {
     const company = makeCompany(slug);
     const postings = await webbtreeAdapter.listPostings(company);
-    const jd = await webbtreeAdapter.fetchJd!(company, postings[0]!);
+    assert(webbtreeAdapter.fetchJd);
+    const jd = await webbtreeAdapter.fetchJd(company, at(postings, 0));
     assert.equal(jd, "");
   } finally {
     restoreFetch();

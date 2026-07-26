@@ -33,12 +33,12 @@ test("listPostings maps id/title/location/absolute_url/updated_at", async (t) =>
   const postings = await greenhouseAdapter.listPostings(company);
   assert.equal(postings.length, 1);
   assert.equal(postings[0]?.externalId, "12345");
-  assert.equal(postings[0]?.jobTitle, "Backend Engineer");
-  assert.equal(postings[0]?.location, "Bengaluru, India");
-  assert.equal(postings[0]?.jobUrl, "https://boards.greenhouse.io/acme/jobs/12345");
-  assert.equal(postings[0]?.postedAt, "2026-07-01T10:00:00Z");
-  assert.equal(postings[0]?.isRemote, false);
-  assert.equal(postings[0]?.jdText, "Build things.");
+  assert.equal(postings[0].jobTitle, "Backend Engineer");
+  assert.equal(postings[0].location, "Bengaluru, India");
+  assert.equal(postings[0].jobUrl, "https://boards.greenhouse.io/acme/jobs/12345");
+  assert.equal(postings[0].postedAt, "2026-07-01T10:00:00Z");
+  assert.equal(postings[0].isRemote, false);
+  assert.equal(postings[0].jdText, "Build things.");
 });
 
 test("apiMeta.boardSlug overrides the registry slug in the requested URL", async (t) => {

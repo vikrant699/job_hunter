@@ -9,6 +9,7 @@ import {
   parseRadancyJd,
 } from "./radancy.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const fordCompany: AdapterCompany = {
   provider: "radancy",
@@ -183,19 +184,19 @@ test("parseRadancyList (Ford): scopes to the real search-results container, excl
 
   const [tpm, de] = postings;
   assert.equal(tpm?.provider, "radancy");
-  assert.equal(tpm?.externalId, "95551928096");
-  assert.equal(tpm?.jobTitle, "Technical Product Manager");
+  assert.equal(tpm.externalId, "95551928096");
+  assert.equal(tpm.jobTitle, "Technical Product Manager");
   assert.equal(
-    tpm?.jobUrl,
+    tpm.jobUrl,
     "https://www.careers.ford.com/job/chennai/technical-product-manager/48560/95551928096",
   );
-  assert.equal(tpm?.location, "Chennai, India");
-  assert.equal(tpm?.isRemote, false);
-  assert.equal(tpm?.jdText, "");
-  assert.equal(tpm?.postedAt, null);
+  assert.equal(tpm.location, "Chennai, India");
+  assert.equal(tpm.isRemote, false);
+  assert.equal(tpm.jdText, "");
+  assert.equal(tpm.postedAt, null);
 
   assert.equal(de?.externalId, "97602976592");
-  assert.equal(de?.jobTitle, "Data Engineer");
+  assert.equal(de.jobTitle, "Data Engineer");
 
   // The .job-list__list widget's "Contract Recruiter" (Palo Alto) must not appear.
   assert.ok(!postings.some((p) => p.externalId === "97634112848"));
@@ -208,17 +209,17 @@ test("parseRadancyList (Intuit): subtracts the in-anchor location span from the 
 
   const [sm, be] = postings;
   assert.equal(sm?.externalId, "93463860592");
-  assert.equal(sm?.jobTitle, "Senior Manager, Partner Customer Success");
+  assert.equal(sm.jobTitle, "Senior Manager, Partner Customer Success");
   assert.equal(
-    sm?.jobUrl,
+    sm.jobUrl,
     "https://jobs.intuit.com/job/frisco/senior-manager-partner-customer-success/27595/93463860592",
   );
-  assert.equal(sm?.location, "Multiple Locations");
-  assert.equal(sm?.isRemote, false);
+  assert.equal(sm.location, "Multiple Locations");
+  assert.equal(sm.isRemote, false);
 
   assert.equal(be?.jobTitle, "Backend Engineer (Remote)");
-  assert.equal(be?.location, "Remote - India");
-  assert.equal(be?.isRemote, true);
+  assert.equal(be.location, "Remote - India");
+  assert.equal(be.isRemote, true);
 });
 
 test("parseRadancyList dedups by externalId and returns [] when there's no search-results container", () => {
@@ -282,6 +283,7 @@ test("parseRadancyList (ARM): reads location from a bare span.location when job-
     apiMeta: null,
   });
   assert.equal(postings.length, 1);
-  assert.equal(postings[0]!.jobTitle, "Senior CPU Engineer");
-  assert.equal(postings[0]!.location, "Bangalore, India");
+  const p = at(postings, 0);
+  assert.equal(p.jobTitle, "Senior CPU Engineer");
+  assert.equal(p.location, "Bangalore, India");
 });

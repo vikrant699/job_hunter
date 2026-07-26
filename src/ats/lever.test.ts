@@ -77,7 +77,7 @@ test("categories.location matching REMOTE_RE sets isRemote true", async (t) => {
   );
   const postings = await leverAdapter.listPostings(company);
   assert.equal(postings[0]?.location, "Remote - India");
-  assert.equal(postings[0]?.isRemote, true);
+  assert.equal(postings[0].isRemote, true);
 });
 
 test("epoch-ms createdAt maps to the ISO postedAt", async (t) => {

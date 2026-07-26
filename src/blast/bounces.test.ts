@@ -44,7 +44,7 @@ test("marks recent drafted records bounced with a snippet note; leaves clean one
   assert.equal(result.checked, 2);
   assert.equal(result.newlyBounced, 1);
   assert.equal(state.records[0]?.status, "bounced");
-  assert.equal(state.records[0]?.note, "Address not found");
+  assert.equal(state.records[0].note, "Address not found");
   assert.equal(state.records[1]?.status, "drafted");
 });
 
@@ -91,7 +91,7 @@ test("a skip-only latest batch does not reset lastBatch stats", async () => {
   const { deps } = fakeDeps(["b1@x.com"]);
   const result = await sweepBounces("divya", state, deps);
   assert.equal(result.lastBatch?.batch, 1);
-  assert.equal(result.lastBatch?.ratePct, 100);
+  assert.equal(result.lastBatch.ratePct, 100);
 });
 
 test("lastBatch is null when nothing has ever been drafted", async () => {

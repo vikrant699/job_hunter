@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl } from "./bmw.js";
+import { at } from "./test-helpers.js";
 
 // Trimmed from the live India fragment (2026-07-18).
 const FRAGMENT = `
@@ -18,7 +19,7 @@ test("parseBmwFragment reads the India total and structured tile fields", () => 
   const { tiles, total } = parseBmwFragment(FRAGMENT, "https://www.bmwgroup.jobs");
   assert.equal(total, 1);
   assert.equal(tiles.length, 1);
-  const t = tiles[0]!;
+  const t = at(tiles, 0);
   assert.equal(t.externalId, "184317");
   assert.equal(t.jobTitle, "Customer Support Technical Manager");
   assert.equal(t.location, "Gurugram");

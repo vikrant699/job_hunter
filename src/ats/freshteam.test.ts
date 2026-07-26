@@ -90,20 +90,20 @@ test("parseFreshteamList maps both rows: title (from .job-title, not the slugged
 
   const [ba, se] = postings;
   assert.equal(ba?.provider, "freshteam");
-  assert.equal(ba?.externalId, "jrN-FJFXaYVg");
-  assert.equal(ba?.jobTitle, "Business Analyst");
-  assert.equal(ba?.jobUrl, "https://krazybee.freshteam.com/jobs/jrN-FJFXaYVg/business-analyst");
-  assert.equal(ba?.location, "Bengaluru, India");
-  assert.equal(ba?.isRemote, false);
-  assert.equal(ba?.jdText, "");
-  assert.equal(ba?.postedAt, null);
+  assert.equal(ba.externalId, "jrN-FJFXaYVg");
+  assert.equal(ba.jobTitle, "Business Analyst");
+  assert.equal(ba.jobUrl, "https://krazybee.freshteam.com/jobs/jrN-FJFXaYVg/business-analyst");
+  assert.equal(ba.location, "Bengaluru, India");
+  assert.equal(ba.isRemote, false);
+  assert.equal(ba.jdText, "");
+  assert.equal(ba.postedAt, null);
 
   assert.equal(se?.externalId, "YrRrYuwyxPAH");
-  assert.equal(se?.jobTitle, "Software Engineer - L1 (Hybrid)");
-  assert.equal(se?.location, "Mumbai, India");
+  assert.equal(se.jobTitle, "Software Engineer - L1 (Hybrid)");
+  assert.equal(se.location, "Mumbai, India");
   // data-portal-remote-location=true wins even though the raw location string
   // itself ("Mumbai, India") wouldn't match REMOTE_RE.
-  assert.equal(se?.isRemote, true);
+  assert.equal(se.isRemote, true);
 });
 
 test("parseFreshteamList dedups a job id seen twice and skips a row with no href", () => {

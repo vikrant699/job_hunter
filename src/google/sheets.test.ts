@@ -111,7 +111,7 @@ test("appendRows: POSTs to :append with valueInputOption=RAW and the rows body",
   assert.equal(call.method, "POST");
   assert.match(call.url, /:append\?valueInputOption=RAW/);
   assert.ok(call.body);
-  assert.deepEqual(JSON.parse(call.body ?? "{}"), { values: [["x", "y"]] });
+  assert.deepEqual(JSON.parse(call.body), { values: [["x", "y"]] });
 });
 
 test("rewriteTab: clears then PUTs header+rows to A1 with valueInputOption=RAW", async () => {

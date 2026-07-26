@@ -67,7 +67,7 @@ test("makeJsonListAdapter: happy path maps every item via the vendor's normalize
   const postings = await adapter.listPostings(company);
   assert.equal(postings.length, 2);
   assert.equal(postings[0]?.jobTitle, "Engineer");
-  assert.equal(postings[0]?.externalId, "1");
+  assert.equal(postings[0].externalId, "1");
   assert.equal(postings[1]?.jobTitle, "Designer");
 });
 

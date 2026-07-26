@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createLlmScrapeAdapter, dropCrossCompanyYcLinks } from "./llm-scrape.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "../ats/test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "custom", slug: "acme", name: "Acme",
@@ -25,11 +26,12 @@ test("listPostings returns JSON-LD postings directly — location metadata, no L
   });
   const out = await adapter.listPostings(company);
   assert.equal(out.length, 1);
-  assert.equal(out[0]!.jobTitle, "Senior Data Engineer");
-  assert.equal(out[0]!.location, "Bengaluru, KA, IN");
-  assert.equal(out[0]!.jobUrl, "https://acme.example/jobs/123");
-  assert.equal(out[0]!.postedAt, "2026-06-01");
-  assert.match(out[0]!.jdText, /Build pipelines/);
+  const out0 = at(out, 0);
+  assert.equal(out0.jobTitle, "Senior Data Engineer");
+  assert.equal(out0.location, "Bengaluru, KA, IN");
+  assert.equal(out0.jobUrl, "https://acme.example/jobs/123");
+  assert.equal(out0.postedAt, "2026-06-01");
+  assert.match(out0.jdText, /Build pipelines/);
 });
 
 test("fetchJd prefers the JD page's JSON-LD description over stripped main text", async () => {
@@ -37,7 +39,8 @@ test("fetchJd prefers the JD page's JSON-LD description over stripped main text"
     tag: "test-ld",
     fetcher: async (url) => ({ finalUrl: url, html: LD_PAGE }),
   });
-  const jd = await adapter.fetchJd!(company, {
+  assert.ok(adapter.fetchJd);
+  const jd = await adapter.fetchJd(company, {
     provider: "custom", externalId: "x", companySlug: "acme", companyName: "Acme",
     jobTitle: "Senior Data Engineer", jobUrl: "https://acme.example/jobs/123",
     location: null, isRemote: false, jdText: "", postedAt: null,

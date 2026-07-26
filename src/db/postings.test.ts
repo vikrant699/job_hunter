@@ -108,5 +108,5 @@ test("selectNotifiedPostingsSince scopes to profileId and falls back to slug whe
   const rows = selectNotifiedPostingsSince(since, profileId);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.company, slug);
-  assert.equal(rows[0]?.jobTitle, "Scoped Role");
+  assert.equal(rows[0].jobTitle, "Scoped Role");
 });

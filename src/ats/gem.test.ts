@@ -11,6 +11,7 @@ import {
 } from "./gem.js";
 import type { GemJobStub } from "./gem.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "gem", slug: "promptql", name: "PromptQL",
@@ -60,7 +61,7 @@ const listResponse = {
   },
 };
 
-const job: GemJobStub = listResponse.data.oatsExternalJobPostings.jobPostings[0]!;
+const job: GemJobStub = at(listResponse.data.oatsExternalJobPostings.jobPostings, 0);
 
 test("gemListRequestBody builds the JobBoardList operation with the board slug", () => {
   const body = gemListRequestBody("promptql");

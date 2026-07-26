@@ -10,6 +10,7 @@ import {
   type MyNextHireJob,
 } from "./mynexthire.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "mynexthire",
@@ -71,15 +72,18 @@ test("mynexthireJobUrl builds a link the vendor's own SPA can decode", () => {
 
   // Reproduce careers.js's own parsing: decodeURIComponent(query).split("&"),
   // each pair split on "=" (see basePageClass ctor in careers.js).
-  const query = url.split("?")[1]!;
+  const query = at(url.split("?"), 1);
   const decoded = decodeURIComponent(query);
   const params: Record<string, string> = {};
   for (const pair of decoded.split("&")) {
     const [k, v] = pair.split("=");
-    params[k!] = v!;
+    assert(k);
+    assert(v);
+    params[k] = v;
   }
   assert.equal(params.src, "careers");
-  const recovered: unknown = JSON.parse(Buffer.from(params.p!, "base64").toString("utf8"));
+  assert(params.p);
+  const recovered: unknown = JSON.parse(Buffer.from(params.p, "base64").toString("utf8"));
   assert.deepEqual(recovered, {
     pageType: "jd",
     cvSource: "careers",

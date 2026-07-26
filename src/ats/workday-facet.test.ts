@@ -24,7 +24,7 @@ test("finds India nested one level down under refineFilters, falling back to nod
   })));
   const got = await discoverIndiaFacet({ cxsBase: CXS });
   assert.equal(got?.uuid, "in-uuid");
-  assert.equal(got?.param, "Country_Region");
+  assert.equal(got.param, "Country_Region");
 });
 
 test("ignores an India descriptor under a non-country facet", async (t) => {

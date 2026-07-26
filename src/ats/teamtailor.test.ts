@@ -116,21 +116,21 @@ test("parseTeamtailorList (variant A) maps title, id, url, dept-then-location sp
   assert.equal(items.length, 3);
   const [a, b, c] = items;
   assert.equal(a?.provider, "teamtailor");
-  assert.equal(a?.externalId, "7093222");
-  assert.equal(a?.jobTitle, "Senior Software Engineer - Backend");
-  assert.equal(a?.jobUrl, "https://73strings.teamtailor.com/jobs/7093222-senior-software-engineer-backend");
-  assert.equal(a?.location, "Bangalore");
-  assert.equal(a?.isRemote, false);
-  assert.equal(a?.companySlug, "73strings");
-  assert.equal(a?.jdText, "");
+  assert.equal(a.externalId, "7093222");
+  assert.equal(a.jobTitle, "Senior Software Engineer - Backend");
+  assert.equal(a.jobUrl, "https://73strings.teamtailor.com/jobs/7093222-senior-software-engineer-backend");
+  assert.equal(a.location, "Bangalore");
+  assert.equal(a.isRemote, false);
+  assert.equal(a.companySlug, "73strings");
+  assert.equal(a.jdText, "");
   // dept + location + Hybrid workplace chip: location is the LAST non-workplace span
   assert.equal(b?.externalId, "8041722");
-  assert.equal(b?.location, "New York");
-  assert.equal(b?.isRemote, false);
+  assert.equal(b.location, "New York");
+  assert.equal(b.isRemote, false);
   // single "Remote" span is a workplace marker, not a location
   assert.equal(c?.externalId, "7763460");
-  assert.equal(c?.location, null);
-  assert.equal(c?.isRemote, true);
+  assert.equal(c.location, null);
+  assert.equal(c.isRemote, true);
 });
 
 test("parseTeamtailorList (variant B) reads span[title] titles and custom-domain hrefs", () => {
@@ -139,12 +139,12 @@ test("parseTeamtailorList (variant B) reads span[title] titles and custom-domain
   assert.equal(items.length, 2);
   const [a, b] = items;
   assert.equal(a?.jobTitle, "Managed Service Consultants");
-  assert.equal(a?.externalId, "6635737");
-  assert.equal(a?.location, "Corporater Asia, Bangalore, India");
+  assert.equal(a.externalId, "6635737");
+  assert.equal(a.location, "Corporater Asia, Bangalore, India");
   assert.equal(b?.jobTitle, "Software Engineer - AI Agents");
-  assert.equal(b?.externalId, "7969316");
-  assert.equal(b?.jobUrl, "https://jobs.storytel.com/jobs/7969316-software-engineer-ai-agents");
-  assert.equal(b?.location, "Stockholm");
+  assert.equal(b.externalId, "7969316");
+  assert.equal(b.jobUrl, "https://jobs.storytel.com/jobs/7969316-software-engineer-ai-agents");
+  assert.equal(b.location, "Stockholm");
 });
 
 test("parseTeamtailorList returns null when the board container is missing, [] when it is empty", () => {
