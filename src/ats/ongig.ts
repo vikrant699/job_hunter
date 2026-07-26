@@ -22,10 +22,9 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { parseOrThrow, withAtsTimeout } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
 
 const PAGE = 10;
-const MAX_PAGES = 100;
 
 const RawStr = z.object({ raw: z.union([z.string(), z.number()]).nullable().optional() }).nullable().optional();
 
@@ -133,46 +132,59 @@ export const ongigAdapter: AtsAdapter = {
     const countryFilter = company.apiMeta?.countryFilter ?? "india";
     const { token, cookie } = await ongigSession(org);
 
-    const out: NormalizedPosting[] = [];
-    const seen = new Set<string>();
-    let totalPages = 1;
-
-    for (let current = 1; current <= Math.min(totalPages, MAX_PAGES); current++) {
-      // Raw fetch (not atsFetchJson): needs the bespoke cookie/xsrf-token
-      // headers from the session handshake above, which atsFetchJson has no
-      // option for.
-      const res = await withAtsTimeout((signal) =>
-        fetch(`${org}/api/appSearch`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            accept: "application/json",
-            "x-xsrf-token": token,
-            cookie,
-            referer: `${org}/`,
-            "user-agent": BROWSER_UA,
-          },
-          body: JSON.stringify(ongigBody(gid, countryFilter, current)),
-          signal,
-        }),
-      );
-      if (!res.ok) throw new Error(`ongig HTTP ${res.status} for ${company.slug}`);
-      const parsed = parseOrThrow(OngigResponseSchema, await res.json(), {
-        provider: "ongig",
-        slug: company.slug,
-        what: `list p${current}`,
-      });
-      totalPages = parsed.meta.page.total_pages ?? current;
-      for (const r of parsed.results) {
-        const p = normalizeOngig(company, org, r);
-        if (!p || seen.has(p.externalId)) continue;
-        seen.add(p.externalId);
-        out.push(p);
-      }
-      if (parsed.results.length === 0) break;
-      if (current < totalPages) await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "ongig",
+      company: company.slug,
+      pageSize: PAGE,
+      // No page-length comparison in the original loop either - termination
+      // is a zero-result page or reaching meta.page.total_pages (a PAGE
+      // count, re-read from every response - see below).
+      shortPageEndsPagination: false,
+      maxPages: DEFAULT_MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
+      fetchPage: async (offset, page) => {
+        const current = page + 1; // API is 1-based
+        // Raw fetch (not atsFetchJson): needs the bespoke cookie/xsrf-token
+        // headers from the session handshake above, which atsFetchJson has
+        // no option for.
+        const res = await withAtsTimeout((signal) =>
+          fetch(`${org}/api/appSearch`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+              "x-xsrf-token": token,
+              cookie,
+              referer: `${org}/`,
+              "user-agent": BROWSER_UA,
+            },
+            body: JSON.stringify(ongigBody(gid, countryFilter, current)),
+            signal,
+          }),
+        );
+        if (!res.ok) throw new Error(`ongig HTTP ${res.status} for ${company.slug}`);
+        const parsed = parseOrThrow(OngigResponseSchema, await res.json(), {
+          provider: "ongig",
+          slug: company.slug,
+          what: `list p${current}`,
+        });
+        const items = parsed.results
+          .map((r) => normalizeOngig(company, org, r))
+          .filter((p): p is NormalizedPosting => p !== null);
+        // total_pages is re-read from THIS page's own response (matching the
+        // original, which reassigned it every iteration rather than latching
+        // page 1's value) - translated into paginate()'s item-count `total`
+        // contract the same way directemployers.ts does: report a total
+        // exactly equal to the cumulative offset once this page is the last
+        // one, null otherwise, so the loop stops right after fetching it.
+        const totalPagesNow = parsed.meta.page.total_pages ?? current;
+        const isLastPage = current >= totalPagesNow;
+        return {
+          items,
+          rawCount: parsed.results.length,
+          total: isLastPage ? offset + parsed.results.length : null,
+        };
+      },
+    });
   },
 };
