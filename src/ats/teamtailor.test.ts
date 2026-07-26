@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import {
   teamtailorJobsUrl,
   parseTeamtailorList,
-  extractTeamtailorJobPosting,
   teamtailorJdFromHtml,
 } from "./teamtailor.js";
 import type { AdapterCompany } from "../types.js";
@@ -155,17 +154,10 @@ test("parseTeamtailorList returns null when the board container is missing, [] w
   assert.equal(empty.length, 0);
 });
 
-test("extractTeamtailorJobPosting finds the JSON-LD JobPosting island", () => {
-  const ld = extractTeamtailorJobPosting(detailHtml);
-  assert.ok(ld);
-  assert.equal(ld.title, "Senior Software Engineer - Backend");
-  assert.match(ld.description ?? "", /73 Strings/);
-});
-
-test("extractTeamtailorJobPosting ignores non-JobPosting islands and bad JSON", () => {
+test("teamtailorJdFromHtml falls back to prose when the ld+json has no JobPosting (Organization block, malformed block)", () => {
   const html = `<script type="application/ld+json">{"@type":"Organization","name":"x"}</script>
 <script type="application/ld+json">not json</script>`;
-  assert.equal(extractTeamtailorJobPosting(html), null);
+  assert.equal(teamtailorJdFromHtml(html), "");
 });
 
 test("teamtailorJdFromHtml decodes the entity-encoded JSON-LD description to plain text", () => {

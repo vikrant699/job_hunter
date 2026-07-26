@@ -9,26 +9,17 @@
 // description is entity-encoded HTML (decode once, then strip); fallback is the
 // server-rendered <main> .prose block.
 import * as cheerio from "cheerio";
-import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
-import { tryParseJson } from "../util/json.js";
 
 const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
 // Workplace chips rendered next to the location (e.g. "Hybrid · <wifi icon>").
 const WORKPLACE_RE = /^(hybrid|remote|fully remote|on-?site|office)$/i;
-
-const TeamtailorJobPostingSchema = z.object({
-  "@type": z.string(),
-  title: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  datePosted: z.string().nullable().optional(),
-});
-export type TeamtailorJobPosting = z.infer<typeof TeamtailorJobPostingSchema>;
 
 /** Paged board URL: https://<slug>.teamtailor.com/jobs?page=N (1-based). */
 export function teamtailorJobsUrl(company: AdapterCompany, page: number): string {
@@ -105,19 +96,6 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
   return out;
 }
 
-/** First JSON-LD island whose @type is JobPosting, or null. */
-export function extractTeamtailorJobPosting(html: string): TeamtailorJobPosting | null {
-  const $ = cheerio.load(html);
-  for (const el of $('script[type="application/ld+json"]').toArray()) {
-    const rawText = $(el).text();
-    const parsedJson = tryParseJson(rawText);
-    if (parsedJson === null) continue;
-    const parsed = TeamtailorJobPostingSchema.safeParse(parsedJson);
-    if (parsed.success && parsed.data["@type"] === "JobPosting") return parsed.data;
-  }
-  return null;
-}
-
 /**
  * JD text from a job detail page. The JSON-LD description is entity-encoded
  * HTML (&lt;p&gt;…), so htmlToText runs twice: pass 1 decodes entities into
@@ -125,8 +103,8 @@ export function extractTeamtailorJobPosting(html: string): TeamtailorJobPosting 
  * harmless.) Fallback: the server-rendered <main> .prose content block.
  */
 export function teamtailorJdFromHtml(html: string): string {
-  const ld = extractTeamtailorJobPosting(html);
-  if (ld?.description) return htmlToText(htmlToText(ld.description));
+  const [job] = extractJsonLdJobs(html);
+  if (job?.description) return htmlToText(htmlToText(job.description));
   const $ = cheerio.load(html);
   const prose = $("main .prose").first();
   return prose.length > 0 ? htmlToText(prose.html() ?? "") : "";
