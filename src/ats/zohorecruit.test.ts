@@ -9,6 +9,7 @@ import {
   type ZohoRecruitJob,
 } from "./zohorecruit.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "zohorecruit",
@@ -76,7 +77,7 @@ function pageWith(jobs: ReadonlyArray<Record<string, boolean | string>>): string
 test("extractJobsIsland finds the id=\"jobs\" input among sibling islands", () => {
   const raw = extractJobsIsland(pageWith([fullJob, remoteJob]));
   assert.ok(raw !== null);
-  assert.match(raw!, /^\[\{&#34;/); // still entity-escaped at this point
+  assert.match(raw, /^\[\{&#34;/); // still entity-escaped at this point
 });
 
 test("extractJobsIsland skips raw id=\"jobs\" literals in earlier page content", () => {
@@ -89,9 +90,11 @@ test("extractJobsIsland skips raw id=\"jobs\" literals in earlier page content",
     '<input type="checkbox" id="jobs">',
   ].join("");
   const html = pageWith([fullJob]).replace("<body>", `<body>${decoys}`);
-  const jobs = parseJobsIsland(extractJobsIsland(html)!, company.slug);
+  const raw = extractJobsIsland(html);
+  assert.ok(raw !== null);
+  const jobs = parseJobsIsland(raw, company.slug);
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0]!.id, "196319000004222912");
+  assert.equal(at(jobs, 0).id, "196319000004222912");
 });
 
 test("extractJobsIsland returns null when the island is absent", () => {
@@ -101,14 +104,17 @@ test("extractJobsIsland returns null when the island is absent", () => {
 
 test("parseJobsIsland decodes, JSON-parses, and zod-validates the jobs array", () => {
   const raw = extractJobsIsland(pageWith([fullJob, remoteJob]));
-  const jobs = parseJobsIsland(raw!, company.slug);
+  assert.ok(raw !== null);
+  const jobs = parseJobsIsland(raw, company.slug);
   assert.equal(jobs.length, 2);
-  assert.equal(jobs[0]!.Posting_Title, "Frontend Developer");
-  assert.equal(jobs[0]!.id, "196319000004222912");
+  const job0 = at(jobs, 0);
+  assert.equal(job0.Posting_Title, "Frontend Developer");
+  assert.equal(job0.id, "196319000004222912");
   // The JD survives both unescaping layers: attribute entities -> JSON string
   // -> HTML (left intact here; normalize strips it).
-  assert.match(jobs[0]!.Job_Description!, /<p>Build UIs with React &amp; TypeScript\./);
-  assert.equal(jobs[1]!.Remote_Job, true);
+  assert.ok(job0.Job_Description);
+  assert.match(job0.Job_Description, /<p>Build UIs with React &amp; TypeScript\./);
+  assert.equal(at(jobs, 1).Remote_Job, true);
 });
 
 test("parseJobsIsland throws an actionable error on non-JSON garbage", () => {
@@ -135,24 +141,26 @@ test("ZohoRecruitJobSchema tolerates missing optionals but requires id+title", (
 
 test("postingsFromZohoHtml maps fields onto NormalizedPosting", () => {
   const [p, r] = postingsFromZohoHtml(company, pageWith([fullJob, remoteJob]));
-  assert.equal(p!.provider, "zohorecruit");
-  assert.equal(p!.externalId, "196319000004222912");
-  assert.equal(p!.companySlug, "acowale");
-  assert.equal(p!.companyName, "Acowale");
-  assert.equal(p!.jobTitle, "Frontend Developer");
-  assert.equal(p!.jobUrl, "https://acowale.zohorecruit.in/jobs/Careers/196319000004222912/Frontend-Developer");
-  assert.equal(p!.location, "Bangalore South, Karnataka, India");
-  assert.equal(p!.isRemote, false);
-  assert.equal(p!.postedAt, "2026-06-29");
+  assert.ok(p);
+  assert.ok(r);
+  assert.equal(p.provider, "zohorecruit");
+  assert.equal(p.externalId, "196319000004222912");
+  assert.equal(p.companySlug, "acowale");
+  assert.equal(p.companyName, "Acowale");
+  assert.equal(p.jobTitle, "Frontend Developer");
+  assert.equal(p.jobUrl, "https://acowale.zohorecruit.in/jobs/Careers/196319000004222912/Frontend-Developer");
+  assert.equal(p.location, "Bangalore South, Karnataka, India");
+  assert.equal(p.isRemote, false);
+  assert.equal(p.postedAt, "2026-06-29");
   // JD is plain text: HTML stripped, inner entities decoded.
-  assert.match(p!.jdText, /Build UIs with React & TypeScript\. "Pixel-perfect" work\./);
-  assert.doesNotMatch(p!.jdText, /<p>/);
+  assert.match(p.jdText, /Build UIs with React & TypeScript\. "Pixel-perfect" work\./);
+  assert.doesNotMatch(p.jdText, /<p>/);
 
-  assert.equal(r!.isRemote, true);
-  assert.equal(r!.location, null); // no City/State/Country on the fixture
-  assert.equal(r!.postedAt, null);
+  assert.equal(r.isRemote, true);
+  assert.equal(r.location, null); // no City/State/Country on the fixture
+  assert.equal(r.postedAt, null);
   assert.equal(
-    r!.jobUrl,
+    r.jobUrl,
     "https://acowale.zohorecruit.in/jobs/Careers/196319000004222727/Full-Stack-Developer-Internship-Unpaid",
   );
 });
@@ -161,7 +169,7 @@ test("postingsFromZohoHtml drops jobs explicitly marked Publish:false", () => {
   const unpublished = { ...remoteJob, id: "196319000000000001", Publish: false };
   const out = postingsFromZohoHtml(company, pageWith([fullJob, unpublished]));
   assert.equal(out.length, 1);
-  assert.equal(out[0]!.externalId, "196319000004222912");
+  assert.equal(at(out, 0).externalId, "196319000004222912");
 });
 
 test("postingsFromZohoHtml returns [] for an empty board (value=\"[]\")", () => {

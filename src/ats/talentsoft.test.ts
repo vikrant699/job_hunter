@@ -11,6 +11,7 @@ import {
   extractTalentsoftJdHtml,
 } from "./talentsoft.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "talentsoft",
@@ -144,14 +145,14 @@ test("parseTalentsoftListingHtml extracts title/location/id/url for each card", 
   const { items, total } = parseTalentsoftListingHtml(REAL_LISTING_HTML, company.careersUrl);
   assert.equal(items.length, 2);
 
-  assert.equal(items[0]!.externalId, "114086");
-  assert.equal(items[0]!.jobTitle, "CASPL Head of Trade Finance");
-  assert.equal(items[0]!.jobUrl, "https://jobs.ca-cib.com/job/job-caspl-head-of-trade-finance_114086.aspx");
-  assert.equal(items[0]!.location, "MUMBAI, India");
+  assert.equal(at(items, 0).externalId, "114086");
+  assert.equal(at(items, 0).jobTitle, "CASPL Head of Trade Finance");
+  assert.equal(at(items, 0).jobUrl, "https://jobs.ca-cib.com/job/job-caspl-head-of-trade-finance_114086.aspx");
+  assert.equal(at(items, 0).location, "MUMBAI, India");
 
-  assert.equal(items[1]!.externalId, "113040");
-  assert.equal(items[1]!.jobTitle, "Trainee");
-  assert.equal(items[1]!.location, "Mumbai, India");
+  assert.equal(at(items, 1).externalId, "113040");
+  assert.equal(at(items, 1).jobTitle, "Trainee");
+  assert.equal(at(items, 1).location, "Mumbai, India");
 
   assert.equal(total, 10);
 });
@@ -162,7 +163,7 @@ test("parseTalentsoftListingHtml skips a card with no href/title and dedups by i
   <li class="ts-offer-list-item"><h3 class="ts-offer-list-item__title"><a class="ts-offer-list-item__title-link" href="/job/job-x-dup_1.aspx">X dup</a></h3></li>`;
   const { items } = parseTalentsoftListingHtml(html, company.careersUrl);
   assert.equal(items.length, 1);
-  assert.equal(items[0]!.jobTitle, "X");
+  assert.equal(at(items, 0).jobTitle, "X");
 });
 
 test("parseTalentsoftListingHtml returns total null when the count block is absent", () => {
@@ -174,7 +175,7 @@ test("parseTalentsoftListingHtml returns total null when the count block is abse
 
 test("normalizeTalentsoftItem builds a posting and flags remote via REMOTE_RE", () => {
   const { items } = parseTalentsoftListingHtml(REAL_LISTING_HTML, company.careersUrl);
-  const p = normalizeTalentsoftItem(company, items[0]!);
+  const p = normalizeTalentsoftItem(company, at(items, 0));
   assert.equal(p.provider, "talentsoft");
   assert.equal(p.externalId, "114086");
   assert.equal(p.jobTitle, "CASPL Head of Trade Finance");
@@ -182,7 +183,7 @@ test("normalizeTalentsoftItem builds a posting and flags remote via REMOTE_RE", 
   assert.equal(p.isRemote, false);
   assert.equal(p.jdText, "");
 
-  const remote = normalizeTalentsoftItem(company, { ...items[0]!, location: "Remote, India" });
+  const remote = normalizeTalentsoftItem(company, { ...at(items, 0), location: "Remote, India" });
   assert.equal(remote.isRemote, true);
 });
 

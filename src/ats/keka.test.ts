@@ -38,8 +38,9 @@ test("discovery extraction path: page HTML -> orgGuid -> embed URL the adapter w
   const html = `<script>window.__org = {"orgId":"FA11C430-C96C-447F-9F68-D05AB3867C12","theme":"dark"}</script>`;
   const guid = extractKekaOrgGuid(html);
   assert.equal(guid, "FA11C430-C96C-447F-9F68-D05AB3867C12");
+  assert(guid);
   assert.equal(
-    kekaEmbedUrl("mosaicwellness", guid!),
+    kekaEmbedUrl("mosaicwellness", guid),
     "https://mosaicwellness.keka.com/careers/api/embedjobs/default/active/FA11C430-C96C-447F-9F68-D05AB3867C12",
   );
 });

@@ -7,9 +7,9 @@ test("detects a greytHR board URL and registers it as a promotable provider", ()
   const cands = extractAtsCandidates(html, "https://firstclub.com/careers");
   const g = cands.find((c) => c.provider === "greythr");
   assert.ok(g, "greythr candidate should be detected");
-  assert.equal(g!.slug, "firstclub");
-  assert.equal(g!.url, "https://firstclub.greythr.com/hire/jobs/");
-  assert.equal(g!.hasAdapter, true);
+  assert.equal(g.slug, "firstclub");
+  assert.equal(g.url, "https://firstclub.greythr.com/hire/jobs/");
+  assert.equal(g.hasAdapter, true);
 });
 
 test("ignores the greytHR vendor site (www.greythr.com)", () => {
@@ -28,16 +28,16 @@ test("detects a Zoho Recruit board and preserves the tenant's page name", () => 
   const cands = extractAtsCandidates(html, "https://spendflo.com/careers");
   const z = cands.find((c) => c.provider === "zohorecruit");
   assert.ok(z, "zohorecruit candidate should be detected");
-  assert.equal(z!.slug, "spendflo");
-  assert.equal(z!.url, "https://spendflo.zohorecruit.com/jobs/Job-openings");
-  assert.equal(z!.hasAdapter, true);
+  assert.equal(z.slug, "spendflo");
+  assert.equal(z.url, "https://spendflo.zohorecruit.com/jobs/Job-openings");
+  assert.equal(z.hasAdapter, true);
 });
 
 test("Zoho Recruit .in hosts and job-detail deep links canonicalize to the board", () => {
   const html = `<a href="https://acowale.zohorecruit.in/jobs/Careers/196319000004222912/Frontend-Developer">FE</a>`;
   const z = extractAtsCandidates(html, "https://x.com").find((c) => c.provider === "zohorecruit");
   assert.equal(z?.slug, "acowale");
-  assert.equal(z?.url, "https://acowale.zohorecruit.in/jobs/Careers");
+  assert.equal(z.url, "https://acowale.zohorecruit.in/jobs/Careers");
 });
 
 test("Zoho Recruit bare-host mentions default to /jobs/Careers; vendor www is ignored", () => {
@@ -53,5 +53,5 @@ test("hasAdapter is true exactly when the provider is in ProviderSchema", () => 
   assert.equal(gh[0]?.hasAdapter, true);
   const icims = extractAtsCandidates(`<a href="https://careers-foo.icims.com/jobs">jobs</a>`, "https://foo.com/careers");
   assert.equal(icims[0]?.provider, "icims");
-  assert.equal(icims[0]?.hasAdapter, false);
+  assert.equal(icims[0].hasAdapter, false);
 });

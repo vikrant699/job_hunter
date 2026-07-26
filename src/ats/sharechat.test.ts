@@ -101,7 +101,7 @@ test("normalizeShareChat strips HTML from jobDescription when present", () => {
   const jobs = flattenShareChatJobs(listResponse);
   const withJd = jobs.find((j) => j.requisitionId === 2390);
   assert.ok(withJd);
-  const p = normalizeShareChat(company, withJd!);
+  const p = normalizeShareChat(company, withJd);
   assert.match(p.jdText, /Edit videos with AI tools/);
   assert.doesNotMatch(p.jdText, /<p>|<strong>/);
 });

@@ -10,6 +10,7 @@ import {
   type RipplingDetail,
 } from "./rippling.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "rippling",
@@ -73,7 +74,7 @@ const REAL_LIST_JOBS: RipplingJob[] = [
 ];
 
 test("normalizeRipplingJob maps fields and dedups nothing (one row per location)", () => {
-  const p = normalizeRipplingJob(company, REAL_LIST_JOBS[0]!);
+  const p = normalizeRipplingJob(company, at(REAL_LIST_JOBS, 0));
   assert.equal(p.provider, "rippling");
   assert.equal(p.externalId, "9bfc0d02-c747-4294-b620-45512a302418");
   assert.equal(p.companySlug, "centricity-research");
@@ -87,7 +88,7 @@ test("normalizeRipplingJob maps fields and dedups nothing (one row per location)
 });
 
 test("normalizeRipplingJob detects remote via REMOTE_RE on the location label", () => {
-  const p = normalizeRipplingJob(company, REAL_LIST_JOBS[2]!);
+  const p = normalizeRipplingJob(company, at(REAL_LIST_JOBS, 2));
   assert.equal(p.location, "Remote (United States)");
   assert.equal(p.isRemote, true);
 });

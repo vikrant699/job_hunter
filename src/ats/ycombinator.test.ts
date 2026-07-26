@@ -45,7 +45,7 @@ test("ycJobsFromListPage unwraps props.jobPostings and validates each item", () 
   const jobs = ycJobsFromListPage(data, "landeed");
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.title, "Member of Technical Staff - Post-Training Engineer");
-  assert.equal(jobs[0]?.location, "Hyderabad, TS, IN / Hyderabad, Telangana, IN");
+  assert.equal(jobs[0].location, "Hyderabad, TS, IN / Hyderabad, Telangana, IN");
 });
 
 test("ycJobsFromListPage throws on a schema mismatch (e.g. missing jobPostings)", () => {
@@ -76,12 +76,12 @@ test("parseYcRelative parses date-fns-style relative strings, ignoring the quali
   const now = Date.now();
   const aboutMonth = parseYcRelative("about 1 month");
   assert.ok(aboutMonth);
-  const deltaDays = (now - new Date(aboutMonth!).getTime()) / 86_400_000;
+  const deltaDays = (now - new Date(aboutMonth).getTime()) / 86_400_000;
   assert.ok(deltaDays > 29 && deltaDays < 31);
 
   const overYears = parseYcRelative("over 2 years");
   assert.ok(overYears);
-  const deltaYears = (now - new Date(overYears!).getTime()) / (365 * 86_400_000);
+  const deltaYears = (now - new Date(overYears).getTime()) / (365 * 86_400_000);
   assert.ok(deltaYears > 1.9 && deltaYears < 2.1);
 });
 
@@ -128,9 +128,9 @@ test("detail-page data-page extraction yields the full JD via ycJobFromDetailPag
   const data = extractYcDataPage(DETAIL_PAGE_HTML);
   const job = ycJobFromDetailPage(data, "landeed", "95916");
   assert.ok(job);
-  assert.match(job!.description ?? "", /own post-training end to end/);
+  assert.match(job.description ?? "", /own post-training end to end/);
   // Entities inside the JD text itself (apostrophe) are decoded too.
-  assert.match(job!.description ?? "", /You'll own/);
+  assert.match(job.description ?? "", /You'll own/);
 });
 
 test("ycJobFromDetailPage returns null (not throw) on a schema mismatch", () => {

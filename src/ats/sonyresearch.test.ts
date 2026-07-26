@@ -63,13 +63,15 @@ test("parseSonyResearchOpenings finds one opening per LinkedIn apply link, using
 
 test("parseSonyResearchOpenings sets jobUrl to the LinkedIn link verbatim", () => {
   const [first] = parseSonyResearchOpenings(CONTENT_FIXTURE);
-  assert.equal(first!.jobUrl, "https://www.linkedin.com/jobs/view/4434931409/");
+  assert(first);
+  assert.equal(first.jobUrl, "https://www.linkedin.com/jobs/view/4434931409/");
 });
 
 test("parseSonyResearchOpenings jdText is the block's own text (title + Location + Duration), tags stripped", () => {
   const [first] = parseSonyResearchOpenings(CONTENT_FIXTURE);
-  assert.equal(first!.jdText, "Multimodal AI Intern\nLocation: Bengaluru, India (Remote)\nDuration: 6 Months\nApply Now");
-  assert.doesNotMatch(first!.jdText, /<[^>]+>/);
+  assert(first);
+  assert.equal(first.jdText, "Multimodal AI Intern\nLocation: Bengaluru, India (Remote)\nDuration: 6 Months\nApply Now");
+  assert.doesNotMatch(first.jdText, /<[^>]+>/);
 });
 
 test("parseSonyResearchOpenings returns [] when the page has no LinkedIn apply links", () => {
@@ -143,7 +145,9 @@ test("sonyresearchAdapter.fetchJd returns the posting's own jdText without any n
       jobUrl: "https://www.linkedin.com/jobs/view/1/",
       jdText: "Some Role\nLocation: Bengaluru, India\nDuration: 6 Months",
     });
-    const jd = await sonyresearchAdapter.fetchJd!(company, posting);
+    const { fetchJd } = sonyresearchAdapter;
+    assert(fetchJd);
+    const jd = await fetchJd(company, posting);
     assert.equal(jd, posting.jdText);
     assert.equal(fetchCalled, false);
   } finally {
@@ -167,7 +171,9 @@ test("sonyresearchAdapter.fetchJd re-derives from the careers page (never Linked
       jobUrl: "https://www.linkedin.com/jobs/view/4434931409/",
       jdText: "",
     });
-    const jd = await sonyresearchAdapter.fetchJd!(company, posting);
+    const { fetchJd } = sonyresearchAdapter;
+    assert(fetchJd);
+    const jd = await fetchJd(company, posting);
     assert.match(jd, /Multimodal AI Intern/);
     assert.ok(urlsHit.every((u) => !u.includes("linkedin.com")));
   } finally {

@@ -106,7 +106,7 @@ test("runVerify: draft still exists -> only last_checked_at is updated", async (
   assert.equal(result.checkedDrafts, 1);
   assert.equal(statusUpdates.length, 1);
   assert.equal(statusUpdates[0]?.status, "draft");
-  assert.ok(statusUpdates[0]?.lastCheckedAt);
+  assert.ok(statusUpdates[0].lastCheckedAt);
 });
 
 test("runVerify: draft gone + a sent message after drafted_at -> status sent, sent_at from newest hit", async () => {
@@ -121,8 +121,8 @@ test("runVerify: draft gone + a sent message after drafted_at -> status sent, se
   assert.equal(result.sent, 1);
   assert.equal(statusUpdates.length, 1);
   assert.equal(statusUpdates[0]?.status, "sent");
-  assert.equal(statusUpdates[0]?.sentAt, new Date(1782900000000).toISOString());
-  assert.equal(statusUpdates[0]?.gmailMessageId, "m1");
+  assert.equal(statusUpdates[0].sentAt, new Date(1782900000000).toISOString());
+  assert.equal(statusUpdates[0].gmailMessageId, "m1");
 });
 
 test("runVerify: draft gone + no sent message -> discarded + one undrafted row per bundled role", async () => {
@@ -162,10 +162,10 @@ test("runVerify: sent row with a bounce hit -> status bounced + recruiter global
   const result = await runVerify({ profileId: "default", runId: null, deps });
   assert.equal(result.bounced, 1);
   assert.equal(statusUpdates[0]?.status, "bounced");
-  assert.equal(statusUpdates[0]?.failureDetail, "550 5.1.1 user unknown");
+  assert.equal(statusUpdates[0].failureDetail, "550 5.1.1 user unknown");
   assert.equal(recruiterStatuses.length, 1);
   assert.equal(recruiterStatuses[0]?.email, "recruiter@acme.com");
-  assert.equal(recruiterStatuses[0]?.status, "bounced");
+  assert.equal(recruiterStatuses[0].status, "bounced");
 });
 
 test("runVerify: sent row past verifyAfterHours with no bounce -> status verified + recruiter globally verified", async () => {
@@ -193,7 +193,7 @@ test("runVerify: newly-verified raw-csv recruiter is appended to the Recruiters 
   await runVerify({ profileId: "default", runId: null, deps });
   assert.equal(appended.length, 1);
   assert.equal(appended[0]?.tab, "Recruiters List");
-  assert.deepEqual(appended[0]?.rows, [["Acme", "Jane", "123", "raw@acme.com", "job-hunter-bot", "2026-07-06", "acme"]]);
+  assert.deepEqual(appended[0].rows, [["Acme", "Jane", "123", "raw@acme.com", "job-hunter-bot", "2026-07-06", "acme"]]);
 });
 
 test("runVerify: newly-verified manual-sheet recruiter is NOT appended (already on the tab)", async () => {

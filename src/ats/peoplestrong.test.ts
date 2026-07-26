@@ -72,7 +72,8 @@ test("peoplestrongJobUrl prefers jobDetailUrl, else constructs /job/detail/<_-co
 });
 
 test("normalizePeoplestrong maps fields; constructs URL when jobDetailUrl is null", () => {
-  const p = normalizePeoplestrong(company, JOB_NO_URL)!;
+  const p = normalizePeoplestrong(company, JOB_NO_URL);
+  assert(p);
   assert.equal(p.provider, "peoplestrong");
   assert.equal(p.externalId, "RBL/RM-SB/1477632");
   assert.equal(p.companySlug, "rblcareers");
@@ -86,7 +87,8 @@ test("normalizePeoplestrong maps fields; constructs URL when jobDetailUrl is nul
 });
 
 test("normalizePeoplestrong honors jobDetailUrl and detects remote locations", () => {
-  const p = normalizePeoplestrong(company, JOB_WITH_URL)!;
+  const p = normalizePeoplestrong(company, JOB_WITH_URL);
+  assert(p);
   assert.equal(p.externalId, "BFL/D-VA/1794956");
   assert.equal(p.jobUrl, "https://abfrlcareers.peoplestrong.com/job/detail/BFL_D-VA_1794956");
   assert.equal(p.location, "Remote - India");
@@ -104,9 +106,11 @@ test("normalizePeoplestrong falls back to locationHierarchyComplete then null", 
     jobCode: "A/1",
     locationHierarchy: null,
     locationHierarchyComplete: "India>West>Maharashtra>Pune",
-  })!;
+  });
+  assert(complete);
   assert.equal(complete.location, "India>West>Maharashtra>Pune");
-  const none = normalizePeoplestrong(company, { jobCode: "A/2" })!;
+  const none = normalizePeoplestrong(company, { jobCode: "A/2" });
+  assert(none);
   assert.equal(none.location, null);
   assert.equal(none.isRemote, false);
 });
@@ -122,7 +126,9 @@ test("PeoplestrongListSchema parses the wrapper and totalRecords pagination math
   assert.equal(parsed.data.totalRecords, 57);
   assert.equal(parsed.data.response.length, 2);
   // 57 records at page size 45 -> 2 pages.
-  assert.equal(Math.ceil(parsed.data.totalRecords! / 45), 2);
+  const { totalRecords } = parsed.data;
+  assert(typeof totalRecords === "number");
+  assert.equal(Math.ceil(totalRecords / 45), 2);
 });
 
 test("empty board: response array present but empty", () => {

@@ -8,6 +8,7 @@ import {
   extractSkimaJd,
 } from "./skima.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "skima",
@@ -73,14 +74,14 @@ test("parseSkimaListingHtml extracts title cards, skips text-less Apply anchors,
   assert.equal(page.total, 22);
   assert.equal(page.items.length, 2);
 
-  const first = page.items[0]!;
+  const first = at(page.items, 0);
   assert.equal(first.externalId, "74e803d6-59c3-4430-a10d-9c8199a170af");
   assert.equal(first.jobTitle, "HR Operation Executive (Offroll)");
   assert.equal(first.jobUrl, "https://careers.nykaa.com/74e803d6-59c3-4430-a10d-9c8199a170af");
   assert.equal(first.location, "Mumbai");
   assert.equal(first.isRemote, false);
 
-  const second = page.items[1]!;
+  const second = at(page.items, 1);
   assert.equal(second.externalId, "ab783fc3-f66c-4e73-8cd7-e3e272f3e4db"); // lowercased
   assert.equal(second.isRemote, true);
 });
@@ -95,7 +96,7 @@ test("parseSkimaListingHtml returns null total when the counter is absent", () =
 
 test("normalizeSkimaItem maps fields onto NormalizedPosting", () => {
   const page = parseSkimaListingHtml(LISTING_HTML, "https://careers.nykaa.com");
-  const p = normalizeSkimaItem(company, page.items[0]!);
+  const p = normalizeSkimaItem(company, at(page.items, 0));
   assert.equal(p.provider, "skima");
   assert.equal(p.companySlug, "nykaa");
   assert.equal(p.jobTitle, "HR Operation Executive (Offroll)");

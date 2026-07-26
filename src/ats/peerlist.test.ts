@@ -207,7 +207,8 @@ test("peerlistAdapter.fetchJd reads jobData's description from the job's own pag
   stubFetch(async () => new Response(jobPageHtml, { status: 200 }));
   try {
     const posting = normalizePeerlistItem(company, { id: 42, title: "Frontend Engineer", location: "Bengaluru, India" });
-    const jd = await peerlistAdapter.fetchJd!(company, posting);
+    assert(peerlistAdapter.fetchJd);
+    const jd = await peerlistAdapter.fetchJd(company, posting);
     assert.equal(jd, "Full JD here.");
   } finally {
     restoreFetch();
@@ -218,7 +219,8 @@ test("peerlistAdapter.fetchJd returns '' when the job page has no jobData at all
   stubFetch(async () => new Response(REAL_EMPTY_ISLAND_HTML, { status: 200 }));
   try {
     const posting = normalizePeerlistItem(company, { id: 42, title: "Frontend Engineer" });
-    const jd = await peerlistAdapter.fetchJd!(company, posting);
+    assert(peerlistAdapter.fetchJd);
+    const jd = await peerlistAdapter.fetchJd(company, posting);
     assert.equal(jd, "");
   } finally {
     restoreFetch();

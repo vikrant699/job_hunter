@@ -193,8 +193,8 @@ test("listPostings paginates full-size (20/page) pages via num_pages/count until
     assert.equal(postings[53]?.externalId, "54");
     assert.equal(calls.length, 3);
     assert.equal(calls[0]?.url, "https://careerapi.ceipal.com/KEY123/CareerPortalJobPostings/?page=1");
-    assert.equal(calls[0]?.referer, "https://jobsapi.ceipal.com/");
-    assert.deepEqual(calls[0]?.fields, {
+    assert.equal(calls[0].referer, "https://jobsapi.ceipal.com/");
+    assert.deepEqual(calls[0].fields, {
       page: "1", api_key: "KEY123", method: "CareerPortalJobPostings", cp_id: "CP456", from_career_portal: "1",
     });
     assert.equal(calls[2]?.fields.page, "3");
@@ -246,6 +246,9 @@ function detailResponse(jobDescription: string | null): Response {
   );
 }
 
+const { fetchJd } = ceipalAdapter;
+assert(fetchJd);
+
 test("fetchJd retrieves the FULL description from the detail endpoint (not the truncated list teaser)", async () => {
   const posting = normalizeCeipal(company, job);
   const calls: { url: string; method: string }[] = [];
@@ -254,13 +257,13 @@ test("fetchJd retrieves the FULL description from the detail endpoint (not the t
     return detailResponse(FULL_JD);
   });
   try {
-    const jd = await ceipalAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.equal(calls.length, 1);
     assert.equal(
       calls[0]?.url,
       "https://candidateportal.ceipal.com/api/jobs/description/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10",
     );
-    assert.equal(calls[0]?.method, "GET");
+    assert.equal(calls[0].method, "GET");
     assert.match(jd, /own the full sales cycle/);
     assert.match(jd, /CRM fluency/);
     assert.doesNotMatch(jd, /<br|&ndash;/);
@@ -276,7 +279,7 @@ test("fetchJd falls back to the teaser (from public_job_desc, empty requistion_d
   const posting = normalizeCeipal(company, { ...job, requistion_description: "" });
   stubFetch(async () => new Response("boom", { status: 500 }));
   try {
-    const jd = await ceipalAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.match(jd, /Location: HSR, Bangalore/);
   } finally {
     restoreFetch();
@@ -287,7 +290,7 @@ test("fetchJd falls back to the teaser when the detail response carries an empty
   const posting = normalizeCeipal(company, job);
   stubFetch(async () => detailResponse(""));
   try {
-    const jd = await ceipalAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.match(jd, /Inside Sales Specialist/);
   } finally {
     restoreFetch();
@@ -302,7 +305,7 @@ test("fetchJd returns the teaser without any HTTP call when the posting has no d
     return detailResponse(FULL_JD);
   });
   try {
-    const jd = await ceipalAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.equal(called, false);
     assert.match(jd, /Inside Sales Specialist/);
   } finally {

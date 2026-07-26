@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ashbyAdapter } from "./ashby.js";
 import type { AdapterCompany } from "../types.js";
-import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./test-helpers.js";
+import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany, at } from "./test-helpers.js";
 
 const company: AdapterCompany = mkAdapterCompany({
   provider: "ashby",
@@ -33,13 +33,14 @@ test("listPostings happy-path normalize maps id/title/location/jobUrl/isRemote/j
   );
   const postings = await ashbyAdapter.listPostings(company);
   assert.equal(postings.length, 1);
-  assert.equal(postings[0]?.externalId, "job-1");
-  assert.equal(postings[0]?.jobTitle, "Frontend Engineer");
-  assert.equal(postings[0]?.location, "Pune");
-  assert.equal(postings[0]?.jobUrl, "https://jobs.ashbyhq.com/acme/job-1");
-  assert.equal(postings[0]?.isRemote, false);
-  assert.equal(postings[0]?.jdText, "Own the UI.");
-  assert.equal(postings[0]?.postedAt, "2026-06-01T00:00:00.000Z");
+  const posting = at(postings, 0);
+  assert.equal(posting.externalId, "job-1");
+  assert.equal(posting.jobTitle, "Frontend Engineer");
+  assert.equal(posting.location, "Pune");
+  assert.equal(posting.jobUrl, "https://jobs.ashbyhq.com/acme/job-1");
+  assert.equal(posting.isRemote, false);
+  assert.equal(posting.jdText, "Own the UI.");
+  assert.equal(posting.postedAt, "2026-06-01T00:00:00.000Z");
 });
 
 test("secondaryLocations join onto the primary location with '; ', multiple secondaries joined with ', '", async (t) => {

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { extractJsonLdJobs } from "./json-ld.js";
+import { at } from "../ats/test-helpers.js";
 
 function page(...scripts: string[]): string {
   const blocks = scripts
@@ -25,11 +26,12 @@ const FULL_POSTING = JSON.stringify({
 test("extracts a single JobPosting with flattened location", () => {
   const jobs = extractJsonLdJobs(page(FULL_POSTING));
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0]!.title, "Senior Data Engineer");
-  assert.equal(jobs[0]!.url, "https://acme.example/jobs/123");
-  assert.equal(jobs[0]!.location, "Bengaluru, KA, IN");
-  assert.equal(jobs[0]!.datePosted, "2026-06-01");
-  assert.match(jobs[0]!.description ?? "", /pipelines/);
+  const job0 = at(jobs, 0);
+  assert.equal(job0.title, "Senior Data Engineer");
+  assert.equal(job0.url, "https://acme.example/jobs/123");
+  assert.equal(job0.location, "Bengaluru, KA, IN");
+  assert.equal(job0.datePosted, "2026-06-01");
+  assert.match(job0.description ?? "", /pipelines/);
 });
 
 test("finds JobPostings nested in @graph and in arrays", () => {
@@ -52,7 +54,7 @@ test("finds JobPostings inside an ItemList's itemListElement/item", () => {
       { "@type": "ListItem", item: { "@type": "JobPosting", title: "Data Analyst" } },
     ],
   });
-  assert.equal(extractJsonLdJobs(page(list))[0]!.title, "Data Analyst");
+  assert.equal(at(extractJsonLdJobs(page(list)), 0).title, "Data Analyst");
 });
 
 test("multiple jobLocations join with semicolons; TELECOMMUTE adds Remote", () => {
@@ -66,7 +68,7 @@ test("multiple jobLocations join with semicolons; TELECOMMUTE adds Remote", () =
     ],
   });
   const jobs = extractJsonLdJobs(page(multi));
-  assert.equal(jobs[0]!.location, "Mumbai, India; Pune; Remote");
+  assert.equal(at(jobs, 0).location, "Mumbai, India; Pune; Remote");
 });
 
 test("skips malformed JSON blocks, postings without titles, and dedups repeats", () => {
@@ -74,7 +76,7 @@ test("skips malformed JSON blocks, postings without titles, and dedups repeats",
     page("{not json", JSON.stringify({ "@type": "JobPosting", url: "https://x/no-title" }), FULL_POSTING, FULL_POSTING),
   );
   assert.equal(jobs.length, 1);
-  assert.equal(jobs[0]!.title, "Senior Data Engineer");
+  assert.equal(at(jobs, 0).title, "Senior Data Engineer");
 });
 
 test("returns [] for pages with no JSON-LD at all", () => {

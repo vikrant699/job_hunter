@@ -11,6 +11,7 @@ import {
   type SetuRow,
 } from "./setu.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "setu",
@@ -85,13 +86,13 @@ Data Engineer ,https://drive.google.com/file/d/1I4Iwf8ZoQmi0qBLTYbrhDfWeuYg-BAdu
 test("parseSetuCsv maps columns by header name and trims cells", () => {
   const rows = parseSetuCsv(REAL_CSV);
   assert.equal(rows.length, 3);
-  assert.equal(rows[0]!.role, "SDE -II");
-  assert.equal(rows[0]!.link, "https://pinelabsgroup.turbohire.co/get/YXQ5M3d");
-  assert.equal(rows[0]!.category, "Engineering");
-  assert.equal(rows[1]!.role, "Senior Manager - Strategic Accounts");
-  assert.equal(rows[1]!.description, "");
-  assert.equal(rows[1]!.subCategory, "");
-  assert.equal(rows[2]!.role, "Data Engineer"); // trailing space trimmed
+  assert.equal(at(rows, 0).role, "SDE -II");
+  assert.equal(at(rows, 0).link, "https://pinelabsgroup.turbohire.co/get/YXQ5M3d");
+  assert.equal(at(rows, 0).category, "Engineering");
+  assert.equal(at(rows, 1).role, "Senior Manager - Strategic Accounts");
+  assert.equal(at(rows, 1).description, "");
+  assert.equal(at(rows, 1).subCategory, "");
+  assert.equal(at(rows, 2).role, "Data Engineer"); // trailing space trimmed
 });
 
 test("parseSetuCsv throws on an unrecognized header", () => {
@@ -130,7 +131,7 @@ test("setuExternalId falls back to a slugified role when the Link doesn't match"
 
 test("normalizeSetuRow builds a posting with the fixed HQ location", () => {
   const rows = parseSetuCsv(REAL_CSV);
-  const p = normalizeSetuRow(company, rows[0]!);
+  const p = normalizeSetuRow(company, at(rows, 0));
   assert.equal(p.provider, "setu");
   assert.equal(p.externalId, "YXQ5M3d");
   assert.equal(p.jobTitle, "SDE -II");

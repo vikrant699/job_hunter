@@ -61,8 +61,8 @@ test("probeWithTimeout passes through method, headers, and body", async () => {
       body: JSON.stringify({ a: 1 }),
     });
     assert.equal(seenInit?.method, "POST");
-    assert.equal(new Headers(seenInit?.headers).get("Content-Type"), "application/json");
-    assert.equal(seenInit?.body, JSON.stringify({ a: 1 }));
+    assert.equal(new Headers(seenInit.headers).get("Content-Type"), "application/json");
+    assert.equal(seenInit.body, JSON.stringify({ a: 1 }));
   } finally {
     restoreFetch();
   }
