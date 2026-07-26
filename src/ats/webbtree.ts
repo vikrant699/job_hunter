@@ -41,7 +41,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText, parseOrThrow, parseOrNull } from "./http.js";
 import { matchGroup } from "../util/regex.js";
-import { tryParseJson } from "../util/json.js";
+import { tryParseJson, JsonValueSchema } from "../util/json.js";
 
 const JOB_DETAILS_URL = "https://appapi.webbtree.com/candidate/jobs/getjobdetails";
 // Backend-ignored placeholder — confirmed live; the real tenant identity travels via c_n/c_e.
@@ -66,7 +66,7 @@ const WebbtreeJobsResponseSchema = z.object({
 const WebbtreeIslandEntrySchema = z
   .object({
     url: z.string().optional(),
-    body: z.unknown().optional(),
+    body: JsonValueSchema.optional(),
   })
   .passthrough();
 const WebbtreeIslandSchema = z.record(z.string(), WebbtreeIslandEntrySchema);

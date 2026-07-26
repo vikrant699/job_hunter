@@ -34,12 +34,13 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { withBrowserPage } from "./browser-fetch.js";
 import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const DEFAULT_LOCATION = "India";
 const NAV_TIMEOUT = 45_000;
 const CAPTURE_TIMEOUT = 30_000;
 
-const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: z.unknown() });
+const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: JsonValueSchema });
 const UbsJobSchema = z.object({ Questions: z.array(UbsQuestionSchema).optional() });
 const MatchedJobsSchema = z.object({
   Jobs: z.object({ Job: z.array(UbsJobSchema).optional() }).optional(),
