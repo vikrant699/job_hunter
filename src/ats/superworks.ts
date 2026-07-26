@@ -34,6 +34,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { tryParseJson } from "../util/json.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
@@ -51,12 +52,8 @@ function cleanText(s: string): string {
  * malformed input rather than throwing.
  */
 function unescapeJsonStringBody(body: string): string | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(`"${body}"`);
-  } catch {
-    return null;
-  }
+  const parsed = tryParseJson(`"${body}"`);
+  if (parsed === null) return null;
   const result = z.string().safeParse(parsed);
   return result.success ? result.data : null;
 }
@@ -129,12 +126,8 @@ export function parseSuperworksList(html: string, company: AdapterCompany): Norm
   const raw = extractInitialDataJson(flightText);
   if (!raw) return [];
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
+  const parsed = tryParseJson(raw);
+  if (parsed === null) return [];
 
   const result = InitialDataSchema.safeParse(parsed);
   if (!result.success) return [];

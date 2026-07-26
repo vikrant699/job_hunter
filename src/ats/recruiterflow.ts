@@ -32,6 +32,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
+import { tryParseJson } from "../util/json.js";
 
 const RF_ORIGIN = "https://recruiterflow.com";
 
@@ -120,11 +121,8 @@ export function parseRecruiterflowJobsList(html: string): RfJobStub[] {
   const objectText = extractBalancedObject(html, braceIndex);
   if (!objectText) return [];
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(objectText);
-  } catch (err) {
-    logger.warn({ err: String(err) }, "recruiterflow jobsList JSON.parse failed");
+  const raw = tryParseJson(objectText);
+  if (raw === null) {
     throw new Error("recruiterflow: window.jobsList is present but not valid JSON");
   }
 
@@ -154,12 +152,8 @@ export function parseRecruiterflowJd(html: string): string {
   const match = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
   if (!match?.[1]) return "";
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(match[1]);
-  } catch {
-    return "";
-  }
+  const raw = tryParseJson(match[1]);
+  if (raw === null) return "";
 
   const parsed = RfJobPostingLdSchema.safeParse(raw);
   if (!parsed.success) return "";

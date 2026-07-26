@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseJsonOrThrow, getObj } from "./json.js";
+import { parseJsonOrThrow, getObj, tryParseJson } from "./json.js";
 
 test("parseJsonOrThrow returns the parsed value for valid JSON", () => {
   const v = parseJsonOrThrow('{"a":1,"b":[1,2,3]}', "widget");
@@ -49,4 +49,27 @@ test("getObj with no key returns null when passed an array", () => {
 
 test("getObj with no key returns null when passed a scalar", () => {
   assert.equal(getObj("x"), null);
+});
+
+test("tryParseJson returns the parsed object for valid JSON object text", () => {
+  assert.deepEqual(tryParseJson('{"a":1,"b":[1,2,3]}'), { a: 1, b: [1, 2, 3] });
+});
+
+test("tryParseJson returns the parsed array for valid JSON array text", () => {
+  assert.deepEqual(tryParseJson("[1,2,3]"), [1, 2, 3]);
+});
+
+test("tryParseJson returns the parsed scalar for valid JSON scalar text", () => {
+  assert.equal(tryParseJson("42"), 42);
+  assert.equal(tryParseJson('"hello"'), "hello");
+  assert.equal(tryParseJson("true"), true);
+});
+
+test("tryParseJson returns null for malformed JSON", () => {
+  assert.equal(tryParseJson("{not json"), null);
+  assert.equal(tryParseJson("[1,2,"), null);
+});
+
+test("tryParseJson returns null for an empty string", () => {
+  assert.equal(tryParseJson(""), null);
 });

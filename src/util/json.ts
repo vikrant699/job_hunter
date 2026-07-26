@@ -36,6 +36,22 @@ export function parseJsonOrThrow(raw: string, label: string): JsonValue {
 }
 
 /**
+ * JSON.parse that returns a validated JsonValue, or null on ANY failure
+ * (malformed JSON text, or — vanishingly rarely, since valid JSON only ever
+ * produces JsonValue-shaped values — a JsonValueSchema mismatch). Kills the
+ * `let parsed: unknown; try { parsed = JSON.parse(...) } catch { ... }`
+ * idiom repeated across the ATS adapters (rule 3: library-returned unknown
+ * flows straight into zod on one expression, no hand-annotated variable).
+ */
+export function tryParseJson(text: string): JsonValue | null {
+  try {
+    return JsonValueSchema.parse(JSON.parse(text));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Return the value at `key` if it is a plain JSON object (not an array or
  * null), else null. Omit `key` to narrow `node` itself instead of a property
  * of it — call as `getObj(x)` (no key) to re-narrow `x` itself, used after

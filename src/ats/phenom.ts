@@ -2,7 +2,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
+import { JsonValueSchema, getObj, tryParseJson, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
@@ -27,11 +27,11 @@ export type PhenomJob = z.infer<typeof PhenomJobSchema>;
 /** Extract the `phApp.ddo = {...};` JSON island from a Phenom search page.
  * Anchored at the closing </script> so a literal `};` inside a string value
  * (e.g. a job teaser) can't truncate the blob; falls back to the lazy match. */
-export function extractPhenomDdo(html: string): unknown | null {
+export function extractPhenomDdo(html: string): JsonValue | null {
   const raw = matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});\s*<\/script>/, html)
     ?? matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/, html);
   if (raw === null) return null;
-  try { return JSON.parse(raw); } catch { return null; }
+  return tryParseJson(raw);
 }
 
 /** Canonical Phenom job page for one posting: `<origin>/<locale>/job/<jobId>`.
