@@ -41,6 +41,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText, parseOrThrow, parseOrNull } from "./http.js";
 import { matchGroup } from "../util/regex.js";
+import { tryParseJson } from "../util/json.js";
 
 const JOB_DETAILS_URL = "https://appapi.webbtree.com/candidate/jobs/getjobdetails";
 // Backend-ignored placeholder — confirmed live; the real tenant identity travels via c_n/c_e.
@@ -106,13 +107,9 @@ export function extractServerAppStateIsland(html: string): string | null {
 /** Entity-decode + JSON-parse + zod-validate the island. Throws with an
  *  actionable message on garbage (each failure mode named separately). */
 export function parseServerAppState(raw: string, slug: string): WebbtreeIsland {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(decodeWebbtreeEntities(raw));
-  } catch (err) {
-    throw new Error(
-      `webbtree serverApp-state island is not valid JSON for ${slug} (serialization change?): ${String(err).slice(0, 120)}`,
-    );
+  const parsed = tryParseJson(decodeWebbtreeEntities(raw));
+  if (parsed === null) {
+    throw new Error(`webbtree serverApp-state island is not valid JSON for ${slug} (serialization change?)`);
   }
   return parseOrThrow(WebbtreeIslandSchema, parsed, { provider: "webbtree", slug, what: "serverApp-state island" });
 }

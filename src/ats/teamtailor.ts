@@ -15,6 +15,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
+import { tryParseJson } from "../util/json.js";
 
 const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
@@ -109,12 +110,8 @@ export function extractTeamtailorJobPosting(html: string): TeamtailorJobPosting 
   const $ = cheerio.load(html);
   for (const el of $('script[type="application/ld+json"]').toArray()) {
     const rawText = $(el).text();
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(rawText);
-    } catch {
-      continue;
-    }
+    const parsedJson = tryParseJson(rawText);
+    if (parsedJson === null) continue;
     const parsed = TeamtailorJobPostingSchema.safeParse(parsedJson);
     if (parsed.success && parsed.data["@type"] === "JobPosting") return parsed.data;
   }

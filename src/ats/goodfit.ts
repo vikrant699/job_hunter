@@ -21,7 +21,7 @@ import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema } from "../util/json.js";
+import { JsonValueSchema, tryParseJson } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
@@ -97,14 +97,10 @@ export function extractGoodfitRscJobs(html: string): Map<string, GoodfitRscJob> 
   }
   if (end < 0) return map;
 
-  let parsed: unknown;
-  try {
-    const unescaped: unknown = JSON.parse(`"${html.slice(start, end)}"`);
-    if (typeof unescaped !== "string") return map;
-    parsed = JSON.parse(unescaped);
-  } catch {
-    return map;
-  }
+  const unescaped = tryParseJson(`"${html.slice(start, end)}"`);
+  if (typeof unescaped !== "string") return map;
+  const parsed = tryParseJson(unescaped);
+  if (parsed === null) return map;
 
   const envelope = z.object({ jobs: z.array(JsonValueSchema) }).safeParse(parsed);
   if (!envelope.success) return map;
@@ -139,12 +135,8 @@ export function parseGoodfitLdItems(html: string): GoodfitLdItem[] {
   const out: GoodfitLdItem[] = [];
   $('script[type="application/ld+json"]').each((_, el) => {
     if (out.length > 0) return;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse($(el).text());
-    } catch {
-      return;
-    }
+    const parsed = tryParseJson($(el).text());
+    if (parsed === null) return;
     const ld = LdItemListSchema.safeParse(parsed);
     if (!ld.success) return;
     for (const item of ld.data.itemListElement) {

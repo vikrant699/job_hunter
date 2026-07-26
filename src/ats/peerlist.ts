@@ -20,6 +20,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
+import { tryParseJson, type JsonValue } from "../util/json.js";
 
 export const PEERLIST_ORIGIN = "https://careers.peerlist.io";
 export const PEERLIST_BOARD_URL = `${PEERLIST_ORIGIN}/`;
@@ -56,14 +57,10 @@ const NextDataSchema = z.object({
 });
 
 /** Extract the `__NEXT_DATA__` JSON island. Null when absent/unparseable. */
-export function extractPeerlistNextData(html: string): unknown | null {
+export function extractPeerlistNextData(html: string): JsonValue | null {
   const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!m) return null;
-  try {
-    return JSON.parse(m[1] ?? "");
-  } catch {
-    return null;
-  }
+  return tryParseJson(m[1] ?? "");
 }
 
 export interface PeerlistPageProps {

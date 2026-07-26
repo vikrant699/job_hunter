@@ -28,7 +28,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
-import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
+import { tryParseJson, getObj, type JsonValue } from "../util/json.js";
 import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const SEARCH_URL = "https://jobs.api.mercedes-benz.com/search";
@@ -118,12 +118,8 @@ export function extractMercedesJobPosting(html: string): Record<string, JsonValu
   while ((m = re.exec(html)) !== null) {
     const raw = m[1];
     if (raw === undefined) continue;
-    let node: JsonValue;
-    try {
-      node = JsonValueSchema.parse(JSON.parse(raw));
-    } catch {
-      continue;
-    }
+    const node = tryParseJson(raw);
+    if (node === null) continue;
     if (isJobPostingNode(node)) return node;
     const obj = getObj(node);
     const graph = obj?.["@graph"];
