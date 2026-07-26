@@ -50,7 +50,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, collapseWs } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
@@ -114,7 +114,7 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
 }
 
 function cleanText($el: { text(): string }): string {
-  return $el.text().replace(/\s+/g, " ").trim();
+  return collapseWs($el.text());
 }
 
 /** Stable id for a posting: the detail link's path+query when it actually

@@ -19,7 +19,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { browserFetchJsonSteps } from "./browser-fetch.js";
 import { parseOrThrow } from "./http.js";
-import { REMOTE_RE, dateToIso } from "./shared.js";
+import { REMOTE_RE, dateToIso, tenantOrigin } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
@@ -47,8 +47,7 @@ const TurboHireListSchema = z.object({
 
 /** `https://<accountName>.turbohire.co` from the careers/tenant URL. */
 export function turboHireAccountOrigin(company: AdapterCompany): string {
-  const u = new URL(company.tenantUrl ?? company.careersUrl);
-  return `${u.protocol}//${u.host}`;
+  return tenantOrigin(company);
 }
 
 /** The public careerpage URL for a given org — also what the browser navigates to. */

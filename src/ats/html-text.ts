@@ -27,6 +27,26 @@ export function decodeNumericEntities(s: string): string {
     .replace(/&#x([\da-f]+);/gi, (m, h: string) => decode(m, parseInt(h, 16)));
 }
 
+const ATTR_NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+};
+
+/**
+ * Decode HTML-attribute entity escaping (&#34; &#x2F; &amp; &lt; ...) in a
+ * single pass, so a double-escaped sequence (&amp;#34;) decodes exactly one
+ * layer. Unknown named entities pass through untouched.
+ */
+export function decodeAttrEntities(s: string): string {
+  return s.replace(
+    /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([a-zA-Z]+));/g,
+    (m: string, dec?: string, hex?: string, name?: string): string => {
+      if (dec !== undefined) return String.fromCodePoint(Number(dec));
+      if (hex !== undefined) return String.fromCodePoint(parseInt(hex, 16));
+      return (name !== undefined ? ATTR_NAMED_ENTITIES[name] : undefined) ?? m;
+    },
+  );
+}
+
 export function htmlToText(html: string | null | undefined): string {
   if (!html) return "";
 

@@ -18,7 +18,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, joinLocation } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 import { tryParseJson, type JsonValue } from "../util/json.js";
 
@@ -105,7 +105,7 @@ export function peerlistJobUrl(item: PeerlistJobLike): string {
 }
 
 function oneLocationPart(l: z.infer<typeof LooseLocationPartSchema>): string {
-  return [l.city, l.country].filter((s): s is string => !!s && s.trim().length > 0).join(", ");
+  return joinLocation(l.city, l.country) ?? "";
 }
 
 export function peerlistLocationText(loc: PeerlistJobLike["location"]): string | null {

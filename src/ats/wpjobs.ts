@@ -34,7 +34,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
+import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 
 const PER_PAGE = 100; // WP REST API max page size
 
@@ -65,12 +65,6 @@ export type WpPost = z.infer<typeof WpPostSchema>;
 
 const WpListSchema = z.array(WpPostSchema);
 
-/** Origin (https://<host>) from the tenant/wp-json URL, falling back to the careers URL. */
-function wpjobsOrigin(company: AdapterCompany): string {
-  const u = new URL(company.tenantUrl ?? company.careersUrl);
-  return `${u.protocol}//${u.host}`;
-}
-
 /** Custom post-type slug for the jobs CPT; configurable per tenant. */
 export function wpjobsPostType(company: AdapterCompany): string {
   return company.apiMeta?.postType ?? "jobpost";
@@ -79,7 +73,7 @@ export function wpjobsPostType(company: AdapterCompany): string {
 /** Paged list URL for the WP REST API, with embedded taxonomy terms for location. */
 export function wpjobsApiUrl(company: AdapterCompany, page: number): string {
   const postType = wpjobsPostType(company);
-  return `${wpjobsOrigin(company)}/wp-json/wp/v2/${postType}?per_page=${PER_PAGE}&page=${page}&order=desc&_embed=1`;
+  return `${tenantOrigin(company)}/wp-json/wp/v2/${postType}?per_page=${PER_PAGE}&page=${page}&order=desc&_embed=1`;
 }
 
 const LOCATION_KEY_RE = /location|city|office|workplace/i;

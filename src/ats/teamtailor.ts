@@ -14,7 +14,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin, collapseWs } from "./shared.js";
 
 const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
@@ -24,11 +24,6 @@ const WORKPLACE_RE = /^(hybrid|remote|fully remote|on-?site|office)$/i;
 /** Paged board URL: https://<slug>.teamtailor.com/jobs?page=N (1-based). */
 export function teamtailorJobsUrl(company: AdapterCompany, page: number): string {
   return `${tenantOrigin(company)}/jobs?page=${page}`;
-}
-
-/** Collapse whitespace runs — board titles/locations span multiple source lines. */
-function clean(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -60,11 +55,11 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
     const titleAttr = anchor.find("span[title]").first().attr("title");
     let title: string;
     if (titleAttr) {
-      title = clean(titleAttr);
+      title = collapseWs(titleAttr);
     } else {
       const stripped = anchor.clone();
       stripped.find("div").remove();
-      title = clean(stripped.text());
+      title = collapseWs(stripped.text());
     }
     if (!title) return;
 
@@ -73,7 +68,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
     const fields: string[] = [];
     const workplace: string[] = [];
     $li.find('div[class*="mt-1"] span').each((_j, span) => {
-      const text = clean($(span).text());
+      const text = collapseWs($(span).text());
       if (!text || text === "·") return;
       if (WORKPLACE_RE.test(text)) workplace.push(text);
       else fields.push(text);

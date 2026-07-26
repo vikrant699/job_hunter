@@ -16,29 +16,11 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
-import { decodeNumericEntities } from "./html-text.js";
+import { decodeAttrEntities } from "./html-text.js";
 import { matchGroup } from "../util/regex.js";
 import { tryParseJson, type JsonValue } from "../util/json.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
-
-/** Entities the page encodes when serializing the React props JSON into the `data-page` attribute. */
-const ATTR_ENTITY_MAP: Record<string, string> = {
-  "&quot;": '"',
-  "&amp;": "&",
-  "&#39;": "'",
-  "&#x27;": "'",
-  "&lt;": "<",
-  "&gt;": ">",
-  "&#x2F;": "/",
-  "&nbsp;": " ",
-};
-
-function decodeAttrEntities(s: string): string {
-  let out = s;
-  for (const [k, v] of Object.entries(ATTR_ENTITY_MAP)) out = out.split(k).join(v);
-  return decodeNumericEntities(out);
-}
 
 /**
  * Pull the `data-page="{...}"` React-props JSON island out of a YC

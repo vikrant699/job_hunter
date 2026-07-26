@@ -46,7 +46,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
 // Both live tenants' pager chrome carries data-records-per-page="15"; not
@@ -59,10 +59,6 @@ const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
 
 // Checked in order; the first tier with any match wins (see file header).
 const JD_CLASS_TIERS = ["ats-description", "job-description", "__description"];
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
 
 /** Listing URL for page N (1-based). Page 1 is the bare careersUrl, unmodified. */
 export function radancyListUrl(careersUrl: string, page: number): string {
@@ -116,7 +112,7 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
 
       const $titleClone = $a.clone();
       $titleClone.find('[class*="job-location"], span.location').remove();
-      const title = cleanText($titleClone.text());
+      const title = collapseWs($titleClone.text());
       if (!title) return;
 
       let jobUrl: string;
@@ -132,7 +128,7 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
       // usual `job-location` — fall back to it before giving up.
       const $loc = $card.find('[class*="job-location"]').first();
       const $locFallback = $loc.length ? $loc : $card.find("span.location").first();
-      const location = cleanText($locFallback.text()) || null;
+      const location = collapseWs($locFallback.text()) || null;
       const isRemote = location ? REMOTE_RE.test(location) : false;
 
       seen.add(externalId);

@@ -24,7 +24,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, tryParseJson } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
-import { REMOTE_RE, dateToIso } from "./shared.js";
+import { REMOTE_RE, dateToIso, collapseWs, extractBalanced } from "./shared.js";
 
 const BOARD_ORIGIN = "https://app.goodfit.so";
 
@@ -73,38 +73,28 @@ export interface GoodfitRscJob {
 
 /**
  * v2 RSC flight-data island: the page streams `self.__next_f.push([1,"...{\"jobs\":[...]}..."])`
- * — a JSON payload escaped inside a JS string literal. Balanced-brace scan the
- * escaped text, unescape it AS a JSON string literal, then parse. Per-job
- * tolerant: an odd job shape is skipped, not fatal. Returns id -> {locations, createdAt}.
+ * — a JSON payload escaped inside a JS string literal (every quote doubled up
+ * as `\"`). Unescape the whole source ONCE first (same recipe as jsvar.ts's
+ * `unescape:true` RSC-flight config) so `extractBalanced`'s quote-tracking
+ * sees real `"` delimiters instead of literal backslash-quote pairs, then
+ * balanced-scan the "jobs" array directly — this also means a brace/bracket
+ * character inside a job's own string fields (e.g. a title) can no longer
+ * miscount the scan, since it's correctly recognized as being inside a
+ * string. Per-job tolerant: an odd job shape is skipped, not fatal. Returns
+ * id -> {locations, createdAt}.
  */
 export function extractGoodfitRscJobs(html: string): Map<string, GoodfitRscJob> {
   const map = new Map<string, GoodfitRscJob>();
-  const start = html.indexOf('{\\"jobs\\":[');
-  if (start < 0) return map;
+  const unescaped = html.replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\\//g, "/");
+  const text = extractBalanced(unescaped, '{"jobs":', "[");
+  if (!text) return map;
 
-  let depth = 0;
-  let end = -1;
-  for (let i = start; i < html.length; i++) {
-    const c = html[i];
-    if (c === "{") depth++;
-    else if (c === "}") {
-      depth--;
-      if (depth === 0) {
-        end = i + 1;
-        break;
-      }
-    }
-  }
-  if (end < 0) return map;
-
-  const unescaped = tryParseJson(`"${html.slice(start, end)}"`);
-  if (typeof unescaped !== "string") return map;
-  const parsed = tryParseJson(unescaped);
+  const parsed = tryParseJson(text);
   if (parsed === null) return map;
 
-  const envelope = z.object({ jobs: z.array(JsonValueSchema) }).safeParse(parsed);
-  if (!envelope.success) return map;
-  for (const raw of envelope.data.jobs) {
+  const jobs = z.array(JsonValueSchema).safeParse(parsed);
+  if (!jobs.success) return map;
+  for (const raw of jobs.data) {
     const job = RscJobSchema.safeParse(raw);
     if (!job.success) continue;
     map.set(String(job.data.id), {
@@ -154,10 +144,6 @@ function goodfitJobId(url: string, base: string): string | null {
   } catch {
     return null;
   }
-}
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 function makePosting(
@@ -225,7 +211,7 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
     if (!id || seen.has(id)) return;
 
     const title =
-      cleanText($a.find("div.font-serif").first().text()) || cleanText($a.find("span.font-medium").first().text());
+      collapseWs($a.find("div.font-serif").first().text()) || collapseWs($a.find("span.font-medium").first().text());
     if (!title) return;
 
     let jobUrl: string;
@@ -236,12 +222,12 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
     }
 
     let location: string | null = null;
-    const subtitle = cleanText($a.find("div.text-xs").first().text());
+    const subtitle = collapseWs($a.find("div.text-xs").first().text());
     const afterStar = subtitle.split("✦")[1];
     if (afterStar && afterStar.trim()) {
       location = afterStar.trim();
     } else {
-      location = cleanText($a.find("span.text-xs").first().text()) || null;
+      location = collapseWs($a.find("span.text-xs").first().text()) || null;
     }
 
     seen.add(id);

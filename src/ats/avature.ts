@@ -33,16 +33,12 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso } from "./shared.js";
+import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, collapseWs } from "./shared.js";
 
 // Safety cap on page hops in case a tenant's Next link never disappears
 // (loops back on itself, etc.) — pagination normally ends on its own once the
 // real last page is reached (no Next link) or a page yields zero postings.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
 
 /**
  * Build the initial SearchJobs URL from careers_url/tenant_url. Accepts either
@@ -125,7 +121,7 @@ export function parseAvatureSearch(
     const $art = $(art);
     const $titleLink = $art.find(".article__header__text__title a").first();
     const href = $titleLink.attr("href");
-    const title = cleanText($titleLink.text());
+    const title = collapseWs($titleLink.text());
     // The stale "No jobs found" placeholder renders the title heading with no
     // <a> inside it — href/title are both empty, so it's dropped here.
     if (!href || !title) return;
@@ -143,7 +139,7 @@ export function parseAvatureSearch(
     const $subtitle = $art.find(".article__header__text__subtitle").first();
     const spanTexts: string[] = [];
     $subtitle.find("span").each((_i, el) => {
-      spanTexts.push(cleanText($(el).text()));
+      spanTexts.push(collapseWs($(el).text()));
     });
 
     const $loc = $subtitle.find(".list-item-location").first();
@@ -151,10 +147,10 @@ export function parseAvatureSearch(
     if ($loc.length) {
       const parts: string[] = [];
       $loc.find(".list-item-jobCity, .list-item-jobState, .list-item-jobCountry").each((_i, el) => {
-        const t = cleanText($(el).text());
+        const t = collapseWs($(el).text());
         if (t) parts.push(t);
       });
-      location = parts.length ? parts.join(", ") : cleanText($loc.text()) || null;
+      location = parts.length ? parts.join(", ") : collapseWs($loc.text()) || null;
     } else {
       location = pickLocationFromSpans(spanTexts);
     }
@@ -184,7 +180,7 @@ export function parseAvatureJd(html: string): string {
   const el = $(".section__content").first();
   if (!el.length) return "";
   const inner = el.html();
-  return inner ? htmlToText(inner) : cleanText(el.text());
+  return inner ? htmlToText(inner) : collapseWs(el.text());
 }
 
 export const avatureAdapter: AtsAdapter = {

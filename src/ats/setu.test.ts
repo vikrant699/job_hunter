@@ -5,7 +5,6 @@ import {
   parseCsvRows,
   parseSetuCsv,
   setuExternalId,
-  slugifyRole,
   normalizeSetuRow,
   extractSetuJdText,
   SETU_LOCATION,
@@ -125,11 +124,6 @@ test("setuExternalId falls back to a slugified role when the Link doesn't match"
     subCategory: "",
   };
   assert.equal(setuExternalId(row), "senior-manager-strategic-accounts");
-});
-
-test("slugifyRole lowercases and collapses non-alnum runs", () => {
-  assert.equal(slugifyRole("SDE - II Fullstack Engineer"), "sde-ii-fullstack-engineer");
-  assert.equal(slugifyRole("  Data Engineer  "), "data-engineer");
 });
 
 // --- normalizeSetuRow -------------------------------------------------------

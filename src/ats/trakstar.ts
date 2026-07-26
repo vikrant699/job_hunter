@@ -18,7 +18,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, paginate, tenantOrigin, collapseWs } from "./shared.js";
 
 const PAGE_SIZE = 25; // server-fixed page size
 
@@ -26,10 +26,6 @@ const PAGE_SIZE = 25; // server-fixed page size
 export function trakstarListUrl(company: AdapterCompany, page = 1): string {
   const base = tenantOrigin(company);
   return page <= 1 ? base : `${base}/?p=${page}`;
-}
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 /** slug from a "/jobs/<slug>/" href. Null when the shape doesn't match. */
@@ -60,7 +56,7 @@ export function parseTrakstarList(html: string, company: AdapterCompany): Normal
     if (!parsed) return;
     if (seen.has(parsed.slug)) return;
 
-    const title = cleanText($row.find(".js-job-list-opening-name").first().text());
+    const title = collapseWs($row.find(".js-job-list-opening-name").first().text());
     if (!title) return;
 
     let jobUrl: string;
@@ -70,7 +66,7 @@ export function parseTrakstarList(html: string, company: AdapterCompany): Normal
       return;
     }
 
-    const location = cleanText($row.find(".meta-job-location-city").first().text()) || null;
+    const location = collapseWs($row.find(".meta-job-location-city").first().text()) || null;
     const isRemote = location ? REMOTE_RE.test(location) : false;
 
     seen.add(parsed.slug);
@@ -97,7 +93,7 @@ export function parseTrakstarJd(html: string): string {
   const el = $("div.jobdesciption").first();
   if (!el.length) return "";
   const inner = el.html();
-  return inner ? htmlToText(inner) : cleanText(el.text());
+  return inner ? htmlToText(inner) : collapseWs(el.text());
 }
 
 export const trakstarAdapter: AtsAdapter = {

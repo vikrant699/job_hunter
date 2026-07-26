@@ -16,7 +16,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, tenantOrigin, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
 /** Pull the numeric job id out of a `/j/<id>/<slug>` href. */
@@ -40,7 +40,7 @@ export function parseJobsoidList(html: string, baseUrl: string, company: Adapter
     const id = jobsoidIdFromHref(href);
     if (!id || seen.has(id)) return;
 
-    const title = $(el).text().trim().replace(/\s+/g, " ");
+    const title = collapseWs($(el).text());
     if (!title) return;
 
     let jobUrl: string;
@@ -52,7 +52,7 @@ export function parseJobsoidList(html: string, baseUrl: string, company: Adapter
 
     seen.add(id);
     const row = $(el).closest("li");
-    const location = row.find(".sub-title .r-space:has(i.tek-address)").first().text().trim().replace(/\s+/g, " ") || null;
+    const location = collapseWs(row.find(".sub-title .r-space:has(i.tek-address)").first().text()) || null;
 
     out.push({
       provider: "jobsoid",

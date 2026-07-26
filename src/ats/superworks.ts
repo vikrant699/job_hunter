@@ -33,16 +33,12 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, tenantOrigin, collapseWs, extractBalanced } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
   return `${tenantOrigin(company)}/job/listing`;
-}
-
-function cleanText(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -77,39 +73,6 @@ function extractFlightText(html: string): string {
   return parts.join("");
 }
 
-/**
- * Extract the balanced JSON object following the first `"initialData":`
- * key in a Flight text blob. Returns null if the key is absent or the
- * object is unbalanced (defensive against a vendor markup change).
- */
-function extractInitialDataJson(flightText: string): string | null {
-  const key = '"initialData":';
-  const keyIdx = flightText.indexOf(key);
-  if (keyIdx === -1) return null;
-  const start = flightText.indexOf("{", keyIdx + key.length);
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inStr = false;
-  let esc = false;
-  for (let i = start; i < flightText.length; i++) {
-    const c = flightText[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === "\\") esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') inStr = true;
-    else if (c === "{") depth++;
-    else if (c === "}") {
-      depth--;
-      if (depth === 0) return flightText.slice(start, i + 1);
-    }
-  }
-  return null;
-}
-
 const JobListItemSchema = z.object({
   _id: z.string(),
   name: z.string(),
@@ -123,7 +86,7 @@ const InitialDataSchema = z.object({
 /** Parse the listing page's embedded `initialData.jobList` into postings. */
 export function parseSuperworksList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const flightText = extractFlightText(html);
-  const raw = extractInitialDataJson(flightText);
+  const raw = extractBalanced(flightText, '"initialData":', "{");
   if (!raw) return [];
 
   const parsed = tryParseJson(raw);
@@ -136,10 +99,10 @@ export function parseSuperworksList(html: string, company: AdapterCompany): Norm
   const postings: NormalizedPosting[] = [];
 
   for (const job of result.data.jobList) {
-    const title = cleanText(job.name);
+    const title = collapseWs(job.name);
     if (!job._id || !title) continue;
 
-    const location = job.locationInfo?.map((l) => cleanText(l.name)).filter(Boolean).join(", ") || null;
+    const location = job.locationInfo?.map((l) => collapseWs(l.name)).filter(Boolean).join(", ") || null;
     const isRemote = location ? REMOTE_RE.test(location) : false;
 
     postings.push({

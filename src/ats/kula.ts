@@ -4,7 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE, paginate } from "./shared.js";
+import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
 // Kula ATS public board API:
 //   GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>
@@ -84,7 +84,7 @@ export function normalizeKula(company: AdapterCompany, j: JobPost): NormalizedPo
   const offices = j.ats_job?.offices ?? [];
   const location =
     offices
-      .map((o) => o.location ?? [o.city, o.state, o.country].map((s) => (s ?? "").trim()).filter(Boolean).join(", "))
+      .map((o) => o.location ?? joinLocation(o.city, o.state, o.country) ?? "")
       .filter(Boolean)
       .join("; ") || null;
   const isRemote = j.ats_job?.workplace === "remote" || offices.some((o) => o.remote === true) || (location ? REMOTE_RE.test(location) : false);

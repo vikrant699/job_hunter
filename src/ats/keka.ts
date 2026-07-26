@@ -5,7 +5,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, joinLocation } from "./shared.js";
 
 // Keka careers API — two UI generations, same Job[] response shape:
 //   legacy embed widget:
@@ -85,7 +85,7 @@ export const kekaAdapter: AtsAdapter = {
 
 export function normalizeKeka(company: AdapterCompany, j: Job): NormalizedPosting {
   const loc = (j.jobLocations ?? [])
-    .map((l) => [l.city, l.state, l.countryName].map((s) => (s ?? "").trim()).filter(Boolean).join(", "))
+    .map((l) => joinLocation(l.city, l.state, l.countryName) ?? "")
     .filter(Boolean)
     .join("; ");
   const location = loc || null;

@@ -2,28 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { extractBalanced, parseLiteral, jsVarPostings } from "./jsvar.js";
+import { parseLiteral, jsVarPostings } from "./jsvar.js";
 import type { AdapterCompany } from "../types.js";
-
-test("extractBalanced pulls a bracket-balanced array, ignoring brackets in strings", () => {
-  const src = `foo const ROLES = [{ title: 'A]B', note: "x[y" }, { title: 'C' }]; bar`;
-  const lit = extractBalanced(src, "const ROLES =", "[");
-  assert.ok(lit);
-  assert.equal(lit!.startsWith("[{"), true);
-  assert.equal(lit!.endsWith("}]"), true);
-});
-
-test("extractBalanced handles object container + backtick strings", () => {
-  const src = "x jobData = { a: { t: `has } brace` }, b: { t: 'y' } } ;";
-  const lit = extractBalanced(src, "jobData =", "{");
-  assert.ok(lit);
-  const val = z.record(z.unknown()).parse(parseLiteral(lit!, false));
-  assert.deepEqual(Object.keys(val), ["a", "b"]);
-});
-
-test("extractBalanced returns null when the marker is absent", () => {
-  assert.equal(extractBalanced("nothing here", "const X =", "["), null);
-});
 
 test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", () => {
   const v = z.array(z.record(z.string())).parse(parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false));

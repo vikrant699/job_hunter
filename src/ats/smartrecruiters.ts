@@ -4,7 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
-import { paginate } from "./shared.js";
+import { paginate, joinLocation } from "./shared.js";
 
 // SmartRecruiters public Posting API.
 //   list:   GET api.smartrecruiters.com/v1/companies/<slug>/postings (paginated)
@@ -146,11 +146,7 @@ function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
   // Build "City, Region, Country" with country upper-cased — SR returns
   // lower-case country codes (e.g. "in") which the location filter expects.
   const loc = p.location;
-  const parts: string[] = [];
-  if (loc?.city) parts.push(loc.city);
-  if (loc?.region) parts.push(loc.region);
-  if (loc?.country) parts.push(loc.country.toUpperCase());
-  const location = parts.length > 0 ? parts.join(", ") : null;
+  const location = joinLocation(loc?.city, loc?.region, loc?.country?.toUpperCase());
   const isRemote = loc?.remote === true;
 
   const jobUrl = srPostingUrl(srToken(company), p.id);

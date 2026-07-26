@@ -12,7 +12,8 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
-import { REMOTE_RE } from "./shared.js";
+import { REMOTE_RE, joinLocation } from "./shared.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const LocationSchema = z
   .object({
@@ -50,7 +51,7 @@ const ListResponseSchema = z.object({
 });
 
 const DetailResponseSchema = z.object({
-  meta: z.unknown().optional(),
+  meta: JsonValueSchema.optional(),
   result: z.object({
     jobOpening: z.object({
       jobOpeningShareUrl: z.string().nullable().optional(),
@@ -73,13 +74,6 @@ export function bambooHrJobUrl(slug: string, id: string): string {
   return `https://${slug}.bamboohr.com/careers/${id}`;
 }
 
-function joinParts(parts: Array<string | null | undefined>): string {
-  return parts
-    .map((p) => p?.trim())
-    .filter((p): p is string => Boolean(p))
-    .join(", ");
-}
-
 /**
  * Build a location string from whichever of `location`/`atsLocation` is
  * actually populated. Field semantics are inconsistent between tenants/rows
@@ -91,10 +85,9 @@ export function buildBambooHrLocation(
   location: z.infer<typeof LocationSchema>,
   atsLocation: z.infer<typeof AtsLocationSchema>,
 ): string | null {
-  const fromLocation = joinParts([location?.city, location?.state]);
+  const fromLocation = joinLocation(location?.city, location?.state);
   if (fromLocation) return fromLocation;
-  const fromAtsLocation = joinParts([atsLocation?.city, atsLocation?.province, atsLocation?.state, atsLocation?.country]);
-  return fromAtsLocation || null;
+  return joinLocation(atsLocation?.city, atsLocation?.province, atsLocation?.state, atsLocation?.country);
 }
 
 export function normalizeBambooHr(company: AdapterCompany, j: BambooHrJob): NormalizedPosting {

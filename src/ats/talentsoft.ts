@@ -46,7 +46,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, collapseWs } from "./shared.js";
 
 // The tenant's actual per-page item count isn't evidenced anywhere in this
 // file (no page-size query param exists to confirm it); pagination doesn't
@@ -130,7 +130,7 @@ export function parseTalentsoftListingHtml(html: string, baseUrl: string): Talen
     const $el = $(el);
     const $link = $el.find(".ts-offer-list-item__title-link").first();
     const href = $link.attr("href");
-    const jobTitle = $link.text().replace(/\s+/g, " ").trim();
+    const jobTitle = collapseWs($link.text());
     if (!href || !jobTitle) return;
 
     let jobUrl: string;

@@ -4,6 +4,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
+import { joinLocation } from "./shared.js";
 
 // Workable public widget API:
 //   GET apply.workable.com/api/v1/widget/accounts/<slug>?details=true
@@ -44,8 +45,7 @@ export const workableAdapter: AtsAdapter = {
 
 export function normalizeWorkable(company: AdapterCompany, j: Job): NormalizedPosting {
   const loc = j.locations?.[0];
-  const fields = [loc?.city ?? j.city, loc?.region ?? j.state, loc?.country ?? j.country];
-  const parts = fields.map((s) => (s ?? "").trim()).filter(Boolean);
+  const location = joinLocation(loc?.city ?? j.city, loc?.region ?? j.state, loc?.country ?? j.country);
   return {
     provider: "workable",
     externalId: j.shortcode,
@@ -53,7 +53,7 @@ export function normalizeWorkable(company: AdapterCompany, j: Job): NormalizedPo
     companyName: company.name,
     jobTitle: j.title,
     jobUrl: j.url ?? j.shortlink ?? `https://apply.workable.com/${company.slug}/`,
-    location: parts.length ? parts.join(", ") : null,
+    location,
     isRemote: j.telecommuting === true,
     jdText: htmlToText(j.description ?? ""),
     postedAt: j.published_on ?? j.created_at ?? null,

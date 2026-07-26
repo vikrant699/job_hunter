@@ -91,6 +91,23 @@ test("extractGoodfitRscJobs unescapes the flight-data island into an id map", ()
   assert.equal(extractGoodfitRscJobs(v1Board).size, 0);
 });
 
+test("extractGoodfitRscJobs isn't confused by an unbalanced brace inside a job's own string field", () => {
+  // A stray "}" inside the (unused-by-this-function) title field would have
+  // thrown off the old string-blind brace counter, truncating the scan
+  // before the real end of the array; the shared extractBalanced's
+  // quote-tracking (post-unescape) correctly treats it as ordinary string
+  // content instead.
+  const withStrayBrace = `<html><body>
+<script>self.__next_f.push([1,"3a:[\\"$\\",\\"$L3b\\",null,{\\"jobs\\":[{\\"id\\":\\"stray-1\\",\\"title\\":\\"Ops Level } One\\",\\"createdAt\\":\\"2026-01-01 00:00:00+00\\",\\"locations\\":[\\"Remote\\"]}]}]\\n"])</script>
+</body></html>`;
+  const map = extractGoodfitRscJobs(withStrayBrace);
+  assert.equal(map.size, 1);
+  const job = map.get("stray-1");
+  assert.ok(job);
+  assert.deepEqual(job.locations, ["Remote"]);
+  assert.equal(job.createdAt, "2026-01-01 00:00:00+00");
+});
+
 test("parseGoodfitLdItems reads the ItemList JSON-LD", () => {
   const items = parseGoodfitLdItems(v2Board);
   assert.equal(items.length, 2);
