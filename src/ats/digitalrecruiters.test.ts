@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { normalizeDigitalRecruiters, digitalRecruitersAdapter } from "./digitalrecruiters.js";
 import type { DrListItem, DigitalRecruitersMeta } from "./digitalrecruiters.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const realFetch = globalThis.fetch;
 function jsonResponse(body: unknown): Response {
@@ -28,6 +29,8 @@ const company: AdapterCompany = {
 };
 const m: DigitalRecruitersMeta = { domainName: "joinus.decathlon.in", locale: "en_GB", localePath: "en", jobPathSlug: "annonces" };
 const item: DrListItem = { job_ad_id: 4457689, title: "Java Developer (SDE II)", location: "Bengaluru", contract: "Permanent contract", url: "4457689-java-developer-sde-ii-bengaluru" };
+const { fetchJd } = digitalRecruitersAdapter;
+assert(fetchJd);
 
 test("normalizeDigitalRecruiters maps fields + builds the /en/annonces/<slug> job URL, leaves JD empty", () => {
   const p = normalizeDigitalRecruiters(company, m, item);
@@ -72,8 +75,8 @@ test("listPostings paginates across full pages until the count is reached", asyn
   try {
     const posts = await digitalRecruitersAdapter.listPostings(company);
     assert.equal(posts.length, 150);
-    assert.equal(posts[0]!.externalId, "1");
-    assert.equal(posts[149]!.externalId, "150");
+    assert.equal(at(posts, 0).externalId, "1");
+    assert.equal(at(posts, 149).externalId, "150");
   } finally {
     restoreFetch();
   }
@@ -87,7 +90,7 @@ test("listPostings throws a clear error when apiMeta.domainName is missing", asy
 test("fetchJd concatenates description + profile and strips HTML", async () => {
   stubFetchSeq([() => jsonResponse({ description: "<p>Build <b>services</b></p>", profile: "<p>5y Java</p>" })]);
   try {
-    const jd = await digitalRecruitersAdapter.fetchJd!(company, normalizeDigitalRecruiters(company, m, item));
+    const jd = await fetchJd(company, normalizeDigitalRecruiters(company, m, item));
     assert.match(jd, /Build services/);
     assert.match(jd, /5y Java/);
     assert.doesNotMatch(jd, /<p>|<b>/);
@@ -99,7 +102,7 @@ test("fetchJd concatenates description + profile and strips HTML", async () => {
 test("fetchJd tolerates an {item:{...}} envelope", async () => {
   stubFetchSeq([() => jsonResponse({ item: { description: "<p>Own growth</p>", profile: null } })]);
   try {
-    const jd = await digitalRecruitersAdapter.fetchJd!(company, normalizeDigitalRecruiters(company, m, item));
+    const jd = await fetchJd(company, normalizeDigitalRecruiters(company, m, item));
     assert.match(jd, /Own growth/);
   } finally {
     restoreFetch();
@@ -109,7 +112,7 @@ test("fetchJd tolerates an {item:{...}} envelope", async () => {
 test("fetchJd returns empty string (not a throw) on a malformed detail response", async () => {
   stubFetchSeq([() => jsonResponse({ unexpected: true })]);
   try {
-    const jd = await digitalRecruitersAdapter.fetchJd!(company, normalizeDigitalRecruiters(company, m, item));
+    const jd = await fetchJd(company, normalizeDigitalRecruiters(company, m, item));
     assert.equal(jd, "");
   } finally {
     restoreFetch();

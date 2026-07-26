@@ -34,6 +34,13 @@ export function htmlResponse(html: string, status = 200): Response {
   return new Response(html, { status, headers: { "Content-Type": "text/html" } });
 }
 
+/** Indexed access for test fixtures: throws with a clear message instead of `!`. */
+export function at<T>(arr: readonly T[], i: number): T {
+  const v = arr[i];
+  if (v === undefined) throw new Error(`test fixture: expected element at index ${i} (length ${arr.length})`);
+  return v;
+}
+
 export function mkAdapterCompany(
   base: Pick<AdapterCompany, "provider" | "slug" | "name" | "careersUrl">,
   overrides: Partial<AdapterCompany> = {},

@@ -83,7 +83,7 @@ test("parseListResponse decrypts+validates a full envelope round-trip", () => {
 test("parseDdMmYyyy converts moglix's DD-MM-YYYY date_posted to an ISO string", () => {
   const iso = parseDdMmYyyy("10-07-2026");
   assert.ok(iso);
-  assert.equal(iso?.slice(0, 10), "2026-07-10");
+  assert.equal(iso.slice(0, 10), "2026-07-10");
 });
 
 test("parseDdMmYyyy returns null for a missing/malformed date", () => {

@@ -15,6 +15,7 @@ import {
 } from "./pyjamahr.js";
 import type { PyjamahrJob } from "./pyjamahr.js";
 import type { AdapterCompany } from "../types.js";
+import { at } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "pyjamahr",
@@ -106,7 +107,7 @@ test("parsePyjamahrList unwraps the DRF envelope", () => {
   assert.equal(page.count, 23);
   assert.equal(page.next, listResponse.next);
   assert.equal(page.results.length, 1);
-  assert.equal(page.results[0]!.title, "Manager/Senior Manager- Finance");
+  assert.equal(at(page.results, 0).title, "Manager/Senior Manager- Finance");
 });
 
 test("PyjamahrJobSchema tolerates missing optionals, rejects missing id/title", () => {

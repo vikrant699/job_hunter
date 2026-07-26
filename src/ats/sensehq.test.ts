@@ -64,10 +64,10 @@ test("senseHqInitialJobsData reads buildId + rows + count from the initial page"
   const nextData = extractSenseHqNextData(html);
   const initial = senseHqInitialJobsData(nextData);
   assert.ok(initial);
-  assert.equal(initial?.buildId, "jEPRsaxO17zCozEuBEAkW");
-  assert.equal(initial?.count, 113);
-  assert.equal(initial?.rows.length, 1);
-  assert.equal(initial?.rows[0]?.title, "Platform Engineer");
+  assert.equal(initial.buildId, "jEPRsaxO17zCozEuBEAkW");
+  assert.equal(initial.count, 113);
+  assert.equal(initial.rows.length, 1);
+  assert.equal(initial.rows[0]?.title, "Platform Engineer");
 });
 
 test("senseHqInitialJobsData returns null on a shape mismatch (no buildId / no jobsData)", () => {
@@ -80,8 +80,8 @@ test("senseHqPaginatedJobsData reads rows + count from a _next/data page (no bui
   const page = { pageProps: { jobsData: { rows: [row], count: 113 } }, __N_SSP: true };
   const parsed = senseHqPaginatedJobsData(page);
   assert.ok(parsed);
-  assert.equal(parsed?.count, 113);
-  assert.equal(parsed?.rows.length, 1);
+  assert.equal(parsed.count, 113);
+  assert.equal(parsed.rows.length, 1);
 });
 
 test("senseHqPaginatedJobsData returns null on empty/malformed page json", () => {
@@ -94,7 +94,7 @@ test("senseHqPaginatedJobsData tolerates a genuinely empty rows page (end of pag
   const page = { pageProps: { jobsData: { rows: [], count: 113 } } };
   const parsed = senseHqPaginatedJobsData(page);
   assert.ok(parsed);
-  assert.equal(parsed?.rows.length, 0);
+  assert.equal(parsed.rows.length, 0);
 });
 
 test("senseHqPageUrl builds the _next/data pagination URL with all query params, 0-indexed page", () => {

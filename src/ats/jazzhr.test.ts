@@ -124,7 +124,7 @@ test("parseJazzhrList extracts every posting with its title, url, and location",
     location: "Bangalore, Karnataka, India",
   });
   assert.equal(listings[1]?.title, "Senior Software Engineer ( Backend)");
-  assert.equal(listings[1]?.location, "Remote, India");
+  assert.equal(listings[1].location, "Remote, India");
 });
 
 test("parseJazzhrList returns [] for an empty board (no list-group items)", () => {
@@ -135,7 +135,7 @@ test("parseJazzhrList skips rows with no href and rows with blank title, keeps v
   const listings = parseJazzhrList(MALFORMED_HTML, "https://hackerearth.applytojob.com/apply");
   assert.equal(listings.length, 1);
   assert.equal(listings[0]?.id, "def456");
-  assert.equal(listings[0]?.title, "Real Role");
+  assert.equal(listings[0].title, "Real Role");
 });
 
 test("parseJazzhrList returns [] for HTML with no list-group at all", () => {

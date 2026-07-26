@@ -138,6 +138,9 @@ test("parseGohireListPage returns an empty array for malformed/unexpected markup
   assert.deepEqual(parseGohireListPage(MALFORMED_LIST, company), []);
 });
 
+const { fetchJd } = gohireAdapter;
+assert(fetchJd);
+
 test("gohireAdapter.fetchJd extracts the JSON-LD description and strips HTML", async () => {
   stubFetch(async () => new Response(DETAIL_PAGE, { status: 200 }));
   try {
@@ -153,7 +156,7 @@ test("gohireAdapter.fetchJd extracts the JSON-LD description and strips HTML", a
       jdText: "",
       postedAt: null,
     };
-    const jd = await gohireAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.match(jd, /Saleshandy is a cold email platform/);
     assert.match(jd, /What you'll do build content/);
     assert.doesNotMatch(jd, /<br>|<b>/);
@@ -177,7 +180,7 @@ test("gohireAdapter.fetchJd returns an empty string when the detail page has no 
       jdText: "",
       postedAt: null,
     };
-    const jd = await gohireAdapter.fetchJd!(company, posting);
+    const jd = await fetchJd(company, posting);
     assert.equal(jd, "");
   } finally {
     restoreFetch();

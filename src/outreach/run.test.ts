@@ -1,6 +1,7 @@
 ﻿import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GoogleAuthExpiredError } from "../google/auth.js";
+import { at } from "../ats/test-helpers.js";
 import type { RecruiterRow } from "../db/recruiters.js";
 import type { OutreachNotifiedPosting } from "../db/postings.js";
 import type { InsertOutreachInput, InsertUndraftedInput } from "../db/outreach.js";
@@ -127,7 +128,7 @@ test("runOutreach filters postings to configured severities (default excludes an
   assert.equal(drafts.length, 1);
   // Multipart MIME (resume attached): the first base64 block after the text/plain
   // part's headers is the body; decode it and confirm the surviving posting's title.
-  const parts = drafts[0]!.mime.split(/--job-hunter-\S+\r\n/);
+  const parts = at(drafts, 0).mime.split(/--job-hunter-\S+\r\n/);
   const textPart = parts.find((p) => p.includes("text/plain"));
   const b64 = textPart?.split("\r\n\r\n")[1]?.trim().split("\r\n").join("") ?? "";
   const bodyText = Buffer.from(b64, "base64").toString("utf-8");
@@ -238,7 +239,7 @@ test("runOutreach: attachResume=false attaches no resume and does not call readR
 
   await runOutreach({ profileId: "default", sinceIso: "2026-01-01T00:00:00Z", runId: null, deps });
   assert.equal(readResumeCalled, false);
-  assert.doesNotMatch(drafts[0]!.mime, /application\/pdf/);
+  assert.doesNotMatch(at(drafts, 0).mime, /application\/pdf/);
 });
 
 test("runOutreach: missing resume file warns and sends without attachment", async () => {
@@ -250,7 +251,7 @@ test("runOutreach: missing resume file warns and sends without attachment", asyn
 
   const result = await runOutreach({ profileId: "default", sinceIso: "2026-01-01T00:00:00Z", runId: null, deps });
   assert.equal(result.draftsCreated, 1);
-  assert.doesNotMatch(drafts[0]!.mime, /application\/pdf/);
+  assert.doesNotMatch(at(drafts, 0).mime, /application\/pdf/);
 });
 
 test("groupByCompany merges near-duplicate display names into one group (Wipro / Wipro Limited)", () => {

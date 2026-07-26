@@ -55,7 +55,7 @@ test("parseSearchEnvelope decrypts a page of job rows via the traced scheme", ()
   const envelope = { Data: encryptPayload(jobs), ResponseCode: 100 };
   const parsed = parseSearchEnvelope(envelope);
   assert.equal(parsed?.length, 2);
-  assert.equal(parsed?.[0]?.hc_JobTitle, "Credit Manager");
+  assert.equal(parsed[0]?.hc_JobTitle, "Credit Manager");
 });
 
 test("parseSearchEnvelope returns null for the exhausted-pagination shape (no Data field)", () => {

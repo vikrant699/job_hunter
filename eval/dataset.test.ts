@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { buildLabeledPostings } from "./dataset.js";
+import { at } from "../src/ats/test-helpers.js";
 
 function seed(): DatabaseSync {
   const db = new DatabaseSync(":memory:");
@@ -33,13 +34,15 @@ test("joins only labeled, notified postings and carries jd + stored score", () =
   db.close();
 
   assert.equal(rows.length, 2); // R3 has no label → excluded
-  const r1 = rows.find((r) => r.id === "workday:R1")!;
+  const r1 = rows.find((r) => r.id === "workday:R1");
+  assert(r1);
   assert.equal(r1.company, "Acme India");
   assert.equal(r1.title, "Data Analyst");
   assert.equal(r1.jdText, "JD one");
   assert.equal(r1.storedScore, 0.5);
   assert.equal(r1.relevant, true);
-  const r2 = rows.find((r) => r.id === "workday:R2")!;
+  const r2 = rows.find((r) => r.id === "workday:R2");
+  assert(r2);
   assert.equal(r2.relevant, false);
 });
 
@@ -55,8 +58,8 @@ test("LEFT-JOIN miss yields an empty company name", () => {
   const rows = buildLabeledPostings(db, new Map([["workday:R5", true]]));
   db.close();
   assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.company, ""); // no companies row for slug 'ghost'
-  assert.equal(rows[0]!.title, "Orphan Role");
+  assert.equal(at(rows, 0).company, ""); // no companies row for slug 'ghost'
+  assert.equal(at(rows, 0).title, "Orphan Role");
 });
 
 test("preserves a null storedScore (scorer had no opinion)", () => {
@@ -64,5 +67,5 @@ test("preserves a null storedScore (scorer had no opinion)", () => {
   const rows = buildLabeledPostings(db, new Map([["workday:R6", true]]));
   db.close();
   assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.storedScore, null);
+  assert.equal(at(rows, 0).storedScore, null);
 });
