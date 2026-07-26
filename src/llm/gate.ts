@@ -33,7 +33,7 @@ export interface RunGateOptions {
   promptTemplate?: string;
   /** Sampling temperature. undefined → the client default (0.2). Set 0 for
    *  deterministic, repeatable scoring in the eval harness. */
-  temperature?: number;
+  temperature?: number | undefined;
 }
 
 /**

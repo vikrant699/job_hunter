@@ -217,11 +217,12 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         senderLinks,
       });
 
+      const attachment = resolveResumeAttachment();
       const mime = buildDraftMime({
         to: recruiter.email,
         subject: rendered.subject,
         bodyText: rendered.bodyText,
-        attachment: resolveResumeAttachment(),
+        ...(attachment !== undefined ? { attachment } : {}),
       });
 
       let created: CreatedDraft;
