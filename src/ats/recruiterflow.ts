@@ -31,6 +31,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 
@@ -140,24 +141,14 @@ export function parseRecruiterflowJobsList(html: string): RfJobStub[] {
   return stubs;
 }
 
-const RfJobPostingLdSchema = z.object({
-  description: z.string().nullable().optional(),
-});
-
 /** Extract the JD body from a job detail page's schema.org JobPosting
- *  `<script type="application/ld+json">` block. Returns "" if the block is
- *  absent or fails schema validation (vendor layout change) rather than
- *  throwing — an empty JD degrades the posting instead of failing the run. */
+ *  `<script type="application/ld+json">` block (shared extractor). Returns ""
+ *  if the block is absent, malformed, or has no JobPosting with a title
+ *  (vendor layout change) rather than throwing — an empty JD degrades the
+ *  posting instead of failing the run. */
 export function parseRecruiterflowJd(html: string): string {
-  const match = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html);
-  if (!match?.[1]) return "";
-
-  const raw = tryParseJson(match[1]);
-  if (raw === null) return "";
-
-  const parsed = RfJobPostingLdSchema.safeParse(raw);
-  if (!parsed.success) return "";
-  return htmlToText(parsed.data.description ?? "");
+  const [job] = extractJsonLdJobs(html);
+  return htmlToText(job?.description ?? "");
 }
 
 export function normalizeRecruiterflow(company: AdapterCompany, slug: string, job: RfJobStub): NormalizedPosting {
