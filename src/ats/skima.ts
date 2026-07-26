@@ -21,12 +21,13 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
-import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, tenantOrigin } from "./shared.js";
+import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-// Runaway backstop for when the "Showing X of N" counter is missing and
-// pagination relies solely on the zero-item-page stop.
-const MAX_PAGES = 500;
+// The board's own "Showing 10 of N" chrome is the only live evidence of a
+// fixed page size; pagination doesn't actually rely on it (see
+// shortPageEndsPagination below) so this value is informational only.
+const NOMINAL_PAGE_SIZE = 10;
 
 const UUID_PATH_RE = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i;
 const TOTAL_RE = /Showing\s+\d+\s+of\s+(\d+)/i;
@@ -131,29 +132,23 @@ export const skimaAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const baseUrl = tenantOrigin(company);
-    const out: NormalizedPosting[] = [];
-    const seenIds = new Set<string>();
-    let total: number | null = null;
-
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const html = await atsFetchText(skimaPageUrl(baseUrl, page), { provider: "skima" });
-      const parsed = parseSkimaListingHtml(html, baseUrl);
-      if (total === null) total = parsed.total;
-
-      for (const item of parsed.items) {
-        if (seenIds.has(item.externalId)) continue;
-        seenIds.add(item.externalId);
-        out.push(normalizeSkimaItem(company, item));
-      }
-
-      if (parsed.items.length === 0) break; // defensive: holds even if `total` lied
-      if (total !== null && out.length >= total) break;
-
-      warnDeepPagination("skima", company.slug, page, out.length);
-      await sleep(INTER_PAGE_DELAY_MS);
-    }
-
-    return out;
+    return paginate<NormalizedPosting>({
+      provider: "skima",
+      company: company.slug,
+      pageSize: NOMINAL_PAGE_SIZE,
+      // Termination is zero-item-page or reaching the running total, NOT a
+      // short page - pages are disjoint and the "total" chrome (see below)
+      // is the primary stop signal (guarded by the zero-item-page backstop
+      // if the counter is missing or lies).
+      shortPageEndsPagination: false,
+      maxPages: DEFAULT_MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
+      fetchPage: async (_offset, page) => {
+        const html = await atsFetchText(skimaPageUrl(baseUrl, page + 1), { provider: "skima" });
+        const parsed = parseSkimaListingHtml(html, baseUrl);
+        return { items: parsed.items.map((item) => normalizeSkimaItem(company, item)), total: parsed.total };
+      },
+    });
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
