@@ -11,7 +11,7 @@ export interface LocationConfig {
    *  mentioned only in the JD body does not reject an otherwise in-region role.
    *  In both paths, an in-region city/country alongside the foreign one overrides
    *  the reject (multi-location postings like "Bengaluru | New York" stay in). */
-  rejectRegions?: readonly string[];
+  rejectRegions?: readonly string[] | undefined;
 }
 
 export interface LocationCheck {

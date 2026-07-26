@@ -48,7 +48,7 @@ export async function googleFetchJson(
         Authorization: `Bearer ${accessToken}`,
         ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
 
     if ((res.status === 429 || (idempotent && res.status >= 500)) && attempt === 0) {

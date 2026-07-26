@@ -27,7 +27,10 @@ export function makeJsonListAdapter<R, I>(spec: JsonListAdapterSpec<R, I>): AtsA
     provider: spec.provider,
 
     async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-      const raw = await atsFetchJson(spec.url(company), { provider: spec.provider, userAgent: spec.userAgent });
+      const raw = await atsFetchJson(spec.url(company), {
+        provider: spec.provider,
+        ...(spec.userAgent !== undefined ? { userAgent: spec.userAgent } : {}),
+      });
       const parsed = parseOrThrow(spec.schema, raw, { provider: spec.provider, slug: company.slug });
       const seen = new Set<string>();
       const out: NormalizedPosting[] = [];

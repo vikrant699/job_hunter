@@ -43,7 +43,7 @@ function meta(company: AdapterCompany): FeishuMeta {
 }
 
 // city_info is a recursive city -> state -> country chain (each with en_name).
-interface CityNode { en_name?: string | null; parent?: CityNode | null }
+interface CityNode { en_name?: string | null | undefined; parent?: CityNode | null | undefined }
 const CitySchema: z.ZodType<CityNode> = z.lazy(() =>
   z.object({ en_name: z.string().nullable().optional(), parent: CitySchema.nullable().optional() }),
 );

@@ -135,7 +135,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
 export function srPostingUrl(
   slug: string,
   id: string,
-  detail?: { postingUrl?: string | null; applyUrl?: string | null },
+  detail?: { postingUrl?: string | null | undefined; applyUrl?: string | null | undefined },
 ): string {
   const fromApi = detail?.postingUrl ?? detail?.applyUrl;
   if (fromApi && /^https?:\/\//i.test(fromApi)) return fromApi;
