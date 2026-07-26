@@ -7,7 +7,7 @@ export function kebabCase(s: string): string {
 
 export function resolveSlug(entry: {
   name: string;
-  source_slug?: string | null;
+  source_slug?: string | null | undefined;
 }): string {
   if (entry.source_slug && entry.source_slug.length > 0)
     return entry.source_slug;
@@ -22,8 +22,8 @@ export function resolveSlug(entry: {
  */
 export function registryKey(entry: {
   name: string;
-  source?: string | null;
-  source_slug?: string | null;
+  source?: string | null | undefined;
+  source_slug?: string | null | undefined;
 }): string {
   return `${entry.source ?? "custom"}::${resolveSlug(entry)}`;
 }

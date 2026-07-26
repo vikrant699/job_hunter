@@ -2,7 +2,6 @@
 // Not imported by production code; lives beside the tests it serves.
 import type { TestContext } from "node:test";
 import type { AdapterCompany } from "../types.js";
-import type { JsonValue } from "../util/json.js";
 
 /** Replace globalThis.fetch for the duration of one test; restores via t.after. */
 export function stubFetch(t: TestContext, handler: typeof globalThis.fetch): void {
@@ -26,7 +25,12 @@ export function fetchSequence(...responses: Array<() => Response>): typeof globa
   };
 }
 
-export function jsonResponse(body: JsonValue, status = 200): Response {
+// Generic (not JsonValue) so callers can pass mock objects built from real
+// domain types (e.g. NewGenJob) whose zod-derived optional fields are typed
+// `T | undefined` — JSON.stringify serializes them identically to a plain
+// JsonValue (undefined properties are dropped), so the looser type costs
+// nothing at runtime.
+export function jsonResponse<T>(body: T, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 

@@ -50,7 +50,7 @@ export async function atsFetchJson(
         // Caller headers last so a provider-specific header (webbtree customurl) wins.
         ...(opts.headers ?? {}),
       },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       signal,
     }, provider);
     return await res.json();

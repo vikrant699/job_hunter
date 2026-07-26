@@ -6,7 +6,7 @@ import { sleep } from "../util/sleep.js";
 
 interface GenerateOpts {
   format?: "json";
-  temperature?: number;
+  temperature?: number | undefined;
 }
 
 const OllamaResponseSchema = z.object({ response: z.string().optional() });
