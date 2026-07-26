@@ -176,6 +176,12 @@ export const successfactorsAdapter: AtsAdapter = {
     // closure, so it treats `total` as permanently its initial `null`); a
     // property write is narrowed correctly at each read below.
     const state: { total: number | null } = { total: null };
+    // Tracks which externalIds have been seen, purely to detect an
+    // all-duplicate page below - the actual cross-page dedup of what
+    // ACCUMULATES into `postings` is delegated to paginate()'s dedupeBy.
+    // (paginate() has no way to report "how many of this page were new" back
+    // out, so this lightweight peek - populated the same way dedupeBy's own
+    // internal set is - is the only way to compute that signal.)
     const seenIds = new Set<string>();
 
     const postings = await paginate<NormalizedPosting>({
@@ -183,6 +189,7 @@ export const successfactorsAdapter: AtsAdapter = {
       company: company.slug,
       pageSize: PAGE,
       maxPages: MAX_PAGES,
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
         const html = await atsFetchText(successfactorsSearchUrl(origin, offset), {
           provider: "successfactors",
@@ -194,15 +201,15 @@ export const successfactorsAdapter: AtsAdapter = {
         // whose tile skin also omits the results banner, so `total` never
         // stops the loop either). A page that adds no NEW reqIds is the end
         // of the board — without this, paginate spins to MAX_PAGES.
-        const fresh = page.postings.filter((p) => !seenIds.has(p.externalId));
-        if (page.postings.length > 0 && fresh.length === 0) {
+        const allSeen = page.postings.length > 0 && page.postings.every((p) => seenIds.has(p.externalId));
+        for (const p of page.postings) seenIds.add(p.externalId);
+        if (allSeen) {
           return { items: [], total: page.total, rawCount: 0 };
         }
-        for (const p of fresh) seenIds.add(p.externalId);
-        // Advance by the server's row count (25 on a full page), NOT the number
-        // of postings that survived filtering — otherwise a single filtered row
+        // Advance by the server's row count (25 on a full page), NOT the
+        // number of postings that survive dedupeBy — otherwise a repeat row
         // shortens the page and paginate would stop before the real last page.
-        return { items: fresh, total: page.total, rawCount: page.rowCount };
+        return { items: page.postings, total: page.total, rawCount: page.rowCount };
       },
     });
 
