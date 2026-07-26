@@ -224,19 +224,24 @@ export const sfunifyAdapter: AtsAdapter = {
       // see the module-level comment. Only a genuinely empty page or
       // reaching `totalJobs` ends pagination.
       shortPageEndsPagination: false,
+      // Cross-page accumulation dedup is delegated to dedupeBy (below); `seen`
+      // is kept directly only to decide the retry below, which needs to know
+      // BEFORE any filtering whether every id on this page was already
+      // collected on an earlier page — the same identity dedupeBy tracks
+      // internally, but not a question it can answer back to fetchPage.
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         let { jobs, totalJobs } = await fetchOnce(page);
-        let fresh = jobs.filter((j) => !seen.has(j.id));
+        const allDuplicate = jobs.length > 0 && jobs.every((j) => seen.has(j.id));
         // A page that comes back 100% duplicate doesn't necessarily mean
         // we're done — retry once, since resampling the same pageNumber
         // sometimes surfaces a different backend replica's ordering.
-        if (jobs.length > 0 && fresh.length === 0 && (totalJobs === null || seen.size < totalJobs)) {
+        if (allDuplicate && (totalJobs === null || seen.size < totalJobs)) {
           ({ jobs, totalJobs } = await fetchOnce(page));
-          fresh = jobs.filter((j) => !seen.has(j.id));
         }
-        for (const j of fresh) seen.add(j.id);
+        for (const j of jobs) seen.add(j.id);
         return {
-          items: fresh.map((j) => normalizeSfunify(company, j, locale)),
+          items: jobs.map((j) => normalizeSfunify(company, j, locale)),
           total: totalJobs,
           rawCount: jobs.length,
         };
