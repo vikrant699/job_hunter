@@ -233,7 +233,7 @@ async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise
             ...(bodyJson !== undefined ? { "Content-Type": "application/json" } : {}),
             ...(headers ?? {}),
           },
-          body: bodyJson,
+          ...(bodyJson !== undefined ? { body: bodyJson } : {}),
         });
         if (!res.ok) throw new Error("HTTP " + res.status);
         return await res.json();

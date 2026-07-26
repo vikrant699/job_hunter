@@ -106,10 +106,10 @@ export function appleJobNumberFromUrl(jobUrl: string): string | null {
 
 /** Join the JD sub-fields Apple splits across the jobDetails response. */
 export function appleJdText(d: {
-  jobSummary?: string | null;
-  description?: string | null;
-  minimumQualifications?: string | null;
-  preferredQualifications?: string | null;
+  jobSummary?: string | null | undefined;
+  description?: string | null | undefined;
+  minimumQualifications?: string | null | undefined;
+  preferredQualifications?: string | null | undefined;
 }): string {
   const body = [d.jobSummary, d.description, d.minimumQualifications, d.preferredQualifications]
     .filter((s): s is string => typeof s === "string" && s.length > 0)

@@ -123,7 +123,7 @@ export async function appendToRegistry(
  * Returns false when no row matches the key.
  */
 export async function updateRegistryEntry(
-  key: { source: string; source_slug?: string | null; name: string },
+  key: { source: string; source_slug?: string | null | undefined; name: string },
   patch: Partial<RegistryEntry>,
   profileId: string,
   deps: RegistryWriterDeps = defaultDeps(),

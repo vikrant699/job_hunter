@@ -36,26 +36,26 @@ export type AdapterCompany = Pick<Company, "provider" | "slug" | "name" | "caree
 export interface UserProfile {
   /** Stable per-profile id — stamped onto every posting/run row. Defaults to
    *  "default"; set by the loader from --profile, NOT hand-edited here. */
-  id?: string;
+  id?: string | undefined;
   /** Per-profile relevance-gate prompt template (same {{placeholders}} as the
    *  default in src/llm/prompts/gate.ts: resume, hardDealBreakers,
    *  softDealBreakers, jobTitle, companyName, jdText). Lets a profile screen for
    *  a different role family (e.g. frontend engineer vs data analyst). Falls
    *  back to the global default when unset. */
-  gatePrompt?: string;
+  gatePrompt?: string | undefined;
   /** Full resume text the relevance gate judges against. NOT set in this module:
    *  it is loaded at startup from config/resume.txt (generated once from
    *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
-  resumeText?: string;
+  resumeText?: string | undefined;
   /** Free-text pitch inserted into the outreach email template
    *  ({{profile_pitch}}). Omit for no pitch paragraph. */
-  profilePitch?: string;
+  profilePitch?: string | undefined;
   /** Display name used in outreach email subjects/signatures. Falls back to
    *  the profile id ({@link UserProfile.id}) when unset. */
-  senderName?: string;
+  senderName?: string | undefined;
   /** Links appended to the outreach email signature (portfolio, LinkedIn,
    *  GitHub, etc). Joined with " | " on one line; omit for none. */
-  senderLinks?: string[];
+  senderLinks?: string[] | undefined;
   hardDealBreakers: string[];
   softDealBreakers: string[];
   filters: {
@@ -71,7 +71,7 @@ export interface UserProfile {
     /** Per-profile override of the silent-drop floor: postings scoring below this
      *  are silently dropped as noise. Defaults to the global SILENT_SCORE_FLOOR
      *  (0.65) when unset. Must be below matchThreshold so a yellow band exists. */
-    silentFloor?: number;
+    silentFloor?: number | undefined;
   };
   location: {
     /** Substrings (case-insensitive) of cities/regions you want to target. */
@@ -86,7 +86,7 @@ export interface UserProfile {
      *  matched as whole words against a posting's TITLE. Catches scraped postings
      *  that carry the location in the title (e.g. "Data Scientist — Sydney, NSW")
      *  while a foreign HQ named only in the JD body still won't reject. */
-    rejectRegions?: string[];
+    rejectRegions?: string[] | undefined;
   };
   /** Cheap regex pre-filter on job titles. A match means "skip before LLM call". */
   titleDenyPatterns: readonly RegExp[];
@@ -95,7 +95,7 @@ export interface UserProfile {
    *  a hard deal-breaker and NOT over the hard YOE cap — it is floored to yellow so
    *  it always surfaces for review. For a rare sub-specialty worth eyeballing even
    *  at a borderline score (e.g. React Native for a frontend engineer). */
-  neverSilenceTitlePatterns?: readonly RegExp[];
+  neverSilenceTitlePatterns?: readonly RegExp[] | undefined;
   servicesDenylist: {
     /** Slug fragments — if the company slug contains any of these, deny. */
     slugFragments: string[];

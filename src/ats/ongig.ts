@@ -49,7 +49,7 @@ export const OngigResponseSchema = z.object({
   results: z.array(OngigResultSchema),
 });
 
-function raw(v: { raw?: string | number | null } | null | undefined): string | null {
+function raw(v: { raw?: string | number | null | undefined } | null | undefined): string | null {
   const r = v?.raw;
   if (typeof r === "string") return r.trim() || null;
   if (typeof r === "number") return String(r);
