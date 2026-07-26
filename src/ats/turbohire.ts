@@ -20,6 +20,7 @@ import { htmlToText } from "./html-text.js";
 import { browserFetchJsonSteps } from "./browser-fetch.js";
 import { parseOrThrow } from "./http.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
+import { tryParseJson } from "../util/json.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
 const PAGE_SIZE = 50;
@@ -77,12 +78,8 @@ const TurboHireLocationArraySchema = z.array(TurboHireLocationEntrySchema);
 
 export function parseTurboHireLocation(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  const parsedJson = tryParseJson(raw);
+  if (parsedJson === null) return null;
   const parsed = TurboHireLocationArraySchema.safeParse(parsedJson);
   if (!parsed.success) return null;
   const addresses = parsed.data

@@ -36,6 +36,7 @@ import { htmlToText } from "./html-text.js";
 import { REMOTE_RE } from "./shared.js";
 import { parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
+import { tryParseJson } from "../util/json.js";
 
 const JOBS_URL = "https://www.metacareers.com/jobs/";
 const LOCATION_QUERY_NAME = "CareersJobSearchLocationFilterV3Query";
@@ -305,12 +306,8 @@ export function extractMetaJd(html: string): string {
   while ((m = re.exec(html)) !== null) {
     const raw = m[1];
     if (raw === undefined) continue;
-    let parsed: unknown;
-    try {
-      parsed = parseJsonUnknown(raw);
-    } catch {
-      continue;
-    }
+    const parsed = tryParseJson(raw);
+    if (parsed === null) continue;
     const result = JobPostingLdSchema.safeParse(parsed);
     if (!result.success || result.data["@type"] !== "JobPosting") continue;
     const { description, responsibilities, qualifications } = result.data;

@@ -18,6 +18,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
+import { tryParseJson } from "../util/json.js";
 
 export const ZohoRecruitJobSchema = z.object({
   id: z.string(),
@@ -97,13 +98,9 @@ export function extractJobsIsland(html: string): string | null {
 /** Entity-decode + JSON-parse + zod-validate the island. Throws with an
  *  actionable message on garbage (each failure mode named separately). */
 export function parseJobsIsland(raw: string, slug: string): ZohoRecruitJob[] {
-  let json: unknown;
-  try {
-    json = JSON.parse(decodeAttrEntities(raw));
-  } catch (err) {
-    throw new Error(
-      `zohorecruit jobs island is not valid JSON for ${slug} (serialization change?): ${String(err).slice(0, 120)}`,
-    );
+  const json = tryParseJson(decodeAttrEntities(raw));
+  if (json === null) {
+    throw new Error(`zohorecruit jobs island is not valid JSON for ${slug} (serialization change?)`);
   }
   return parseOrThrow(JobsIslandSchema, json, { provider: "zohorecruit", slug, what: "jobs island" });
 }

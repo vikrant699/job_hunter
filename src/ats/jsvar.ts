@@ -38,6 +38,7 @@ import { atsFetchText } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { digString, jdFromFields } from "./nextdata.js";
 import { kebabCase } from "../util/slug.js";
+import { JsonValueSchema, type JsonValue } from "../util/json.js";
 
 export interface JsVarConfig {
   listUrl: string;
@@ -124,12 +125,12 @@ export function jsVarPostings(company: AdapterCompany, sourceText: string): Norm
   if (!text) throw new Error(`jsvar: startMarker "${cfg.startMarker}" not found for ${company.slug}`);
 
   const parsed = parseLiteral(text, cfg.unescape);
-  let entries: Array<{ key: string | null; job: unknown }> = [];
+  let entries: Array<{ key: string | null; job: JsonValue }> = [];
   if (cfg.container === "object") {
-    const rec = z.record(z.unknown()).safeParse(parsed);
+    const rec = z.record(z.string(), JsonValueSchema).safeParse(parsed);
     if (rec.success) entries = Object.entries(rec.data).map(([key, job]) => ({ key, job }));
   } else {
-    const arr = z.array(z.unknown()).safeParse(parsed);
+    const arr = z.array(JsonValueSchema).safeParse(parsed);
     if (arr.success) entries = arr.data.map((job) => ({ key: null, job }));
   }
 

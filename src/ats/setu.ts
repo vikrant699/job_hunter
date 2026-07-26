@@ -15,6 +15,7 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
+import { extractJsonLdJobs } from "../scraper/json-ld.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 import { matchGroup } from "../util/regex.js";
 
@@ -193,21 +194,12 @@ export function normalizeSetuRow(company: AdapterCompany, row: SetuRow): Normali
 // the whole page if that island is absent or malformed.
 // ---------------------------------------------------------------------------
 
-const JobPostingLdSchema = z.object({
-  description: z.string().optional(),
-});
-
-/** Extract the JD body from a TurboHire job page's HTML. */
+/** Extract the JD body from a TurboHire job page's HTML (shared JSON-LD
+ *  extractor). Falls back to stripping the whole page when the island is
+ *  absent, malformed, or has no JobPosting with both a title and description. */
 export function extractSetuJdText(html: string): string {
-  const ldJson = matchGroup(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/, html);
-  if (ldJson !== null) {
-    try {
-      const parsed = JobPostingLdSchema.safeParse(JSON.parse(ldJson));
-      if (parsed.success && parsed.data.description) return htmlToText(parsed.data.description);
-    } catch {
-      // fall through to whole-page strip
-    }
-  }
+  const [job] = extractJsonLdJobs(html);
+  if (job?.description) return htmlToText(job.description);
   return htmlToText(html);
 }
 
