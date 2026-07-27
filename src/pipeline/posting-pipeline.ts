@@ -15,6 +15,9 @@ import { runExtract, type ExtractResult } from "../llm/extract.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { profile } from "../profile.js";
+import { config } from "../config.js";
+import { sleep } from "../util/sleep.js";
+import { describeError, isTransportError } from "../util/error-cause.js";
 import type { RunContext } from "./index.js";
 
 interface PostingResultPatch {
@@ -138,12 +141,27 @@ export async function processOnePosting(
   }
 
   if (!posting.jdText && adapter.fetchJd) {
-    try {
-      posting.jdText = await adapter.fetchJd(adapterCompany, posting);
-    } catch (err) {
+    const fetchJd = adapter.fetchJd;
+    // Retry transport-layer failures: a JD lost to a network blip costs the whole
+    // posting, since it is skipped before insertPostingIfNew and only reappears on
+    // the next run. Run 29 lost 833 postings this way inside one 8-minute outage.
+    // Board-shaped errors (404/403/schema) are NOT retried — the host answered.
+    let jdErr: unknown;
+    for (let attempt = 0; attempt <= config.fetch.transportRetries; attempt++) {
+      try {
+        posting.jdText = await fetchJd(adapterCompany, posting);
+        jdErr = undefined;
+        break;
+      } catch (err) {
+        jdErr = err;
+        if (!isTransportError(err) || attempt === config.fetch.transportRetries) break;
+        await sleep(config.fetch.transportRetryBaseMs * 2 ** attempt);
+      }
+    }
+    if (jdErr !== undefined) {
       stats.jdFetchFailed++;
       logger.warn(
-        { company: company.name, externalId: posting.externalId, err: String(err) },
+        { company: company.name, externalId: posting.externalId, err: describeError(jdErr) },
         "fetchJd failed; skipping",
       );
       return;
@@ -180,12 +198,12 @@ export async function processOnePosting(
     // it with dropStage "gate-error" so the error rate stays auditable (e.g.
     // the qwen "missing reason field" retries), without notifying anyone.
     logger.warn(
-      { company: company.name, title: posting.jobTitle, err: String(err).slice(0, 120) },
+      { company: company.name, title: posting.jobTitle, err: describeError(err).slice(0, 120) },
       "gate-error → stored, not notified",
     );
     writePostingResult(
       posting,
-      droppedResult(`gate-error: ${String(err).slice(0, 120)}`, "gate-error"),
+      droppedResult(`gate-error: ${describeError(err).slice(0, 120)}`, "gate-error"),
       stats.profileId,
     );
     return;
@@ -212,7 +230,7 @@ export async function processOnePosting(
       extractResult = await runExtract(posting.jdText);
     } catch (err) {
       if (err instanceof OllamaUnavailableError) throw err;
-      logger.warn({ company: company.name, err: String(err) }, "extract failed, continuing without YOE");
+      logger.warn({ company: company.name, err: describeError(err) }, "extract failed, continuing without YOE");
     }
   }
 

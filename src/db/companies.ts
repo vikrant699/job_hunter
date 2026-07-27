@@ -197,6 +197,39 @@ export function markFetchFailure(
   });
 }
 
+// Deliberately leaves consecutive_failures and status ALONE — see
+// markTransportFailure. Only the diagnostic columns are written.
+const markTransportFailureStmt = db.prepare(`
+  UPDATE companies SET
+    last_fetched_at = :now,
+    last_error      = :err
+  WHERE provider = :provider AND slug = :slug
+`);
+
+/**
+ * Record a transport-layer failure (DNS/socket death — see isTransportError)
+ * WITHOUT advancing the consecutive-failure counter that quarantines a board at
+ * 5. The board never answered, so it told us nothing about its own health: a
+ * dead resolver is not a dead board.
+ *
+ * Why this exists: in run 29 (2026-07-26) a ~9-minute local network outage made
+ * 72 healthy Workday boards fail in 21 seconds. Counting those would have put
+ * every one of them four runs from an automatic 'broken' flip, including Visa,
+ * NVIDIA and Mastercard. The error text is still stored so the run is auditable.
+ */
+export function markTransportFailure(
+  provider: Provider,
+  slug: string,
+  err: string,
+): void {
+  markTransportFailureStmt.run({
+    provider,
+    slug,
+    err: err.slice(0, 500),
+    now: new Date().toISOString(),
+  });
+}
+
 const updateParsingStrategyStmt = db.prepare(`
   UPDATE companies SET parsing_strategy = :strategy
   WHERE provider = :provider AND slug = :slug

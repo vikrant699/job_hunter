@@ -13,6 +13,8 @@ function mkStats(overrides: Partial<ProductionTickOutcome["stats"]> = {}): Produ
     postingsTitleDenied: 60,
     postingsDuplicated: 3,
     jdFetchFailed: 2,
+    transportRetried: 0,
+    transportRecovered: 0,
     errors: [],
     failedCompanies: [],
     durationMs: 123_456,
