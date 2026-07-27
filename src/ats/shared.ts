@@ -109,18 +109,35 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
 
   for (; page < maxPages; page++) {
     const { items, total: pageTotal, rawCount } = await opts.fetchPage(offset, page);
+    let added = 0;
     if (dedupeBy) {
       for (const item of items) {
         const key = dedupeBy(item);
         if (!seenKeys.has(key)) {
           seenKeys.add(key);
           out.push(item);
+          added++;
         }
       }
     } else {
       out.push(...items);
+      added = items.length;
     }
     const count = rawCount ?? items.length;
+
+    // A board that ignores the offset parameter serves page 0 forever. Without
+    // this check we walk to `total` re-fetching identical rows: godrej-agrovet
+    // (2026-07-26) fetched the same 10 jobs across 32 pages, turning 3 real
+    // postings into 96 JD fetches and hiding a misconfigured tenant URL behind
+    // what looked like a per-company JD problem. Only meaningful with dedupeBy,
+    // which is what tells us whether a row is genuinely new.
+    if (dedupeBy && page > 0 && added === 0 && items.length > 0) {
+      logger.warn(
+        { provider: opts.provider, company: opts.company, page, itemsSeen: items.length, kept: out.length },
+        "pagination stalled - page returned only already-seen rows (board likely ignores the offset param)",
+      );
+      break;
+    }
 
     if (total === null && typeof pageTotal === "number") {
       total = pageTotal;

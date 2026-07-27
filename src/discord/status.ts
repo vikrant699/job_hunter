@@ -82,6 +82,17 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     { name: "Errors", value: String(stats.errors.length), inline: true },
   ];
 
+  // Surfaced separately from "Errors" on purpose: a network outage that trips N
+  // boards is ONE event, and reading it as N broken boards sends you chasing
+  // vendors instead of the network (run 29, 2026-07-26).
+  if (stats.transportRetried > 0 || stats.transportRecovered > 0) {
+    fields.push({
+      name: "Transport faults",
+      value: `${stats.transportRetried} retried, ${stats.transportRecovered} recovered on the deferred pass`,
+      inline: false,
+    });
+  }
+
   if (stats.failedCompanies.length > 0) {
     fields.push({
       name: `Companies with issues (${stats.failedCompanies.length})`,
