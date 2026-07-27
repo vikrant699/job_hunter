@@ -8,6 +8,8 @@ import {
   PhenomJobSchema,
   phenomJobPageUrl,
   phenomJobDescriptionFrom,
+  phenomTenantHasLocale,
+  phenomAdapter,
 } from "./phenom.js";
 import type { AdapterCompany } from "../types.js";
 
@@ -61,4 +63,38 @@ test("phenomJobDescriptionFrom reads jobDetail.data.job.description", () => {
   const ddo = extractPhenomDdo(jobHtml);
   assert.equal(phenomJobDescriptionFrom(ddo), "<p>Full <b>JD</b> body</p>");
   assert.equal(phenomJobDescriptionFrom(extractPhenomDdo(html)), null);
+});
+
+test("phenomTenantHasLocale requires the two-segment locale prefix", () => {
+  // Valid: locale present.
+  assert.ok(phenomTenantHasLocale("https://careers.godrejindustries.com/in/en/search-results"));
+  assert.ok(phenomTenantHasLocale("https://www.jobs.abbott/us/en/search-results?qcountry=India"));
+  assert.ok(phenomTenantHasLocale("https://careers.abb/global/en/search-results"));
+  // Invalid: the godrej-agrovet misconfiguration — a bare host, and a host with
+  // only one path segment. Both make phenomJobPageUrl emit a locale-less
+  // /job/<id> URL that serves no jobDetail ddo.
+  assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com"), false);
+  assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/"), false);
+  assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/in"), false);
+});
+
+test("listPostings rejects a locale-less tenant_url before fetching anything", async () => {
+  const company: AdapterCompany = {
+    provider: "phenom",
+    slug: "godrej-agrovet",
+    name: "Godrej Agrovet",
+    careersUrl: "https://careers.godrejindustries.com",
+    tenantUrl: "https://careers.godrejindustries.com",
+    apiMeta: null,
+  };
+  await assert.rejects(
+    () => phenomAdapter.listPostings(company),
+    (err: unknown) => {
+      const msg = String(err);
+      // One actionable config error, not a board full of JD failures.
+      assert.match(msg, /missing the \/<country>\/<lang> locale segment/);
+      assert.match(msg, /godrej-agrovet/);
+      return true;
+    },
+  );
 });

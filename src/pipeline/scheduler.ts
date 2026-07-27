@@ -3,9 +3,11 @@ import { config } from "../config.js";
 import {
   markFetchSuccess,
   markFetchFailure,
+  markTransportFailure,
 } from "../db/index.js";
+import { describeError, isTransportError } from "../util/error-cause.js";
 import type { AtsAdapter } from "../ats/types.js";
-import type { Company, NormalizedPosting } from "../types.js";
+import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { toAdapterCompany } from "./index.js";
@@ -25,11 +27,26 @@ export function classifyFetchError(msg: string): string {
   return "other";
 }
 
+/** Transport backoff schedule. Injected so tests need not wait real seconds;
+ *  production always passes the config values via defaultRetryPolicy(). */
+export interface TransportRetryPolicy {
+  retries: number;
+  baseDelayMs: number;
+}
+
+export function defaultRetryPolicy(): TransportRetryPolicy {
+  return {
+    retries: config.fetch.transportRetries,
+    baseDelayMs: config.fetch.transportRetryBaseMs,
+  };
+}
+
 export async function processBucket(
   bucketKey: string,
   adapter: AtsAdapter,
   companies: Company[],
   stats: RunContext,
+  retry: TransportRetryPolicy = defaultRetryPolicy(),
 ): Promise<void> {
   if (companies.length === 0) return;
   logger.debug({ bucket: bucketKey, count: companies.length }, "processing bucket");
@@ -44,7 +61,7 @@ export async function processBucket(
       const idx = cursor++;
       const company = companies[idx];
       if (!company) return;
-      await processOneCompany(adapter, company, stats);
+      await processOneCompany(adapter, company, stats, retry);
       // Count every company worked (fetched or denylist-skipped) so the bucket's
       // scanned reaches its total — this drives the progress heartbeat.
       if (progress) progress.scanned++;
@@ -57,10 +74,117 @@ export async function processBucket(
   await Promise.all(Array.from({ length: cap }, () => worker()));
 }
 
+/**
+ * Second chance for boards whose fetch died at the transport layer. Inline
+ * retries (listWithTransportRetry) span ~35s, which covers a blip but not a
+ * multi-minute outage: in run 29 a ~9-minute network failure at 22:42 killed 72
+ * Workday boards, and the network was healthy again by 22:49. By the time every
+ * bucket has finished, such an outage has had the rest of the run to clear, so
+ * one more attempt recovers boards that would otherwise have been written off.
+ *
+ * A board that dies at the transport layer on BOTH passes is finally recorded as
+ * a real failure — at that point "the network" is no longer a credible excuse.
+ */
+export async function runDeferredTransportPass(
+  stats: RunContext,
+  retry: TransportRetryPolicy = defaultRetryPolicy(),
+): Promise<void> {
+  const deferred = stats.transportDeferred;
+  if (deferred.length === 0) return;
+  // Clear before re-running: processOneCompany pushes onto this same array, and
+  // what lands there during the pass is the still-failing set.
+  stats.transportDeferred = [];
+
+  logger.info(
+    { boards: deferred.length },
+    "deferred transport pass: retrying boards whose network died mid-run",
+  );
+
+  // Group by provider so the existing per-provider concurrency cap still applies.
+  const groups = new Map<string, { adapter: AtsAdapter; companies: Company[] }>();
+  for (const d of deferred) {
+    const existing = groups.get(d.company.provider);
+    if (existing) existing.companies.push(d.company);
+    else groups.set(d.company.provider, { adapter: d.adapter, companies: [d.company] });
+  }
+
+  const scannedBefore = stats.companiesScanned;
+  await Promise.all(
+    Array.from(groups.entries()).map(([provider, g]) =>
+      processBucket(`retry:${provider}`, g.adapter, g.companies, stats, retry),
+    ),
+  );
+  // Only deferred boards ran in this pass, so the delta is what recovered.
+  stats.transportRecovered = stats.companiesScanned - scannedBefore;
+
+  const stillFailing = stats.transportDeferred;
+  stats.transportDeferred = [];
+  for (const d of stillFailing) {
+    const msg = `transport failure on both passes: ${d.err}`;
+    markFetchFailure(d.company.provider, d.company.slug, msg);
+    stats.errors.push(`${d.company.provider}/${d.company.slug}: ${msg.slice(0, 100)}`);
+    stats.failedCompanies.push({
+      provider: d.company.provider,
+      slug: d.company.slug,
+      reason: classifyFetchError(d.err),
+    });
+  }
+
+  logger.info(
+    {
+      attempted: deferred.length,
+      recovered: stats.transportRecovered,
+      stillFailing: stillFailing.length,
+    },
+    "deferred transport pass complete",
+  );
+}
+
+/**
+ * Fetch a board's listing, retrying transport-layer failures in place. A brief
+ * DNS/socket outage must not be mistaken for a broken board (run 29 lost 72
+ * healthy Workday boards in 21 seconds that way), so each transport error backs
+ * off and retries. The delays also slow the worker down, which is the point: a
+ * bucket that keeps its queue through a blip gets to fetch those boards after
+ * recovery instead of burning them.
+ *
+ * Board-shaped failures (HTTP status, schema, config) are NOT retried — the
+ * board answered, so a second identical request just wastes a round trip.
+ */
+export async function listWithTransportRetry(
+  adapter: AtsAdapter,
+  adapterCompany: AdapterCompany,
+  company: Company,
+  stats: RunContext,
+  retry: TransportRetryPolicy,
+): Promise<NormalizedPosting[]> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= retry.retries; attempt++) {
+    try {
+      return await adapter.listPostings(adapterCompany);
+    } catch (err) {
+      if (err instanceof OllamaUnavailableError) throw err;
+      if (!isTransportError(err)) throw err;
+      lastErr = err;
+      if (attempt < retry.retries) {
+        const delay = retry.baseDelayMs * 2 ** attempt;
+        stats.transportRetried++;
+        logger.warn(
+          { company: company.name, slug: company.slug, attempt, delayMs: delay, err: describeError(err) },
+          "transport failure — backing off and retrying",
+        );
+        await sleep(delay);
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function processOneCompany(
   adapter: AtsAdapter,
   company: Company,
   stats: RunContext,
+  retry: TransportRetryPolicy,
 ): Promise<void> {
   const deny = isDeniedCompany(company.name, company.slug);
   if (deny.denied) {
@@ -72,12 +196,26 @@ async function processOneCompany(
 
   let postings: NormalizedPosting[];
   try {
-    postings = await adapter.listPostings(adapterCompany);
+    postings = await listWithTransportRetry(adapter, adapterCompany, company, stats, retry);
   } catch (err) {
     // Backend down (scrape adapters call the LLM shortlist) — abort, don't
     // mark every company a fetch failure against a dead Ollama.
     if (err instanceof OllamaUnavailableError) throw err;
-    const msg = String(err);
+    const msg = describeError(err);
+
+    // Transport died even after retries. The board never answered, so it told us
+    // nothing about its own health: record the diagnostics but leave the
+    // quarantine counter alone, and hand it to the end-of-run deferred pass.
+    if (isTransportError(err)) {
+      logger.warn(
+        { company: company.name, slug: company.slug, err: msg },
+        "transport failure after retries — deferred to end-of-run pass, not counted against the board",
+      );
+      markTransportFailure(company.provider, company.slug, msg);
+      stats.transportDeferred.push({ company, adapter, err: msg });
+      return;
+    }
+
     logger.warn({ company: company.name, slug: company.slug, err: msg }, "fetch failed");
     markFetchFailure(company.provider, company.slug, msg);
     stats.errors.push(`${company.provider}/${company.slug}: ${msg.slice(0, 100)}`);
@@ -111,10 +249,10 @@ async function processOneCompany(
         // Propagate a backend-down abort; only swallow per-posting errors.
         if (err instanceof OllamaUnavailableError) throw err;
         logger.error(
-          { company: company.name, externalId: posting.externalId, err: String(err) },
+          { company: company.name, externalId: posting.externalId, err: describeError(err) },
           "posting pipeline error",
         );
-        stats.errors.push(`${company.slug}#${posting.externalId}: ${String(err).slice(0, 100)}`);
+        stats.errors.push(`${company.slug}#${posting.externalId}: ${describeError(err).slice(0, 100)}`);
       }
     }
   }

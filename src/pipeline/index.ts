@@ -13,7 +13,8 @@ import { startProgressHeartbeat } from "../discord/progress.js";
 import { resolveAdapter } from "../ats/registry.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
 import { profile } from "../profile.js";
-import { processBucket } from "./scheduler.js";
+import { describeError } from "../util/error-cause.js";
+import { processBucket, runDeferredTransportPass } from "./scheduler.js";
 
 export interface RunContext {
   companiesScanned: number;
@@ -29,6 +30,15 @@ export interface RunContext {
   /** Boards that failed to fetch this run (errored, not merely zero-yield). Drives
    *  the Discord "companies with issues" list; these are NOT counted as scanned. */
   failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
+  /** Inline transport retries performed (DNS/socket faults that backed off). */
+  transportRetried: number;
+  /** Boards whose fetch died at the transport layer even after inline retries.
+   *  Retried once after every bucket finishes — by then a transient outage has
+   *  had the rest of the run to clear. Only a board that fails the deferred pass
+   *  too becomes a real failure. */
+  transportDeferred: Array<{ company: Company; adapter: AtsAdapter; err: string }>;
+  /** Deferred boards that fetched successfully on the second pass. */
+  transportRecovered: number;
   /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */
   priorNotifyKeys: Set<string>;
   /** keys notified in THIS run — within-run dedup at notify time. */
@@ -66,6 +76,8 @@ export interface ProductionTickOutcome {
     postingsTitleDenied: number;
     postingsDuplicated: number;
     jdFetchFailed: number;
+    transportRetried: number;
+    transportRecovered: number;
     errors: string[];
     failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
     durationMs: number;
@@ -102,6 +114,9 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     jdFetchFailed: 0,
     errors: [],
     failedCompanies: [],
+    transportRetried: 0,
+    transportDeferred: [],
+    transportRecovered: 0,
     priorNotifyKeys,
     seenNotifyKeys: new Set(),
     profileId,
@@ -174,11 +189,14 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
     );
+    // Boards whose network died mid-run get one more attempt now that every
+    // bucket is done and a transient outage has had time to clear.
+    await runDeferredTransportPass(stats);
   } catch (err) {
     // Close out the run row with the abort reason so the partial run is
     // recorded, then propagate to exit non-zero. Dormancy/summary are skipped -
     // the data this run produced is suspect.
-    const reason = err instanceof OllamaUnavailableError ? `aborted: ${err.message}` : `crashed: ${String(err).slice(0, 300)}`;
+    const reason = err instanceof OllamaUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
     if (err instanceof OllamaUnavailableError) {
       logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
     }
@@ -211,6 +229,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       titleDenied: stats.postingsTitleDenied,
       duplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
+      transportRetried: stats.transportRetried,
+      transportRecovered: stats.transportRecovered,
       errors: stats.errors.length,
       boardsWithIssues: stats.failedCompanies.length,
       durationMs: endedAt - startedAt,
@@ -231,6 +251,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       postingsTitleDenied: stats.postingsTitleDenied,
       postingsDuplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
+      transportRetried: stats.transportRetried,
+      transportRecovered: stats.transportRecovered,
       errors: stats.errors,
       failedCompanies: stats.failedCompanies,
       durationMs: endedAt - startedAt,
