@@ -326,6 +326,48 @@ describe("paginate", () => {
     assert.deepEqual(result, [1, 2, 4]);
   });
 
+  it("stops when a board ignores the offset and re-serves the same page", async () => {
+    // The godrej-agrovet failure mode (2026-07-26): the tenant ignored `from`,
+    // so every page returned the same rows and pagination walked to `total`
+    // re-fetching them. 314 totalHits / 10 per page = 32 identical pages.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "stuck",
+      pageSize: 10,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: 314, rawCount: 10 };
+      },
+    });
+    // Page 0 keeps the rows; page 1 adds nothing new -> stop immediately.
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "must not walk all 32 pages");
+  });
+
+  it("does not mistake a genuinely-new page for a stall", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "acme",
+      pageSize: 2,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        if (calls === 1) return { items: [1, 2], total: 6 };
+        if (calls === 2) return { items: [3, 4], total: 6 };
+        return { items: [5, 6], total: 6 };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3, 4, 5, 6]);
+    assert.equal(calls, 3);
+  });
+
   it("with shortPageEndsPagination disabled, a zero-item page still stops it", async () => {
     let calls = 0;
     const result = await paginate<number>({
