@@ -46,6 +46,19 @@ export function phenomJobPageUrl(tenantUrl: string, jobId: string): string {
   return `${u.protocol}//${u.host}/${locale ? `${locale}/` : ""}job/${encodeURIComponent(jobId)}`;
 }
 
+/**
+ * True when a tenant search URL carries the two-segment locale prefix
+ * (/in/en, /us/en, ...) that phenomJobPageUrl needs to build a JD page URL.
+ *
+ * A bare host passes every other check and then fails on EVERY posting: the
+ * locale-less `/job/<id>` page serves no `jobDetail` ddo, so a misconfigured
+ * tenant URL looks like a per-company JD defect instead of a config error
+ * (godrej-agrovet, 2026-07-26 — 96 JD failures, zero postings ever recorded).
+ */
+export function phenomTenantHasLocale(tenantUrl: string): boolean {
+  return new URL(tenantUrl).pathname.split("/").filter(Boolean).length >= 2;
+}
+
 /** Full JD from a job page's ddo: `jobDetail.data.job.description`. */
 export function phenomJobDescriptionFrom(ddo: unknown): string | null {
   const parseResult = JsonValueSchema.safeParse(ddo);
@@ -92,6 +105,13 @@ export const phenomAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     if (!company.tenantUrl) throw new Error(`phenom requires tenant_url (search URL) for ${company.slug}`);
     const tenantUrl = company.tenantUrl;
+    // Checked up front so a bad tenant URL is ONE actionable config error rather
+    // than a full board of "no jobDetail description" JD failures.
+    if (!phenomTenantHasLocale(tenantUrl)) {
+      throw new Error(
+        `phenom tenant_url is missing the /<country>/<lang> locale segment for ${company.slug}: ${tenantUrl}`,
+      );
+    }
 
     return paginate<NormalizedPosting>({
       provider: "phenom",
@@ -100,6 +120,9 @@ export const phenomAdapter: AtsAdapter = {
       // The server may cap a page below `size` without that meaning "last
       // page" — only a zero-item page or reaching `totalHits` ends pagination.
       shortPageEndsPagination: false,
+      // Opt into dedup + the stalled-pagination guard: some Phenom tenants
+      // ignore `from` and serve page 0 repeatedly.
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (from, page) => {
         const sep = tenantUrl.includes("?") ? "&" : "?";
         const url = `${tenantUrl}${sep}from=${from}&size=${PAGE}`;
