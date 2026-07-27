@@ -27,6 +27,13 @@ export const config = {
      *  paginated boards (Bosch ~24s, ABB ~30s) were being aborted mid-fetch under
      *  load, dropping their entire posting set. See config-repair memory. */
     timeoutMs: 60_000,
+    /** Retries for transport-layer failures only (DNS/socket — see
+     *  util/error-cause.ts). Board-shaped errors (HTTP status, schema) are never
+     *  retried. 3 retries at the base delay below span ~35s, which covers a brief
+     *  blip; anything longer is caught by the end-of-run deferred pass. */
+    transportRetries: 3,
+    /** First transport backoff; doubles per attempt (5s, 10s, 20s). */
+    transportRetryBaseMs: 5_000,
     /** Identify ourselves to ATS providers; some block default node UA. */
     userAgent: "job-hunter-bot/0.1",
   },
