@@ -9,6 +9,8 @@ import {
   phenomJobPageUrl,
   phenomJobDescriptionFrom,
   phenomTenantHasLocale,
+  phenomWidgetsUrl,
+  phenomWidgetsBody,
   phenomAdapter,
 } from "./phenom.js";
 import type { AdapterCompany } from "../types.js";
@@ -97,4 +99,41 @@ test("listPostings rejects a locale-less tenant_url before fetching anything", a
       return true;
     },
   );
+});
+
+test("phenomWidgetsUrl targets the tenant origin regardless of locale path", () => {
+  assert.equal(
+    phenomWidgetsUrl("https://careers.dhl.com/global/en/search-results"),
+    "https://careers.dhl.com/widgets",
+  );
+  assert.equal(
+    phenomWidgetsUrl("https://careers.merckgroup.com/global/en/search-results?from=0"),
+    "https://careers.merckgroup.com/widgets",
+  );
+});
+
+test("phenomWidgetsBody paginates and filters to India server-side", () => {
+  const body = phenomWidgetsBody(100, 50);
+  assert.equal(body["from"], 100);
+  assert.equal(body["size"], 50);
+  assert.equal(body["ddoKey"], "refineSearch");
+  // The India facet is the whole point: DHL is 8027 jobs globally, 337 in India.
+  assert.deepEqual(body["selected_fields"], { country: ["India"] });
+});
+
+test("phenomJobsFrom reads the widget XHR response shape, not just the eager ddo", () => {
+  // Live shape from careers.dhl.com/widgets: {refineSearch:{totalHits, data:{jobs}}}
+  const widgetResponse = {
+    refineSearch: {
+      status: 200,
+      totalHits: 337,
+      data: { jobs: [{ jobId: "AV-1", title: "Architect", cityStateCountry: "INDORE, India" }] },
+    },
+  };
+  const { jobs, totalHits } = phenomJobsFrom(widgetResponse);
+  assert.equal(totalHits, 337);
+  assert.equal(jobs.length, 1);
+  // and the same parser still handles the server-rendered eager shape
+  const eager = { eagerLoadRefineSearch: { totalHits: 5, data: { jobs: [{ jobId: "x", title: "T" }] } } };
+  assert.equal(phenomJobsFrom(eager).totalHits, 5);
 });
