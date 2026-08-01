@@ -4,9 +4,11 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, getObj, tryParseJson, type JsonValue } from "../util/json.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
+import { BROWSER_UA } from "../util/user-agent.js";
+import { logger } from "../logger.js";
 
 const PAGE = 50;
 
@@ -100,6 +102,51 @@ export function normalizePhenom(company: AdapterCompany, j: PhenomJob): Normaliz
   };
 }
 
+/**
+ * Phenom's widget XHR — the search API the SPA itself calls.
+ *
+ * Most tenants server-render the first page into `phApp.ddo`, which is why the
+ * HTML path above works. Some (careers.cisco.com, careers.dhl.com,
+ * careers.merckgroup.com) ship an EMPTY `eagerLoadRefineSearch` and load every
+ * job through this endpoint instead, so scraping their HTML yields nothing.
+ *
+ * The response is shaped `{refineSearch: {totalHits, data: {jobs: [...]}}}`,
+ * which `phenomJobsFrom` already understands — the same parser serves both
+ * paths. `country: ["India"]` is applied server-side: DHL is 8027 jobs
+ * globally but 337 in India, so filtering here avoids fetching 7690 rows the
+ * location filter would only throw away.
+ */
+export function phenomWidgetsUrl(tenantUrl: string): string {
+  const u = new URL(tenantUrl);
+  return `${u.protocol}//${u.host}/widgets`;
+}
+
+export function phenomWidgetsBody(from: number, size: number): Record<string, JsonValue> {
+  return {
+    lang: "en",
+    deviceType: "desktop",
+    country: "global",
+    pageName: "search-results",
+    ddoKey: "refineSearch",
+    sortBy: "",
+    subsearch: "",
+    from,
+    jobs: true,
+    counts: true,
+    all_fields: ["category", "country", "state", "city", "type"],
+    size,
+    clearAll: false,
+    jdsource: "facets",
+    isSliderEnable: false,
+    pageId: "page11",
+    siteType: "external",
+    keywords: "",
+    global: true,
+    selected_fields: { country: ["India"] },
+    locationData: {},
+  };
+}
+
 export const phenomAdapter: AtsAdapter = {
   provider: "phenom",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
@@ -113,6 +160,34 @@ export const phenomAdapter: AtsAdapter = {
       );
     }
 
+    const toItems = (jobs: unknown[]): NormalizedPosting[] => {
+      const items: NormalizedPosting[] = [];
+      for (const raw of jobs) {
+        const parsed = PhenomJobSchema.safeParse(raw);
+        // Skip postings with no stable id — they'd collide on the
+        // (provider, external_id) dedup key as empty strings.
+        if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
+          items.push(normalizePhenom(company, parsed.data));
+        }
+      }
+      return items;
+    };
+
+    const fetchWidgetsPage = async (from: number): Promise<{ jobs: unknown[]; totalHits: number }> => {
+      const raw = await atsFetchJson(phenomWidgetsUrl(tenantUrl), {
+        method: "POST",
+        body: phenomWidgetsBody(from, PAGE),
+        provider: "phenom",
+        userAgent: BROWSER_UA,
+        headers: { Origin: new URL(tenantUrl).origin, Referer: tenantUrl },
+      });
+      return phenomJobsFrom(raw);
+    };
+
+    // Tenants whose eager-load is empty serve jobs only from the widget XHR.
+    // Decided once on page 0 and reused for the rest of the run.
+    let useWidgets = false;
+
     return paginate<NormalizedPosting>({
       provider: "phenom",
       company: company.slug,
@@ -121,9 +196,15 @@ export const phenomAdapter: AtsAdapter = {
       // page" — only a zero-item page or reaching `totalHits` ends pagination.
       shortPageEndsPagination: false,
       // Opt into dedup + the stalled-pagination guard: some Phenom tenants
-      // ignore `from` and serve page 0 repeatedly.
+      // ignore `from` and serve page 0 repeatedly, and several (cisco, merck)
+      // return overlapping pages that dedup must absorb.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (from, page) => {
+        if (useWidgets) {
+          const { jobs, totalHits } = await fetchWidgetsPage(from);
+          return { items: toItems(jobs), total: totalHits, rawCount: jobs.length };
+        }
+
         const sep = tenantUrl.includes("?") ? "&" : "?";
         const url = `${tenantUrl}${sep}from=${from}&size=${PAGE}`;
         const html = await atsFetchText(url, { provider: "phenom" });
@@ -133,16 +214,23 @@ export const phenomAdapter: AtsAdapter = {
           return { items: [], total: null };
         }
         const { jobs, totalHits } = phenomJobsFrom(ddo);
-        const items: NormalizedPosting[] = [];
-        for (const raw of jobs) {
-          const parsed = PhenomJobSchema.safeParse(raw);
-          // Skip postings with no stable id — they'd collide on the
-          // (provider, external_id) dedup key as empty strings.
-          if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
-            items.push(normalizePhenom(company, parsed.data));
+
+        // Empty eager-load on the FIRST page means this tenant renders its
+        // board client-side. Switch to the widget API rather than reporting a
+        // board with zero jobs.
+        if (page === 0 && jobs.length === 0) {
+          const widget = await fetchWidgetsPage(from);
+          if (widget.jobs.length > 0) {
+            useWidgets = true;
+            logger.info(
+              { company: company.slug, totalHits: widget.totalHits },
+              "phenom: empty eager-load, using the widget XHR for this tenant",
+            );
+            return { items: toItems(widget.jobs), total: widget.totalHits, rawCount: widget.jobs.length };
           }
         }
-        return { items, total: totalHits, rawCount: jobs.length };
+
+        return { items: toItems(jobs), total: totalHits, rawCount: jobs.length };
       },
     });
   },
