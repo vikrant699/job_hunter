@@ -55,3 +55,24 @@ test("hasAdapter is true exactly when the provider is in ProviderSchema", () => 
   assert.equal(icims[0]?.provider, "icims");
   assert.equal(icims[0].hasAdapter, false);
 });
+
+test("detect recognises SuccessFactors SAPUI5 portals as detect-only", () => {
+  const hits = extractAtsCandidates("", "https://career10.successfactors.com/career?company=bioconlimi");
+  const sf = hits.find((h) => h.provider === "successfactors-ui5");
+  assert.ok(sf, "successfactors-ui5 not detected");
+  assert.equal(sf.slug, "bioconlimi");
+  // Must NOT claim an adapter: ours only handles the legacy custom-domain engine.
+  assert.equal(sf.hasAdapter, false);
+});
+
+test("detect recognises Consider.co portfolio boards", () => {
+  const hits = extractAtsCandidates('<script>fetch("/api-boards/search-jobs")</script>', "https://careers.peakxv.com/jobs");
+  assert.ok(hits.some((h) => h.provider === "consider"), "consider not detected");
+});
+
+test("detect recognises TalentZQ tenants", () => {
+  const hits = extractAtsCandidates("", "https://pratilipi.talentzq.io/api/1009/jd");
+  const t = hits.find((h) => h.provider === "talentzq");
+  assert.ok(t, "talentzq not detected");
+  assert.equal(t.slug, "pratilipi");
+});
