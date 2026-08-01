@@ -13,12 +13,17 @@ import type { Provider } from "../schemas.js";
  *  "hasAdapter" exactly when it is a ProviderSchema enum value - detect-only
  *  vendors (icims, personio, jobvite) are recognized for logging but cannot
  *  be promoted to ats-api. */
-export type DetectableProvider = Provider | "icims" | "personio" | "jobvite";
+export type DetectableProvider =
+  | Provider
+  | "icims" | "personio" | "jobvite" | "consider" | "talentzq" | "successfactors-ui5";
 
 interface PatternDef {
   provider: DetectableProvider;
   re: RegExp;
-  parse(match: string): { url: string; slug: string } | null;
+  // careersUrl is passed through so a pattern can fall back to the careers
+  // page's own host when its match carries no host of its own (see
+  // "consider" below); most patterns ignore the second argument.
+  parse(match: string, careersUrl: string): { url: string; slug: string } | null;
 }
 
 export function safeUrl(s: string): URL | null {
@@ -274,12 +279,57 @@ const PATTERNS: PatternDef[] = [
       return { url: `https://${u.host}/jobs`, slug: first.replace(/^careers-/, "") };
     },
   },
-  // No successfactors URL pattern: the adapter (src/ats/successfactors.ts)
-  // targets the LEGACY Jobs2Web engine on each company's CUSTOM domain (e.g.
-  // jobs.heromotocorp.com), which shares no host signature. The only shared-host
-  // successfactors.com URLs belong to the GATED SAPUI5 app the adapter can't
-  // scrape, so matching them would only mis-promote them to ats-api. Discovery
-  // relies on registry seeding / careers-page HTML detection, like jibe.
+  {
+    // Deliberately NOT "successfactors" — that name is a ProviderSchema member,
+    // which would make hasAdapter compute to true and falsely advertise an
+    // adapter for this shape. career<N>.successfactors.(com|eu)/career?company=
+    // <slug> is the shared-host SAPUI5 portal (e.g.
+    // career10.successfactors.com/career?company=bioconlimi for Biocon) —
+    // a DIFFERENT engine from the one src/ats/successfactors.ts talks to. That
+    // adapter only handles the LEGACY Jobs2Web engine on each tenant's own
+    // CUSTOM domain (e.g. jobs.heromotocorp.com via GET <origin>/search/?q=...),
+    // which shares no host signature across tenants and so has no pattern here
+    // — it's found via registry seeding instead, like jibe. This SAPUI5 shape
+    // was previously unmatched entirely (boards on it silently stayed on
+    // llm-scrape); it's detect-only ("successfactors-ui5", hasAdapter:false)
+    // until an adapter for it exists.
+    provider: "successfactors-ui5",
+    re: /https?:\/\/career\d*\.successfactors\.(?:com|eu)\/career\?company=([A-Za-z0-9_-]+)/gi,
+    parse(m) {
+      const slug = /company=([A-Za-z0-9_-]+)/i.exec(m)?.[1];
+      return slug ? { url: m, slug } : null;
+    },
+  },
+  {
+    provider: "consider",
+    // Consider.co's "search jobs" widget (seen on VC portfolio career pages,
+    // e.g. careers.peakxv.com) calls fetch("/api-boards/search-jobs") — usually
+    // a same-origin RELATIVE path on the customer's own domain rather than an
+    // absolute consider.co URL. Fall back to the careers page's own host when
+    // the match carries none of its own. No adapter yet (see
+    // DetectableProvider) — hasAdapter is false until one is built.
+    re: /(?:https?:\/\/[a-z0-9.-]+)?\/api-boards\/search-jobs\b/gi,
+    parse(m, careersUrl) {
+      const abs = /^https?:\/\/([a-z0-9.-]+)\//i.exec(m)?.[1];
+      const host = abs ?? safeUrl(careersUrl)?.host;
+      if (!host) return null;
+      const slug = host.split(".")[0];
+      return slug ? { url: `https://${host}/api-boards/search-jobs`, slug } : null;
+    },
+  },
+  {
+    provider: "talentzq",
+    // <tenant>.talentzq.io shared host (e.g. pratilipi.talentzq.io/api/1009/jd).
+    // No adapter yet — hasAdapter is false until one is built.
+    re: /https?:\/\/([a-z0-9-]+)\.talentzq\.io\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      if (!slug || slug === "www") return null;
+      return { url: `https://${u.host}`, slug };
+    },
+  },
   {
     provider: "phenom",
     re: /https?:\/\/[a-z0-9-]+\.phenompeople\.com\b/gi,
@@ -524,7 +574,7 @@ export function extractAtsCandidates(html: string, careersUrl: string): AtsCandi
     pat.re.lastIndex = 0;  // global regex must be reset
     let m: RegExpExecArray | null;
     while ((m = pat.re.exec(haystack)) !== null) {
-      const parsed = pat.parse(m[0]);
+      const parsed = pat.parse(m[0], careersUrl);
       if (!parsed) continue;
       const key = `${pat.provider}::${parsed.url}`;
       if (seen.has(key)) continue;
