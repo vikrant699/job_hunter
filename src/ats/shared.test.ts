@@ -326,7 +326,7 @@ describe("paginate", () => {
     assert.deepEqual(result, [1, 2, 4]);
   });
 
-  it("stops when a board ignores the offset and re-serves the same page", async () => {
+  it("stops when a board ignores the offset and re-serves the identical page", async () => {
     // The godrej-agrovet failure mode (2026-07-26): the tenant ignored `from`,
     // so every page returned the same rows and pagination walked to `total`
     // re-fetching them. 314 totalHits / 10 per page = 32 identical pages.
@@ -343,9 +343,39 @@ describe("paginate", () => {
         return { items: [1, 2, 3], total: 314, rawCount: 10 };
       },
     });
-    // Page 0 keeps the rows; page 1 adds nothing new -> stop immediately.
+    // Page 0 keeps the rows; page 1 is an exact repeat -> stop immediately.
     assert.deepEqual(result, [1, 2, 3]);
     assert.equal(calls, 2, "must not walk all 32 pages");
+  });
+
+  it("does NOT truncate a board that re-serves seen rows but still has more", async () => {
+    // idfcfirst (1530 hits): unstable ordering hands back a fully-duplicate
+    // page mid-run and then keeps yielding new ids. An earlier version of the
+    // stall guard stopped on any all-seen page and cut it to 324 — a board
+    // must never be truncated on that weaker signal.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "reshuffles",
+      pageSize: 2,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        if (calls === 1) return { items: [1, 2], total: 12, rawCount: 2 };
+        if (calls === 2) return { items: [3, 4], total: 12, rawCount: 2 };
+        // All-seen page, but NOT an exact repeat of page 2 -> must continue.
+        if (calls === 3) return { items: [2, 3], total: 12, rawCount: 2 };
+        if (calls === 4) return { items: [5, 6], total: 12, rawCount: 2 };
+        if (calls === 5) return { items: [7, 8], total: 12, rawCount: 2 };
+        return { items: [9, 10], total: 12, rawCount: 2 };
+      },
+    });
+    // Kept going past the duplicate page at call 3 and collected the tail;
+    // pagination ends on the offset>=total bound, not on the stall guard.
+    assert.deepEqual(result, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "must keep going past a duplicate page");
+    assert.equal(calls, 6);
   });
 
   it("does not mistake a genuinely-new page for a stall", async () => {
