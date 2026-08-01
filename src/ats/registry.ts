@@ -103,6 +103,7 @@ import { bmwAdapter } from "./bmw.js";
 import { ubsAdapter } from "./ubs.js";
 import { reliancebrandsAdapter } from "./reliancebrands.js";
 import { ralphlaurenAdapter } from "./ralphlauren.js";
+import { considerAdapter } from "./consider.js";
 import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
 
@@ -209,6 +210,7 @@ export const ATS_ADAPTERS = {
   ubs: ubsAdapter,
   reliancebrands: reliancebrandsAdapter,
   ralphlauren: ralphlaurenAdapter,
+  consider: considerAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
