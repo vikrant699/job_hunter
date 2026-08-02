@@ -36,7 +36,7 @@ export const ParsingStrategySchema = z.enum([
 export type ParsingStrategy = z.infer<typeof ParsingStrategySchema>;
 
 export const CompanyStatusSchema = z.enum([
-  "active", "candidate", "dormant", "denied", "broken",
+  "active", "dormant", "denied", "broken",
 ]);
 export type CompanyStatus = z.infer<typeof CompanyStatusSchema>;
 

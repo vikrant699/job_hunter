@@ -50,6 +50,14 @@ test("syncEntries upserts entries into the companies table and prunes orphans wh
   assert.ok(!all.some((c) => c.slug === `${tag}-gone`), "orphaned entry should have been pruned");
 });
 
+test("a new registry entry with no explicit status defaults to active", () => {
+  const slug = `default-status-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  syncEntries([E("custom", slug, `Default Status Co ${slug}`)], { prune: false });
+
+  const row = selectAllCompanies().find((c) => c.slug === slug);
+  assert.equal(row?.status, "active");
+});
+
 test("syncEntries does not prune when prune:false", () => {
   const tag = `sync-noprune-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   syncEntries([E("custom", `${tag}-keep`, `Keep-${tag}`), E("custom", `${tag}-stays`, `Stays-${tag}`)], { prune: true });
