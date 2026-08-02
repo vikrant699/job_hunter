@@ -15,6 +15,9 @@
 //
 //   jd:   GET <origin>/jobs/<slug>/ -> full rich HTML in
 //         `div.jobdesciption` (vendor's own misspelling — not "jobdescription").
+//
+// A subdomain that never existed answers HTTP 404 and fails on its own. A
+// tenant that CANCELLED answers 200 — see INACTIVE_ACCOUNT_SELECTOR.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -38,9 +41,26 @@ export function parseTrakstarHref(href: string): { slug: string } | null {
   return { slug };
 }
 
+// Trakstar keeps serving a cancelled tenant's subdomain at HTTP 200: the board
+// is replaced by its "Inactive account. This employer is no longer using
+// Trakstar Hire to collect applications." page, wrapped in the vendor's own
+// marketing site. It carries no job list items, so it used to parse as a board
+// with zero openings — the row reported success, never failed, and never
+// quarantined. medibuddy.hire.trakstar.com (slug docsapp, 175 postings seen)
+// has been sitting green on exactly that page.
+//
+// The marker is the page's canonical link, which points at Trakstar's shared
+// /inactive-ats notice rather than at the tenant: machine-readable, not
+// locale-dependent like the heading text beside it. Probed 2026-08-02 across
+// all 23 live rows — present on docsapp alone, absent from every serving board
+// (which emit no canonical at all) and from the 404 page a never-existed
+// subdomain returns.
+const INACTIVE_ACCOUNT_SELECTOR = 'link[rel="canonical"][href*="inactive-ats"]';
+
 /** Parse the listing page into postings. Tolerates a missing location and
  *  skips any row missing an href, slug, or title. Dedups by slug in case
- *  markup ever renders a row twice. */
+ *  markup ever renders a row twice. Throws when the page is Trakstar's
+ *  inactive-account notice — see INACTIVE_ACCOUNT_SELECTOR. */
 export function parseTrakstarList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -83,6 +103,18 @@ export function parseTrakstarList(html: string, company: AdapterCompany): Normal
       postedAt: null,
     });
   });
+
+  // Checked only after the parse comes up empty, so a page that yielded rows is
+  // a live tenant whatever else its markup carries. A serving board with nothing
+  // open renders the normal careers chrome and no canonical, and keeps
+  // returning [].
+  if (postings.length === 0 && $(INACTIVE_ACCOUNT_SELECTOR).length > 0) {
+    throw new Error(
+      `trakstar: tenant does not exist at ${trakstarListUrl(company)} — Trakstar served its ` +
+        `inactive-account notice ("no longer using Trakstar Hire to collect applications"). ` +
+        `The board is cancelled, not empty.`,
+    );
+  }
 
   return postings;
 }
