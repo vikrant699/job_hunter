@@ -497,6 +497,103 @@ describe("paginate", () => {
     assert.equal(calls, 4);
   });
 
+  it("pageSize 'infer' learns the tenant's page size from its first page", async () => {
+    // jobs.mahindracareers.com: 608 postings served 10 rows at a time. Declaring
+    // a constant 25 made page 1 look short and truncated the board to 10.
+    const TOTAL = 608;
+    const PER_PAGE = 10;
+    const offsetsSeen: number[] = [];
+    const result = await paginate<number>({
+      provider: "test",
+      company: "mahindra-group",
+      pageSize: "infer",
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async (offset) => {
+        offsetsSeen.push(offset);
+        const items = Array.from({ length: Math.min(PER_PAGE, TOTAL - offset) }, (_, i) => offset + i);
+        return { items, total: TOTAL, rawCount: items.length };
+      },
+    });
+    assert.equal(result.length, TOTAL);
+    assert.equal(offsetsSeen.length, 61, "60 full pages plus an 8-row tail");
+    assert.deepEqual(offsetsSeen.slice(0, 3), [0, 10, 20]);
+    assert.equal(result[0], 0);
+    assert.equal(result.at(-1), 607);
+  });
+
+  it("pageSize 'infer' still ends on a genuinely short final page when total is unknown", async () => {
+    const offsetsSeen: number[] = [];
+    const result = await paginate<number>({
+      provider: "test",
+      company: "acme",
+      pageSize: "infer",
+      interPageDelayMs: 0,
+      fetchPage: async (offset) => {
+        offsetsSeen.push(offset);
+        if (offset === 0) return { items: [1, 2, 3, 4], total: null };
+        if (offset === 4) return { items: [5, 6], total: null }; // short vs the inferred 4
+        throw new Error("should not be called again");
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3, 4, 5, 6]);
+    assert.deepEqual(offsetsSeen, [0, 4]);
+  });
+
+  it("pageSize 'infer' does not treat a board smaller than one page as a short page", async () => {
+    // The first page DEFINES the page size, so it can never be "short" - a
+    // one-page board ends on the empty page after it instead.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "acme",
+      pageSize: "infer",
+      interPageDelayMs: 0,
+      fetchPage: async () => {
+        calls++;
+        if (calls === 1) return { items: [1, 2, 3], total: null };
+        return { items: [], total: null };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2);
+  });
+
+  it("pageSize 'infer' still stops on a board that ignores the offset and repeats page 1", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "stuck",
+      pageSize: "infer",
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: 608, rawCount: 10 };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "the stall guard must still fire without a declared page size");
+  });
+
+  it("pageSize 'infer' with no total and an endless board is bounded by maxPages", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "endless",
+      pageSize: "infer",
+      maxPages: 4,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async (offset) => {
+        calls++;
+        return { items: Array.from({ length: 10 }, (_, i) => offset + i), total: null };
+      },
+    });
+    assert.equal(calls, 4);
+    assert.equal(result.length, 40);
+  });
+
   it("defaults interPageDelayMs to INTER_PAGE_DELAY_MS when omitted", async () => {
     assert.equal(INTER_PAGE_DELAY_MS, 150);
     let calls = 0;

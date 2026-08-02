@@ -11,7 +11,10 @@
 //              .jobLocation     (city/region string)
 //              .jobDate         (posted date, tenant-formatted)
 //         Total count is inline as text "Results 1 to 25 of <TOTAL>".
-//         Page size is 25 (startrow += 25).
+//         Page size is a TENANT setting, not an engine constant: 25 rows on
+//         jobs.heromotocorp.com, 10 on jobs.mahindracareers.com. Arbitrary
+//         startrow offsets are honored, so we advance by the row count the
+//         page actually returned and let paginate infer the size.
 //
 //   jd:   GET <origin>/job/<slug>/<reqId>/  -> full rich HTML in span.jobdescription
 //
@@ -27,10 +30,9 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
 
-const PAGE = 25; // engine-fixed page size
-// Safety cap: 125,000 jobs (PAGE 25 x MAX_PAGES 5000). paginate stops earlier
-// once it reaches the parsed total; this only bites pathologically large
-// boards. listPostings logs when hit.
+// Safety cap: 50,000-125,000 jobs, depending on the tenant's page size (10-25
+// rows x MAX_PAGES 5000). paginate stops earlier once it reaches the parsed
+// total; this only bites pathologically large boards. listPostings logs when hit.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 /** Paged search URL at the given 0-based row offset. */
@@ -167,11 +169,12 @@ export const successfactorsAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const origin = tenantOrigin(company);
-    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
-    // closure defeats TS's narrowing (it can't see paginate() invoking the
-    // closure, so it treats `total` as permanently its initial `null`); a
-    // property write is narrowed correctly at each read below.
-    const state: { total: number | null } = { total: null };
+    // Boxed in an object: bare `let`s mutated only inside the fetchPage closure
+    // defeat TS's narrowing (it can't see paginate() invoking the closure, so it
+    // treats them as permanently their initial `null`); property writes are
+    // narrowed correctly at each read below. `pageSize` is the tenant's own
+    // first-page row count, needed only for the cap math in the logs.
+    const state: { total: number | null; pageSize: number | null } = { total: null, pageSize: null };
     // Tracks which externalIds have been seen, purely to detect an
     // all-duplicate page below - the actual cross-page dedup of what
     // ACCUMULATES into `postings` is delegated to paginate()'s dedupeBy.
@@ -183,7 +186,9 @@ export const successfactorsAdapter: AtsAdapter = {
     const postings = await paginate<NormalizedPosting>({
       provider: "successfactors",
       company: company.slug,
-      pageSize: PAGE,
+      // Tenant-set, not engine-set: a hardcoded 25 made the first page of every
+      // 10-row tenant look short and stopped mahindra-group at 10 of 608.
+      pageSize: "infer",
       maxPages: MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
@@ -192,6 +197,7 @@ export const successfactorsAdapter: AtsAdapter = {
         });
         const page = parseSuccessfactorsSearch(html, company);
         if (state.total === null) state.total = page.total;
+        if (state.pageSize === null && page.rowCount > 0) state.pageSize = page.rowCount;
         // Some tenants CLAMP an out-of-range startrow and re-serve the last
         // page instead of an empty one (verified live on careers.acer.com,
         // whose tile skin also omits the results banner, so `total` never
@@ -202,8 +208,8 @@ export const successfactorsAdapter: AtsAdapter = {
         if (allSeen) {
           return { items: [], total: page.total, rawCount: 0 };
         }
-        // Advance by the server's row count (25 on a full page), NOT the
-        // number of postings that survive dedupeBy — otherwise a repeat row
+        // Advance by the server's row count (whatever a full page is for this
+        // tenant), NOT the postings that survive dedupeBy — otherwise a repeat row
         // shortens the page and paginate would stop before the real last page.
         return { items: page.postings, total: page.total, rawCount: page.rowCount };
       },
@@ -212,7 +218,8 @@ export const successfactorsAdapter: AtsAdapter = {
     // Warn on a genuine safety-cap truncation (board needs more pages than
     // MAX_PAGES).
     const total = state.total;
-    if (total !== null && Math.ceil(total / PAGE) > MAX_PAGES) {
+    const pageSize = state.pageSize;
+    if (total !== null && pageSize !== null && Math.ceil(total / pageSize) > MAX_PAGES) {
       logger.warn(
         { slug: company.slug, collected: postings.length, total, maxPages: MAX_PAGES },
         "successfactors pagination capped — board larger than the safety limit",
