@@ -23,11 +23,17 @@
 // false, and status !== "closed" — undisplayable/inactive/closed rows are
 // dropped. No country filter here: the board is already India-scoped and the
 // pipeline's own location gate handles the rest.
+//
+// DEAD TENANTS: company_slug is a filter on a shared aggregator, and an unknown
+// value is silently DROPPED rather than rejected — the response is then every
+// employer's jobs at HTTP 200. Page 1 is therefore audited two ways before the
+// crawl is trusted; see talent500FilterWasIgnored and assertTalent500TenantExists.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson, parseOrThrow } from "./http.js";
+import { atsFetchJson, parseOrThrow, withAtsTimeout } from "./http.js";
+import { config } from "../config.js";
 import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 
 const API_ORIGIN = "https://prod-warmachine.talent500.co";
@@ -40,11 +46,18 @@ const TalentCountrySchema = z.object({
   country_code: z.string().nullable().optional(),
 });
 
+// The employer each job belongs to. Only `slug` is read, and only to verify the
+// server honored our company_slug filter — see talent500FilterWasIgnored.
+const TalentJobCompanySchema = z.object({
+  slug: z.string().nullable().optional(),
+});
+
 const TalentJobSchema = z.object({
   id: z.string(),
   title_alias_1: z.string().nullable().optional(),
   title: z.string().nullable().optional(),
   slug: z.string(),
+  company: TalentJobCompanySchema.nullable().optional(),
   location: z.string().nullable().optional(),
   country: TalentCountrySchema.nullable().optional(),
   is_remote: z.boolean().nullable().optional(),
@@ -78,6 +91,65 @@ export function talent500ListUrl(companySlug: string, offset: number, size: numb
 /** Build the job-detail URL from a job's slug (NOT its uuid `id`). */
 export function talent500DetailUrl(jobSlug: string): string {
   return `${API_ORIGIN}/api/jobs/${encodeURIComponent(jobSlug)}/`;
+}
+
+/** The company-profile endpoint, used solely as an existence oracle. */
+export function talent500CompanyUrl(companySlug: string): string {
+  return `${API_ORIGIN}/api/companies/${encodeURIComponent(companySlug)}/`;
+}
+
+/**
+ * True when the server plainly did NOT apply our `company_slug` filter.
+ *
+ * The list endpoint does not reject an unknown company_slug — it silently drops
+ * the filter and serves the whole aggregator. Probed 2026-08-02, every one of
+ * `zzz-no-such-tenant-9x`, `acmewidgetsco`, `nokia-india-gcc` and `""` returned
+ * HTTP 200 with total=6190 and rows from aatechhubindia / albertsonsindia /
+ * summit-consulting. So a dead slug does not merely under-report: it would
+ * attribute ~6,000 other employers' postings to this company. `nokia` returned
+ * total=73, matching its own open_jobs_count, so a LIVE slug really is filtered.
+ *
+ * Every row carries the employer it belongs to, so the response audits itself:
+ * we require at least one row to actually be this company's. Rows that carry no
+ * company object at all (a payload change) leave the question unanswerable, and
+ * this deliberately returns false there rather than failing a working board.
+ */
+export function talent500FilterWasIgnored(rows: readonly Talent500Job[], companySlug: string): boolean {
+  const rowSlugs = rows.map((r) => r.company?.slug).filter((s): s is string => typeof s === "string" && s !== "");
+  if (rowSlugs.length === 0) return false;
+  return !rowSlugs.includes(companySlug);
+}
+
+/**
+ * Throw if the company-profile endpoint says this slug does not exist.
+ *
+ * Only a definitive 404 counts. That endpoint also answers 400 "Not Published"
+ * for companies that exist but have no public profile — 15 of the 85 live rows
+ * (aramco, bp, zillow, kaspersky, …) on 2026-08-02 — so treating anything other
+ * than 404 as non-existence would quarantine those healthy boards. A transport
+ * failure or a 5xx on this secondary probe is likewise ignored: the list call
+ * already succeeded, and an outage here says nothing about the tenant.
+ */
+export async function assertTalent500TenantExists(companySlug: string): Promise<void> {
+  const url = talent500CompanyUrl(companySlug);
+  let status: number;
+  try {
+    // Raw fetch (not atsFetchJson): the status IS the signal here, and
+    // atsFetchJson turns every non-2xx into a throw before we can read it.
+    const res = await withAtsTimeout((signal) =>
+      fetch(url, { headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" }, signal }),
+    );
+    status = res.status;
+  } catch {
+    return; // probe itself failed — says nothing about the tenant
+  }
+  if (status === 404) {
+    throw new Error(
+      `talent500: tenant does not exist at ${url} — the company profile is absent, and the list ` +
+        `endpoint answers an unknown company_slug with the whole unfiltered aggregator feed rather ` +
+        `than an empty board. Slug "${companySlug}" is dead, not the board empty.`,
+    );
+  }
 }
 
 /** Public job page URL — also what fetchJd derives the detail slug from. */
@@ -140,13 +212,34 @@ export const talent500Adapter: AtsAdapter = {
       company: company.slug,
       pageSize: PAGE_SIZE,
       maxPages: MAX_PAGES,
-      fetchPage: async (offset) => {
+      fetchPage: async (offset, page) => {
         const raw = await atsFetchJson(talent500ListUrl(company.slug, offset), { provider: "talent500" });
         const parsed = parseOrThrow(TalentListSchema, raw, {
           provider: "talent500",
           slug: company.slug,
           what: `list (offset ${offset})`,
         });
+        // Dead-tenant checks, page 1 only: once page 1 has proven the filter is
+        // being applied, the tenant exists, and no later page can revoke that.
+        // Keeping them off pages 2+ also means a board that produced postings
+        // can never be failed by a hiccup deep in the crawl.
+        if (page === 0) {
+          if (talent500FilterWasIgnored(parsed.data, company.slug)) {
+            throw new Error(
+              `talent500: tenant does not exist at ${talent500ListUrl(company.slug, 0)} — the server ` +
+                `ignored company_slug and returned ${parsed.total ?? parsed.data.length} postings belonging to ` +
+                `other employers (${[...new Set(parsed.data.map((j) => j.company?.slug))].slice(0, 3).join(", ")}). ` +
+                `Slug "${company.slug}" is dead, not the board empty.`,
+            );
+          }
+          // Zero rows is the ONE shape a dead slug has never produced, so it
+          // normally means a real board with nothing open (ciena, zinnia, aveva,
+          // alfa-laval, vip-india and csgi all sat at total=0 on 2026-08-02).
+          // Confirm against the company profile anyway, so the day the vendor
+          // starts answering an unknown slug with an honest empty page we fail
+          // instead of going quietly green.
+          if (parsed.data.length === 0) await assertTalent500TenantExists(company.slug);
+        }
         const items = parsed.data
           .filter(talent500ShouldKeep)
           .map((j) => normalizeTalent500Job(company, j));
