@@ -19,6 +19,14 @@
 // endpoint sidesteps that discovery step entirely. Kept as its own
 // provider/file so zwayam.ts (header-based, PAGE_SIZE 10) stays untouched.
 //
+// Tenants are SHARDED across API hosts, and each host answers `data: null`
+// for the other's tenants — so the host is per-tenant config, not a constant
+// (`apiMeta.apiHost`, defaulting to public.zwayam.com). Verified live
+// 2026-08-02: careers.infoedge.com only on public.zwayam.com, and
+// jobs.bajajgeneral.com (360 postings) only on apic2.zwayam.com. Request
+// shape, body and response schema are identical on both; only the host and
+// the served page size (5 vs 10) differ, hence pageSize "infer" below.
+//
 // One-phase: the JD is inline in _source, same shape/inconsistency as
 // zwayam.ts (see bestJdText) — no fetchJd needed.
 import { z } from "zod";
@@ -29,9 +37,8 @@ import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
-// Server-fixed for the domain-scoped search — verified live (identical
-// 5-item pages at offsets 0, 5, and 10 for a 6350-total board).
-const PAGE_SIZE = 5;
+// The shard most tenants live on. Overridden per company by apiMeta.apiHost.
+const DEFAULT_API_HOST = "public.zwayam.com";
 
 const HitSourceSchema = z.object({
   jobTitle: z.string(),
@@ -57,8 +64,10 @@ const SearchResponseSchema = z.object({
   }),
 });
 
-export function zwayamPublicSearchUrl(): string {
-  return "https://public.zwayam.com/jobs/search";
+/** The jobs/search endpoint for this tenant's shard. `apiMeta.apiHost` is a
+ *  bare host (e.g. "apic2.zwayam.com"); absent, the default shard is used. */
+export function zwayamPublicSearchUrl(company: AdapterCompany): string {
+  return `https://${company.apiMeta?.apiHost ?? DEFAULT_API_HOST}/jobs/search`;
 }
 
 /** The jobs/search filterCri payload for one page — same shape as zwayam.ts. */
@@ -143,9 +152,22 @@ export const zwayamPublicAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "zwayam-public",
       company: company.slug,
-      pageSize: PAGE_SIZE,
+      // Tenant-set, not engine-set: the two shards serve 5 and 10 rows for the
+      // same request, so any constant is a guess about somebody else's tenant.
+      // paginate checks the short-page rule BEFORE the reported total, so
+      // guessing high ends a smaller-serving board on page 1 with totalCount
+      // sitting unread. Latch the tenant's own first-page row count instead.
+      pageSize: "infer",
+      // Arms the exact-page-repeat stall guard, whose page signature is built
+      // FROM this key: without it a board that ignores paginationStartNo is
+      // walked all the way to totalCount re-fetching page 1 (360 postings'
+      // worth of JD fetches for 10 real jobs). `_id` is the ES doc id, stable
+      // and unique per posting, and matches the (provider, external_id)
+      // identity used downstream — so collapsing a cross-page duplicate is
+      // correct as well as protective.
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
-        const raw = await atsFetchJsonMultipart(zwayamPublicSearchUrl(), {
+        const raw = await atsFetchJsonMultipart(zwayamPublicSearchUrl(company), {
           fields: { filterCri: zwayamPublicFilterCri(offset), domain: host },
           provider: "zwayam-public",
           // Same Akamai-fronted stack as zwayam.ts — rejects non-browser UAs.
