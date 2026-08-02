@@ -7,9 +7,10 @@ import {
   parseJobHref,
   parseSuccessfactorsSearch,
   parseSuccessfactorsJd,
+  successfactorsAdapter,
 } from "./successfactors.js";
 import type { AdapterCompany } from "../types.js";
-import { at } from "./test-helpers.js";
+import { at, htmlResponse, mkAdapterCompany, stubFetch } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "successfactors",
@@ -186,4 +187,116 @@ test("parseSuccessfactorsSearch falls back to tile-view cards when no table rows
   assert.equal(at(postings, 0).jobTitle, "Deputy Buyer - Kids wear");
   assert.equal(at(postings, 0).location, "Mumbai, Maharashtra, India");
   assert.match(at(postings, 0).jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
+});
+
+// --- listPostings pagination (full flow, mocked fetch) ---------------------
+//
+// The engine's page size is per-TENANT, not per-engine: jobs.mahindracareers.com
+// serves 10 rows per /search/ page while jobs.heromotocorp.com serves 25. The
+// adapter used to declare a fixed 25 to paginate(), so a 10-row tenant's very
+// first page looked "short" and the board stopped at 10 of 608 postings.
+
+const mahindra = mkAdapterCompany({
+  provider: "successfactors",
+  slug: "mahindra-group",
+  name: "Mahindra Group",
+  careersUrl: "https://jobs.mahindracareers.com/search/",
+});
+
+/** One /search/ page: `count` rows starting at `startrow`, plus the results
+ *  banner unless `total` is null (tenants on the tile skin omit it). */
+function searchPageHtml(startrow: number, count: number, total: number | null): string {
+  const banner =
+    total === null
+      ? ""
+      : `<span class="paginationLabel">Results ${startrow + 1} to ${startrow + count} of ${total}</span>`;
+  const rows = Array.from({ length: count }, (_, i) => {
+    const id = startrow + i;
+    return `<tr class="data-row">
+      <td class="colTitle"><span class="jobTitle hidden-phone">
+        <a href="/job/Role-${id}/${id}/" class="jobTitle-link">Role ${id}</a></span></td>
+      <td class="colLocation hidden-phone"><span class="jobLocation">Mumbai, MH, IN</span></td>
+      <td class="colDate hidden-phone"><span class="jobDate">10 Jul 2026</span></td>
+    </tr>`;
+  }).join("");
+  return `<html><body>${banner}<table class="searchResults"><tbody>${rows}</tbody></table></body></html>`;
+}
+
+function startrowOf(input: string): number {
+  return Number(new URL(input).searchParams.get("startrow"));
+}
+
+/** Serve a board of `total` jobs `perPage` rows at a time, recording offsets. */
+function stubBoard(
+  t: Parameters<typeof stubFetch>[0],
+  opts: { total: number; perPage: number; banner?: boolean },
+): number[] {
+  const startrows: number[] = [];
+  stubFetch(t, (input) => {
+    const startrow = startrowOf(String(input));
+    startrows.push(startrow);
+    const count = Math.max(0, Math.min(opts.perPage, opts.total - startrow));
+    return Promise.resolve(htmlResponse(searchPageHtml(startrow, count, opts.banner === false ? null : opts.total)));
+  });
+  return startrows;
+}
+
+test("listPostings: a 10-rows-per-page tenant is not truncated at page 1", async (t) => {
+  // The mahindra-group failure mode, scaled down: 34 jobs at 10 rows a page.
+  // Pre-fix this returned only the first 10.
+  const startrows = stubBoard(t, { total: 34, perPage: 10 });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+
+  assert.equal(postings.length, 34, "every posting on the board must be collected");
+  assert.deepEqual(startrows, [0, 10, 20, 30], "offsets advance by the server's own row count");
+  assert.equal(at(postings, 0).externalId, "0");
+  assert.equal(at(postings, 33).externalId, "33");
+});
+
+test("listPostings: a 25-rows-per-page tenant still paginates exactly as before", async (t) => {
+  const startrows = stubBoard(t, { total: 30, perPage: 25 });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+
+  assert.equal(postings.length, 30);
+  assert.deepEqual(startrows, [0, 25], "the short final page ends the loop, no out-of-range fetch");
+});
+
+test("listPostings: a board with no results banner stops on its genuinely short final page", async (t) => {
+  // Tile-skin tenants omit "Results X to Y of N", so nothing but the short page
+  // can end the loop - it must still stop, and only after the last page.
+  const startrows = stubBoard(t, { total: 14, perPage: 10, banner: false });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+
+  assert.equal(postings.length, 14);
+  assert.deepEqual(startrows, [0, 10]);
+});
+
+test("listPostings: a tenant that clamps an out-of-range startrow terminates", async (t) => {
+  // careers.acer.com re-serves the last page instead of an empty one, and has
+  // no banner to bound the loop: the all-duplicate page must end it.
+  const startrows: number[] = [];
+  stubFetch(t, (input) => {
+    const startrow = startrowOf(String(input));
+    startrows.push(startrow);
+    // 20 jobs, 10 a page; anything past row 10 is clamped back to the last page.
+    const clamped = Math.min(startrow, 10);
+    return Promise.resolve(htmlResponse(searchPageHtml(clamped, 10, null)));
+  });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+
+  assert.equal(postings.length, 20, "both real pages kept");
+  assert.deepEqual(startrows, [0, 10, 20], "one clamped page detected, then stop");
+});
+
+test("listPostings: a board that ignores startrow entirely stops after the repeat page", async (t) => {
+  // A stated total of 608 with a frozen first page must not walk 61 pages.
+  let calls = 0;
+  stubFetch(t, () => {
+    calls++;
+    return Promise.resolve(htmlResponse(searchPageHtml(0, 10, 608)));
+  });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+
+  assert.equal(postings.length, 10);
+  assert.equal(calls, 2, "must not paginate to the phantom total");
 });
