@@ -5,6 +5,7 @@ import { droppedResult, verdictResult, lateLocationCheck, processOnePosting } fr
 import type { NormalizedPosting, Company } from "../types.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { RunContext } from "./index.js";
+import type { TransportRetryPolicy } from "./scheduler.js";
 import { postingExists } from "../db/index.js";
 import { notifyKey } from "../filter/dedup.js";
 import { mkAdapterCompany } from "../ats/test-helpers.js";
@@ -95,6 +96,10 @@ function mkCompany(overrides: Partial<Company> = {}): Company {
     ...overrides,
   };
 }
+
+// The real JD backoff is 5s/10s/20s, which tests must not wait for. `retries: 1`
+// keeps production's shape (attempts = 1 + retries) at millisecond scale.
+const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 const orchAdapterCompany = mkAdapterCompany({
   provider: "greenhouse",
@@ -229,7 +234,7 @@ test("processOnePosting drops an out-of-region posting before any DB write", asy
   const outOfRegionPosting = mkNormalizedPosting({ location: "Berlin, Germany" });
   const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
   const stats = mkRunContext();
-  await processOnePosting(adapter, orchAdapterCompany, outOfRegionPosting, mkCompany(), stats);
+  await processOnePosting(adapter, orchAdapterCompany, outOfRegionPosting, mkCompany(), stats, FAST);
   assert.equal(postingExists(outOfRegionPosting.provider, outOfRegionPosting.externalId, stats.profileId), false);
 });
 
@@ -245,7 +250,7 @@ test("processOnePosting counts a prior-notified duplicate and skips the title/JD
     listPostings: async () => [],
     fetchJd: async () => { throw new Error("must not be called"); },
   };
-  await processOnePosting(adapter, orchAdapterCompany, dupPosting, mkCompany(), stats);
+  await processOnePosting(adapter, orchAdapterCompany, dupPosting, mkCompany(), stats, FAST);
   assert.equal(stats.postingsDuplicated, 1);
 });
 
@@ -260,6 +265,80 @@ test("processOnePosting title-deny drops before fetchJd", async () => {
     listPostings: async () => [],
     fetchJd: async () => { throw new Error("must not be called"); },
   };
-  await processOnePosting(adapter, orchAdapterCompany, deniedPosting, mkCompany(), stats);
+  await processOnePosting(adapter, orchAdapterCompany, deniedPosting, mkCompany(), stats, FAST);
   assert.equal(stats.postingsTitleDenied, 1);
+});
+
+// ---- JD-fetch retry: which errors qualify ----
+// Verbatim from run 31 (2026-08-01): what res.json() throws when a JSON endpoint
+// answers with an HTML challenge/error page.
+const EDGE_INTERSTITIAL = `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`;
+
+test("a JD lost to an edge interstitial is retried, and the posting survives", async () => {
+  const p = mkNormalizedPosting({ location: "Bengaluru, India" });
+  const stats = mkRunContext();
+  let calls = 0;
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => {
+      calls++;
+      if (calls === 1) throw new SyntaxError(EDGE_INTERSTITIAL);
+      // An empty JD is a legitimate adapter result, and it halts the pipeline at
+      // the "no-jd" write — after insertPostingIfNew, before any LLM call.
+      return "";
+    },
+  };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  // The loop used to test isTransportError alone, so an edge page got zero
+  // retries and the posting vanished before it was ever inserted.
+  assert.equal(calls, 2, "an edge page must be retried, not dropped");
+  assert.equal(stats.jdFetchFailed, 0);
+  assert.equal(stats.postingsNew, 1);
+  assert.equal(postingExists(p.provider, p.externalId, stats.profileId), true);
+});
+
+test("a board-shaped JD failure is not retried", async () => {
+  const p = mkNormalizedPosting({ location: "Bengaluru, India" });
+  const stats = mkRunContext();
+  let calls = 0;
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => {
+      calls++;
+      throw new Error("greenhouse HTTP 404: no such job");
+    },
+  };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  // The host answered, so a second identical request only wastes a round trip.
+  assert.equal(calls, 1);
+  assert.equal(stats.jdFetchFailed, 1);
+  assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
+});
+
+test("an edge interstitial that never clears still gives up inside the retry budget", async () => {
+  const p = mkNormalizedPosting({ location: "Bengaluru, India" });
+  const stats = mkRunContext();
+  let calls = 0;
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => {
+      calls++;
+      throw new SyntaxError(EDGE_INTERSTITIAL);
+    },
+  };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  // Widening WHICH errors qualify must not widen HOW MANY attempts they get:
+  // thousands of postings run through here, so the budget stays 1 + retries.
+  assert.equal(calls, FAST.retries + 1);
+  assert.equal(stats.jdFetchFailed, 1);
+  assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
 });

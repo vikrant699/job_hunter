@@ -121,3 +121,17 @@ export function isEdgeInterstitialError(err: unknown): boolean {
     chain(err).some((e) => e instanceof SyntaxError) || JSON_PARSE_MESSAGE_RE.test(text);
   return parseFailed && MARKUP_BODY_RE.test(text);
 }
+
+/**
+ * Faults from the network or from an edge in front of the board — never from the
+ * board's own application. Retryable, and never chargeable to the company's
+ * failure count.
+ *
+ * The union lives here so every caller routes on the same rule: while the OR was
+ * copied into the scheduler alone, the JD-fetch loop in pipeline/posting-pipeline.ts
+ * still tested transport only, giving an edge page zero retries and silently
+ * dropping the posting before it was ever inserted.
+ */
+export function isInfrastructureFault(err: unknown): boolean {
+  return isTransportError(err) || isEdgeInterstitialError(err);
+}

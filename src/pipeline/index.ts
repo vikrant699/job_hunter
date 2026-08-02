@@ -16,6 +16,14 @@ import { profile } from "../profile.js";
 import { describeError } from "../util/error-cause.js";
 import { processBucket, runDeferredTransportPass } from "./scheduler.js";
 
+/** A board whose fetch died on infrastructure, parked for the end-of-run pass.
+ *  Carries its adapter so the pass can replay it without re-bucketing. */
+export interface DeferredBoard {
+  company: Company;
+  adapter: AtsAdapter;
+  err: string;
+}
+
 export interface RunContext {
   companiesScanned: number;
   postingsSeen: number;
@@ -36,7 +44,7 @@ export interface RunContext {
    *  Retried once after every bucket finishes — by then a transient outage has
    *  had the rest of the run to clear. Only a board that fails the deferred pass
    *  too becomes a real failure. */
-  transportDeferred: Array<{ company: Company; adapter: AtsAdapter; err: string }>;
+  transportDeferred: DeferredBoard[];
   /** Deferred boards that fetched successfully on the second pass. */
   transportRecovered: number;
   /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */

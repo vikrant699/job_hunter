@@ -2,14 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   classifyFetchError,
+  defaultRetryPolicy,
   processBucket,
   runDeferredTransportPass,
   type TransportRetryPolicy,
 } from "./scheduler.js";
 import type { RunContext } from "./index.js";
 import type { AtsAdapter } from "../ats/types.js";
+import type { Provider } from "../schemas.js";
 import type { Company, NormalizedPosting } from "../types.js";
 import { upsertCompany, db } from "../db/index.js";
+import { sleep } from "../util/sleep.js";
 
 test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("AbortError: This operation was aborted"), "timeout");
@@ -22,8 +25,9 @@ test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("Error: something weird happened"), "other");
 });
 
-// Fast policy: real backoff is seconds, which tests must not wait for.
-const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1 };
+// Fast policy: real backoff and deferred pacing are seconds, which tests must
+// not wait for. Tests that assert pacing override deferredPaceMs with a few ms.
+const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 let seq = 0;
 function mkRunContext(): RunContext {
@@ -50,9 +54,9 @@ function mkRunContext(): RunContext {
 }
 
 /** Seed a real companies row so the mark* statements have something to update. */
-function seedCompany(slug: string): Company {
+function seedCompany(slug: string, provider: Provider = "greenhouse"): Company {
   const company: Company = {
-    provider: "greenhouse",
+    provider,
     slug,
     name: `Test ${slug}`,
     careersUrl: `https://boards.greenhouse.io/${slug}`,
@@ -278,4 +282,105 @@ test("runDeferredTransportPass is a no-op when nothing was deferred", async () =
   await runDeferredTransportPass(stats, FAST);
   assert.equal(stats.transportRecovered, 0);
   assert.equal(stats.failedCompanies.length, 0);
+});
+
+// ---- the deferred pass must not replay the burst that caused the deferral ----
+
+interface CallLog {
+  slugs: string[];
+  providers: string[];
+  inFlight: number;
+  peakInFlight: number;
+}
+
+function mkCallLog(): CallLog {
+  return { slugs: [], providers: [], inFlight: 0, peakInFlight: 0 };
+}
+
+/** Records call order and peak concurrency, so a pass that fans out is
+ *  distinguishable from one that walks its queue. Several adapters can share one
+ *  log, which is how the cross-provider concurrency is observed. */
+function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
+  return {
+    provider,
+    listPostings: async (c): Promise<NormalizedPosting[]> => {
+      log.inFlight++;
+      log.peakInFlight = Math.max(log.peakInFlight, log.inFlight);
+      log.slugs.push(c.slug);
+      log.providers.push(c.provider);
+      // Yield: a pass that started several boards at once overlaps right here.
+      await sleep(0);
+      log.inFlight--;
+      return [];
+    },
+  };
+}
+
+/** The deferred pass's whole input is this array, so pushing onto it directly
+ *  keeps these tests off the first-pass retry path they don't exercise. */
+function deferBoard(stats: RunContext, company: Company, adapter: AtsAdapter): void {
+  stats.transportDeferred.push({ company, adapter, err: "SyntaxError: Unexpected token '<'" });
+}
+
+test("the deferred pass works boards one at a time, not at provider concurrency", async () => {
+  const stats = mkRunContext();
+  const log = mkCallLog();
+  const adapter = recordingAdapter("greenhouse", log);
+  const stamp = Date.now();
+  for (let i = 0; i < 6; i++) {
+    deferBoard(stats, seedCompany(`paced-${stamp}-${i}`), adapter);
+  }
+
+  await runDeferredTransportPass(stats, FAST);
+
+  // Run 31 deferred 17 Workday tenants together because the vendor's edge
+  // throttled a burst of them. Replaying that at concurrencyPerProvider is the
+  // same burst again: the boards stay unquarantined but the run still loses the
+  // 909 postings they were holding.
+  assert.equal(log.peakInFlight, 1, "deferred boards must not be replayed concurrently");
+  assert.equal(log.slugs.length, 6);
+  assert.equal(stats.transportRecovered, 6);
+  assert.equal(stats.failedCompanies.length, 0);
+});
+
+test("the deferred pass sleeps between boards, at the injected pace", async () => {
+  const stats = mkRunContext();
+  const log = mkCallLog();
+  const adapter = recordingAdapter("greenhouse", log);
+  const stamp = Date.now();
+  for (let i = 0; i < 3; i++) {
+    deferBoard(stats, seedCompany(`gap-${stamp}-${i}`), adapter);
+  }
+
+  const paceMs = 40;
+  const started = Date.now();
+  await runDeferredTransportPass(stats, { ...FAST, deferredPaceMs: paceMs });
+  const elapsed = Date.now() - started;
+
+  assert.equal(log.slugs.length, 3);
+  // 3 boards leave 2 gaps; asserting only one full gap keeps the bound clear of
+  // timer resolution while still failing outright if the pace is ignored.
+  assert.ok(elapsed >= paceMs, `expected the pass to be paced, took ${elapsed}ms`);
+  // ...and the production pace must be at least as wide as the hand re-probe
+  // that recovered 17 of 19 run-31 Workday boards (2.5s apart, 909 postings).
+  assert.ok(defaultRetryPolicy().deferredPaceMs >= 2500);
+});
+
+test("the deferred pass interleaves providers instead of draining one vendor", async () => {
+  const stats = mkRunContext();
+  const log = mkCallLog();
+  const stamp = Date.now();
+  const greenhouse = recordingAdapter("greenhouse", log);
+  const lever = recordingAdapter("lever", log);
+  deferBoard(stats, seedCompany(`rr-gh-a-${stamp}`), greenhouse);
+  deferBoard(stats, seedCompany(`rr-gh-b-${stamp}`), greenhouse);
+  deferBoard(stats, seedCompany(`rr-lv-a-${stamp}`, "lever"), lever);
+  deferBoard(stats, seedCompany(`rr-lv-b-${stamp}`, "lever"), lever);
+
+  await runDeferredTransportPass(stats, FAST);
+
+  // Two boards of one vendor back-to-back is the rate the pace exists to avoid,
+  // so a mixed queue alternates rather than draining greenhouse first.
+  assert.deepEqual(log.providers, ["greenhouse", "lever", "greenhouse", "lever"]);
+  assert.equal(stats.transportRecovered, 4);
 });

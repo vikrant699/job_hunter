@@ -4,6 +4,7 @@ import {
   describeError,
   errorCauseCodes,
   isEdgeInterstitialError,
+  isInfrastructureFault,
   isTransportError,
 } from "./error-cause.js";
 
@@ -128,4 +129,31 @@ test("the two infrastructure predicates stay disjoint", () => {
   assert.ok(isTransportError(undiciDnsFailure()));
   // An interstitial arrives over a healthy socket (HTTP 200), so it is not transport.
   assert.equal(isTransportError(jsonParseFailure("<!DOCTYPE html>")), false);
+});
+
+/**
+ * The union of the two is what every caller actually wants to route on, so it
+ * lives here rather than being re-derived per call site. The JD-fetch loop in
+ * pipeline/posting-pipeline.ts checked only isTransportError until it used this,
+ * which is why an edge page there dropped the posting with zero retries.
+ */
+test("isInfrastructureFault covers both shapes the board is not to blame for", () => {
+  assert.ok(isInfrastructureFault(undiciDnsFailure()));
+  assert.ok(isInfrastructureFault(new SyntaxError(RUN_31_MESSAGE)));
+  assert.ok(isInfrastructureFault(jsonParseFailure("<!DOCTYPE html><html></html>")));
+  // Wrapped by an adapter, as the real ones do.
+  assert.ok(
+    isInfrastructureFault(
+      new Error("workday list fetch failed", { cause: new SyntaxError(RUN_31_MESSAGE) }),
+    ),
+  );
+});
+
+test("isInfrastructureFault is false for board defects, which must still count", () => {
+  assert.equal(isInfrastructureFault(new Error("greenhouse 404")), false);
+  assert.equal(isInfrastructureFault(new Error("workday HTTP 403: permission denied")), false);
+  assert.equal(isInfrastructureFault(new Error("oracle requires apiMeta.siteNumber")), false);
+  // Malformed but JSON-shaped, and truncated: the board's application answered.
+  assert.equal(isInfrastructureFault(jsonParseFailure("xnot json")), false);
+  assert.equal(isInfrastructureFault(jsonParseFailure('{"jobs":')), false);
 });
