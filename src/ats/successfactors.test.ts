@@ -3,12 +3,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   successfactorsSearchUrl,
+  isSuccessfactorsEngine,
   parseSuccessfactorsTotal,
   parseJobHref,
   parseSuccessfactorsSearch,
   parseSuccessfactorsJd,
   successfactorsAdapter,
 } from "./successfactors.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
 import { at, htmlResponse, mkAdapterCompany, stubFetch } from "./test-helpers.js";
 
@@ -299,4 +305,108 @@ test("listPostings: a board that ignores startrow entirely stops after the repea
 
   assert.equal(postings.length, 10);
   assert.equal(calls, 2, "must not paginate to the phantom total");
+});
+
+// --- dead custom domain vs empty board ----------------------------------------
+//
+// These tenants sit on the company's OWN domain, so the failure to catch is the
+// domain quietly ceasing to serve SuccessFactors while still answering 200.
+// Shapes below come from live probes on 2026-08-02.
+
+// Trimmed from GET careers.tatapower.com/search/?…&startrow=0 (HTTP 200). A
+// LIVE Jobs2Web board with nothing open: no tr.data-row, no li.job-tile and no
+// "Results N to M of TOTAL" banner — the engine renders its own #noresults
+// block instead. careers.mankindpharma.com serves the same shape, and so does
+// any healthy tenant searched for a nonsense keyword. Failing this would
+// quarantine two live boards, so it is the case that matters most here.
+const EMPTY_ENGINE_HTML = `<!DOCTYPE html>
+<html lang="en-GB">
+  <head>
+    <title>tatapower Jobs</title>
+    <link type="text/css" class="keepscript" rel="stylesheet" href="https://careers.tatapower.com/platform/bootstrap/3.4.8_NES/css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="/platform/css/j2w/min/bootstrapV3.global.responsive.min.css?h=b942c10c" />
+    <script src="/platform/js/j2w/j2w.fallbacks.js"></script>
+  </head>
+  <body>
+    <div id="content">
+      <h1 class="keyword-title">Search results for<span class="securitySearchQuery"> "".</span></h1>
+      <div id="noresults" xml:lang="en-GB" lang="en-GB" class="alert alert-block">
+        <div id="attention">
+          <img id="attention-img" src="/platform/images/attention.png" alt="Attention!" border="0" />
+          <label>There are currently no open positions matching "<span class='attention securitySearchString'></span>".</label>
+        </div>
+        <div id="noresults-message"><label>The 0 most recent jobs posted by tatapower are listed below for your convenience.</label></div>
+      </div>
+      <div class="jobAlertsSearchForm"></div>
+    </div>
+  </body>
+</html>
+`;
+
+// What a lapsed careers subdomain serves once it stops pointing at Jobs2Web:
+// still HTTP 200, still plausible, but none of the engine's assets. Parses to
+// zero rows exactly like the page above, which is why size or row count cannot
+// tell them apart.
+const PARKED_HTML = `<!DOCTYPE html>
+<html>
+  <head><title>careers.example.com</title></head>
+  <body>
+    <div id="content">
+      <h1>careers.example.com</h1>
+      <p>This domain is parked. Enquiries welcome.</p>
+    </div>
+  </body>
+</html>
+`;
+
+test("isSuccessfactorsEngine recognises the Jobs2Web asset namespace, empty board or not", () => {
+  assert.equal(isSuccessfactorsEngine(EMPTY_ENGINE_HTML), true);
+  assert.equal(isSuccessfactorsEngine(SEARCH_HTML.replace("<html>", '<html><script src="/platform/js/j2w/x.js"></script>')), true);
+  assert.equal(isSuccessfactorsEngine(PARKED_HTML), false);
+});
+
+test("listPostings returns [] for a LIVE board rendering the engine's no-open-positions page", async (t) => {
+  // tata-power and mankind-pharma are both in exactly this state right now.
+  stubFetch(t, () => Promise.resolve(htmlResponse(EMPTY_ENGINE_HTML)));
+  assert.deepEqual(await successfactorsAdapter.listPostings(mahindra), []);
+});
+
+test("listPostings rejects a custom domain that no longer serves the engine", async (t) => {
+  stubFetch(t, () => Promise.resolve(htmlResponse(PARKED_HTML)));
+  await assert.rejects(
+    () => successfactorsAdapter.listPostings(mahindra),
+    /successfactors: tenant does not exist/,
+  );
+});
+
+test("the dead-domain error is charged to the company, not written off as infrastructure", async (t) => {
+  // A domain that stopped serving the board is a real per-company defect and
+  // MUST count toward consecutive_failures. If any of these flipped true the
+  // scheduler would retry it forever and never quarantine it.
+  stubFetch(t, () => Promise.resolve(htmlResponse(PARKED_HTML)));
+  const err = await successfactorsAdapter.listPostings(mahindra).then(() => null, (e: unknown) => e);
+  assert.ok(err instanceof Error);
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("a board that produced rows is never failed for missing engine assets", async (t) => {
+  // searchPageHtml carries no /platform/js/j2w/ at all, so this also proves the
+  // check cannot fire on any page that parsed rows.
+  const startrows = stubBoard(t, { total: 12, perPage: 10 });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+  assert.equal(postings.length, 12);
+  assert.deepEqual(startrows, [0, 10]);
+});
+
+test("only page 1 is audited: a parked-looking page past the end just ends the crawl", async (t) => {
+  let calls = 0;
+  stubFetch(t, () => {
+    calls++;
+    // Page 1 is a real board; page 2 comes back as something else entirely.
+    return Promise.resolve(htmlResponse(calls === 1 ? searchPageHtml(0, 10, null) : PARKED_HTML));
+  });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+  assert.equal(postings.length, 10, "page 1's postings are kept, not thrown away");
 });

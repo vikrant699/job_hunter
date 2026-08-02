@@ -40,6 +40,31 @@ export function successfactorsSearchUrl(origin: string, startrow: number): strin
   return `${origin}/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=${startrow}`;
 }
 
+// A custom domain that stops serving SuccessFactors — parked by the registrar,
+// re-pointed at a marketing page, or fronted by a block page that answers 200 —
+// has no rows to parse, so it used to report a healthy board with zero openings
+// indefinitely. Detection has to be a POSITIVE "the engine rendered" marker.
+//
+// It deliberately is NOT the results banner or the row containers. Probed
+// 2026-08-02 across all 19 live rows: the banner is on 12, tr.data-row on 12,
+// li.job-tile on 5 — and careers.tatapower.com and careers.mankindpharma.com
+// have NONE of the three, because they are live Jobs2Web boards currently
+// rendering the engine's own "There are currently no open positions" page. A
+// guard keyed on those would quarantine both today, and every tenant that ever
+// empties out. The same page shape is reproducible on a healthy tenant by
+// searching for a nonsense keyword.
+//
+// The engine's asset namespace survives all of that: every page it serves loads
+// /platform/css/j2w/… and /platform/js/j2w/…, j2w being the Jobs2Web lineage
+// named at the top of this file. Present on 19/19 live tenants, on both empty
+// boards, and on the no-results pages of careers.payu.in and jobs.sap.com.
+const J2W_ENGINE_RE = /\/platform\/(?:css|js)\/j2w\//i;
+
+/** Whether this page came from the Jobs2Web engine at all — see J2W_ENGINE_RE. */
+export function isSuccessfactorsEngine(html: string): boolean {
+  return J2W_ENGINE_RE.test(html);
+}
+
 /** Parse the "Results 1 to 25 of <TOTAL>" banner. Null when absent. */
 export function parseSuccessfactorsTotal(html: string): number | null {
   const m = html.match(/Results\s+[\d,]+\s+to\s+[\d,]+\s+of\s+([\d,]+)/i);
@@ -191,11 +216,24 @@ export const successfactorsAdapter: AtsAdapter = {
       pageSize: "infer",
       maxPages: MAX_PAGES,
       dedupeBy: (p) => p.externalId,
-      fetchPage: async (offset) => {
+      fetchPage: async (offset, pageNum) => {
         const html = await atsFetchText(successfactorsSearchUrl(origin, offset), {
           provider: "successfactors",
         });
         const page = parseSuccessfactorsSearch(html, company);
+        // Page 1 only, and only once it has produced no row containers at all.
+        // A page that rendered rows is a live board whatever its assets look
+        // like, and past the last page the engine keeps serving its own (j2w)
+        // markup anyway — so gating here costs nothing and removes any chance
+        // of failing a board that already yielded postings.
+        if (pageNum === 0 && page.rowCount === 0 && !isSuccessfactorsEngine(html)) {
+          throw new Error(
+            `successfactors: tenant does not exist at ${successfactorsSearchUrl(origin, 0)} — the ` +
+              `response carries none of the Jobs2Web engine's assets, so this custom domain is no ` +
+              `longer serving the board (parked, re-pointed, or a 200-served block page). A live ` +
+              `board with nothing open still renders the engine.`,
+          );
+        }
         if (state.total === null) state.total = page.total;
         if (state.pageSize === null && page.rowCount > 0) state.pageSize = page.rowCount;
         // Some tenants CLAMP an out-of-range startrow and re-serve the last
