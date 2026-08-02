@@ -5,13 +5,13 @@ import {
   markFetchFailure,
   markTransportFailure,
 } from "../db/index.js";
-import { describeError, isEdgeInterstitialError, isTransportError } from "../util/error-cause.js";
+import { describeError, isInfrastructureFault } from "../util/error-cause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { toAdapterCompany } from "./index.js";
-import type { RunContext } from "./index.js";
+import type { DeferredBoard, RunContext } from "./index.js";
 import { processOnePosting } from "./posting-pipeline.js";
 import { sleep } from "../util/sleep.js";
 
@@ -27,28 +27,22 @@ export function classifyFetchError(msg: string): string {
   return "other";
 }
 
-/**
- * Faults that are the network, or an edge in front of the board — never the board
- * itself. Both are retryable and neither may advance a company's quarantine
- * counter: the board's application was never reached, so it told us nothing about
- * its own health. One predicate so every routing decision below agrees, and so
- * there is a single place to widen when a new infrastructure signature turns up.
- */
-function isInfrastructureFault(err: unknown): boolean {
-  return isTransportError(err) || isEdgeInterstitialError(err);
-}
-
-/** Transport backoff schedule. Injected so tests need not wait real seconds;
+/** Timing for infrastructure faults: the inline backoff schedule plus the pace of
+ *  the end-of-run deferred pass. Injected so tests need not wait real seconds;
  *  production always passes the config values via defaultRetryPolicy(). */
 export interface TransportRetryPolicy {
   retries: number;
   baseDelayMs: number;
+  /** Pause BETWEEN deferred boards, which the deferred pass works one at a time.
+   *  See config.fetch.deferredPassPaceMs for where the number comes from. */
+  deferredPaceMs: number;
 }
 
 export function defaultRetryPolicy(): TransportRetryPolicy {
   return {
     retries: config.fetch.transportRetries,
     baseDelayMs: config.fetch.transportRetryBaseMs,
+    deferredPaceMs: config.fetch.deferredPassPaceMs,
   };
 }
 
@@ -86,6 +80,31 @@ export async function processBucket(
 }
 
 /**
+ * Deferred boards in round-robin order across their providers. These boards are
+ * here because a vendor's edge (or the network) refused a burst, so draining one
+ * vendor's queue back-to-back would aim the same concentrated rate at it again;
+ * alternating vendors spreads each one's requests over the whole pass for free.
+ */
+function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
+  const queues = new Map<string, DeferredBoard[]>();
+  for (const d of deferred) {
+    const q = queues.get(d.company.provider);
+    if (q) q.push(d);
+    else queues.set(d.company.provider, [d]);
+  }
+  const out: DeferredBoard[] = [];
+  // Each sweep takes one board from every provider that still has one, so every
+  // sweep makes progress and this terminates.
+  while (out.length < deferred.length) {
+    for (const q of queues.values()) {
+      const next = q.shift();
+      if (next !== undefined) out.push(next);
+    }
+  }
+  return out;
+}
+
+/**
  * Second chance for boards the infrastructure took down. Inline retries
  * (listWithTransportRetry) span ~35s, which covers a blip but not a multi-minute
  * outage: in run 29 a ~9-minute network failure at 22:42 killed 72 Workday boards,
@@ -94,6 +113,13 @@ export async function processBucket(
  * and by then the bucket had moved on to a different vendor. By the time every
  * bucket has finished, such a fault has had the rest of the run to clear, so one
  * more attempt recovers boards that would otherwise have been written off.
+ *
+ * Paced, NOT parallel: one board at a time with a gap between them. Replaying a
+ * throttled group at concurrencyPerProvider is the very burst that deferred them,
+ * which is how run 31 could keep all 17 boards out of quarantine and still lose
+ * their 909 postings. Getting the jobs is the goal; protecting the row is not.
+ * Sequential is affordable precisely because this pass is small (8 boards in run
+ * 31) and runs when nothing else is left to do.
  *
  * A board that fails this way on BOTH passes is finally recorded as a real failure
  * — at that point "it wasn't the board" is no longer a credible excuse.
@@ -109,24 +135,17 @@ export async function runDeferredTransportPass(
   stats.transportDeferred = [];
 
   logger.info(
-    { boards: deferred.length },
-    "deferred transport pass: retrying boards the network or an edge refused mid-run",
+    { boards: deferred.length, paceMs: retry.deferredPaceMs },
+    "deferred transport pass: retrying boards the network or an edge refused mid-run, one at a time",
   );
-
-  // Group by provider so the existing per-provider concurrency cap still applies.
-  const groups = new Map<string, { adapter: AtsAdapter; companies: Company[] }>();
-  for (const d of deferred) {
-    const existing = groups.get(d.company.provider);
-    if (existing) existing.companies.push(d.company);
-    else groups.set(d.company.provider, { adapter: d.adapter, companies: [d.company] });
-  }
 
   const scannedBefore = stats.companiesScanned;
-  await Promise.all(
-    Array.from(groups.entries()).map(([provider, g]) =>
-      processBucket(`retry:${provider}`, g.adapter, g.companies, stats, retry),
-    ),
-  );
+  for (const [i, d] of interleaveByProvider(deferred).entries()) {
+    // No gap before the first board: the last request to any of these vendors was
+    // a whole run ago, so only the gaps between boards buy anything.
+    if (i > 0 && retry.deferredPaceMs > 0) await sleep(retry.deferredPaceMs);
+    await processOneCompany(d.adapter, d.company, stats, retry);
+  }
   // Only deferred boards ran in this pass, so the delta is what recovered.
   stats.transportRecovered = stats.companiesScanned - scannedBefore;
 
@@ -259,7 +278,7 @@ async function processOneCompany(
       if (!posting) return;
       stats.postingsSeen++;
       try {
-        await processOnePosting(adapter, adapterCompany, posting, company, stats);
+        await processOnePosting(adapter, adapterCompany, posting, company, stats, retry);
       } catch (err) {
         // Propagate a backend-down abort; only swallow per-posting errors.
         if (err instanceof OllamaUnavailableError) throw err;

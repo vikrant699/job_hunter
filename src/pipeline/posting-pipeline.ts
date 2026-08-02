@@ -15,10 +15,12 @@ import { runExtract, type ExtractResult } from "../llm/extract.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { profile } from "../profile.js";
-import { config } from "../config.js";
 import { sleep } from "../util/sleep.js";
-import { describeError, isTransportError } from "../util/error-cause.js";
+import { describeError, isInfrastructureFault } from "../util/error-cause.js";
 import type { RunContext } from "./index.js";
+// Type-only: the scheduler owns the policy and is this function's only production
+// caller, so importing the shape back creates no runtime dependency on it.
+import type { TransportRetryPolicy } from "./scheduler.js";
 
 interface PostingResultPatch {
   llmRelevant: number | null;
@@ -113,6 +115,7 @@ export async function processOnePosting(
   posting: NormalizedPosting,
   company: Company,
   stats: RunContext,
+  retry: TransportRetryPolicy,
 ): Promise<void> {
   if (posting.location !== null && posting.location !== "") {
     const loc = checkLocation(posting.location, posting.isRemote);
@@ -142,20 +145,23 @@ export async function processOnePosting(
 
   if (!posting.jdText && adapter.fetchJd) {
     const fetchJd = adapter.fetchJd;
-    // Retry transport-layer failures: a JD lost to a network blip costs the whole
-    // posting, since it is skipped before insertPostingIfNew and only reappears on
-    // the next run. Run 29 lost 833 postings this way inside one 8-minute outage.
+    // Retry infrastructure failures: a JD lost to a network blip — or to an edge
+    // page served in place of the JD — costs the whole posting, since it is
+    // skipped before insertPostingIfNew and only reappears on the next run. Run 29
+    // lost 833 postings this way inside one 8-minute outage. The budget is the
+    // listing path's, unchanged: widening WHICH errors qualify must not multiply
+    // request volume across thousands of postings.
     // Board-shaped errors (404/403/schema) are NOT retried — the host answered.
     let jdErr: unknown;
-    for (let attempt = 0; attempt <= config.fetch.transportRetries; attempt++) {
+    for (let attempt = 0; attempt <= retry.retries; attempt++) {
       try {
         posting.jdText = await fetchJd(adapterCompany, posting);
         jdErr = undefined;
         break;
       } catch (err) {
         jdErr = err;
-        if (!isTransportError(err) || attempt === config.fetch.transportRetries) break;
-        await sleep(config.fetch.transportRetryBaseMs * 2 ** attempt);
+        if (!isInfrastructureFault(err) || attempt === retry.retries) break;
+        await sleep(retry.baseDelayMs * 2 ** attempt);
       }
     }
     if (jdErr !== undefined) {

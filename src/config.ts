@@ -9,10 +9,13 @@ import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shor
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
 import { envInt } from "./util/env.js";
 
-// Declared outside the `as const` config object (typed `number`, not narrowed
-// to the literal `250`) so pipeline/scheduler.ts's `> 0` skip-if-disabled
-// check stays a real runtime check instead of a compile-time-always-true one.
+// Both delays are compared against 0 by pipeline/scheduler.ts to skip the sleep
+// when they are disabled, so both are declared outside the `as const` config
+// object (typed `number`, not narrowed to their literals) to keep those
+// skip-if-disabled checks real runtime checks rather than
+// compile-time-always-true ones.
 const INTER_CALL_DELAY_MS: number = 250;
+const DEFERRED_PASS_PACE_MS: number = 3_000;
 
 export const config = {
   fetch: {
@@ -34,6 +37,16 @@ export const config = {
     transportRetries: 3,
     /** First transport backoff; doubles per attempt (5s, 10s, 20s). */
     transportRetryBaseMs: 5_000,
+    /** Gap between boards in the end-of-run deferred pass, which works them one
+     *  at a time rather than at concurrencyPerProvider. Provenance: run 31
+     *  (2026-08-01) lost 17 Workday tenants to a 24-second edge throttle, and
+     *  re-probing those boards by hand SEQUENTIALLY, 2.5s apart, got jobs from 17
+     *  of 19 (909 India postings) — so sequential-and-spaced is the shape the
+     *  vendor tolerates, and this sits just above the spacing that worked. The
+     *  pass only ever handles the boards a run deferred (8 in run 31), and runs
+     *  after every bucket is done, so the added latency is nearly free: even 17
+     *  boards is under a minute. */
+    deferredPassPaceMs: DEFERRED_PASS_PACE_MS,
     /** Identify ourselves to ATS providers; some block default node UA. */
     userAgent: "job-hunter-bot/0.1",
   },
