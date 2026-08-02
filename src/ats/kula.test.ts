@@ -2,6 +2,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeKula, kulaListUrl, kulaJobUrl, kulaAdapter } from "./kula.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -97,6 +102,43 @@ test("kulaAdapter.listPostings filters listed:false and stops on a short page", 
     const postings = await kulaAdapter.listPostings(company);
     assert.equal(postings.length, 2);
     assert.deepEqual(postings.map((p) => p.externalId).sort(), ["2941", "3001"]);
+  } finally {
+    restoreFetch();
+  }
+});
+
+// --- dead account vs empty board ----------------------------------------------
+//
+// Kula needs no dead-tenant marker, unlike its shared-host peers: `accountName`
+// is a filter on the shared careers.kula.ai, but an unknown value is REJECTED
+// rather than silently dropped. Probed 2026-08-02 — zzznosuchtenant9x,
+// acmewidgets and digantara-old each returned HTTP 404
+// {"errors":["err_account_not_found"]}, while Digantara and cashfree returned
+// 200 with rows. These two tests pin that safety in place: it is a property of
+// the vendor's response, not of anything this adapter does, so nothing here
+// would otherwise stop a future refactor from swallowing it.
+
+test("a dead account rejects rather than reporting an empty board", async () => {
+  stubFetch(async () => Response.json({ errors: ["err_account_not_found"] }, { status: 404 }));
+  try {
+    const err = await kulaAdapter
+      .listPostings({ ...company, slug: "zzznosuchtenant9x" })
+      .then(() => null, (e: unknown) => e);
+    assert.ok(err instanceof Error, "a 404 account-not-found must not resolve to []");
+    // Charged to the company: a dead account is a per-company defect, so it has
+    // to count toward consecutive_failures rather than be retried as an outage.
+    assert.equal(isTransportError(err), false);
+    assert.equal(isEdgeInterstitialError(err), false);
+    assert.equal(isInfrastructureFault(err), false);
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("a LIVE account whose board is empty still returns []", async () => {
+  stubFetch(async () => Response.json({ data: [], meta: { count: 0, page: 1, items: 99, pages: 0 } }));
+  try {
+    assert.deepEqual(await kulaAdapter.listPostings(company), []);
   } finally {
     restoreFetch();
   }
