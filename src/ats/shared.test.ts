@@ -576,6 +576,28 @@ describe("paginate", () => {
     assert.equal(calls, 2, "the stall guard must still fire without a declared page size");
   });
 
+  it("the stall guard is inert without dedupeBy: a repeating board is then bounded only by the cap", async () => {
+    // Documents why every adapter that publishes no total must pass dedupeBy.
+    // The signature the stall guard compares is built FROM dedupeBy, so with
+    // no per-item key an offset-ignoring board is caught by nothing but
+    // maxPages — and under "infer" that now includes a board smaller than one
+    // page, since page 1 can never be judged short against itself.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "stuck-no-key",
+      pageSize: "infer",
+      maxPages: 5,
+      interPageDelayMs: 0,
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: null };
+      },
+    });
+    assert.equal(calls, 5, "no key means no stall detection, so only the cap stops it");
+    assert.equal(result.length, 15);
+  });
+
   it("pageSize 'infer' with no total and an endless board is bounded by maxPages", async () => {
     let calls = 0;
     const result = await paginate<number>({

@@ -82,12 +82,45 @@ function fullCard(n: number): string {
 }
 const LIST_PAGE_FULL = `<div class="jobs"><div class="job-container">${Array.from({ length: 10 }, (_, i) => fullCard(i + 1)).join("")}</div></div>`;
 
+/** A card whose href carries no trailing numeric id — rendered by the server
+ *  (so it counts toward the page's raw size) but dropped by the parser. */
+function malformedCard(n: number): string {
+  return `<a class="gohire-job" href="https://jobs.gohire.io/${company.slug}/broken-role/">
+      <div class="left-career">
+        <div class="career-title"><h3 class="job-title client-brand-text notranslate">Broken ${n}</h3></div>
+      </div>
+    </a>`;
+}
+
+/** A list page holding exactly the given cards. */
+function listPage(cards: string[]): string {
+  return `<div class="jobs"><div class="job-container">${cards.join("")}</div></div>`;
+}
+
+/** `count` well-formed cards with ids starting at `startId`. */
+function pageOf(count: number, startId: number): string {
+  return listPage(Array.from({ length: count }, (_, i) => fullCard(startId + i)));
+}
+
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {
   globalThis.fetch = fn;
 }
 function restoreFetch(): void {
   globalThis.fetch = realFetch;
+}
+
+/** Serve a canned page per `page` form field; any page past the end is the
+ *  empty board page. Records the page numbers requested, in order. */
+function stubPages(pages: Record<string, string>): string[] {
+  const seen: string[] = [];
+  stubFetch(async (_input, init) => {
+    const body = typeof init?.body === "string" ? init.body : "";
+    const page = new URLSearchParams(body).get("page") ?? "";
+    seen.push(page);
+    return new Response(pages[page] ?? LIST_PAGE_EMPTY, { status: 200 });
+  });
+  return seen;
 }
 
 test("gohireBoardUrl builds the POST target from the tenant slug", () => {
@@ -110,8 +143,9 @@ test("gohireExternalId returns null for a href with no trailing numeric id", () 
 });
 
 test("parseGohireListPage extracts both cards: title, location, url, posted date", () => {
-  const items = parseGohireListPage(LIST_PAGE_1, company);
+  const { postings: items, rawCount } = parseGohireListPage(LIST_PAGE_1, company);
   assert.equal(items.length, 2);
+  assert.equal(rawCount, 2, "both cards were rendered and both parsed");
 
   const first = items[0];
   const second = items[1];
@@ -131,11 +165,20 @@ test("parseGohireListPage extracts both cards: title, location, url, posted date
 });
 
 test("parseGohireListPage returns an empty array for a page with no job cards", () => {
-  assert.deepEqual(parseGohireListPage(LIST_PAGE_EMPTY, company), []);
+  assert.deepEqual(parseGohireListPage(LIST_PAGE_EMPTY, company), { postings: [], rawCount: 0 });
 });
 
 test("parseGohireListPage returns an empty array for malformed/unexpected markup", () => {
-  assert.deepEqual(parseGohireListPage(MALFORMED_LIST, company), []);
+  assert.deepEqual(parseGohireListPage(MALFORMED_LIST, company), { postings: [], rawCount: 0 });
+});
+
+test("parseGohireListPage reports the server's card count even when a card is unparseable", () => {
+  // rawCount is the page's real size; postings is what survived. Pagination
+  // must not read the gap between them as "the last page".
+  const html = listPage([fullCard(1), malformedCard(2), fullCard(3)]);
+  const { postings, rawCount } = parseGohireListPage(html, company);
+  assert.equal(rawCount, 3);
+  assert.deepEqual(postings.map((p) => p.externalId), ["1001", "1003"]);
 });
 
 const { fetchJd } = gohireAdapter;
@@ -182,6 +225,74 @@ test("gohireAdapter.fetchJd returns an empty string when the detail page has no 
     };
     const jd = await fetchJd(company, posting);
     assert.equal(jd, "");
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("gohireAdapter.listPostings collects the whole board when the tenant pages below the assumed 10", async () => {
+  // A tenant configured for 4 cards a page. A declared pageSize of 10 made
+  // page 1 look short and stopped the board there — 4 of 10 postings, silently.
+  const seen = stubPages({ "1": pageOf(4, 1), "2": pageOf(4, 5), "3": pageOf(2, 9) });
+  try {
+    const items = await gohireAdapter.listPostings(company);
+    assert.equal(items.length, 10, "all three pages, not just the first");
+    assert.deepEqual(seen, ["1", "2", "3"], "the 2-card page 3 is short vs the inferred 4 and ends it");
+    assert.deepEqual(
+      items.map((p) => p.externalId),
+      Array.from({ length: 10 }, (_, i) => String(1001 + i)),
+    );
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("gohireAdapter.listPostings is unchanged on a tenant that really does page at 10", async () => {
+  // Regression guard: the inferred size must reproduce the old behaviour
+  // exactly when the old constant happened to be right.
+  const seen = stubPages({ "1": pageOf(10, 1), "2": pageOf(10, 11), "3": pageOf(3, 21) });
+  try {
+    const items = await gohireAdapter.listPostings(company);
+    assert.equal(items.length, 23);
+    assert.deepEqual(seen, ["1", "2", "3"], "stops on the genuinely short final page");
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("gohireAdapter.listPostings does not let an unparseable card on a full page end the board", async () => {
+  // The parser drops a card with no numeric id, so a FULL page can surface
+  // fewer postings than the server rendered. Judging "short page" on the
+  // parsed count truncated the board mid-crawl; the raw card count is the
+  // server's own page size and is what pagination must measure.
+  const page2 = listPage([...Array.from({ length: 9 }, (_, i) => fullCard(11 + i)), malformedCard(20)]);
+  const seen = stubPages({ "1": pageOf(10, 1), "2": page2, "3": pageOf(3, 21) });
+  try {
+    const items = await gohireAdapter.listPostings(company);
+    assert.equal(items.length, 22, "10 + 9 parsed of 10 + 3 — page 3 must still be fetched");
+    assert.deepEqual(seen, ["1", "2", "3"]);
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("gohireAdapter.listPostings stops on a board that ignores the page field and re-serves page 1", async () => {
+  // Nothing else can stop this board: there is no total, and every page is
+  // full so the short-page rule never fires. The exact-page-repeat stall guard
+  // is the only terminator, and it needs a stable per-item key to see the
+  // repeat.
+  const seen: string[] = [];
+  stubFetch(async (_input, init) => {
+    const body = typeof init?.body === "string" ? init.body : "";
+    const page = new URLSearchParams(body).get("page") ?? "";
+    seen.push(page);
+    if (seen.length > 2) throw new Error("pagination did not detect the repeated page");
+    return new Response(pageOf(10, 1), { status: 200 });
+  });
+  try {
+    const items = await gohireAdapter.listPostings(company);
+    assert.equal(items.length, 10, "the repeated page contributes nothing new");
+    assert.deepEqual(seen, ["1", "2"], "one repeat is enough to prove the board ignores `page`");
   } finally {
     restoreFetch();
   }
