@@ -8,6 +8,11 @@ import {
   parseTrakstarJd,
   trakstarAdapter,
 } from "./trakstar.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -49,6 +54,70 @@ const JD_HTML = `
     <div><strong>Roles &amp; Responsibilities.<br></strong>* Track business numbers<br>* Build dashboards<br></div>
   </div>
 </body></html>
+`;
+
+// Trimmed from GET https://medibuddy.hire.trakstar.com/ (HTTP 200, 85,331
+// bytes, captured 2026-08-02) — a cancelled tenant. The board is gone and
+// Trakstar's marketing site is served in its place, headed by the inactive
+// notice. Note the empty <title> and the canonical pointing at Trakstar's own
+// shared /inactive-ats page rather than at the tenant.
+const INACTIVE_ACCOUNT_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <title></title>
+    <link rel="canonical" href="https://recruiterbox.com/inactive-ats">
+  </head>
+  <body>
+    <div class="bg-gray-6">
+      <div class="container-fluid">
+        <div class="row content-container">
+          <div class="col-md-12">
+            <a title="Trakstar Hire: Recruitment Software, Applicant Tracking" class="navbar-brand" href="https://recruiterbox.com/">
+              <span class="logo-text">Trakstar Hire</span>
+            </a>
+          </div>
+        </div>
+        <div class="row content-container">
+          <div class="col-sm-offset-1 col-sm-10">
+            <div class="bg-white error-content-well tmrgn-40px bmrgn-64px">
+              <img src="/static/images/marketing/product/error.svg">
+              <div style="margin-left: 24px;">
+                <h3 style="margin-bottom: 0;">Inactive account.</h3>
+                <p>This employer is no longer using Trakstar Hire to collect applications. Please contact the employer directly for information on how to apply.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bg-white text-center tpdng-40px bpdng-40px">
+      <h1>Trakstar Hire Applicant Tracking System for Growing Businesses</h1>
+    </div>
+  </body>
+</html>
+`;
+
+// A LIVE tenant with nothing open: real careers chrome (heading, blurb, the
+// job-alert signup every serving board carries), just no rows. Shape taken
+// from a serving board with its single job item removed. No canonical link —
+// serving boards emit none. This is the case the check must not swallow.
+const EMPTY_BOARD_HTML = `<!DOCTYPE html>
+<html>
+  <head><title>Acme Corp jobs | Acme Corp openings | Acme Corp careers</title></head>
+  <body>
+    <div class="js-careers-page">
+      <h1>Jobs at Acme Corp</h1>
+      <p>Hi, Welcome to our Careers section. Please review the positions we are currently hiring for and apply to the ones that interest you.</p>
+      <div class="js-careers-page-job-list"></div>
+      <div class="careers-page-subscribe">
+        <p>Couldn't find the opening you were looking for?</p>
+        <p>Get updates about new opportunities straight to your inbox</p>
+        <form><input type="email" placeholder="Email address"><button>Keep me posted</button></form>
+      </div>
+      <footer>powered by Trakstar Hire</footer>
+    </div>
+  </body>
+</html>
 `;
 
 test("trakstarListUrl derives the tenant origin for page 1 (bare origin)", () => {
@@ -102,6 +171,67 @@ test("parseTrakstarList detects remote via REMOTE_RE on the location text", () =
 
 test("parseTrakstarList returns [] when there are no job-list-item rows (empty board / layout change)", () => {
   assert.deepEqual(parseTrakstarList("<html><body>No jobs right now.</body></html>", company), []);
+});
+
+// --- cancelled tenant vs empty board -------------------------------------------
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("parseTrakstarList throws on Trakstar's inactive-account page instead of reporting an empty board", () => {
+  const err = thrownBy(() => parseTrakstarList(INACTIVE_ACCOUNT_HTML, company));
+  assert.ok(err instanceof Error);
+  // The URL has to come from the company row: the notice is Trakstar's own
+  // shared page and never names the tenant it replaced.
+  assert.match(err.message, /acme\.hire\.trakstar\.com/);
+  assert.match(err.message, /tenant does not exist/);
+  assert.match(err.message, /inactive-account notice/);
+});
+
+test("the cancelled-tenant error is charged to the company, not written off as infrastructure", () => {
+  // A cancelled board is a real per-company defect and MUST count toward the
+  // row's consecutive_failures. If any of these flipped true the scheduler
+  // would retry the board forever and never quarantine it.
+  const err = thrownBy(() => parseTrakstarList(INACTIVE_ACCOUNT_HTML, company));
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("parseTrakstarList returns [] for a LIVE tenant whose board has no open roles", () => {
+  assert.deepEqual(parseTrakstarList(EMPTY_BOARD_HTML, company), []);
+});
+
+test("a page that yielded rows is never failed, even carrying the inactive marker", () => {
+  // Belt and braces: the marker cannot coexist with a real board, but the check
+  // is gated on an empty parse so a collision could not fail a working tenant.
+  const withMarker = INACTIVE_ACCOUNT_HTML.replace("</body>", `${LIST_HTML}</body>`);
+  assert.equal(parseTrakstarList(withMarker, company).length, 2);
+});
+
+test("trakstarAdapter.listPostings rejects a cancelled tenant and still lists a populated board", async () => {
+  globalThis.fetch = () => Promise.resolve(new Response(INACTIVE_ACCOUNT_HTML, { status: 200 }));
+  try {
+    await assert.rejects(() => trakstarAdapter.listPostings(company), /trakstar: tenant does not exist/);
+  } finally {
+    restoreFetch();
+  }
+
+  const seen = stubPages({ "1": LIST_HTML });
+  try {
+    const items = await trakstarAdapter.listPostings(company);
+    assert.equal(items.length, 2);
+    assert.deepEqual(seen, ["1", "2"], "page 2 is the empty page that ends the board");
+  } finally {
+    restoreFetch();
+  }
 });
 
 test("parseTrakstarList skips a row whose href doesn't match /jobs/<slug>/ and one with no title", () => {
