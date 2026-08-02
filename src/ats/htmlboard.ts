@@ -38,6 +38,11 @@
 //   noItemLinks      optional ("true") — ignore anchors inside items entirely:
 //                    boards whose only links are a SHARED apply form/mailto
 //                    would otherwise collapse every item into one externalId.
+//   boardSelector    optional — a positive "the board itself rendered" marker
+//                    (the list container, an empty-state block, a filter bar),
+//                    DISTINCT from itemSelector. When set and absent from a
+//                    page that yielded no items, listPostings throws instead of
+//                    reporting an empty board — see assertHtmlBoardRendered.
 //
 // externalId: the detail link's path when present (stable), else a slug of
 // the title — fine for the small static boards this adapter targets.
@@ -70,6 +75,7 @@ function pageUrl(cfg: HtmlBoardConfig, page: number): string {
 export interface HtmlBoardConfig {
   listUrl: string;
   itemSelector: string;
+  boardSelector: string | null;
   titleSelector: string | null;
   linkSelector: string | null;
   locationSelector: string | null;
@@ -96,6 +102,7 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
   return {
     listUrl,
     itemSelector,
+    boardSelector: meta.boardSelector ?? null,
     titleSelector: meta.titleSelector ?? null,
     linkSelector: meta.linkSelector ?? null,
     locationSelector: meta.locationSelector ?? null,
@@ -217,6 +224,33 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
   return items;
 }
 
+/**
+ * Fail a page that produced no items and cannot show it is even a board.
+ *
+ * `$(itemSelector).each(...)` yields [] whether the board is genuinely empty or
+ * the response is a parked domain, a redesign that moved the selectors, or a
+ * WAF interstitial served at HTTP 200 — all of which used to report a healthy
+ * board with zero openings forever. `boardSelector` is the operator's positive
+ * evidence that the board rendered at all: the list container, the vendor's own
+ * empty-state block, the filter bar — anything that outlives the last job but
+ * dies with the page.
+ *
+ * Two deliberate limits. It is opt-in, so the rows that predate it behave
+ * exactly as before rather than being failed by a marker nobody has verified.
+ * And it is only consulted once the page has yielded nothing: a page with items
+ * is a live board whatever else its markup does or does not contain.
+ */
+export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, itemCount: number, slug: string): void {
+  if (itemCount > 0 || !cfg.boardSelector) return;
+  // Second cheerio parse, but only ever on a page that came up empty.
+  if (cheerio.load(html)(cfg.boardSelector).length > 0) return;
+  throw new Error(
+    `htmlboard: board did not render at ${cfg.listUrl} for ${slug} — no items, and the configured ` +
+      `boardSelector matched nothing either. The page is not this board (parked domain, redesign, ` +
+      `or a 200-served block page), so it is not an empty board.`,
+  );
+}
+
 export function extractHtmlBoardJd(html: string, cfg: HtmlBoardConfig): string {
   const $ = cheerio.load(html);
   if (cfg.detailJdSelector) {
@@ -255,7 +289,9 @@ export const htmlboardAdapter: AtsAdapter = {
     // cap-exit warn paginate() now logs when a loop exhausts maxPages.
     if (!cfg.pageParam) {
       const html = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
-      return parseHtmlBoardListing(html, cfg).map((item) => htmlBoardItemToPosting(company, cfg, item));
+      const items = parseHtmlBoardListing(html, cfg);
+      assertHtmlBoardRendered(html, cfg, items.length, company.slug);
+      return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
     }
 
     // pageParam boards have no page-size/total metric to key termination off
@@ -277,7 +313,12 @@ export const htmlboardAdapter: AtsAdapter = {
       maxPages: MAX_PAGES,
       fetchPage: async (_offset, page) => {
         const html = await atsFetchText(pageUrl(cfg, page + 1), { provider: "htmlboard" });
-        const newItems = parseHtmlBoardListing(html, cfg).filter((item) => {
+        const parsed = parseHtmlBoardListing(html, cfg);
+        // Page 1 only. Past the last page a pager may legitimately serve a
+        // generic 200 that is not the board — the zero-new-items rule ends the
+        // loop there, and failing the company for it would be a false alarm.
+        if (page === 0) assertHtmlBoardRendered(html, cfg, parsed.length, company.slug);
+        const newItems = parsed.filter((item) => {
           if (seen.has(item.externalId)) return false;
           seen.add(item.externalId);
           return true;
