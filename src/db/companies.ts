@@ -254,16 +254,21 @@ const applyDormancyStmt = db.prepare(`
   UPDATE companies SET status = 'dormant'
   WHERE status = 'active'
     AND parsing_strategy IN ('llm-scrape','playwright-llm-scrape')
-    AND url_suspect = 0
     AND zero_yield_streak >= :minStreak
 `);
 
 /**
- * Park scrape companies whose careers page looks real but has produced zero
- * postings for `minStreak` consecutive clean runs. They re-enter the rotation
- * weekly (selectActiveCompanies) and wake instantly when jobs appear
+ * Park scrape companies that have produced zero postings for `minStreak`
+ * consecutive clean runs. They re-enter the rotation weekly
+ * (selectActiveCompanies) and wake instantly when jobs appear
  * (markFetchSuccess). ats-api companies are exempt — an API call is too cheap
  * to be worth parking. Returns the number of companies parked.
+ *
+ * url_suspect boards used to be exempt on the theory that a suspect URL needs
+ * manual repair rather than parking. In practice that exempted 96 boards from
+ * ever being parked, so each run paid a headless-browser render for pages that
+ * had returned nothing for up to 18 runs. Parking them still leaves them in the
+ * weekly recheck, so a repaired URL recovers on its own.
  */
 export function applyDormancy(minStreak: number = 3): number {
   const result = applyDormancyStmt.run({ minStreak });

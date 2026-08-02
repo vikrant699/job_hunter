@@ -1,13 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  upsertCompany, selectActiveCompanies, selectAllCompanies, markFetchSuccess, applyDormancy,
+  upsertCompany, selectActiveCompanies, selectAllCompanies, markFetchSuccess, markUrlSuspect, applyDormancy,
 } from "./companies.js";
 import type { CompanyStatus } from "../schemas.js";
 
 /** Insert a fresh company row. Fresh inserts take `status` verbatim — the
  *  status-preserving CASE in upsertCompanyStmt only fires ON CONFLICT. */
-function seed(slug: string, status: CompanyStatus, parsingStrategy: "ats-api" | "llm-scrape" = "ats-api"): void {
+function seed(
+  slug: string,
+  status: CompanyStatus,
+  parsingStrategy: "ats-api" | "llm-scrape" | "playwright-llm-scrape" = "ats-api",
+): void {
   upsertCompany({
     provider: "custom", slug, name: `Co ${slug}`,
     careersUrl: "https://x/y", parsingStrategy, status,
@@ -63,13 +67,27 @@ test("markFetchSuccess does not disturb a denied company that happens to yield p
   assert.equal(statusOf(slug), "denied");
 });
 
-// minStreak is deliberately high: applyDormancy is table-wide, and no other
-// test's fixture accumulates a streak this long, so this can't park their rows.
+// minStreak is deliberately high: applyDormancy is table-wide, and no fixture
+// alive at this point has a streak this long, so this can't park other rows.
 test("applyDormancy parks an active scrape company after a long zero-yield streak", () => {
   const STREAK = 7;
   const slug = `park-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   seed(slug, "active", "llm-scrape");
   for (let i = 0; i < STREAK; i++) markFetchSuccess("custom", slug, 0);
+
+  assert.ok(applyDormancy(STREAK) >= 1);
+  assert.equal(statusOf(slug), "dormant");
+});
+
+// A suspect URL is no longer an exemption from parking — see applyDormancy's doc
+// comment. Streak exceeds the test above's so neither can park the other's row.
+test("applyDormancy parks url_suspect boards that have never yielded", () => {
+  const STREAK = 11;
+  const slug = `park-suspect-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  seed(slug, "active", "playwright-llm-scrape");
+  for (let i = 0; i < STREAK; i++) markFetchSuccess("custom", slug, 0);
+  markUrlSuspect("custom", slug);
+  assert.ok(selectAllCompanies().find((c) => c.slug === slug)?.urlSuspect, "fixture must be url_suspect");
 
   assert.ok(applyDormancy(STREAK) >= 1);
   assert.equal(statusOf(slug), "dormant");
