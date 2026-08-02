@@ -9,7 +9,7 @@ const fullEntry: RegistryEntry = {
   source: "ashby",
   source_slug: "atlan",
   parsing_strategy: "ats-api",
-  status: "candidate",
+  status: "active",
   reason: "why not",
   discovered_via: "seed",
   discovered_at: "2026-01-01T00:00:00.000Z",

@@ -84,7 +84,7 @@ const upsertCompanyStmt = db.prepare(`
 //   discovered_via / discovered_at — provenance of the FIRST discovery, frozen.
 //   broken status — a re-import alone doesn't prove the source recovered;
 //   recovery from broken requires a human fixing the row on the Companies tab
-//   (status cell back to active/candidate).
+//   (status cell back to active).
 //   dormant status — set by applyDormancy from runtime yield data; a registry
 //   re-sync must not wake a parked company (markFetchSuccess wakes it on jobs).
 
@@ -109,7 +109,7 @@ export function upsertCompany(row: UpsertCompanyRow): void {
 
 const selectActiveCompaniesStmt = db.prepare(`
   SELECT * FROM companies
-  WHERE status IN ('active','candidate')
+  WHERE status = 'active'
      OR (status = 'dormant' AND (last_fetched_at IS NULL OR last_fetched_at <= :dormantCutoff))
   ORDER BY provider, slug
 `);
@@ -150,7 +150,7 @@ const markFetchSuccessStmt = db.prepare(`
     zero_yield_streak    = CASE WHEN :seen > 0 THEN 0 ELSE zero_yield_streak + 1 END,
     url_suspect          = CASE WHEN :seen > 0 THEN 0 ELSE url_suspect END,
     status               = CASE
-                             WHEN status IN ('candidate','dormant') AND :seen > 0 THEN 'active'
+                             WHEN status = 'dormant' AND :seen > 0 THEN 'active'
                              ELSE status
                            END
   WHERE provider = :provider AND slug = :slug
@@ -252,7 +252,7 @@ export function markUrlSuspect(provider: Provider, slug: string): void {
 
 const applyDormancyStmt = db.prepare(`
   UPDATE companies SET status = 'dormant'
-  WHERE status IN ('active','candidate')
+  WHERE status = 'active'
     AND parsing_strategy IN ('llm-scrape','playwright-llm-scrape')
     AND url_suspect = 0
     AND zero_yield_streak >= :minStreak

@@ -63,7 +63,7 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
       const slug = resolveSlug(entry);
       const deny = isDeniedCompany(entry.name, slug);
 
-      const status: CompanyStatus = entry.status ?? (deny.denied ? "denied" : "candidate");
+      const status: CompanyStatus = entry.status ?? (deny.denied ? "denied" : "active");
       if (status === "denied") denied++;
 
       const provider: Provider = entry.source;

@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS companies (
   name                  TEXT    NOT NULL,
   careers_url           TEXT    NOT NULL,
   parsing_strategy      TEXT    NOT NULL,
-  status                TEXT    NOT NULL DEFAULT 'candidate',
+  status                TEXT    NOT NULL DEFAULT 'active',
   deny_reason           TEXT,
   discovered_via        TEXT,
   tenant_url            TEXT,
