@@ -2,11 +2,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  freshteamAdapter,
   freshteamListUrl,
   parseFreshteamHref,
   parseFreshteamList,
   parseFreshteamJd,
 } from "./freshteam.js";
+import { fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -15,6 +22,16 @@ const company: AdapterCompany = {
   name: "KrazyBee",
   careersUrl: "https://krazybee.freshteam.com/jobs",
   tenantUrl: "https://krazybee.freshteam.com",
+  apiMeta: null,
+};
+
+// A subdomain that no longer exists. Freshteam answers 200 here, not 404.
+const deadCompany: AdapterCompany = {
+  provider: "freshteam",
+  slug: "niki-ai",
+  name: "Niki.ai",
+  careersUrl: "https://niki-talent.freshteam.com/jobs",
+  tenantUrl: "https://niki-talent.freshteam.com",
   apiMeta: null,
 };
 
@@ -64,6 +81,83 @@ const JD_HTML = `
     </div>
   </div>
 </body></html>
+`;
+
+// Verbatim GET https://niki-talent.freshteam.com/jobs (HTTP 200, 889 bytes,
+// captured 2026-08-01). Freshteam's own "no such subdomain" page. The tenant
+// name is NOT in the served markup — the trailing script injects it from
+// document.domain — so a reader of the body alone cannot name the tenant.
+const INVALID_DOMAIN_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="/src/404.css" type="text/css" media="screen, projection">
+    <title>Freshteam</title>
+  </head>
+  <body>
+    <div id="wrap" class="container">
+			<div class="invalid-domain-wrapper">
+				<div class="wrapper-shadow">
+					<div class="no-ats">
+						<div class="freshteam-logo"></div>
+						<h2 class="invalid-domain-header"> We couldn't find <span id="domainname"></span></h2>
+						<p> May be this is still fresh!  </p>
+						<p> You can claim it now at
+              <a href='https://www.freshworks.com/applicant-tracking'>http://www.freshteam.com</a>
+            </p>
+					</div>
+				</div>
+			</div>
+		</div>
+    <script type='text/javascript'>
+			document.getElementById("domainname").innerHTML = (document.domain);
+    </script>
+	</body>
+</html>
+`;
+
+// A LIVE tenant with nothing open. Real Freshteam portal chrome (filter bar,
+// jobs_list wrapper, the template's own `no_data` empty state, footer) taken
+// from a served board with its single job row removed. This is the case the
+// dead-tenant check must not swallow.
+const EMPTY_BOARD_HTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+
+   Careers
+
+</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" media="screen" href="//assets.freshteam.com/assets/portal-6d8bb698.css" />
+  </head>
+  <body>
+    <div class="search-container">
+      <div class="search-fields">
+        <select name="department_id" id="department_id" data-placeholder="Choose Department"></select>
+        <select name="city_id" id="city_id" data-placeholder="Choose Location"></select>
+      </div>
+      <div class="input-field">
+        <input class="form-control" type="text" id="job-title-search" placeholder="Search Job Title" name="query" />
+      </div>
+    </div>
+    <div class="content">
+      <!-- Do not remove data-portal-* attributes. Removing the same will result in breakages in filter behaviour. -->
+      <div data-portal-id="jobs_list">
+        <div class="job-role-list" data-portal-id="job-role-list">
+          <ul>
+          </ul>
+        </div>
+      </div>
+      <div class="no-jobs-found" data-portal-id="no_data">
+        <div class="no-jobs-icon"><i class="icon-my-job"></i></div>
+        <div class="not-found-title">No jobs found</div>
+        <p>Oops, you have no jobs that match the filter conditions.</p>
+      </div>
+    </div>
+    <footer class=""></footer>
+  </body>
+</html>
 `;
 
 test("freshteamListUrl builds the listing URL from the tenant origin", () => {
@@ -129,6 +223,52 @@ test("parseFreshteamList skips a row whose href doesn't match /jobs/<id>/<slug> 
       <a href="/jobs/abc123/slug" data-portal-title="x"></a>
     </div>`;
   assert.deepEqual(parseFreshteamList(malformed, company), []);
+});
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("parseFreshteamList throws on Freshteam's invalid-domain page instead of reporting an empty board", () => {
+  const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
+  assert.ok(err instanceof Error);
+  // The URL has to come from the company row: the page itself never names the
+  // tenant, so an operator reading the stored error needs us to say which one.
+  assert.match(err.message, /niki-talent\.freshteam\.com\/jobs/);
+  assert.match(err.message, /tenant does not exist/);
+  assert.match(err.message, /claim it now/);
+});
+
+test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
+  // A dead subdomain is a real per-company defect and MUST count toward the
+  // row's consecutive_failures. If any of these flipped true the scheduler
+  // would retry the board forever and never quarantine it.
+  const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("parseFreshteamList returns [] for a LIVE tenant whose board has no open roles", () => {
+  assert.deepEqual(parseFreshteamList(EMPTY_BOARD_HTML, company), []);
+});
+
+test("freshteamAdapter.listPostings rejects a dead tenant and still lists a populated board", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(INVALID_DOMAIN_HTML)));
+  await assert.rejects(
+    () => freshteamAdapter.listPostings(deadCompany),
+    /freshteam: tenant does not exist/,
+  );
+
+  stubFetch(t, fetchSequence(() => htmlResponse(LIST_HTML)));
+  const postings = await freshteamAdapter.listPostings(company);
+  assert.equal(postings.length, 2);
 });
 
 test("parseFreshteamJd extracts the JD text and strips the trailing application form + script", () => {

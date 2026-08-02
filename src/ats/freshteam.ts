@@ -38,9 +38,21 @@ export function parseFreshteamHref(href: string): { id: string; slug: string } |
   return { id, slug };
 }
 
+// Freshteam answers HTTP 200 for a subdomain that does NOT exist, serving its
+// own "We couldn't find <domain> ... You can claim it now" page (~889 bytes,
+// stylesheet /src/404.css) from the same /jobs URL a real board would use.
+// It carries no jobs_list container, so it used to parse as a board with zero
+// openings: the row reported success, never failed, and never quarantined.
+// niki-talent and tickertape were both converted to this provider on the
+// strength of that false pass. These two class names are unique to that page —
+// a live board's empty state is `.no-jobs-found` / `[data-portal-id="no_data"]`
+// instead, and must keep returning [].
+const INVALID_DOMAIN_SELECTOR = ".invalid-domain-wrapper, .no-ats";
+
 /** Parse the /jobs listing page into postings. Tolerates a missing or empty
  *  jobs_list container (returns []) and skips any row missing an href, id, or
- *  title. Dedups by job id in case markup ever renders a row twice. */
+ *  title. Dedups by job id in case markup ever renders a row twice. Throws when
+ *  the page is Freshteam's invalid-domain page — see INVALID_DOMAIN_SELECTOR. */
 export function parseFreshteamList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -85,6 +97,18 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
       postedAt: null,
     });
   });
+
+  // Checked only after the parse comes up empty: a page that yielded rows is a
+  // live tenant whatever its (customer-editable) template names its classes, so
+  // a marker collision can never fail a working board. The URL comes from the
+  // company row because the served page never names the tenant — the domain in
+  // its heading is injected client-side from document.domain.
+  if (postings.length === 0 && $(INVALID_DOMAIN_SELECTOR).length > 0) {
+    throw new Error(
+      `freshteam: tenant does not exist at ${freshteamListUrl(company)} — Freshteam served its ` +
+        `invalid-domain page ("claim it now"). The subdomain is dead, not the board empty.`,
+    );
+  }
 
   return postings;
 }
