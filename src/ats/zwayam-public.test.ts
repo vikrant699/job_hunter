@@ -168,8 +168,6 @@ test("normalizeZwayamPublic: empty everything still returns a posting with empty
   assert.equal(p.postedAt, null);
 });
 
-// --- listPostings: per-tenant API host + pagination ------------------------
-
 // Zwayam shards its tenants across more than one API host, and each host
 // answers `data: null` for the other's tenants. Verified live 2026-08-02:
 // careers.infoedge.com answers only on public.zwayam.com (5 rows/page), while
@@ -180,6 +178,193 @@ const bajaj: AdapterCompany = {
   tenantUrl: "https://jobs.bajajgeneral.com/bajajgeneral/",
   apiMeta: { apiHost: "apic2.zwayam.com" },
 };
+
+// --- location backfill from jobLocationRecord ------------------------------
+
+// The apic2 shard leaves `locationSeparatedbySlash` empty (swept live
+// 2026-08-03: populated on 1 of Bajaj Allianz's 338 postings) and carries the
+// real location in `jobLocationRecord` instead (non-empty on 336/338). The
+// values below come from that sweep; the live rows also carry jobId/companyId/
+// id/country/state/city, which the schema drops as unread.
+const recordOnlyHit: ZwayamPublicHit = {
+  _id: 5002832,
+  _source: {
+    jobTitle: "Sales Manager Bancassurance",
+    jobUrl: "sales-manager-bancassurance-2026",
+    locationSeparatedbySlash: null,
+    shortDescription: "Sell through the bank channel.",
+    mediumDescription: null,
+    mediumDescriptionWithoutHtml: null,
+    createdDate: 1780000000000,
+    jobCreatedDate: null,
+    jobLocationRecord: [{ formattedLocation: "Bengaluru, Karnataka, India", location: "Bangalore" }],
+  },
+};
+
+/** The same posting shape with one `jobLocationRecord` of the given raw code +
+ *  geocoded string — the two fields the backfill actually reads. */
+function hitWithRecords(records: { location: string; formattedLocation: string }[]): ZwayamPublicHit {
+  return {
+    _id: 9001,
+    _source: { ...recordOnlyHit._source, jobLocationRecord: records },
+  };
+}
+
+test("normalizeZwayamPublic backfills location from jobLocationRecord when locationSeparatedbySlash is absent", () => {
+  const p = normalizeZwayamPublic(bajaj, recordOnlyHit, "https://jobs.bajajgeneral.com", "bajajgeneral");
+  assert.equal(p.location, "Bengaluru, Karnataka, India");
+  assert.equal(p.isRemote, false);
+});
+
+// "HO" is Bajaj's internal head-office marker, not a place. Zwayam's geocoder
+// resolves it to the real town of Ho in Ghana, which checkLocation would then
+// reject as out-of-region. Null instead, so the posting reaches the JD-text
+// fallback (see the lateLocationCheck note in normalizeZwayamPublic).
+test("normalizeZwayamPublic leaves location null for the HO head-office code rather than asserting Ghana", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([{ location: "HO", formattedLocation: "Ho, Volta Region, Ghana" }]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, null);
+});
+
+test("normalizeZwayamPublic treats the marker as head office however the tenant cased it", () => {
+  for (const code of ["ho", "Ho", " hO "]) {
+    const p = normalizeZwayamPublic(
+      bajaj,
+      hitWithRecords([{ location: code, formattedLocation: "Ho, Volta Region, Ghana" }]),
+      "https://jobs.bajajgeneral.com",
+      "bajajgeneral",
+    );
+    assert.equal(p.location, null, `code "${code}" should read as the head-office marker`);
+  }
+});
+
+// The marker also appears with the office's name appended ("HO Commerce Zone"
+// is Bajaj's Pune head office), which Zwayam geocodes to Akita, Japan — a
+// harder reject than Ghana. Same class of bad data, same verdict.
+test("normalizeZwayamPublic leaves location null for a named head-office code (HO Commerce Zone -> Japan)", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([{ location: "HO Commerce Zone", formattedLocation: "Akita, Akita, Japan" }]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, null);
+});
+
+// The guard must not swallow a genuine city that merely starts with those two
+// letters: the marker is an all-caps abbreviation, "Ho Chi Minh City" is a name.
+test("normalizeZwayamPublic does not mistake a genuine Ho Chi Minh City code for the head-office marker", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([{ location: "Ho Chi Minh City", formattedLocation: "Ho Chi Minh City, Vietnam" }]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, "Ho Chi Minh City, Vietnam");
+});
+
+// Info Edge (public shard) populates BOTH fields on 289 of its 293 postings.
+// The slash field is what every prior run keyed on, including notifyKey's
+// cross-run dedup, so it keeps winning even though the record is richer
+// ("Pune" vs "Pune, Maharashtra, India").
+test("normalizeZwayamPublic prefers a populated locationSeparatedbySlash over jobLocationRecord (Info Edge regression)", () => {
+  const bothFields: ZwayamPublicHit = {
+    _id: 923734,
+    _source: {
+      ...recordOnlyHit._source,
+      locationSeparatedbySlash: "Pune",
+      jobLocationRecord: [{ location: "Pune", formattedLocation: "Pune, Maharashtra, India" }],
+    },
+  };
+  const p = normalizeZwayamPublic(company, bothFields, "https://careers.infoedge.com", "infoedge");
+  assert.equal(p.location, "Pune");
+});
+
+test("normalizeZwayamPublic falls back to jobLocationRecord when the slash field is blank rather than null", () => {
+  const blank: ZwayamPublicHit = {
+    _id: 9002,
+    _source: { ...recordOnlyHit._source, locationSeparatedbySlash: "   " },
+  };
+  const p = normalizeZwayamPublic(bajaj, blank, "https://jobs.bajajgeneral.com", "bajajgeneral");
+  assert.equal(p.location, "Bengaluru, Karnataka, India");
+});
+
+// Multi-entry records are rare (4 of 338) and in 3 of the 4 the FIRST entry is
+// the head-office artefact while the real city sits second — so "take [0]"
+// would throw away the good row.
+test("normalizeZwayamPublic skips a head-office entry to reach the real city in a multi-entry record", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([
+      { location: "HO", formattedLocation: "Ho, Volta Region, Ghana" },
+      { location: "Pune, Maharashtra, India", formattedLocation: "Pune, Maharashtra, India" },
+    ]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, "Pune, Maharashtra, India");
+});
+
+test("normalizeZwayamPublic returns null when every jobLocationRecord entry is head-office-coded", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([
+      { location: "HO", formattedLocation: "Ho, Volta Region, Ghana" },
+      { location: "HO Commerce Zone", formattedLocation: "Akita, Akita, Japan" },
+    ]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, null);
+});
+
+test("normalizeZwayamPublic yields null (not a throw) for an absent, empty or unusable jobLocationRecord", () => {
+  const origin = "https://jobs.bajajgeneral.com";
+  const noField: ZwayamPublicHit = {
+    _id: 9003,
+    _source: { ...recordOnlyHit._source, jobLocationRecord: undefined },
+  };
+  assert.equal(normalizeZwayamPublic(bajaj, noField, origin, "bajajgeneral").location, null);
+
+  const nullField: ZwayamPublicHit = {
+    _id: 9004,
+    _source: { ...recordOnlyHit._source, jobLocationRecord: null },
+  };
+  assert.equal(normalizeZwayamPublic(bajaj, nullField, origin, "bajajgeneral").location, null);
+
+  // 2 of Bajaj's 338 postings ship the array empty.
+  assert.equal(normalizeZwayamPublic(bajaj, hitWithRecords([]), origin, "bajajgeneral").location, null);
+
+  // Field-less / blank entries must be skipped, not emitted as "".
+  const sparse: ZwayamPublicHit = {
+    _id: 9005,
+    _source: { ...recordOnlyHit._source, jobLocationRecord: [{}, { formattedLocation: "  " }] },
+  };
+  assert.equal(normalizeZwayamPublic(bajaj, sparse, origin, "bajajgeneral").location, null);
+});
+
+test("normalizeZwayamPublic derives isRemote from a backfilled location", () => {
+  const p = normalizeZwayamPublic(
+    bajaj,
+    hitWithRecords([{ location: "WFH", formattedLocation: "Remote, India" }]),
+    "https://jobs.bajajgeneral.com",
+    "bajajgeneral",
+  );
+  assert.equal(p.location, "Remote, India");
+  assert.equal(p.isRemote, true);
+});
+
+test("zwayamPublicPage keeps jobLocationRecord through boundary validation", () => {
+  const raw = { code: 200, data: { data: [recordOnlyHit], totalCount: 338, hasMoreData: true } };
+  const page = zwayamPublicPage(raw, "bajaj-allianz");
+  assert.equal(at(page.hits, 0)._source.jobLocationRecord?.[0]?.formattedLocation, "Bengaluru, Karnataka, India");
+});
+
+// --- listPostings: per-tenant API host + pagination ------------------------
 
 function makeHits(startId: number, n: number): ZwayamPublicHit[] {
   return Array.from({ length: n }, (_, i) => ({
