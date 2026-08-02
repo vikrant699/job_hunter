@@ -154,6 +154,80 @@ test("a board-shaped failure still counts against the board", async () => {
   assert.equal(stats.transportRetried, 0);
 });
 
+/**
+ * What undici's res.json() throws when a JSON endpoint answers with an HTML
+ * challenge/error page. Verbatim from run 31 (2026-08-01), where 17 Workday
+ * boards hit in a 24-second window all failed with this and every one served
+ * HTTP 200 application/json when probed individually minutes later.
+ */
+function edgeInterstitialError(): Error {
+  return new SyntaxError(`Unexpected token '<', "<!DOCTYPE "... is not valid JSON`);
+}
+
+test("an HTML-for-JSON edge interstitial does NOT count against the board", async () => {
+  const slug = `throttled-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  await processBucket("greenhouse", failingAdapter(edgeInterstitialError), [company], stats, FAST);
+
+  // The edge answered, not the board — so this says nothing about board health.
+  assert.equal(failureRow(slug).consecutive_failures, 0, "an edge page is not a board defect");
+  assert.equal(failureRow(slug).status, "active");
+  assert.equal(stats.failedCompanies.length, 0);
+  assert.equal(stats.errors.length, 0);
+  assert.equal(stats.transportDeferred.length, 1, "must get a second chance");
+  assert.ok(stats.transportRetried > 0, "should have backed off and retried in place");
+});
+
+test("the deferred pass recovers a board that was only being throttled", async () => {
+  const slug = `unthrottled-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  let attempts = 0;
+  const throttled: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: (): Promise<NormalizedPosting[]> => {
+      attempts++;
+      // Interstitial for the whole first pass (1 try + 1 retry), then the edge
+      // relents once the burst is over.
+      if (attempts <= 2) return Promise.reject(edgeInterstitialError());
+      return Promise.resolve([]);
+    },
+  };
+
+  await processBucket("greenhouse", throttled, [company], stats, FAST);
+  assert.equal(stats.transportDeferred.length, 1, "deferred after the first pass");
+
+  await runDeferredTransportPass(stats, FAST);
+
+  assert.equal(stats.transportRecovered, 1);
+  assert.equal(stats.failedCompanies.length, 0);
+  assert.equal(failureRow(slug).consecutive_failures, 0);
+  assert.equal(failureRow(slug).status, "active");
+});
+
+test("a genuinely malformed JSON body still counts against the board", async () => {
+  const slug = `malformed-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  await processBucket(
+    "greenhouse",
+    // No opening tag: the board's own application returned garbage.
+    failingAdapter(() => new SyntaxError(`Unexpected token 'x', "xnot json" is not valid JSON`)),
+    [company],
+    stats,
+    FAST,
+  );
+
+  assert.equal(failureRow(slug).consecutive_failures, 1);
+  assert.equal(stats.failedCompanies.length, 1);
+  assert.equal(stats.transportDeferred.length, 0);
+  assert.equal(stats.transportRetried, 0, "board defects are not retried");
+});
+
 test("the deferred pass recovers a board whose network came back", async () => {
   const slug = `recovers-${Date.now()}`;
   const company = seedCompany(slug);

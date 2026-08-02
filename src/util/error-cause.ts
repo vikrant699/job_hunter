@@ -92,3 +92,32 @@ export function isTransportError(err: unknown): boolean {
   if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
   return TRANSPORT_MESSAGE_RE.test(describeError(err));
 }
+
+/** V8's JSON.parse failure text. Matched as well as the SyntaxError type so a
+ *  rethrow that keeps only the message still classifies. */
+const JSON_PARSE_MESSAGE_RE = /is not valid JSON|Unexpected end of JSON input/i;
+
+/** The body's first non-space character opened a tag, i.e. it was a document.
+ *  `Unexpected token '<'` is V8's own way of saying so when it truncates. */
+const MARKUP_BODY_RE = /Unexpected token '<'|<!doctype\b|<html\b/i;
+
+/**
+ * A JSON endpoint that answers with an HTML document is not a broken board: it is
+ * an edge interstitial (WAF challenge, rate-limit notice, error page) in front of a
+ * healthy board. Run 31 (2026-08-01) lost 17 Workday boards this way inside a
+ * 24-second window — alphabetically consecutive tenants, and every one returned
+ * HTTP 200 application/json when probed individually minutes later. Because the
+ * body arrives over a live socket with a 2xx status, isTransportError cannot see it,
+ * so the scheduler was charging the burst to each board's quarantine counter.
+ *
+ * Matching is deliberately narrow: only a JSON parse failure whose body began with
+ * a tag. Malformed-but-JSON bodies and truncated bodies stay board defects, and an
+ * HTTP status error carrying an HTML snippet stays an HTTP status error — those
+ * really did come from the board's application.
+ */
+export function isEdgeInterstitialError(err: unknown): boolean {
+  const text = describeError(err);
+  const parseFailed =
+    chain(err).some((e) => e instanceof SyntaxError) || JSON_PARSE_MESSAGE_RE.test(text);
+  return parseFailed && MARKUP_BODY_RE.test(text);
+}

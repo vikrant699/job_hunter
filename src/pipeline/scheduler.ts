@@ -5,7 +5,7 @@ import {
   markFetchFailure,
   markTransportFailure,
 } from "../db/index.js";
-import { describeError, isTransportError } from "../util/error-cause.js";
+import { describeError, isEdgeInterstitialError, isTransportError } from "../util/error-cause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
@@ -25,6 +25,17 @@ export function classifyFetchError(msg: string): string {
   if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|fetch failed|cert/i.test(msg)) return "network";
   if (/requires tenant_url|missing .* segment|missing tenant/i.test(msg)) return "config";
   return "other";
+}
+
+/**
+ * Faults that are the network, or an edge in front of the board — never the board
+ * itself. Both are retryable and neither may advance a company's quarantine
+ * counter: the board's application was never reached, so it told us nothing about
+ * its own health. One predicate so every routing decision below agrees, and so
+ * there is a single place to widen when a new infrastructure signature turns up.
+ */
+function isInfrastructureFault(err: unknown): boolean {
+  return isTransportError(err) || isEdgeInterstitialError(err);
 }
 
 /** Transport backoff schedule. Injected so tests need not wait real seconds;
@@ -75,15 +86,17 @@ export async function processBucket(
 }
 
 /**
- * Second chance for boards whose fetch died at the transport layer. Inline
- * retries (listWithTransportRetry) span ~35s, which covers a blip but not a
- * multi-minute outage: in run 29 a ~9-minute network failure at 22:42 killed 72
- * Workday boards, and the network was healthy again by 22:49. By the time every
- * bucket has finished, such an outage has had the rest of the run to clear, so
- * one more attempt recovers boards that would otherwise have been written off.
+ * Second chance for boards the infrastructure took down. Inline retries
+ * (listWithTransportRetry) span ~35s, which covers a blip but not a multi-minute
+ * outage: in run 29 a ~9-minute network failure at 22:42 killed 72 Workday boards,
+ * and the network was healthy again by 22:49. An edge throttle behaves the same way
+ * — run 31 lost 17 alphabetically-adjacent Workday tenants to a 24-second burst,
+ * and by then the bucket had moved on to a different vendor. By the time every
+ * bucket has finished, such a fault has had the rest of the run to clear, so one
+ * more attempt recovers boards that would otherwise have been written off.
  *
- * A board that dies at the transport layer on BOTH passes is finally recorded as
- * a real failure — at that point "the network" is no longer a credible excuse.
+ * A board that fails this way on BOTH passes is finally recorded as a real failure
+ * — at that point "it wasn't the board" is no longer a credible excuse.
  */
 export async function runDeferredTransportPass(
   stats: RunContext,
@@ -97,7 +110,7 @@ export async function runDeferredTransportPass(
 
   logger.info(
     { boards: deferred.length },
-    "deferred transport pass: retrying boards whose network died mid-run",
+    "deferred transport pass: retrying boards the network or an edge refused mid-run",
   );
 
   // Group by provider so the existing per-provider concurrency cap still applies.
@@ -120,7 +133,7 @@ export async function runDeferredTransportPass(
   const stillFailing = stats.transportDeferred;
   stats.transportDeferred = [];
   for (const d of stillFailing) {
-    const msg = `transport failure on both passes: ${d.err}`;
+    const msg = `network or edge refused the board on both passes: ${d.err}`;
     markFetchFailure(d.company.provider, d.company.slug, msg);
     stats.errors.push(`${d.company.provider}/${d.company.slug}: ${msg.slice(0, 100)}`);
     stats.failedCompanies.push({
@@ -141,12 +154,13 @@ export async function runDeferredTransportPass(
 }
 
 /**
- * Fetch a board's listing, retrying transport-layer failures in place. A brief
+ * Fetch a board's listing, retrying infrastructure failures in place. A brief
  * DNS/socket outage must not be mistaken for a broken board (run 29 lost 72
- * healthy Workday boards in 21 seconds that way), so each transport error backs
- * off and retries. The delays also slow the worker down, which is the point: a
- * bucket that keeps its queue through a blip gets to fetch those boards after
- * recovery instead of burning them.
+ * healthy Workday boards in 21 seconds that way), nor must an edge throttling a
+ * burst of sibling tenants (run 31 lost 17 the same way in 24 seconds), so each
+ * such error backs off and retries. The delays also slow the worker down, which is
+ * the point: a bucket that keeps its queue through a blip — or through an edge's
+ * cool-off — gets to fetch those boards after recovery instead of burning them.
  *
  * Board-shaped failures (HTTP status, schema, config) are NOT retried — the
  * board answered, so a second identical request just wastes a round trip.
@@ -164,14 +178,14 @@ export async function listWithTransportRetry(
       return await adapter.listPostings(adapterCompany);
     } catch (err) {
       if (err instanceof OllamaUnavailableError) throw err;
-      if (!isTransportError(err)) throw err;
+      if (!isInfrastructureFault(err)) throw err;
       lastErr = err;
       if (attempt < retry.retries) {
         const delay = retry.baseDelayMs * 2 ** attempt;
         stats.transportRetried++;
         logger.warn(
           { company: company.name, slug: company.slug, attempt, delayMs: delay, err: describeError(err) },
-          "transport failure — backing off and retrying",
+          "network or edge refused the board — backing off and retrying",
         );
         await sleep(delay);
       }
@@ -203,13 +217,14 @@ async function processOneCompany(
     if (err instanceof OllamaUnavailableError) throw err;
     const msg = describeError(err);
 
-    // Transport died even after retries. The board never answered, so it told us
-    // nothing about its own health: record the diagnostics but leave the
-    // quarantine counter alone, and hand it to the end-of-run deferred pass.
-    if (isTransportError(err)) {
+    // Infrastructure failed even after retries — the transport died, or an edge
+    // answered on the board's behalf. Either way the board's application never
+    // spoke, so it told us nothing about its own health: record the diagnostics but
+    // leave the quarantine counter alone, and hand it to the end-of-run deferred pass.
+    if (isInfrastructureFault(err)) {
       logger.warn(
         { company: company.name, slug: company.slug, err: msg },
-        "transport failure after retries — deferred to end-of-run pass, not counted against the board",
+        "network or edge refused the board after retries — deferred to end-of-run pass, not counted against the board",
       );
       markTransportFailure(company.provider, company.slug, msg);
       stats.transportDeferred.push({ company, adapter, err: msg });
