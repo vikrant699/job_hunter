@@ -189,8 +189,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
     );
-    // Boards whose network died mid-run get one more attempt now that every
-    // bucket is done and a transient outage has had time to clear.
+    // Boards the network or an edge refused mid-run get one more attempt now that
+    // every bucket is done and a transient fault has had time to clear.
     await runDeferredTransportPass(stats);
   } catch (err) {
     // Close out the run row with the abort reason so the partial run is
