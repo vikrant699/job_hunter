@@ -17,7 +17,7 @@
 // This may unblock the 4 existing zwayam.ts tenants previously written off
 // as Akamai-blocked during companyId/tenantGroupId discovery — this
 // endpoint sidesteps that discovery step entirely. Kept as its own
-// provider/file so zwayam.ts (header-based, PAGE_SIZE 10) stays untouched.
+// provider/file so zwayam.ts's header-based flow stays untouched.
 //
 // Tenants are SHARDED across API hosts, and each host answers `data: null`
 // for the other's tenants — so the host is per-tenant config, not a constant

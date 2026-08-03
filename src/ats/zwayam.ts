@@ -39,8 +39,6 @@ import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
 
-const PAGE_SIZE = 10;
-
 const HitSourceSchema = z.object({
   jobTitle: z.string(),
   jobUrl: z.string().nullable().optional(),
@@ -69,7 +67,9 @@ export function zwayamJobsSearchUrl(): string {
   return "https://public.zwayam.com/jobs/search";
 }
 
-/** The jobs/search filterCri payload for one page (server-fixed page size 10). */
+/** The jobs/search filterCri payload for one page. `paginationStartNo` is a row
+ *  offset, honoured exactly; there is no page-size field to send, so how many
+ *  rows come back is entirely the tenant's business (see listPostings). */
 export function zwayamFilterCri(paginationStartNo: number): string {
   return JSON.stringify({
     paginationStartNo,
@@ -145,7 +145,26 @@ export const zwayamAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "zwayam",
       company: company.slug,
-      pageSize: PAGE_SIZE,
+      // Tenant-set, not engine-set: careers.livspace.com serves 9 rows per page
+      // where careers.cult.fit serves 10, for the identical request (probed live
+      // 2026-08-03 across offsets 0/9/10/18/20/27/90/99). Nothing in the body
+      // asks for a size, so any constant is a guess about somebody else's
+      // tenant — and a guess too high is fatal, because paginate applies the
+      // short-page rule BEFORE comparing the reported total: a declared 10 read
+      // Livspace's own first page as short and ended the board at 9 of 100,
+      // silently, on every run, with totalCount 100 never looked at. Latch the
+      // tenant's own first-page row count instead.
+      pageSize: "infer",
+      // Arms the exact-page-repeat stall guard, whose page signature is built
+      // FROM this key. Without it the guard is inert, and a tenant that ignored
+      // paginationStartNo would be walked all the way to totalCount re-serving
+      // page 1 — 12 pages of JD fetches for 9 real postings on Livspace. The
+      // hardcoded size used to mask that by accident (a clamped 9-row page
+      // looked short); an inferred one cannot, since page 1 is the yardstick.
+      // `_id` is the ES doc id, stable and unique per posting, and matches the
+      // (provider, external_id) identity used downstream — so collapsing a
+      // cross-page duplicate is correct as well as protective.
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
         const raw = await atsFetchJsonMultipart(zwayamJobsSearchUrl(), {
           fields: { companyId, filterCri: zwayamFilterCri(offset), domain: host },
