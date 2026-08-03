@@ -13,6 +13,15 @@
 //        header: TenantGroupId
 //        -> { data: { data: [{ _id, _source: {...} }], totalCount, hasMoreData } }
 //
+// `domain` — not companyId — is what the vendor keys the tenant on, and that is
+// why this adapter needs no dead-tenant marker: a domain Zwayam does not host
+// answers HTTP 200 with `data: null`, which fails SearchResponseSchema and so
+// fails the row rather than reporting an empty board. A live tenant with nothing
+// matching returns `data: { data: [], totalCount: 0 }` and still parses. Probed
+// 2026-08-03; zwayam.test.ts pins both shapes so a refactor cannot swallow them.
+// A stale companyId does NOT empty the board either (a wrong-but-well-formed value
+// returns the domain's own jobs; garbage returns code 500 with data: null).
+//
 // One-phase: the JD is inline in _source. Tenants are inconsistent about
 // which field carries it — some put the full HTML JD in shortDescription,
 // others leave that near-empty (equal to the title) and only populate
