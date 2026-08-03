@@ -7,6 +7,7 @@ import {
   epochMsToIso,
   parsePostedOn,
   paginate,
+  describePaginationStall,
   INTER_PAGE_DELAY_MS,
   tenantOrigin,
   tenantOriginOr,
@@ -640,5 +641,112 @@ describe("paginate", () => {
       elapsed >= INTER_PAGE_DELAY_MS,
       `expected at least one ${INTER_PAGE_DELAY_MS}ms inter-page delay, took ${elapsed}ms`,
     );
+  });
+
+  // The three stall shapes below differ ONLY in what the board reported as its
+  // total, which is what decides the log level (see describePaginationStall).
+  // Each also pins the fetch count, because the break itself must be identical
+  // in all three - the level is the only thing that varies.
+  it("a stall short of the reported total stops on the repeat and is a warning", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "short-of-total",
+      pageSize: 10,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: 314, rawCount: 10 };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "the break must not depend on the log level");
+    assert.equal(
+      describePaginationStall({ total: 314, collected: result.length }).level,
+      "warn",
+      "314 reported but 3 collected is real truncation",
+    );
+  });
+
+  it("a stall on a board that exposes no total still stops, and is not a warning", async () => {
+    // The gohire shape: a small board clamps at its last page, so asking beyond
+    // the end re-serves it. Nothing suggests loss, so this must not shout.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "clamps-no-total",
+      pageSize: 10,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: null, rawCount: 10 };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "the break must not depend on the log level");
+    assert.equal(describePaginationStall({ total: null, collected: result.length }).level, "info");
+  });
+
+  it("a stall after collecting the whole reported total still stops, and is not a warning", async () => {
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "clamps-at-total",
+      pageSize: 2,
+      shortPageEndsPagination: false,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        // total=3 is reached by page 0's rows, but the offset advance uses the
+        // raw count (2), so the loop asks for one more page and gets the last
+        // one back again.
+        if (calls === 1) return { items: [1, 2, 3], total: 3, rawCount: 2 };
+        return { items: [1, 2, 3], total: 3, rawCount: 2 };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "the break must not depend on the log level");
+    assert.equal(describePaginationStall({ total: 3, collected: result.length }).level, "info");
+  });
+});
+
+describe("describePaginationStall", () => {
+  it("warns and names both counts when the collection fell short of the reported total", () => {
+    const { level, message } = describePaginationStall({ total: 314, collected: 3 });
+    assert.equal(level, "warn");
+    assert.match(message, /\b3\b/, "must name what we collected");
+    assert.match(message, /\b314\b/, "must name the reported total");
+    assert.match(message, /short of the reported total/);
+  });
+
+  it("does not warn when no total was exposed, and says completeness is unverifiable", () => {
+    const { level, message } = describePaginationStall({ total: null, collected: 3 });
+    assert.equal(level, "info");
+    assert.match(message, /unverifiable/);
+    // The old wording asserted a cause we cannot observe: re-serving the last
+    // page is indistinguishable from ignoring the offset when only one page exists.
+    assert.doesNotMatch(message, /ignores the offset/);
+  });
+
+  it("does not warn when the whole reported total was collected", () => {
+    const { level, message } = describePaginationStall({ total: 8, collected: 8 });
+    assert.equal(level, "info");
+    assert.match(message, /\b8\b/);
+    assert.doesNotMatch(message, /unverifiable/, "a satisfied total IS evidence of completeness");
+  });
+
+  it("does not warn when more was collected than the reported total", () => {
+    // Boards under-report (a stale count, or a facet the total ignores); having
+    // MORE than promised is not a truncation.
+    assert.equal(describePaginationStall({ total: 5, collected: 9 }).level, "info");
+  });
+
+  it("treats a zero total with nothing collected as complete, not short", () => {
+    assert.equal(describePaginationStall({ total: 0, collected: 0 }).level, "info");
   });
 });

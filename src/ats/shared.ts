@@ -28,6 +28,51 @@ export function warnDeepPagination(provider: string, slug: string, pagesDone: nu
 export const DEFAULT_MAX_PAGES = 5000;
 
 /**
+ * How to report an exact-repeat pagination stall: which level, and a message
+ * that claims only what the numbers support.
+ */
+export interface PaginationStallReport {
+  level: "warn" | "info";
+  message: string;
+}
+
+/**
+ * Decide how loudly to report an exact-repeat stall, given the total the board
+ * reported (null if it exposes none) and how many items we ended up with.
+ *
+ * Split out as a pure function because the level is the whole point of the log
+ * line and there is no injection point for the global logger — this is the part
+ * worth pinning in tests.
+ *
+ * Only a collection that fell SHORT of a reported total is evidence that rows
+ * were lost; that is the one case worth a warning. Otherwise the board simply
+ * re-served its last page instead of returning an empty one (5 of 6 gohire
+ * boards did exactly this on 2026-08-01, all of them complete), and shouting
+ * every run would train us to ignore the line that finally matters.
+ */
+export function describePaginationStall(state: { total: number | null; collected: number }): PaginationStallReport {
+  const { total, collected } = state;
+  if (total !== null && collected < total) {
+    return {
+      level: "warn",
+      message: `pagination stalled short of the reported total - collected ${collected} of ${total} (board re-served the previous page instead of advancing)`,
+    };
+  }
+  if (total === null) {
+    return {
+      level: "info",
+      // No total means no way to check: absence of evidence of loss, not
+      // evidence of completeness. Say that rather than implying "all good".
+      message: `pagination ended: board re-served the last page instead of returning empty - collected ${collected}, and with no total exposed completeness is unverifiable`,
+    };
+  }
+  return {
+    level: "info",
+    message: `pagination ended: board re-served the last page instead of returning empty - collected ${collected} of ${total} reported`,
+  };
+}
+
+/**
  * Result of fetching one page: its items and, if known, the total item count
  * reported by the API. `rawCount`, if given, is the number of records the
  * server actually returned before any adapter-side filtering (e.g. Phenom
@@ -135,6 +180,13 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     }
     const count = rawCount ?? items.length;
 
+    // Latched before the stall check below so that check can report the total,
+    // including a total this page is the first to expose. Nothing else reads
+    // `total` earlier in the iteration, so the loop behaves identically.
+    if (total === null && typeof pageTotal === "number") {
+      total = pageTotal;
+    }
+
     // A board that ignores the offset parameter serves page 0 forever, so we
     // would walk all the way to `total` re-fetching identical rows:
     // godrej-agrovet (2026-07-26) returned the same 10 jobs across 32 pages,
@@ -146,19 +198,27 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     // give: idfcfirst (1530 hits) hands back a fully-duplicate page around
     // page 8 and then keeps yielding new ids for another ~1200. Treating that
     // as a stall truncated it to 324 — never truncate on a weaker signal.
+    //
+    // The same repeat also happens benignly: a board that CLAMPS at its last
+    // page (gohire) re-serves it instead of returning empty, so stopping here
+    // loses nothing. The two are indistinguishable from the response alone, so
+    // only the counts decide how loud the log is — see describePaginationStall.
     const signature = dedupeBy ? items.map(dedupeBy).join("\u0000") : null;
     if (signature !== null && items.length > 0 && added === 0 && signature === prevSignature) {
-      logger.warn(
-        { provider: opts.provider, company: opts.company, page, itemsSeen: items.length, kept: out.length },
-        "pagination stalled - page is an exact repeat of the previous one (board ignores the offset param)",
-      );
+      const stall = describePaginationStall({ total, collected: out.length });
+      const where = {
+        provider: opts.provider,
+        company: opts.company,
+        page,
+        itemsSeen: items.length,
+        kept: out.length,
+        total,
+      };
+      if (stall.level === "warn") logger.warn(where, stall.message);
+      else logger.info(where, stall.message);
       break;
     }
     prevSignature = signature;
-
-    if (total === null && typeof pageTotal === "number") {
-      total = pageTotal;
-    }
 
     if (count === 0) break;
     // Under "infer" the first page IS the page size, so it can never be judged
