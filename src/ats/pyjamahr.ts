@@ -11,13 +11,20 @@
 //   jd:   GET https://api.pyjamahr.com/api/career/jobs/<id>/?company_uuid=<uuid>
 //         -> { id, uuid, title, job_type, description: "<p>...HTML..." }
 //         The list payload has no description, so the JD comes from fetchJd.
+//
+// company_uuid is a FILTER on a shared API, not a tenant address, and an unknown
+// value is not rejected — it just matches nothing, so a dead tenant answers
+// exactly like a live board with nothing open. The one endpoint that resolves the
+// tenant itself is the board page's own SSR payload, consulted only on that
+// zero-row path — see assertPyjamahrTenantExists.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
-import { atsFetchJson } from "./http.js";
+import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
+import { tryParseJson } from "../util/json.js";
 
 const API_ORIGIN = "https://api.pyjamahr.com";
 const BOARD_ORIGIN = "https://app.pyjamahr.com";
@@ -117,6 +124,102 @@ export function parsePyjamahrList(json: unknown): PyjamahrList {
   return PyjamahrListSchema.parse(json);
 }
 
+// --- tenant existence ---------------------------------------------------------
+
+/** The board page whose getServerSideProps resolves company_uuid to a tenant.
+ *  The ?company= display param has to be present for the SSR to run at all (with
+ *  company_uuid alone the page ships no __NEXT_DATA__), though its VALUE is not
+ *  checked — a live uuid resolves under a deliberately wrong name. */
+export function pyjamahrBoardPageUrl(company: AdapterCompany, uuid: string): string {
+  const params = `company=${encodeURIComponent(pyjamahrBoardParam(company))}&company_uuid=${encodeURIComponent(uuid)}`;
+  return `${BOARD_ORIGIN}/careers?${params}`;
+}
+
+// Either the tenant resolved (companyDetails, with its name) or the SSR's own
+// lookup failed (error). Both keys optional: any other shape is inconclusive and
+// must not fail the company.
+const BoardPagePropsSchema = z.object({
+  props: z.object({
+    pageProps: z.object({
+      companyDetails: z.object({ name: z.string() }).nullable().optional(),
+      error: z.string().nullable().optional(),
+    }),
+  }),
+});
+
+/** Three-valued: the tenant resolves, the vendor says it does not exist, or the
+ *  probe told us nothing (and must therefore change nothing). */
+export type PyjamahrTenantVerdict = "resolves" | "absent" | "inconclusive";
+
+/**
+ * Read the board page's `__NEXT_DATA__` island and say whether company_uuid
+ * resolved to a tenant.
+ *
+ * "absent" is reserved for the one shape a nonexistent tenant produces: no
+ * companyDetails AND an error from the SSR's own lookup. Anything else — a
+ * missing island, unparseable JSON, an unexpected shape — is "inconclusive",
+ * because the list call already succeeded and an oddity here says nothing about
+ * the tenant.
+ */
+export function pyjamahrTenantVerdict(html: string): PyjamahrTenantVerdict {
+  const island = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
+  if (island === undefined) return "inconclusive";
+  const parsed = BoardPagePropsSchema.safeParse(tryParseJson(island));
+  if (!parsed.success) return "inconclusive";
+  const pageProps = parsed.data.props.pageProps;
+  if (pageProps.companyDetails) return "resolves";
+  return pageProps.error ? "absent" : "inconclusive";
+}
+
+/**
+ * Throw when the tenant behind api_meta.companyUuid does not exist.
+ *
+ * company_uuid is a filter on a shared API rather than a tenant address, and the
+ * list endpoint does not reject an unknown value: probed 2026-08-03,
+ * ZZZZZZZZZZ, 0000000000, acmewidgetsco and "" each returned HTTP 200
+ * {"count":0,"next":null,"previous":null,"results":[]} — byte-identical to a live
+ * tenant whose board is empty. So a dead uuid sat green forever, and no amount of
+ * inspecting the list response could tell the two apart.
+ *
+ * The board page can, because its getServerSideProps resolves the uuid to a
+ * company: all 7 live rows come back with props.pageProps.companyDetails naming
+ * the employer (Zinance, Bynry, F Jobs by Fashion TV India, Kuku FM, Masai,
+ * Neusort, smallcase), while every bogus uuid comes back with
+ * props.pageProps.error and no companyDetails.
+ *
+ * Consulted ONLY when page 1 returned zero rows, so a board that produced
+ * postings never pays for the extra request and can never be failed by it. And
+ * only a definitive "the vendor's own lookup 404ed" verdict fails the company —
+ * a transport failure, an HTTP error or an unrecognised payload leaves the empty
+ * result standing, exactly as it does today. A tenant whose board empties out
+ * still resolves, so it keeps returning [].
+ *
+ * The cheaper JSON candidate was rejected: /api/career/jobs/departments is a
+ * tenant master list (fashiontv returns 89 departments against 20 open jobs) and
+ * so looks independent of the board, but it is still derived data — neusort has
+ * exactly one department — and a tenant that never named one would be
+ * indistinguishable from a dead uuid.
+ */
+export async function assertPyjamahrTenantExists(company: AdapterCompany, uuid: string): Promise<void> {
+  let verdict: PyjamahrTenantVerdict;
+  try {
+    const html = await atsFetchText(pyjamahrBoardPageUrl(company, uuid), { provider: "pyjamahr" });
+    verdict = pyjamahrTenantVerdict(html);
+  } catch (err) {
+    // The list call already succeeded; a failure on this confirmation probe is
+    // evidence about the probe, not about the tenant.
+    logger.warn({ slug: company.slug, err: String(err) }, "pyjamahr tenant-existence probe failed - leaving the empty board as-is");
+    return;
+  }
+  if (verdict !== "absent") return;
+
+  throw new Error(
+    `pyjamahr: tenant does not exist — company_uuid ${uuid} resolves to no company on the board ` +
+      `page for ${company.slug}, and the list endpoint silently matches nothing for an unknown ` +
+      `uuid, so the board is dead rather than empty.`,
+  );
+}
+
 /** Pull the HTML description from a detail response. Null when absent. */
 export function parsePyjamahrDetail(json: unknown): string | null {
   const parsed = PyjamahrDetailSchema.safeParse(json);
@@ -177,6 +280,10 @@ export const pyjamahrAdapter: AtsAdapter = {
         "pyjamahr pagination hit the runaway cap - board may be truncated"
       );
     }
+
+    // Zero rows is the one outcome an unknown company_uuid also produces, so it
+    // is the only one worth a second request — see assertPyjamahrTenantExists.
+    if (out.length === 0) await assertPyjamahrTenantExists(company, uuid);
 
     return out;
   },
