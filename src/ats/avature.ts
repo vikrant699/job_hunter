@@ -21,6 +21,9 @@
 //         "No jobs found" placeholder article (no title link) that can still
 //         carry a (wrong) Next link back toward the start — we guard against
 //         that by also stopping the moment a page yields zero real postings.
+//         On the FIRST page, zero postings additionally has to be told apart
+//         from the host no longer serving an Avature portal at all — see
+//         assertAvatureBoardServed.
 //
 //   jd:   GET https://<host>/.../JobDetail/<slug>/<id>  (slug segment is
 //         OPTIONAL — some tenants link straight to JobDetail/<id>) -> full
@@ -39,6 +42,56 @@ import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, c
 // (loops back on itself, etc.) — pagination normally ends on its own once the
 // real last page is reached (no Next link) or a page yields zero postings.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+
+// Avature stamps its own meta namespace into every portal page it renders
+// (avature.portal.id / .urlPath / .lang, avature.wizard.registrars), and serves
+// its chrome and error pages out of /jscore/. Either is proof the response came
+// from the engine; see assertAvatureBoardServed for why both are accepted.
+const AVATURE_PORTAL_META_RE = /name="avature\.[a-z]/i;
+const AVATURE_ASSET_RE = /\/jscore\//;
+
+/** Whether this response was rendered by Avature at all. */
+export function avatureEngineServed(html: string): boolean {
+  return AVATURE_PORTAL_META_RE.test(html) || AVATURE_ASSET_RE.test(html);
+}
+
+/**
+ * Throw when a first page that yielded no postings did not come from Avature.
+ *
+ * Eight of nine live rows sit on the company's OWN host (jobs.lenovo.com,
+ * careers.tesco.com, jobs.siemens.com, ...), so the failure to catch is such a
+ * host quietly ceasing to serve its Avature portal while still answering 200 —
+ * parked, re-pointed at another ATS, or replaced by a marketing page. None of
+ * those renders `article.article--result`, so parseAvatureSearch returned no
+ * postings, the zero-postings break ended the loop and listPostings resolved with
+ * [] — indistinguishable from a portal with nothing open. Nothing failed, so
+ * consecutive_failures never moved.
+ *
+ * "No result articles" alone cannot be the signal: the engine renders a portal
+ * page with zero of them whenever nothing matches. Probed 2026-08-03, the portal
+ * HOME pages of jobs.lenovo.com and www.metlifecareers.com both carry zero
+ * article--result blocks while still stamping avature.portal.id — proof the meta
+ * namespace is portal chrome rather than a property of the results list.
+ * Present on 9/9 live rows.
+ *
+ * /jscore/ is accepted alongside the meta on purpose, and NOT as a nicety: the
+ * engine's own transient failure page ("Oops... Something went wrong", HTTP 200,
+ * reproduced on jobs.lenovo.com) drops every meta tag but still loads /jscore/
+ * assets. Keying on the meta alone would have charged a healthy Lenovo board for
+ * a vendor-side hiccup. A host that has stopped serving Avature has neither.
+ *
+ * Gated to page 1, so the stale "No jobs found" placeholder a page past the real
+ * last one renders still just ends pagination.
+ */
+export function assertAvatureBoardServed(html: string, url: string): void {
+  if (avatureEngineServed(html)) return;
+
+  throw new Error(
+    `avature: portal no longer served — ${url} returned a page with no job articles and none of ` +
+      `Avature's own portal markup, so it is not an Avature portal and the board is dead rather ` +
+      `than empty.`,
+  );
+}
 
 /**
  * Build the initial SearchJobs URL from careers_url/tenant_url. Accepts either
@@ -206,7 +259,13 @@ export const avatureAdapter: AtsAdapter = {
       // A page past the real last one can render a stale "No jobs found"
       // placeholder that still carries a (wrong) Next link — stop here
       // regardless of nextHref so that case can never loop.
-      if (postings.length === 0) break;
+      if (postings.length === 0) {
+        // On the FIRST page only: zero postings from something that isn't even an
+        // Avature portal means the host stopped serving the board. Past page 1 it
+        // just means the pager ran off the end, which is a clean completion.
+        if (page === 0) assertAvatureBoardServed(html, finalUrl);
+        break;
+      }
 
       out.push(...postings);
       page++;
