@@ -12,7 +12,9 @@
 //         `#search-results`-ish element: `data-total-pages="N"` and
 //         `data-total-results="N"`. We also stop defensively on a page that
 //         yields zero job links, in case those attributes are ever missing
-//         or wrong.
+//         or wrong. A page-1 response with neither job links NOR that pager
+//         state is not a Radancy search page at all — see
+//         assertRadancyBoardServed.
 //
 //         Job cards live inside whichever element(s) have "search-results"
 //         in their id/class (Ford: `#search-results-jobs.search-results-list__list`
@@ -56,6 +58,42 @@ const NOMINAL_PAGE_SIZE = 15;
 
 const TOTAL_PAGES_RE = /data-total-pages="(\d+)"/;
 const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
+
+/**
+ * Throw when a page-1 response that yielded no job cards is not a Radancy
+ * search-results page at all.
+ *
+ * These tenants sit on the company's own domain (careers.ford.com,
+ * jobs.intuit.com, ...), so the failure to catch is the domain quietly ceasing to
+ * serve Radancy while still answering 200 — parked, re-pointed at another ATS, or
+ * replaced by a marketing page. None of those carries a `#search-results`
+ * container, so parseRadancyList returned [] and the row reported a healthy empty
+ * board forever, no error, consecutive_failures never moving.
+ *
+ * "No job cards" alone CANNOT be the signal: Cargill's board is a live Radancy
+ * search page that legitimately matches nothing for India today
+ * (data-total-results="0", zero cards, probed 2026-08-03), and every tenant that
+ * ever empties out looks the same. The engine's own pager state is what separates
+ * them — `data-total-results` is emitted on the results `<section>` whatever the
+ * count, and the count is simply 0.
+ *
+ * Probed 2026-08-03 across all 12 live rows: present on 12/12, Cargill included,
+ * and reproducibly still present when a healthy tenant is asked for a nonsense
+ * location (verified on careers.arm.com and jobs.intuit.com, both 0 results).
+ * Absent from every non-search response the same hosts serve: careers.arm.com's
+ * own 404 page, its careers home, and www.arm.com. `totalResults` is the value
+ * the pager already parses, so the check costs no extra request and no extra
+ * parsing.
+ */
+export function assertRadancyBoardServed(totalResults: number | null, careersUrl: string): void {
+  if (totalResults !== null) return;
+
+  throw new Error(
+    `radancy: board no longer served — ${careersUrl} returned a page with no job cards AND no ` +
+      `data-total-results pager state, so it is not a Radancy search-results page and the board ` +
+      `is dead rather than empty.`,
+  );
+}
 
 // Checked in order; the first tier with any match wins (see file header).
 const JD_CLASS_TIERS = ["ats-description", "job-description", "__description"];
@@ -200,6 +238,12 @@ export const radancyAdapter: AtsAdapter = {
         // ones, exactly matching the original reading this once from page 1
         // and never reconsidering it on later pages.
         const { totalResults } = parseRadancyTotals(html);
+        // Page 1 only, and only when it produced no cards: a page that yielded
+        // rows is a live board whatever its pager markup says, and a pager
+        // running off the end on a later page must just stop, not fail.
+        if (page === 0 && items.length === 0) {
+          assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1));
+        }
         return { items, total: totalResults };
       },
     });
