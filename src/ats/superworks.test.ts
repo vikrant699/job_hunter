@@ -2,11 +2,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertSuperworksTenantExists,
+  superworksAdapter,
   superworksListUrl,
+  superworksTenantName,
   parseSuperworksList,
   parseSuperworksJd,
 } from "./superworks.js";
 import type { AdapterCompany } from "../types.js";
+import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 
 const company: AdapterCompany = {
   provider: "superworks",
@@ -148,4 +157,118 @@ test("parseSuperworksJd resolves the '$<id>' Flight text reference into plain te
 
 test("parseSuperworksJd returns '' when jobDescription/description is absent", () => {
   assert.equal(parseSuperworksJd("<html><body>Not found</body></html>"), "");
+});
+
+// --- dead subdomain vs genuinely empty board -----------------------------------
+
+// Trimmed from GET https://zzz-no-such-tenant-9x.superworks.com/job/listing
+// (HTTP 200, no redirect, 13,353 bytes, captured 2026-08-03). A subdomain the
+// vendor does not host serves the same Next.js shell as a real tenant, titled
+// with the vendor's generic default, and its page record resolves to an RSC error
+// record ("7:E{...}") instead of page data. No "initialData" appears anywhere, so
+// it used to parse as a board with zero openings.
+const DEAD_TENANT_HTML = `<html><head><title>Jobs &amp; Careers | Recruit Superworks</title></head><body>${pushScript(
+  '0:{"P":null,"b":"FNeXjdXzPJK76i66tsPLZ","c":["","job","listing"],"i":false}\n',
+)}${pushScript(
+  '9:null\n' +
+    'b:{"metadata":[["$","title","0",{"children":"Jobs & Careers | Recruit Superworks"}]],"error":null}\n' +
+    '7:E{"digest":"1659083992"}\n',
+)}</body></html>`;
+
+// A LIVE tenant whose board is empty: the tenant-identity block still resolves
+// from the subdomain, and jobList is present but has nothing in it. Mirrors the
+// shape of a refrens job-detail page fetched with a nonexistent job id, whose
+// initialData carried companyInfo and no jobList at all (probed 2026-08-03).
+const EMPTY_BOARD_HTML = `<html><body>${pushScript(
+  `7:["$","$L13",null,{"initialData":${JSON.stringify({
+    companyInfo: { companyName: "Refrens Internet Pvt Ltd." },
+    jobList: [],
+  })}}]`,
+)}</body></html>`;
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("superworksTenantName reads the tenant name the board resolved from its subdomain", () => {
+  assert.equal(superworksTenantName(LIST_HTML), "Refrens Internet Pvt Ltd.");
+  assert.equal(superworksTenantName(EMPTY_BOARD_HTML), "Refrens Internet Pvt Ltd.");
+  assert.equal(superworksTenantName(DEAD_TENANT_HTML), null);
+  assert.equal(superworksTenantName("<html><body>nothing</body></html>"), null);
+});
+
+test("superworksTenantName treats a blank companyName as no identity at all", () => {
+  const html = `<html><body>${pushScript(
+    '7:[null,{"initialData":{"companyInfo":{"companyName":"   "},"jobList":[]}}]',
+  )}</body></html>`;
+  assert.equal(superworksTenantName(html), null);
+});
+
+test("assertSuperworksTenantExists throws for a subdomain the vendor does not host, naming the slug", () => {
+  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens"));
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /superworks: tenant does not exist/);
+  assert.match(err.message, /refrens/);
+  assert.match(err.message, /companyName/);
+});
+
+test("the dead-subdomain error is charged to the company, not written off as infrastructure", () => {
+  // A subdomain Superworks does not host is a per-company board defect and MUST
+  // count toward the row's consecutive_failures. If any of these flipped true the
+  // scheduler would retry the board forever and never quarantine it.
+  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens"));
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("assertSuperworksTenantExists stays silent whenever the tenant identifies itself", () => {
+  assert.doesNotThrow(() => assertSuperworksTenantExists(EMPTY_BOARD_HTML, "refrens"));
+  assert.doesNotThrow(() => assertSuperworksTenantExists(LIST_HTML, "refrens"));
+});
+
+test("superworksAdapter.listPostings rejects a subdomain the vendor does not host", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(DEAD_TENANT_HTML)));
+  await assert.rejects(
+    () => superworksAdapter.listPostings(company),
+    /superworks: tenant does not exist/,
+  );
+});
+
+test("superworksAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
+  // The distinction the check exists for: the tenant resolves, nothing is open,
+  // no error.
+  stubFetch(t, fetchSequence(() => htmlResponse(EMPTY_BOARD_HTML)));
+  assert.deepEqual(await superworksAdapter.listPostings(company), []);
+});
+
+test("superworksAdapter.listPostings still lists a populated board unchanged", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(LIST_HTML)));
+  const postings = await superworksAdapter.listPostings(company);
+  assert.equal(postings.length, 3);
+  assert.equal(at(postings, 0).externalId, "6a3d21dedb596783b0df9e72");
+  assert.equal(at(postings, 0).jobUrl, "https://refrens.superworks.com/job/details/6a3d21dedb596783b0df9e72");
+});
+
+test("superworksAdapter.listPostings resolves the listing URL from a tenant_url override", async (t) => {
+  // insidefpv's row: tenant_url is the full listing URL, so the origin must come
+  // from it rather than from the slug.
+  const insidefpv: AdapterCompany = {
+    provider: "superworks",
+    slug: "insidefpv",
+    name: "InsideFPV",
+    careersUrl: "https://insidefpv.superworks.com/job/listing",
+    tenantUrl: "https://insidefpv.superworks.com/job/listing",
+    apiMeta: null,
+  };
+  assert.equal(superworksListUrl(insidefpv), "https://insidefpv.superworks.com/job/listing");
+  stubFetch(t, fetchSequence(() => htmlResponse(LIST_HTML)));
+  const postings = await superworksAdapter.listPostings(insidefpv);
+  assert.equal(at(postings, 0).jobUrl, "https://insidefpv.superworks.com/job/details/6a3d21dedb596783b0df9e72");
 });

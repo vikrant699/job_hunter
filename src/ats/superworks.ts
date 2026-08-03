@@ -11,11 +11,14 @@
 // "Flight text" blob containing plain (if occasionally $-ref-laden) JSON:
 //
 //   list:   GET <origin>/job/listing -> Flight text contains one
-//           `"initialData":{ "jobList": [ { "_id", "name", "locationInfo": [{"name"}] }, ... ] }`
+//           `"initialData":{ "companyInfo": { "companyName" }, "jobList": [
+//           { "_id", "name", "locationInfo": [{"name"}] }, ... ] }`
 //           object with EVERY posting (no pagination — a `?page=2` query
 //           param is silently ignored, verified live on refrens: same 17
 //           rows either way). The externalId is Mongo `_id`; job URLs are
-//           `<origin>/job/details/<_id>`.
+//           `<origin>/job/details/<_id>`. A subdomain Superworks does not host
+//           serves the same shell with NO initialData at all — see
+//           assertSuperworksTenantExists.
 //
 //   jd:     GET <origin>/job/details/<_id> -> Flight text contains
 //           `"jobDescription":{"description": ... }`. For any JD long
@@ -34,7 +37,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin, collapseWs, extractBalanced } from "./shared.js";
-import { tryParseJson } from "../util/json.js";
+import { tryParseJson, type JsonValue } from "../util/json.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
@@ -83,13 +86,73 @@ const InitialDataSchema = z.object({
   jobList: z.array(JobListItemSchema),
 });
 
+// The tenant-identity block Superworks resolves from the SUBDOMAIN, and the
+// first key inside initialData on every page a real tenant serves — including
+// job-detail pages, which carry no jobList at all. Its presence therefore says
+// "this subdomain is a Superworks tenant" independently of how many jobs are open.
+const TenantIdentitySchema = z.object({
+  companyInfo: z.object({ companyName: z.string() }),
+});
+
+/** The embedded `initialData` object as raw JSON, or null when the page has none. */
+function extractInitialData(html: string): JsonValue | null {
+  const raw = extractBalanced(extractFlightText(html), '"initialData":', "{");
+  if (!raw) return null;
+  return tryParseJson(raw);
+}
+
+/**
+ * The tenant name the board resolved from its own subdomain, or null when the
+ * response carries no tenant-identity block at all.
+ */
+export function superworksTenantName(html: string): string | null {
+  const initialData = extractInitialData(html);
+  if (initialData === null) return null;
+  const result = TenantIdentitySchema.safeParse(initialData);
+  if (!result.success) return null;
+  return result.data.companyInfo.companyName.trim() || null;
+}
+
+/**
+ * Throw when the listing page carries no tenant identity — i.e. the subdomain is
+ * not a Superworks board.
+ *
+ * A subdomain Superworks does not host does NOT 404, and does not leave the host
+ * either: <slug>.superworks.com answers HTTP 200 with the same Next.js shell a
+ * real tenant serves, titled "Jobs & Careers | Recruit Superworks" (the vendor's
+ * generic default rather than the tenant's name), and its Flight payload resolves
+ * the page record to an RSC error instead of page data. There is no "initialData"
+ * anywhere in it, so extractBalanced found nothing, parseSuperworksList returned
+ * [] and listPostings resolved with zero postings — indistinguishable from a board
+ * with nothing open today. Nothing failed, so consecutive_failures never moved.
+ *
+ * What separates the two is the tenant-identity block, not the job list:
+ * initialData.companyInfo.companyName is resolved from the subdomain and is
+ * present on every page a real tenant serves. Probed 2026-08-03: present on both
+ * live rows (refrens, insidefpv), and — the case that matters — present on a
+ * refrens job-detail page fetched with a nonexistent job id, whose initialData
+ * carries companyInfo with no jobList whatsoever. So a tenant that closes every
+ * job still identifies itself and still returns [], while a subdomain the vendor
+ * does not host identifies nobody. Neither live board could be made to serve an
+ * empty jobList directly: the listing page ignores every filter/paging query
+ * param tried (search, searchText, location, department, jobType, page).
+ *
+ * Runs only after the parse comes up empty, so a page that yielded postings can
+ * never be failed by this.
+ */
+export function assertSuperworksTenantExists(html: string, slug: string): void {
+  if (superworksTenantName(html) !== null) return;
+
+  throw new Error(
+    `superworks: tenant does not exist — the board for ${slug} carries no ` +
+      `initialData.companyInfo.companyName, so the subdomain served the vendor's generic shell ` +
+      `rather than a tenant board, and it is dead rather than empty.`,
+  );
+}
+
 /** Parse the listing page's embedded `initialData.jobList` into postings. */
 export function parseSuperworksList(html: string, company: AdapterCompany): NormalizedPosting[] {
-  const flightText = extractFlightText(html);
-  const raw = extractBalanced(flightText, '"initialData":', "{");
-  if (!raw) return [];
-
-  const parsed = tryParseJson(raw);
+  const parsed = extractInitialData(html);
   if (parsed === null) return [];
 
   const result = InitialDataSchema.safeParse(parsed);
@@ -164,7 +227,11 @@ export const superworksAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const html = await atsFetchText(superworksListUrl(company), { provider: "superworks" });
-    return parseSuperworksList(html, company);
+    const postings = parseSuperworksList(html, company);
+    // Only on a zero-row parse: a page that yielded postings is a live tenant
+    // whatever else its payload happens to carry.
+    if (postings.length === 0) assertSuperworksTenantExists(html, company.slug);
+    return postings;
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
