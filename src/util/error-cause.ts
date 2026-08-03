@@ -102,6 +102,113 @@ const JSON_PARSE_MESSAGE_RE = /is not valid JSON|Unexpected end of JSON input/i;
 const MARKUP_BODY_RE = /Unexpected token '<'|<!doctype\b|<html\b/i;
 
 /**
+ * Markers that on their own prove the response came from a bot-blocker rather than
+ * from the board. Every one is either a vendor brand token or a sentence a careers
+ * page has no reason to contain, because a false positive here is worse than the
+ * bug being fixed: it would hand a genuinely dead board a permanent excuse.
+ *
+ * Deliberately rejected as too weak to stand alone, with the pairing used instead
+ * in CHALLENGE_PAIRED_MARKERS below:
+ *   "Reference #"        — how boards label requisition ids ("Reference #18274").
+ *   "challenge-container" — employers run coding challenges; it is a CSS class name.
+ *   "Access Denied"      — also a plain 403 body and an app-level error string.
+ *   "Just a moment..."   — ordinary loading copy in an un-hydrated SPA shell.
+ *   "Attention Required!" — plain English a page can use for its own warnings, and
+ *                           one word off the "Attention!" chrome SuccessFactors
+ *                           renders on a healthy tenant with nothing open.
+ *   "Request unsuccessful" / "Incident ID:" — generic enough to be app-level text.
+ */
+const CHALLENGE_STRONG_MARKERS = [
+  /Incapsula incident ID/i, // Imperva/Incapsula block page
+  /cf-browser-verification/i, // Cloudflare interstitial body class
+  /\/cdn-cgi\/challenge-platform/i, // Cloudflare challenge asset path
+  /Checking your browser before accessing/i, // Cloudflare interstitial heading
+  /Sorry, you have been blocked/i, // Cloudflare 1020, the datacenter-IP block
+  /Verifying you are human/i, // Cloudflare Turnstile managed challenge
+  /Please enable JS and disable any ad blocker/i, // Cloudflare's noscript line
+  /\bawswaf\b/i, // token.awswaf.com / AWS WAF challenge+captcha JS namespace
+];
+
+/**
+ * Phrases that only count as a block page alongside a second, corroborating
+ * signal — the pairing is what keeps them off legitimate careers markup.
+ */
+const CHALLENGE_PAIRED_MARKERS: Array<readonly [RegExp, RegExp]> = [
+  [/Attention Required!/i, /cloudflare/i],
+  [/Access Denied/i, /you (?:don['’]?t|do not) have permission to access/i],
+  [/Reference\s*#/i, /Access Denied|you (?:don['’]?t|do not) have permission|akamai/i],
+  [/Just a moment\.\.\./i, /cloudflare|cdn-cgi|cf-chl|ray id/i],
+  [/Incident ID\s*:/i, /Request unsuccessful|Incapsula|Access Denied/i],
+  [/Request unsuccessful/i, /incident id|support id/i],
+  [/AWS WAF/i, /request blocked|challenge|captcha/i],
+];
+
+/** Longest excerpt of one marker match kept as evidence. Every marker above is a
+ *  short fixed phrase, so this only guards a pathological regex. */
+const MARKER_EXCERPT_MAX = 80;
+
+function quoteMatch(re: RegExp, text: string): string | null {
+  const m = re.exec(text);
+  const hit = m?.[0];
+  return hit === undefined ? null : `"${hit.slice(0, MARKER_EXCERPT_MAX)}"`;
+}
+
+/**
+ * The marker text this body matched, quoted — or null when nothing did.
+ *
+ * The quote IS the sanitised snippet: every piece of it is a literal substring of
+ * the body, short and bounded, so an error built from it can travel into
+ * `last_error` (the DB and the Discord summary) without carrying a document. Both
+ * halves of a paired marker are quoted on purpose, so re-scanning the quote
+ * satisfies the same pairing rule the body did — that round trip is what lets a
+ * guard throw an error the classifier will still recognise.
+ */
+export function challengeEvidence(text: string): string | null {
+  for (const re of CHALLENGE_STRONG_MARKERS) {
+    const quoted = quoteMatch(re, text);
+    if (quoted !== null) return quoted;
+  }
+  for (const [primary, corroborating] of CHALLENGE_PAIRED_MARKERS) {
+    const first = quoteMatch(primary, text);
+    if (first === null) continue;
+    const second = quoteMatch(corroborating, text);
+    if (second !== null) return `${first} + ${second}`;
+  }
+  return null;
+}
+
+/**
+ * Whether a response body is a bot-block / WAF challenge page rather than the
+ * board. The HTML dead-tenant guards ask this BEFORE reaching their verdict: an
+ * absence-of-fingerprint guard cannot otherwise tell a blocked request from a host
+ * that stopped serving the board, because a challenge page has no job rows and none
+ * of the vendor's engine markup either.
+ */
+export function looksLikeChallengePage(html: string): boolean {
+  return challengeEvidence(html) !== null;
+}
+
+/**
+ * Throw an infrastructure-shaped error if `body` is a bot-block page. Guards call
+ * this first, so an edge refusal never reaches a dead-board verdict.
+ *
+ * The message quotes the matched marker, which is what makes the thrown error
+ * classify as infrastructure again on the way out (see challengeEvidence). One
+ * marker set therefore decides both halves — a guard can never disagree with the
+ * scheduler about what a challenge looks like.
+ */
+export function assertNotEdgeChallenge(provider: string, url: string, body: string): void {
+  const evidence = challengeEvidence(body);
+  if (evidence === null) return;
+
+  throw new Error(
+    `${provider}: an edge refused the request — ${url} answered with a bot-block/challenge page ` +
+      `(matched ${evidence}) instead of the board, so the response says nothing about whether ` +
+      `the board is alive.`,
+  );
+}
+
+/**
  * A JSON endpoint that answers with an HTML document is not a broken board: it is
  * an edge interstitial (WAF challenge, rate-limit notice, error page) in front of a
  * healthy board. Run 31 (2026-08-01) lost 17 Workday boards this way inside a
@@ -114,9 +221,18 @@ const MARKUP_BODY_RE = /Unexpected token '<'|<!doctype\b|<html\b/i;
  * a tag. Malformed-but-JSON bodies and truncated bodies stay board defects, and an
  * HTTP status error carrying an HTML snippet stays an HTTP status error — those
  * really did come from the board's application.
+ *
+ * The parse rule alone left the HTML adapters exposed, because they never parse
+ * JSON: a challenge page reaches their dead-tenant guard as markup with no job rows
+ * and no engine fingerprint, which is exactly what a dead host looks like. So an
+ * explicit bot-block signature anywhere in the error text also counts — that covers
+ * the guards (which quote the marker they matched) and, for free, an HTTP status
+ * error whose 200-char body snippet from atsHttpError is a block page. A 403 served
+ * by Cloudflare's block page is an edge refusing us, not a board defect.
  */
 export function isEdgeInterstitialError(err: unknown): boolean {
   const text = describeError(err);
+  if (looksLikeChallengePage(text)) return true;
   const parseFailed =
     chain(err).some((e) => e instanceof SyntaxError) || JSON_PARSE_MESSAGE_RE.test(text);
   return parseFailed && MARKUP_BODY_RE.test(text);
