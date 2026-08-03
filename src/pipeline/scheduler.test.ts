@@ -13,6 +13,7 @@ import type { Provider } from "../schemas.js";
 import type { Company, NormalizedPosting } from "../types.js";
 import { upsertCompany, db } from "../db/index.js";
 import { sleep } from "../util/sleep.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("AbortError: This operation was aborted"), "timeout");
@@ -229,6 +230,69 @@ test("a genuinely malformed JSON body still counts against the board", async () 
   assert.equal(failureRow(slug).consecutive_failures, 1);
   assert.equal(stats.failedCompanies.length, 1);
   assert.equal(stats.transportDeferred.length, 0);
+  assert.equal(stats.transportRetried, 0, "board defects are not retried");
+});
+
+/**
+ * What an HTML adapter's dead-tenant guard throws once it notices the body is a
+ * bot-block page rather than a board. Built through the real guard so the test
+ * pins the routing, not a hand-copied message.
+ */
+function challengePageError(): Error {
+  const body =
+    `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head>` +
+    `<body><h1>Sorry, you have been blocked</h1></body></html>`;
+  try {
+    assertNotEdgeChallenge("radancy", "https://careers.astrazeneca.com/search-jobs", body);
+  } catch (err) {
+    if (err instanceof Error) return err;
+  }
+  throw new Error("assertNotEdgeChallenge failed to reject a Cloudflare block page");
+}
+
+test("a WAF challenge page does NOT count against the board and is deferred", async () => {
+  const slug = `challenged-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  await processBucket("greenhouse", failingAdapter(challengePageError), [company], stats, FAST);
+
+  // An edge refused us, so the board's application never spoke: the 12 WAF-fronted
+  // radancy rows (AstraZeneca 4,681 postings, Amgen 2,014, Optum 1,719, ...) must
+  // not walk toward the cf>=5 quarantine on five blocked runs.
+  assert.equal(failureRow(slug).consecutive_failures, 0, "a block page is not a board defect");
+  assert.equal(failureRow(slug).status, "active");
+  assert.equal(stats.failedCompanies.length, 0);
+  assert.equal(stats.errors.length, 0);
+  assert.equal(stats.transportDeferred.length, 1, "must get a second chance");
+  assert.ok(stats.transportRetried > 0, "should have backed off and retried in place");
+});
+
+test("a genuinely dead board still counts against it — this is no blanket amnesty", async () => {
+  const slug = `dead-board-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  await processBucket(
+    "greenhouse",
+    // radancy's verdict for a host that stopped serving the board: no job cards and
+    // no pager state, and nothing about the body says an edge intervened.
+    failingAdapter(
+      () =>
+        new Error(
+          `radancy: board no longer served — https://careers.ford.com/search-jobs returned a ` +
+            `page with no job cards AND no data-total-results pager state, so it is not a ` +
+            `Radancy search-results page and the board is dead rather than empty.`,
+        ),
+    ),
+    [company],
+    stats,
+    FAST,
+  );
+
+  assert.equal(failureRow(slug).consecutive_failures, 1, "a dead board must reach quarantine");
+  assert.equal(stats.failedCompanies.length, 1);
+  assert.equal(stats.transportDeferred.length, 0, "board defects are not deferred");
   assert.equal(stats.transportRetried, 0, "board defects are not retried");
 });
 
