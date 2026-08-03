@@ -2,13 +2,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  jazzhrAdapter,
   jazzhrBase,
+  assertJazzhrOnTenantHost,
   parseJazzhrJobId,
   parseJazzhrList,
   normalizeJazzhr,
   extractJazzhrJd,
 } from "./jazzhr.js";
 import type { JazzhrListing } from "./jazzhr.js";
+import { fetchSequence, htmlResponseFrom, stubFetch } from "./test-helpers.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
 
 const company: AdapterCompany = {
@@ -17,6 +25,18 @@ const company: AdapterCompany = {
   name: "HackerEarth",
   careersUrl: "https://hackerearth.applytojob.com/apply",
   tenantUrl: null,
+  apiMeta: null,
+};
+
+// Smule's registry row: the JazzHR subdomain (smuleinc) is NOT the slug
+// (smule-india), so the expected host can only come from the row's URL — a
+// slug-derived host would be smule-india.applytojob.com, which is nobody's board.
+const overrideCompany: AdapterCompany = {
+  provider: "jazzhr",
+  slug: "smule-india",
+  name: "Smule India",
+  careersUrl: "https://smuleinc.applytojob.com/apply",
+  tenantUrl: "https://smuleinc.applytojob.com/apply",
   apiMeta: null,
 };
 
@@ -81,6 +101,20 @@ const MALFORMED_HTML = `<!DOCTYPE html>
 </ul>
 </body></html>`;
 
+// Trimmed from GET https://zzz-no-such-tenant-9x.applytojob.com/apply (HTTP 200,
+// two redirects, 46,936 bytes, captured 2026-08-03). A slug JazzHR does not host
+// lands here — the vendor's own job-seeker marketing page, on www.jazzhr.com. No
+// list-group items, so it used to parse as a board with zero openings.
+const MARKETING_HTML = `<!DOCTYPE html>
+<html><head>
+<title>For Job Seekers | JazzHR</title>
+<link rel="canonical" href="https://www.jazzhr.com/job-seekers"/>
+</head>
+<body>
+<h1 class="text-primary-900 font-bold">Trying to apply for a job?</h1>
+<p>JazzHR is recruiting software used by thousands of small businesses.</p>
+</body></html>`;
+
 // Trimmed from a live capture of the detail page's #job-description div.
 const JD_HTML = `<!DOCTYPE html>
 <html><body>
@@ -140,6 +174,126 @@ test("parseJazzhrList skips rows with no href and rows with blank title, keeps v
 
 test("parseJazzhrList returns [] for HTML with no list-group at all", () => {
   assert.deepEqual(parseJazzhrList("<html><body>Nothing here</body></html>", "https://x.applytojob.com/apply"), []);
+});
+
+// --- dead tenant (redirected off-host) vs genuinely empty board ----------------
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("assertJazzhrOnTenantHost throws when the board answered from another host, naming both", () => {
+  const err = thrownBy(() =>
+    assertJazzhrOnTenantHost(
+      "https://hackerearth.applytojob.com",
+      "https://www.jazzhr.com/job-seekers",
+    ),
+  );
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /jazzhr: tenant does not exist/);
+  // Both hosts, so the stored error alone says which tenant and where it went.
+  assert.match(err.message, /hackerearth\.applytojob\.com/);
+  assert.match(err.message, /www\.jazzhr\.com/);
+});
+
+test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
+  // A slug JazzHR does not host is a real per-company defect and MUST count
+  // toward the row's consecutive_failures. If any of these flipped true the
+  // scheduler would retry the board forever and never quarantine it.
+  const err = thrownBy(() =>
+    assertJazzhrOnTenantHost(
+      "https://hackerearth.applytojob.com",
+      "https://www.jazzhr.com/job-seekers",
+    ),
+  );
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("assertJazzhrOnTenantHost tolerates www./path differences on the SAME host", () => {
+  assert.doesNotThrow(() =>
+    assertJazzhrOnTenantHost(
+      "https://hackerearth.applytojob.com",
+      "https://hackerearth.applytojob.com/apply/",
+    ),
+  );
+  assert.doesNotThrow(() =>
+    assertJazzhrOnTenantHost(
+      "https://hackerearth.applytojob.com",
+      "https://www.hackerearth.applytojob.com/apply?src=x",
+    ),
+  );
+  assert.doesNotThrow(() =>
+    assertJazzhrOnTenantHost(
+      "https://www.hackerearth.applytojob.com",
+      "https://hackerearth.applytojob.com/apply",
+    ),
+  );
+});
+
+test("assertJazzhrOnTenantHost stays silent when either URL is unparseable", () => {
+  // A URL-shape oddity is not evidence about the board, so it must not fail one.
+  assert.doesNotThrow(() => assertJazzhrOnTenantHost("not a url", "https://www.jazzhr.com/"));
+  assert.doesNotThrow(() =>
+    assertJazzhrOnTenantHost("https://hackerearth.applytojob.com", "not a url"),
+  );
+});
+
+test("assertJazzhrOnTenantHost takes the expected host from a tenant_url override, not the slug", () => {
+  // smule-india.applytojob.com is nobody's board; smuleinc.applytojob.com is.
+  assert.doesNotThrow(() =>
+    assertJazzhrOnTenantHost(jazzhrBase(overrideCompany), "https://smuleinc.applytojob.com/apply"),
+  );
+  const err = thrownBy(() =>
+    assertJazzhrOnTenantHost(jazzhrBase(overrideCompany), "https://www.jazzhr.com/job-seekers"),
+  );
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /smuleinc\.applytojob\.com/);
+});
+
+test("jazzhrAdapter.listPostings rejects a dead tenant that landed on JazzHR's marketing page", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://www.jazzhr.com/job-seekers", MARKETING_HTML)));
+  await assert.rejects(
+    () => jazzhrAdapter.listPostings(company),
+    /jazzhr: tenant does not exist.*hackerearth\.applytojob\.com.*www\.jazzhr\.com/,
+  );
+});
+
+test("jazzhrAdapter.listPostings rejects an off-host response even when its HTML parses", async (t) => {
+  // The host is the whole signal: postings served from somewhere other than the
+  // tenant are not this company's, so a parseable body must not excuse them.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://www.jazzhr.com/job-seekers", LIST_HTML)));
+  await assert.rejects(() => jazzhrAdapter.listPostings(company), /jazzhr: tenant does not exist/);
+});
+
+test("jazzhrAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
+  // The distinction the check exists for: same host, nothing open, no error.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://smuleinc.applytojob.com/apply", EMPTY_HTML)));
+  assert.deepEqual(await jazzhrAdapter.listPostings(overrideCompany), []);
+});
+
+test("jazzhrAdapter.listPostings still lists a populated board unchanged", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://hackerearth.applytojob.com/apply", LIST_HTML)));
+  const postings = await jazzhrAdapter.listPostings(company);
+  assert.equal(postings.length, 2);
+  assert.equal(postings[0]?.externalId, "8un9zUEE06");
+  assert.equal(postings[0].jobUrl, "https://hackerearth.applytojob.com/apply/8un9zUEE06/Account-Executive-SMB-Sales");
+  assert.equal(postings[1]?.isRemote, true);
+});
+
+test("jazzhrAdapter.listPostings accepts a tenant_url override's host on a populated board", async (t) => {
+  // No res.url at all (the fetch never redirected): finalUrl falls back to the
+  // requested URL, which is the override host — the check must pass, not fire.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("", LIST_HTML)));
+  const postings = await jazzhrAdapter.listPostings(overrideCompany);
+  assert.equal(postings.length, 2);
 });
 
 test("normalizeJazzhr maps fields and sets isRemote from the location text", () => {
