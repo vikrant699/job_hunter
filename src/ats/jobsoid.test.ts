@@ -1,9 +1,20 @@
 // src/ats/jobsoid.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { jobsoidIdFromHref, parseJobsoidList, jobsoidJdFromHtml } from "./jobsoid.js";
+import {
+  assertJobsoidTenantExists,
+  jobsoidAdapter,
+  jobsoidIdFromHref,
+  parseJobsoidList,
+  jobsoidJdFromHtml,
+} from "./jobsoid.js";
 import type { AdapterCompany } from "../types.js";
-import { at } from "./test-helpers.js";
+import { at, fetchSequence, htmlResponseFrom, stubFetch } from "./test-helpers.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 
 const company: AdapterCompany = {
   provider: "jobsoid",
@@ -11,6 +22,26 @@ const company: AdapterCompany = {
   name: "VIB",
   careersUrl: "https://vibvzw.jobsoid.com/",
   tenantUrl: "https://vibvzw.jobsoid.com",
+  apiMeta: null,
+};
+
+// Cuemath's registry row: a plain <slug>.jobsoid.com tenant with tenant_url set.
+const plainHostCompany: AdapterCompany = {
+  provider: "jobsoid",
+  slug: "cuemath",
+  name: "Cuemath",
+  careersUrl: "https://cuemath.jobsoid.com/",
+  tenantUrl: "https://cuemath.jobsoid.com/",
+  apiMeta: null,
+};
+
+// WebBeds' registry row: tenant_url is null, so the host comes from careers_url.
+const careersUrlOnlyCompany: AdapterCompany = {
+  provider: "jobsoid",
+  slug: "webbeds",
+  name: "WebBeds",
+  careersUrl: "https://webbeds.jobsoid.com/",
+  tenantUrl: null,
   apiMeta: null,
 };
 
@@ -82,9 +113,27 @@ const DETAIL_HTML = `
 </script>
 </body></html>`;
 
+// Trimmed real markup from GET https://cuemath.jobsoid.com/ (HTTP 200, no
+// redirect, captured 2026-08-03): a LIVE tenant whose board is currently empty.
+// The vendor renders its usual careers chrome with a "No Current Openings"
+// heading and no a.jobDetailsLink anchors.
 const EMPTY_BOARD_HTML = `
-<html><body>
-<div class="empty-state">No Current Openings</div>
+<html><head><title>Careers @ cuemath</title>
+<link rel="canonical" href="https://cuemath.jobsoid.com"></head><body>
+<section class="section current-openings" id="sectionContainer" data-section="1">
+  <h2 class="section-title cm-container">Current Openings</h2>
+  <h3 class="text-center">No Current Openings</h3>
+</section>
+</body></html>`;
+
+// Trimmed from GET https://zzz-no-such-tenant-9x.jobsoid.com/ (HTTP 200, one
+// redirect to https://portal.jobsoid.com/?notfound=true, 13,351 bytes, captured
+// 2026-08-03). Jobsoid's own cross-tenant portal: a React shell whose embedded
+// payload lists 631 postings belonging to unrelated employers, and no
+// a.jobDetailsLink anchors, so it used to parse as a board with zero openings.
+const PORTAL_HTML = `<!DOCTYPE html><html lang="en"><head></head>
+<body><div><div id="loading-splash"><p>Loading, please wait...</p></div></div>
+<script>(self.__FLIGHT_DATA||=[]).push("{\\"jobs\\":[{\\"id\\":135306,\\"company\\":\\"Edge Tutor\\"}],\\"total\\":631}")</script>
 </body></html>`;
 
 test("jobsoidIdFromHref extracts the numeric id from a /j/<id>/<slug> href", () => {
@@ -138,4 +187,106 @@ test("jobsoidJdFromHtml pulls the description out of the JobPosting JSON-LD and 
 
 test("jobsoidJdFromHtml returns empty string when there's no JobPosting JSON-LD", () => {
   assert.equal(jobsoidJdFromHtml("<html><body><p>no ld+json here</p></body></html>"), "");
+});
+
+// --- dead subdomain (redirected to the vendor's portal) vs empty board ---------
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("assertJobsoidTenantExists throws when the board came from Jobsoid's shared portal, naming both hosts", () => {
+  const err = thrownBy(() =>
+    assertJobsoidTenantExists("https://cuemath.jobsoid.com", "https://portal.jobsoid.com/?notfound=true"),
+  );
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /jobsoid: tenant does not exist/);
+  // Both hosts, so the stored error alone says which tenant and where it went.
+  assert.match(err.message, /cuemath\.jobsoid\.com/);
+  assert.match(err.message, /portal\.jobsoid\.com/);
+});
+
+test("the dead-subdomain error is charged to the company, not written off as infrastructure", () => {
+  // A subdomain Jobsoid does not host is a per-company board defect and MUST
+  // count toward the row's consecutive_failures. If any of these flipped true
+  // the scheduler would retry the board forever and never quarantine it.
+  const err = thrownBy(() =>
+    assertJobsoidTenantExists("https://cuemath.jobsoid.com", "https://portal.jobsoid.com/?notfound=true"),
+  );
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("assertJobsoidTenantExists stays silent for a CUSTOM-DOMAIN tenant, which legitimately leaves the host", () => {
+  // vibvzw.jobsoid.com redirects to jobs.vib.be and served 6 postings when
+  // probed. Leaving the host is normal here, so only the portal host may fail a
+  // board — a plain off-host check would have quarantined a healthy tenant.
+  assert.doesNotThrow(() =>
+    assertJobsoidTenantExists("https://vibvzw.jobsoid.com", "https://jobs.vib.be/"),
+  );
+});
+
+test("assertJobsoidTenantExists stays silent on the tenant's own host and on unparseable URLs", () => {
+  assert.doesNotThrow(() =>
+    assertJobsoidTenantExists("https://cuemath.jobsoid.com", "https://cuemath.jobsoid.com/"),
+  );
+  assert.doesNotThrow(() =>
+    assertJobsoidTenantExists("https://cuemath.jobsoid.com", "https://www.cuemath.jobsoid.com/?src=x"),
+  );
+  // A URL-shape oddity is not evidence about the board, so it must not fail one.
+  assert.doesNotThrow(() => assertJobsoidTenantExists("not a url", "also not a url"));
+});
+
+test("assertJobsoidTenantExists ignores a leading www. on the portal host", () => {
+  const err = thrownBy(() =>
+    assertJobsoidTenantExists("https://cuemath.jobsoid.com", "https://www.portal.jobsoid.com/?notfound=true"),
+  );
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /jobsoid: tenant does not exist/);
+});
+
+test("jobsoidAdapter.listPostings rejects a dead subdomain that landed on Jobsoid's portal", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://portal.jobsoid.com/?notfound=true", PORTAL_HTML)));
+  await assert.rejects(
+    () => jobsoidAdapter.listPostings(plainHostCompany),
+    /jobsoid: tenant does not exist.*cuemath\.jobsoid\.com.*portal\.jobsoid\.com/,
+  );
+});
+
+test("jobsoidAdapter.listPostings rejects a portal response even when its HTML would parse", async (t) => {
+  // The portal embeds other employers' postings, so a parseable body must not
+  // excuse a response served from there — those jobs are not this company's.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://portal.jobsoid.com/?notfound=true", LIST_HTML)));
+  await assert.rejects(() => jobsoidAdapter.listPostings(plainHostCompany), /jobsoid: tenant does not exist/);
+});
+
+test("jobsoidAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
+  // The distinction the check exists for: same host, nothing open, no error.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://cuemath.jobsoid.com/", EMPTY_BOARD_HTML)));
+  assert.deepEqual(await jobsoidAdapter.listPostings(plainHostCompany), []);
+});
+
+test("jobsoidAdapter.listPostings still lists a populated board unchanged", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://webbeds.jobsoid.com/", LIST_HTML)));
+  const postings = await jobsoidAdapter.listPostings(careersUrlOnlyCompany);
+  assert.equal(postings.length, 2);
+  assert.equal(at(postings, 0).externalId, "136131");
+  assert.equal(at(postings, 0).jobUrl, "https://webbeds.jobsoid.com/j/136131/aankoper");
+  assert.equal(at(postings, 0).companySlug, "webbeds");
+});
+
+test("jobsoidAdapter.listPostings still lists a populated CUSTOM-DOMAIN board unchanged", async (t) => {
+  // The redirect target is where relative hrefs resolve, so the custom domain
+  // must survive the check AND stay the link base.
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://jobs.vib.be/", LIST_HTML)));
+  const postings = await jobsoidAdapter.listPostings(company);
+  assert.equal(postings.length, 2);
+  assert.equal(at(postings, 0).jobUrl, "https://jobs.vib.be/j/136131/aankoper");
 });
