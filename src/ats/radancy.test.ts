@@ -2,6 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  assertRadancyBoardServed,
+  radancyAdapter,
   radancyListUrl,
   parseRadancyTotals,
   parseRadancyJobId,
@@ -9,7 +11,12 @@ import {
   parseRadancyJd,
 } from "./radancy.js";
 import type { AdapterCompany } from "../types.js";
-import { at } from "./test-helpers.js";
+import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import {
+  isEdgeInterstitialError,
+  isInfrastructureFault,
+  isTransportError,
+} from "../util/error-cause.js";
 
 const fordCompany: AdapterCompany = {
   provider: "radancy",
@@ -263,6 +270,122 @@ test("parseRadancyJd (Intuit): falls back to the job-description tier when ats-d
 
 test("parseRadancyJd returns '' when no known JD class tier matches (malformed/changed page)", () => {
   assert.equal(parseRadancyJd("<html><body>Not found</body></html>"), "");
+});
+
+// --- board no longer served vs genuinely empty search --------------------------
+
+// Trimmed real markup from GET https://careers.cargill.com/en/search-jobs/India
+// (HTTP 200, captured 2026-08-03). Cargill is a LIVE Radancy board that currently
+// matches nothing for India: the engine still emits its full pager state on the
+// results section, with the count simply 0, and renders no job cards.
+const CARGILL_EMPTY_HTML = `
+<html><body>
+<div role="region" aria-label="Search Results" aria-live="polite">
+  <section id="search-results" data-keywords="" data-location="" data-distance="50"
+    data-show-radius="False" data-total-results="0" data-total-job-results="0"
+    data-total-pages="1" data-current-page="1" data-records-per-page="15"
+    data-organization-ids="23251" data-selector-name="searchresults">
+  </section>
+</div>
+</body></html>
+`;
+
+// Trimmed real markup from GET https://careers.arm.com/ (HTTP 200, captured
+// 2026-08-03) — the tenant's own careers home rather than its search page, and the
+// shape a re-pointed or parked careers domain takes: no #search-results section,
+// so no pager state at all. careers.arm.com's 404 page and www.arm.com both look
+// the same way.
+const NOT_A_BOARD_HTML = `
+<html><head><title>Working at Arm | Jobs &amp; Careers</title></head><body>
+<div class="hero"><h1>Working at Arm</h1></div>
+<ul class="job-list__list">
+  <li><a class="job-list__job-link" href="/job/bangalore/featured-role/33099/1234">Featured Role</a></li>
+</ul>
+</body></html>
+`;
+
+const cargillCompany: AdapterCompany = {
+  provider: "radancy",
+  slug: "cargill",
+  name: "Cargill India",
+  careersUrl: "https://careers.cargill.com/en/search-jobs/India",
+  tenantUrl: null,
+  apiMeta: null,
+};
+
+/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("expected the call to throw, but it returned");
+}
+
+test("assertRadancyBoardServed throws only when the pager state is absent entirely", () => {
+  // 0 results IS a Radancy search page — Cargill's live board looks exactly so.
+  assert.doesNotThrow(() => assertRadancyBoardServed(0, "https://careers.cargill.com/en/search-jobs/India"));
+  assert.doesNotThrow(() => assertRadancyBoardServed(84, "https://careers.arm.com/search-jobs/India"));
+
+  const err = thrownBy(() => assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India"));
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /radancy: board no longer served/);
+  assert.match(err.message, /careers\.arm\.com/);
+  assert.match(err.message, /data-total-results/);
+});
+
+test("the dead-board error is charged to the company, not written off as infrastructure", () => {
+  // A careers domain that stopped serving Radancy is a per-company board defect
+  // and MUST count toward the row's consecutive_failures. If any of these flipped
+  // true the scheduler would retry the board forever and never quarantine it.
+  const err = thrownBy(() => assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India"));
+  assert.equal(isTransportError(err), false);
+  assert.equal(isEdgeInterstitialError(err), false);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("radancyAdapter.listPostings rejects a careers domain that no longer serves a Radancy board", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(NOT_A_BOARD_HTML)));
+  await assert.rejects(
+    () => radancyAdapter.listPostings(cargillCompany),
+    /radancy: board no longer served.*careers\.cargill\.com/s,
+  );
+});
+
+test("radancyAdapter.listPostings returns [] for a LIVE board whose search matches nothing", async (t) => {
+  // The distinction the check exists for: zero cards, but the engine's pager
+  // state is there saying the count is genuinely 0.
+  stubFetch(t, fetchSequence(() => htmlResponse(CARGILL_EMPTY_HTML)));
+  assert.deepEqual(await radancyAdapter.listPostings(cargillCompany), []);
+});
+
+test("radancyAdapter.listPostings still lists a populated board unchanged", async (t) => {
+  // Ford's page 1 declares 15 results but serves 2 cards, so the pager asks for
+  // page 2; a card-less page ends the loop.
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(FORD_LIST_HTML),
+    () => htmlResponse(CARGILL_EMPTY_HTML),
+  ));
+  const postings = await radancyAdapter.listPostings(fordCompany);
+  assert.equal(postings.length, 2);
+  assert.equal(at(postings, 0).externalId, "95551928096");
+  assert.equal(
+    at(postings, 0).jobUrl,
+    "https://www.careers.ford.com/job/chennai/technical-product-manager/48560/95551928096",
+  );
+});
+
+test("radancyAdapter.listPostings lets a LATER page with no cards end pagination instead of failing", async (t) => {
+  // Ford's page 1 declares 15 results but serves 2 cards, so the pager keeps
+  // going; page 2 has neither cards nor pager state, which past page 1 means
+  // "run off the end", not "board is dead".
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(FORD_LIST_HTML),
+    () => htmlResponse(NOT_A_BOARD_HTML),
+  ));
+  const postings = await radancyAdapter.listPostings(fordCompany);
+  assert.equal(postings.length, 2);
 });
 
 test("parseRadancyList (ARM): reads location from a bare span.location when job-location is absent", () => {
