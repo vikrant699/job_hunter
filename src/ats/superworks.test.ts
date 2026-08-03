@@ -10,7 +10,7 @@ import {
   parseSuperworksJd,
 } from "./superworks.js";
 import type { AdapterCompany } from "../types.js";
-import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -211,7 +211,7 @@ test("superworksTenantName treats a blank companyName as no identity at all", ()
 });
 
 test("assertSuperworksTenantExists throws for a subdomain the vendor does not host, naming the slug", () => {
-  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens"));
+  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens", superworksListUrl(company)));
   assert.ok(err instanceof Error);
   assert.match(err.message, /superworks: tenant does not exist/);
   assert.match(err.message, /refrens/);
@@ -222,15 +222,26 @@ test("the dead-subdomain error is charged to the company, not written off as inf
   // A subdomain Superworks does not host is a per-company board defect and MUST
   // count toward the row's consecutive_failures. If any of these flipped true the
   // scheduler would retry the board forever and never quarantine it.
-  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens"));
+  const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens", superworksListUrl(company)));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
 });
 
+// A block page carries no initialData either, so it looked exactly like a
+// subdomain the vendor does not host.
+test("a WAF challenge page is an edge refusal, NOT a dead subdomain", () => {
+  const err = thrownBy(() =>
+    assertSuperworksTenantExists(CHALLENGE_PAGE_HTML, "refrens", superworksListUrl(company)),
+  );
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
+  assert.doesNotMatch(err.message, /tenant does not exist/);
+});
+
 test("assertSuperworksTenantExists stays silent whenever the tenant identifies itself", () => {
-  assert.doesNotThrow(() => assertSuperworksTenantExists(EMPTY_BOARD_HTML, "refrens"));
-  assert.doesNotThrow(() => assertSuperworksTenantExists(LIST_HTML, "refrens"));
+  assert.doesNotThrow(() => assertSuperworksTenantExists(EMPTY_BOARD_HTML, "refrens", superworksListUrl(company)));
+  assert.doesNotThrow(() => assertSuperworksTenantExists(LIST_HTML, "refrens", superworksListUrl(company)));
 });
 
 test("superworksAdapter.listPostings rejects a subdomain the vendor does not host", async (t) => {

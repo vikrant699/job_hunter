@@ -12,7 +12,7 @@ import {
   parseAvatureJd,
 } from "./avature.js";
 import type { AdapterCompany } from "../types.js";
-import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -334,6 +334,16 @@ test("the dead-portal error is charged to the company, not written off as infras
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
+});
+
+// A bot-block page carries neither engine marker, so it used to be indistinguishable
+// from a host that stopped serving its portal — and eight of the nine live rows sit
+// on the company's own (WAF-frontable) host.
+test("a WAF challenge page is an edge refusal, NOT a dead portal", () => {
+  const err = thrownBy(() => assertAvatureBoardServed(CHALLENGE_PAGE_HTML, "https://jobs.siemens.com/x"));
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
+  assert.doesNotMatch(err.message, /portal no longer served/);
 });
 
 test("avatureAdapter.listPostings rejects a host that no longer serves an Avature portal", async (t) => {

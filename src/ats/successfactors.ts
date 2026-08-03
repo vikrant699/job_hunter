@@ -29,6 +29,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 // Safety cap: 50,000-125,000 jobs, depending on the tenant's page size (10-25
 // rows x MAX_PAGES 5000). paginate stops earlier once it reaches the parsed
@@ -227,11 +228,16 @@ export const successfactorsAdapter: AtsAdapter = {
         // markup anyway — so gating here costs nothing and removes any chance
         // of failing a board that already yielded postings.
         if (pageNum === 0 && page.rowCount === 0 && !isSuccessfactorsEngine(html)) {
+          // A bot-blocker's challenge page carries none of the engine's assets
+          // either — the "200-served block page" this guard's own note named while
+          // still charging it to the row. Reclassified first, so an edge refusing
+          // us is retried and deferred instead of counting toward quarantine.
+          assertNotEdgeChallenge("successfactors", successfactorsSearchUrl(origin, 0), html);
           throw new Error(
             `successfactors: tenant does not exist at ${successfactorsSearchUrl(origin, 0)} — the ` +
               `response carries none of the Jobs2Web engine's assets, so this custom domain is no ` +
-              `longer serving the board (parked, re-pointed, or a 200-served block page). A live ` +
-              `board with nothing open still renders the engine.`,
+              `longer serving the board (parked or re-pointed; a bot-block page is classified ` +
+              `separately, as an edge refusal). A live board with nothing open still renders the engine.`,
           );
         }
         if (state.total === null) state.total = page.total;

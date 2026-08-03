@@ -49,6 +49,18 @@ export function htmlResponseFrom(finalUrl: string, html: string, status = 200): 
   return res;
 }
 
+/**
+ * A bot-blocker's challenge page, served at HTTP 200 in place of the board.
+ * Shared because every dead-tenant guard has to tell this apart from a board that
+ * is genuinely gone: it has no job rows and none of the vendor's engine
+ * fingerprint, so absence-of-fingerprint guards see exactly what a dead host looks
+ * like. Cloudflare's block page is the shape used here; the marker set in
+ * util/error-cause.ts covers Incapsula, Akamai and AWS WAF too.
+ */
+export const CHALLENGE_PAGE_HTML =
+  `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head>` +
+  `<body><h1>Sorry, you have been blocked</h1><p>Cloudflare Ray ID: 8f2a1c</p></body></html>`;
+
 /** Indexed access for test fixtures: throws with a clear message instead of `!`. */
 export function at<T>(arr: readonly T[], i: number): T {
   const v = arr[i];
