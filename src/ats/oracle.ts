@@ -14,6 +14,19 @@ import { REMOTE_RE, paginate } from "./shared.js";
 //   detail: <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails
 //             ?onlyData=true&expand=all&finder=ById;Id=<id>,siteNumber=<CX_n>
 // base in tenant_url, siteNumber in api_meta.siteNumber. Two-phase.
+//
+// A stale siteNumber does NOT empty the board and so cannot be mistaken for one:
+// the pod echoes the value back in SiteNumber but does not filter on an
+// unrecognised one. Probed 2026-08-03 across all 16 live rows with CX_9999 —
+// identical results on 15, and on iabqiz the bogus site returned MORE than the
+// real one (36 requisitions vs 7), i.e. an unknown site drops the filter rather
+// than matching nothing. A stale siteNumber therefore OVER-collects (and breaks
+// every jobUrl), which is a separate concern; it never looks like an empty board.
+// A gone pod fails loudly too: HTTP 503 "DNS failure" under fa.ocs, ENOTFOUND
+// under fa.oraclecloud.com, a connect timeout under fa.us2/fa.em3. The one
+// well-formed empty shape — items[0] with requisitionList: [] and
+// TotalJobsCount: 0 — really is a board with nothing open. oracle.test.ts pins
+// all of this, since it is the reason this adapter carries no dead-tenant marker.
 const SecondaryLocSchema = z.object({ Name: z.string().nullable().optional() });
 const ReqSchema = z.object({
   Id: z.string(),
