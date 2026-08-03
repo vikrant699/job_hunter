@@ -713,6 +713,25 @@ describe("paginate", () => {
     assert.equal(calls, 2, "the break must not depend on the log level");
     assert.equal(describePaginationStall({ total: 3, collected: result.length }).level, "info");
   });
+
+  it("a page declaring no pagination control changes the log line, never the break", async () => {
+    // The flag is reporting-only. It must not become a fourth stop condition:
+    // this board stalls at exactly the same page with or without it.
+    let calls = 0;
+    const result = await paginate<number>({
+      provider: "test",
+      company: "no-pager",
+      pageSize: 3,
+      interPageDelayMs: 0,
+      dedupeBy: (n) => String(n),
+      fetchPage: async () => {
+        calls++;
+        return { items: [1, 2, 3], total: null, rawCount: 3, noPaginationControl: true };
+      },
+    });
+    assert.deepEqual(result, [1, 2, 3]);
+    assert.equal(calls, 2, "same two fetches as the flagless clamp above");
+  });
 });
 
 describe("describePaginationStall", () => {
@@ -748,5 +767,48 @@ describe("describePaginationStall", () => {
 
   it("treats a zero total with nothing collected as complete, not short", () => {
     assert.equal(describePaginationStall({ total: 0, collected: 0 }).level, "info");
+  });
+
+  it("states plainly that a board with no pagination control is complete in one page", () => {
+    // Not a hedge: gohire renders no pager element below one page, so its
+    // absence PROVES the single page we got is the whole board. Saying
+    // "completeness is unverifiable" here would be strictly false.
+    const { level, message } = describePaginationStall({
+      total: null,
+      collected: 3,
+      noPaginationControl: true,
+    });
+    assert.equal(level, "info");
+    assert.match(message, /no pagination control, so a single page is the whole board/);
+    assert.match(message, /\b3\b/, "must name what we collected");
+    assert.doesNotMatch(message, /unverifiable/);
+  });
+
+  it("keeps hedging when nothing proved the board lacks a pagination control", () => {
+    // The flag is positive evidence only. False (or absent) means "unknown",
+    // which is the pre-existing, deliberately non-committal line.
+    const { level, message } = describePaginationStall({
+      total: null,
+      collected: 3,
+      noPaginationControl: false,
+    });
+    assert.equal(level, "info");
+    assert.match(message, /unverifiable/);
+    assert.doesNotMatch(message, /no pagination control/);
+  });
+
+  it("still warns about a shortfall even if the board also claims no pagination control", () => {
+    // Contradictory inputs (a total exists, yet supposedly no pager rendered)
+    // mean one of the two signals is wrong. Resolve toward the loud branch:
+    // a missed warning is a silently truncated board, the costlier mistake.
+    const { level, message } = describePaginationStall({
+      total: 40,
+      collected: 10,
+      noPaginationControl: true,
+    });
+    assert.equal(level, "warn");
+    assert.match(message, /short of the reported total/);
+    assert.match(message, /\b10\b/);
+    assert.match(message, /\b40\b/);
   });
 });

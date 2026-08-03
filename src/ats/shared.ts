@@ -50,12 +50,33 @@ export interface PaginationStallReport {
  * boards did exactly this on 2026-08-01, all of them complete), and shouting
  * every run would train us to ignore the line that finally matters.
  */
-export function describePaginationStall(state: { total: number | null; collected: number }): PaginationStallReport {
+export function describePaginationStall(state: {
+  total: number | null;
+  collected: number;
+  /**
+   * True only when the response itself PROVED the board has no pagination
+   * control — e.g. gohire renders no pager element at all below one page, so
+   * its absence means the single page we fetched is the whole board. Absent or
+   * false means "unknown", which is not the same claim.
+   */
+  noPaginationControl?: boolean;
+}): PaginationStallReport {
   const { total, collected } = state;
   if (total !== null && collected < total) {
     return {
       level: "warn",
       message: `pagination stalled short of the reported total - collected ${collected} of ${total} (board re-served the previous page instead of advancing)`,
+    };
+  }
+  // Checked before the total===null hedge below because it is strictly better
+  // evidence: a board with no pagination control cannot have a second page, so
+  // calling completeness "unverifiable" here would be false. Checked AFTER the
+  // shortfall warn so a contradiction between the two signals still resolves
+  // loudly — a missed warning is a silently truncated board.
+  if (state.noPaginationControl === true) {
+    return {
+      level: "info",
+      message: `pagination ended: board has no pagination control, so a single page is the whole board - collected ${collected}`,
     };
   }
   if (total === null) {
@@ -85,6 +106,13 @@ export interface PaginatePage<T> {
   items: T[];
   total: number | null;
   rawCount?: number;
+  /**
+   * Set true only when this response proved the board has no pagination
+   * control (gohire omits the pager element entirely below one page). Purely a
+   * reporting signal: it upgrades the stall log from "completeness is
+   * unverifiable" to a positive statement, and never affects termination.
+   */
+  noPaginationControl?: boolean;
 }
 
 export interface PaginateOpts<T> {
@@ -163,7 +191,7 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
   let prevSignature: string | null = null;
 
   for (; page < maxPages; page++) {
-    const { items, total: pageTotal, rawCount } = await opts.fetchPage(offset, page);
+    const { items, total: pageTotal, rawCount, noPaginationControl } = await opts.fetchPage(offset, page);
     let added = 0;
     if (dedupeBy) {
       for (const item of items) {
@@ -205,7 +233,14 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     // only the counts decide how loud the log is — see describePaginationStall.
     const signature = dedupeBy ? items.map(dedupeBy).join("\u0000") : null;
     if (signature !== null && items.length > 0 && added === 0 && signature === prevSignature) {
-      const stall = describePaginationStall({ total, collected: out.length });
+      // Read off the page we stalled ON: it is a byte-for-byte repeat of the
+      // previous one, so its own evidence about the board's pager is the
+      // evidence for the repeat.
+      const stall = describePaginationStall({
+        total,
+        collected: out.length,
+        noPaginationControl: noPaginationControl ?? false,
+      });
       const where = {
         provider: opts.provider,
         company: opts.company,
@@ -213,6 +248,7 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
         itemsSeen: items.length,
         kept: out.length,
         total,
+        noPaginationControl: noPaginationControl ?? false,
       };
       if (stall.level === "warn") logger.warn(where, stall.message);
       else logger.info(where, stall.message);
