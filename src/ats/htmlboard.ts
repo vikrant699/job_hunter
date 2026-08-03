@@ -57,6 +57,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, collapseWs } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;
@@ -239,15 +240,23 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
  * exactly as before rather than being failed by a marker nobody has verified.
  * And it is only consulted once the page has yielded nothing: a page with items
  * is a live board whatever else its markup does or does not contain.
+ *
+ * The one thing checked ahead of the opt-in is a bot-block page. That is not a
+ * per-row marker anybody has to verify — it is proof the response is not this
+ * board's at all — so a blocked request is neither charged to the company (it
+ * throws infrastructure-shaped, to be retried and deferred) nor reported as a
+ * board with zero openings, which is what the boardSelector-less rows used to do.
  */
 export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, itemCount: number, slug: string): void {
-  if (itemCount > 0 || !cfg.boardSelector) return;
+  if (itemCount > 0) return;
+  assertNotEdgeChallenge("htmlboard", cfg.listUrl, html);
+  if (!cfg.boardSelector) return;
   // Second cheerio parse, but only ever on a page that came up empty.
   if (cheerio.load(html)(cfg.boardSelector).length > 0) return;
   throw new Error(
     `htmlboard: board did not render at ${cfg.listUrl} for ${slug} — no items, and the configured ` +
-      `boardSelector matched nothing either. The page is not this board (parked domain, redesign, ` +
-      `or a 200-served block page), so it is not an empty board.`,
+      `boardSelector matched nothing either. The page is not this board (parked domain or redesign; ` +
+      `a bot-block page is classified separately, as an edge refusal), so it is not an empty board.`,
   );
 }
 

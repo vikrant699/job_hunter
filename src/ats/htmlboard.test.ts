@@ -10,7 +10,7 @@ import {
   extractHtmlBoardJd,
 } from "./htmlboard.js";
 import type { AdapterCompany } from "../types.js";
-import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -195,6 +195,30 @@ test("the dead-page error is charged to the company, not written off as infrastr
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
+});
+
+// A block page has no items and no boardSelector match either, so it used to read
+// as "this page is not this board" — true, but charged to the company.
+test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
+  const err = await htmlboardAdapter
+    .listPostings(company(boardMeta))
+    .then(() => null, (e: unknown) => e);
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
+  assert.doesNotMatch(err.message, /board did not render/);
+});
+
+test("a boardSelector-less row also refuses to read a block page as an empty board", async (t) => {
+  // The opt-in exists so an unverified per-row marker cannot fail a board. A bot
+  // block is not that: it is not this board's response at all, whatever the row
+  // configured — and reporting it as zero openings is its own kind of wrong.
+  stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
+  const err = await htmlboardAdapter
+    .listPostings(company({ itemSelector: "li.card" }))
+    .then(() => null, (e: unknown) => e);
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err));
 });
 
 test("extractHtmlBoardJd honors detailJdSelector and falls back to main", () => {

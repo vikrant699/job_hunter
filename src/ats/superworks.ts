@@ -38,6 +38,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin, collapseWs, extractBalanced } from "./shared.js";
 import { tryParseJson, type JsonValue } from "../util/json.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
@@ -139,9 +140,14 @@ export function superworksTenantName(html: string): string | null {
  *
  * Runs only after the parse comes up empty, so a page that yielded postings can
  * never be failed by this.
+ *
+ * A bot-blocker's challenge page carries no initialData either, so it is checked
+ * for first and thrown infrastructure-shaped instead: an edge refusing us is
+ * retried and deferred, never charged to the row.
  */
-export function assertSuperworksTenantExists(html: string, slug: string): void {
+export function assertSuperworksTenantExists(html: string, slug: string, listUrl: string): void {
   if (superworksTenantName(html) !== null) return;
+  assertNotEdgeChallenge("superworks", listUrl, html);
 
   throw new Error(
     `superworks: tenant does not exist — the board for ${slug} carries no ` +
@@ -230,7 +236,9 @@ export const superworksAdapter: AtsAdapter = {
     const postings = parseSuperworksList(html, company);
     // Only on a zero-row parse: a page that yielded postings is a live tenant
     // whatever else its payload happens to carry.
-    if (postings.length === 0) assertSuperworksTenantExists(html, company.slug);
+    if (postings.length === 0) {
+      assertSuperworksTenantExists(html, company.slug, superworksListUrl(company));
+    }
     return postings;
   },
 

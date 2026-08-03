@@ -11,7 +11,7 @@ import {
   parseRadancyJd,
 } from "./radancy.js";
 import type { AdapterCompany } from "../types.js";
-import { at, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -325,10 +325,16 @@ function thrownBy(fn: () => unknown): unknown {
 
 test("assertRadancyBoardServed throws only when the pager state is absent entirely", () => {
   // 0 results IS a Radancy search page — Cargill's live board looks exactly so.
-  assert.doesNotThrow(() => assertRadancyBoardServed(0, "https://careers.cargill.com/en/search-jobs/India"));
-  assert.doesNotThrow(() => assertRadancyBoardServed(84, "https://careers.arm.com/search-jobs/India"));
+  assert.doesNotThrow(() =>
+    assertRadancyBoardServed(0, "https://careers.cargill.com/en/search-jobs/India", CARGILL_EMPTY_HTML),
+  );
+  assert.doesNotThrow(() =>
+    assertRadancyBoardServed(84, "https://careers.arm.com/search-jobs/India", NOT_A_BOARD_HTML),
+  );
 
-  const err = thrownBy(() => assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India"));
+  const err = thrownBy(() =>
+    assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India", NOT_A_BOARD_HTML),
+  );
   assert.ok(err instanceof Error);
   assert.match(err.message, /radancy: board no longer served/);
   assert.match(err.message, /careers\.arm\.com/);
@@ -339,10 +345,38 @@ test("the dead-board error is charged to the company, not written off as infrast
   // A careers domain that stopped serving Radancy is a per-company board defect
   // and MUST count toward the row's consecutive_failures. If any of these flipped
   // true the scheduler would retry the board forever and never quarantine it.
-  const err = thrownBy(() => assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India"));
+  const err = thrownBy(() =>
+    assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India", NOT_A_BOARD_HTML),
+  );
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
+});
+
+// All 12 live radancy rows are WAF-fronted, and a challenge page carries no
+// data-total-results either — so before this the guard read a blocked request as a
+// dead board, and five blocked runs would have quarantined AstraZeneca India Ops
+// (4,681 postings seen), Amgen (2,014), Optum (1,719) and nine more.
+test("a WAF challenge page is an edge refusal, NOT a dead board", () => {
+  const err = thrownBy(() =>
+    assertRadancyBoardServed(null, "https://careers.astrazeneca.com/search-jobs", CHALLENGE_PAGE_HTML),
+  );
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
+  assert.ok(isEdgeInterstitialError(err));
+  assert.doesNotMatch(err.message, /board no longer served/, "must not read as a dead-board verdict");
+  assert.match(err.message, /careers\.astrazeneca\.com/);
+});
+
+test("radancyAdapter.listPostings reports a blocked board as infrastructure, not a defect", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
+  const err = await radancyAdapter.listPostings(cargillCompany).then(
+    () => {
+      throw new Error("expected listPostings to reject");
+    },
+    (e: unknown) => e,
+  );
+  assert.ok(isInfrastructureFault(err));
 });
 
 test("radancyAdapter.listPostings rejects a careers domain that no longer serves a Radancy board", async (t) => {

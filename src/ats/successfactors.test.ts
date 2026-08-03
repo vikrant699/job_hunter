@@ -16,7 +16,7 @@ import {
   isTransportError,
 } from "../util/error-cause.js";
 import type { AdapterCompany } from "../types.js";
-import { at, htmlResponse, mkAdapterCompany, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, htmlResponse, mkAdapterCompany, stubFetch } from "./test-helpers.js";
 
 const company: AdapterCompany = {
   provider: "successfactors",
@@ -389,6 +389,17 @@ test("the dead-domain error is charged to the company, not written off as infras
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
+});
+
+// A block page in front of a healthy tenant carries none of the engine's assets
+// either, so the guard's own comment already named this case ("or a 200-served
+// block page") while charging it to the company.
+test("a WAF challenge page is an edge refusal, NOT a dead custom domain", async (t) => {
+  stubFetch(t, () => Promise.resolve(htmlResponse(CHALLENGE_PAGE_HTML)));
+  const err = await successfactorsAdapter.listPostings(mahindra).then(() => null, (e: unknown) => e);
+  assert.ok(err instanceof Error);
+  assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
+  assert.doesNotMatch(err.message, /tenant does not exist/);
 });
 
 test("a board that produced rows is never failed for missing engine assets", async (t) => {

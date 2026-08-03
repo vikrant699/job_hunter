@@ -37,6 +37,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./html-text.js";
 import { atsFetchHtml, atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, collapseWs } from "./shared.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 // Safety cap on page hops in case a tenant's Next link never disappears
 // (loops back on itself, etc.) — pagination normally ends on its own once the
@@ -82,9 +83,16 @@ export function avatureEngineServed(html: string): boolean {
  *
  * Gated to page 1, so the stale "No jobs found" placeholder a page past the real
  * last one renders still just ends pagination.
+ *
+ * A bot-blocker's challenge page carries neither marker either, and eight of the
+ * nine rows sit on a host that can be WAF-fronted — so the body is checked for a
+ * block signature first and, when it is one, the error thrown is
+ * infrastructure-shaped instead: an edge refusing us is retried and deferred, never
+ * charged to the row.
  */
 export function assertAvatureBoardServed(html: string, url: string): void {
   if (avatureEngineServed(html)) return;
+  assertNotEdgeChallenge("avature", url, html);
 
   throw new Error(
     `avature: portal no longer served — ${url} returned a page with no job articles and none of ` +

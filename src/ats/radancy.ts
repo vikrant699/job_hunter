@@ -50,6 +50,7 @@ import { htmlToText } from "./html-text.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { BROWSER_UA } from "../util/user-agent.js";
+import { assertNotEdgeChallenge } from "../util/error-cause.js";
 
 // Both live tenants' pager chrome carries data-records-per-page="15"; not
 // otherwise parsed/used (pagination relies on data-total-results, not a
@@ -84,9 +85,21 @@ const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
  * own 404 page, its careers home, and www.arm.com. `totalResults` is the value
  * the pager already parses, so the check costs no extra request and no extra
  * parsing.
+ *
+ * A bot-blocker's challenge page has no `data-total-results` either, and all 12
+ * live rows are WAF-fronted — so the body is checked for a block signature first
+ * and, when it is one, the error thrown is infrastructure-shaped instead: an edge
+ * refusing us is retried and deferred, never charged to the row. Without that,
+ * five blocked runs would have quarantined AstraZeneca India Ops (4,681 postings
+ * seen), Amgen (2,014), Optum (1,719) and nine more.
  */
-export function assertRadancyBoardServed(totalResults: number | null, careersUrl: string): void {
+export function assertRadancyBoardServed(
+  totalResults: number | null,
+  careersUrl: string,
+  html: string,
+): void {
   if (totalResults !== null) return;
+  assertNotEdgeChallenge("radancy", careersUrl, html);
 
   throw new Error(
     `radancy: board no longer served — ${careersUrl} returned a page with no job cards AND no ` +
@@ -242,7 +255,7 @@ export const radancyAdapter: AtsAdapter = {
         // rows is a live board whatever its pager markup says, and a pager
         // running off the end on a later page must just stop, not fail.
         if (page === 0 && items.length === 0) {
-          assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1));
+          assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1), html);
         }
         return { items, total: totalResults };
       },
