@@ -1,6 +1,7 @@
 // src/ats/zwayam.test.ts
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
   zwayamAdapter,
   zwayamFilterCri,
@@ -242,6 +243,156 @@ test("zwayamAdapter.listPostings refuses to run at all without both api_meta tok
     () => zwayamAdapter.listPostings({ ...liveCompany, apiMeta: null }),
     /requires apiMeta\.companyId \+ apiMeta\.tenantGroupId/,
   );
+});
+
+// --- listPostings pagination -------------------------------------------------
+//
+// The served page size is a property of the TENANT, not of the engine: the same
+// endpoint, request and companyId-free body answer with a different row count
+// per domain. Probed live 2026-08-03 at offsets 0/9/10/18/20/27/90/99 —
+// careers.livspace.com returns 9 rows at every offset with totalCount 100 (and
+// the single remaining row at offset 99), careers.cult.fit returns 10 with
+// totalCount 132, careers.sonyindiasoftware.co.in has 9 postings in all. The 9
+// is a genuine page size, not a dropped row: `hits` comes straight off the
+// schema-parsed array, and a hit that failed the schema would fail the whole
+// page rather than shorten it.
+
+const livspace: AdapterCompany = {
+  provider: "zwayam", slug: "livspace", name: "Livspace",
+  careersUrl: "https://careers.livspace.com/livspace/",
+  tenantUrl: "https://careers.livspace.com/livspace/",
+  apiMeta: { companyId: "MTU5MTk=", tenantGroupId: "G1" },
+};
+
+const sony: AdapterCompany = {
+  provider: "zwayam", slug: "sonyindiasoftware", name: "Sony India",
+  careersUrl: "https://careers.sonyindiasoftware.co.in/sonyindiasoftware/jobslist",
+  tenantUrl: "https://careers.sonyindiasoftware.co.in/sonyindiasoftware/jobslist",
+  apiMeta: { companyId: "MTU1MzI=", tenantGroupId: "G1" },
+};
+
+/** `n` hits with sequential ids from `startId`, so cross-page identity is real. */
+function makeHits(startId: number, n: number): ZwayamHit[] {
+  return Array.from({ length: n }, (_, i) => ({
+    _id: startId + i,
+    _source: { ...hitWithShortJd._source, jobTitle: `Role ${startId + i}` },
+  }));
+}
+
+function searchResponse(hits: ZwayamHit[], totalCount: number | null): Response {
+  return jsonResponse({ code: 200, data: { data: hits, totalCount, hasMoreData: true } });
+}
+
+const FilterCriSchema = z.object({ paginationStartNo: z.number() });
+
+/** The offset the adapter asked for on this call, read back out of filterCri. */
+function requestedOffset(init: RequestInit | undefined): number {
+  const body = init?.body;
+  if (!(body instanceof FormData)) throw new Error("test stub: expected a multipart FormData body");
+  const raw = body.get("filterCri");
+  if (typeof raw !== "string") throw new Error("test stub: expected a filterCri field");
+  return FilterCriSchema.parse(JSON.parse(raw)).paginationStartNo;
+}
+
+/** Serve a `perPage`-row window of a `total`-row board at whatever offset the
+ *  adapter asks for. Returns the offsets requested, in order. */
+function stubBoard(t: TestContext, total: number, perPage: number): number[] {
+  const offsets: number[] = [];
+  stubFetch(t, (_input, init) => {
+    const start = requestedOffset(init);
+    offsets.push(start);
+    const rows = Math.max(0, Math.min(perPage, total - start));
+    return Promise.resolve(searchResponse(makeHits(start + 1, rows), total));
+  });
+  return offsets;
+}
+
+test("listPostings collects all 100 postings of a tenant that serves 9 rows a page (Livspace)", async (t) => {
+  // The hardcoded page size of 10 judged Livspace's OWN first page short, so
+  // pagination ended at 9 of 100 on every run — silently, and with totalCount
+  // 100 never compared, because paginate breaks on the short page first.
+  const offsets = stubBoard(t, 100, 9);
+
+  const postings = await zwayamAdapter.listPostings(livspace);
+
+  assert.equal(postings.length, 100, "the whole board, not just the first page");
+  assert.deepEqual(offsets, [0, 9, 18, 27, 36, 45, 54, 63, 72, 81, 90, 99]);
+  assert.equal(at(postings, 0).externalId, "1");
+  assert.equal(at(postings, 99).externalId, "100");
+});
+
+test("listPostings is unchanged on a tenant that really does serve 10 rows a page (cult.fit regression)", async (t) => {
+  const offsets = stubBoard(t, 25, 10);
+
+  const postings = await zwayamAdapter.listPostings(liveCompany);
+
+  assert.deepEqual(offsets, [0, 10, 20], "stops on the genuinely short final page");
+  assert.equal(postings.length, 25);
+});
+
+test("listPostings terminates on a single-page board smaller than the page size (Sony India regression)", async (t) => {
+  // 9 postings, totalCount 9. Under an inferred size the first page can never
+  // be short against itself, so the reported total is what ends this board —
+  // still in one fetch, exactly as the wrong constant happened to manage.
+  const offsets = stubBoard(t, 9, 9);
+
+  const postings = await zwayamAdapter.listPostings(sony);
+
+  assert.deepEqual(offsets, [0], "the reported total ends it without a second fetch");
+  assert.equal(postings.length, 9);
+});
+
+test("listPostings terminates on a full-page board that reports no total, via the empty next page", async (t) => {
+  // Guessing the page size low costs at most one extra fetch: with no total to
+  // compare against, the zero-row page is the terminator.
+  const offsets: number[] = [];
+  stubFetch(t, (_input, init) => {
+    const start = requestedOffset(init);
+    offsets.push(start);
+    return Promise.resolve(searchResponse(start === 0 ? makeHits(1, 9) : [], null));
+  });
+
+  const postings = await zwayamAdapter.listPostings(livspace);
+
+  assert.deepEqual(offsets, [0, 9]);
+  assert.equal(postings.length, 9);
+});
+
+test("listPostings stops on a board that ignores the offset and re-serves page 1", async (t) => {
+  // paginate's stall guard builds its page signature from dedupeBy, so without
+  // a per-item key it is inert — an offset-ignoring board would be walked all
+  // the way to totalCount, re-fetching the same 9 rows across 12 pages. The
+  // wrong constant used to mask that (a clamped 9-row page looked short); an
+  // inferred size cannot, so the key has to be there.
+  let calls = 0;
+  stubFetch(t, () => {
+    calls++;
+    return Promise.resolve(searchResponse(makeHits(1, 9), 100));
+  });
+
+  const postings = await zwayamAdapter.listPostings(livspace);
+
+  assert.equal(calls, 2, "the second identical page must end pagination");
+  assert.equal(postings.length, 9, "the repeated rows must not be accumulated twice");
+});
+
+test("listPostings keeps crawling an overlapping page but accumulates each posting once", async (t) => {
+  // Pages that overlap without repeating exactly are a live board reordering
+  // under the crawl, not a stall — it must not be mistaken for the end, and the
+  // duplicate must not be counted twice.
+  const offsets: number[] = [];
+  stubFetch(t, (_input, init) => {
+    const start = requestedOffset(init);
+    offsets.push(start);
+    // Page 2 re-serves ids 5-9 alongside the 4 genuinely new ones.
+    return Promise.resolve(searchResponse(makeHits(start === 0 ? 1 : 5, 9), 13));
+  });
+
+  const postings = await zwayamAdapter.listPostings(livspace);
+
+  assert.deepEqual(offsets, [0, 9]);
+  assert.equal(postings.length, 13, "9 + 4 new, with the 5 repeats collapsed");
+  assert.equal(at(postings, 12).externalId, "13");
 });
 
 test("normalizeZwayam: empty everything still returns a posting with empty JD text and null location", () => {
