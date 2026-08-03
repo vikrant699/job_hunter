@@ -38,6 +38,17 @@ export function htmlResponse(html: string, status = 200): Response {
   return new Response(html, { status, headers: { "Content-Type": "text/html" } });
 }
 
+/** htmlResponse that also reports where a redirect chain landed. The Response
+ *  constructor leaves `url` empty — only a real fetch fills it — so adapters that
+ *  key on atsFetchHtml's `finalUrl` (e.g. jazzhr's off-host tenant check) are
+ *  otherwise untestable without a live request. An own property shadows the
+ *  prototype's read-only getter. */
+export function htmlResponseFrom(finalUrl: string, html: string, status = 200): Response {
+  const res = htmlResponse(html, status);
+  Object.defineProperty(res, "url", { value: finalUrl });
+  return res;
+}
+
 /** Indexed access for test fixtures: throws with a clear message instead of `!`. */
 export function at<T>(arr: readonly T[], i: number): T {
   const v = arr[i];
