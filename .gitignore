@@ -34,6 +34,9 @@ Desktop.ini
 # local planning / working notes (never publish)
 docs/
 
+# agent scratch space: migration scripts, plans, throwaway analysis (never publish)
+temp/
+
 # recruiter contact dump (personal data, local-only; live Raw Data tab is the source)
 config/recruiters-raw.csv
 
