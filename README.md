@@ -240,7 +240,7 @@ After writing the adapter, wire it into two places (plus one optional step):
 2. Register the adapter in `src/ats/registry.ts` under `ATS_ADAPTERS`. This map is
    checked against the enum at compile time (`satisfies Record<Exclude<Provider,
    "custom">, AtsAdapter>`), so a forgotten registration is a `tsc` error instead of a
-   company that silently never gets scanned; `src/ats/registry.test.ts` also pins the
+   company that silently never gets scanned; `src/ats/__tests__/registry.test.ts` also pins the
    enum/map completeness.
 3. Optional: if the vendor has a shared host signature (e.g. tenants live under
    `*.vendor.com`), add a `PatternDef` to `src/ats/detect.ts` so the ATS-redirect

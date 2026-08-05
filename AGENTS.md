@@ -108,6 +108,12 @@ scripts/       ops/maintenance CLIs (NOT shipped)
 data/          SQLite DB + caches (gitignored)
 ```
 
+Test files live in a `__tests__/` subdirectory of the module they cover rather than next
+to it: `src/ats/foo.ts` is tested by `src/ats/__tests__/foo.test.ts`, and the shared ATS
+fixture helpers are at `src/ats/__tests__/test-helpers.ts`. The `npm test` glob
+(`src/**/*.test.ts`) matches at any depth, so a new `__tests__` directory needs no config
+change.
+
 ## Conventions
 
 - **Registry is the Companies tab of the outreach spreadsheet**, the single source of truth.
@@ -122,12 +128,12 @@ data/          SQLite DB + caches (gitignored)
   (1) add the provider to the `ProviderSchema` enum in `src/schemas.ts`;
   (2) register the adapter in `src/ats/registry.ts` (`ATS_ADAPTERS`). The map is
   compile-enforced against the enum (`satisfies Record<Exclude<Provider, "custom">, AtsAdapter>`),
-  so forgetting either side is a tsc error, and `src/ats/registry.test.ts` pins it.
+  so forgetting either side is a tsc error, and `src/ats/__tests__/registry.test.ts` pins it.
   (3) OPTIONAL: if the vendor has a shared host signature (e.g. `*.vendor.com` tenant
   subdomains), add a `PatternDef` to `src/ats/detect.ts` so llm-scrape's ATS-redirect
   detection can recognize boards that link out to it. No pattern for single-company
   or custom-domain vendors.
-  Write fixture tests (TDD) using `src/ats/test-helpers.ts` (stubFetch/fetchSequence/
+  Write fixture tests (TDD) using `src/ats/__tests__/test-helpers.ts` (stubFetch/fetchSequence/
   jsonResponse/mkAdapterCompany). Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`,
   `unixToIso`, and `paginate` from `src/ats/shared.ts`; for WAF/anti-bot hosts use
   `src/ats/browser-fetch.ts`.
