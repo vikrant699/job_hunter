@@ -4,7 +4,8 @@ import { GoogleAuthExpiredError } from "../../google/auth.js";
 import type { OutreachRow, UpdateOutreachStatusInput, InsertUndraftedInput } from "../../db/outreach.js";
 import type { MessageMetadata } from "../../google/gmail.js";
 import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../../schemas.js";
-import { epochSeconds, runVerify, type VerifyDeps } from "../verify.js";
+import { epochSeconds, runVerify } from "../verify.js";
+import type { VerifyDeps } from "../verify.js";
 
 function mkRow(overrides: Partial<OutreachRow> = {}): OutreachRow {
   return {

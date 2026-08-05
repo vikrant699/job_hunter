@@ -140,7 +140,7 @@ writes one kind of update back to it (the SPA sentinel's llm-scrape to
 playwright-llm-scrape strategy flip). `data/registry-cache.json` is a bot-maintained
 local snapshot of the tab, used only as an offline fallback when the sheet is
 unreachable - it is not itself a source of truth, and it is not git-tracked. An ATS
-entry's columns look like (see `src/registry/sheet-codec.ts` for the exact column order):
+entry's columns look like (see `src/registry/sheetCodec.ts` for the exact column order):
 
 | name | careers_url | source | source_slug | parsing_strategy |
 |---|---|---|---|---|
@@ -185,7 +185,7 @@ scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
 src/
   ats/                   one file per ATS provider; registry.ts maps provider names
                            to adapters; detect.ts holds the ATS-redirect detection
-                           patterns llm-scrape uses; workday-facet.ts for faceted
+                           patterns llm-scrape uses; workdayFacet.ts for faceted
                            Workday search
   db/                    per-table modules (companies, postings, runs, recruiters,
                            outreach, link-cache, api-meta) behind a barrel index.ts
@@ -198,11 +198,11 @@ src/
   outreach/              contact sync from the sheet (contacts.ts), the company/contact
                            matcher (match.ts), the email template (template.ts), the
                            post-run Gmail draft stage (run.ts), the bounce-only verify
-                           pass (verify.ts), and the DB -> sheet projection (sheet-sync.ts)
-  registry/              sheet-registry.ts syncs the Companies tab (with a
+                           pass (verify.ts), and the DB -> sheet projection (sheetSync.ts)
+  registry/              sheetRegistry.ts syncs the Companies tab (with a
                            registry-cache.json fallback) into the companies table;
-                           sheet-codec.ts converts between tab rows and RegistryEntry;
-                           sheet-writer.ts is the write path back to the tab (the SPA
+                           sheetCodec.ts converts between tab rows and RegistryEntry;
+                           sheetWriter.ts is the write path back to the tab (the SPA
                            sentinel's strategy flip, and appendToRegistry for
                            registry-maintenance sessions)
   scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
@@ -211,8 +211,8 @@ src/
   util/                  shared helpers: semaphore, sleep, user-agent, slug, json,
                            csv, probe, fs, regex, env, registry-file
   tools/
-    extract-resume.ts    PDF-to-text extraction (run via npm run extract-resume)
-  pipeline/              run lifecycle (index.ts), scheduler.ts, posting-pipeline.ts
+    extractResume.ts    PDF-to-text extraction (run via npm run extract-resume)
+  pipeline/              run lifecycle (index.ts), scheduler.ts, postingPipeline.ts
   config.ts              tunable knobs (workers, LLM model, fetch timeouts, ...)
   types.ts               shared TypeScript types
   schemas.ts             zod schemas (providers, registry entry, user profile)
@@ -249,7 +249,7 @@ After writing the adapter, wire it into two places (plus one optional step):
 
 Most adapters hit a public JSON or server-rendered HTML endpoint and need nothing more.
 Some sit behind a WAF or an anti-bot host and are browser-backed via
-`src/ats/browser-fetch.ts` (headless Chromium through the shared Playwright pool);
+`src/ats/browserFetch.ts` (headless Chromium through the shared Playwright pool);
 a few decrypt an obfuscated payload or lift a token from the page bundle. Reuse the
 shared helpers (`atsFetchJson`/`atsFetchText` in `http.ts`, `paginate`/`REMOTE_RE` in
 `shared.ts`, `htmlToText`) rather than re-rolling them.

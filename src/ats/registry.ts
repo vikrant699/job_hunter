@@ -107,9 +107,9 @@ import { considerAdapter } from "./consider.js";
 import { lohumAdapter } from "./lohum.js";
 import { squareyardsAdapter } from "./squareyards.js";
 import { talentzqAdapter } from "./talentzq.js";
-import { zwayamPublicAdapter } from "./zwayam-public.js";
-import { llmScrapeAdapter } from "../scraper/llm-scrape.js";
-import { playwrightScrapeAdapter } from "../scraper/playwright-llm-scrape.js";
+import { zwayamPublicAdapter } from "./zwayamPublic.js";
+import { llmScrapeAdapter } from "../scraper/llmScrape.js";
+import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
 export const ATS_ADAPTERS = {
   greenhouse: greenhouseAdapter,

@@ -2,8 +2,10 @@
 import { z } from "zod";
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
-import { getAccessToken, type GoogleAuthDeps } from "./auth.js";
+import { getAccessToken } from "./auth.js";
+import type { GoogleAuthDeps } from "./auth.js";
 import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 /** How long to back off before the single retry on 429/5xx. */
 const DEFAULT_RETRY_DELAY_MS = 2_000;
@@ -34,7 +36,7 @@ export async function googleFetchJson(
   url: string,
   init: { method?: "GET" | "POST" | "PUT"; body?: JsonValue } = {},
   deps: RestDeps = {},
-): Promise<unknown> {
+): Promise<JsonValue> {
   const fetchFn = deps.fetchFn ?? fetch;
   const retryDelayMs = deps.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   const accessToken = await getAccessToken(profileId, deps.authDeps);
@@ -60,7 +62,7 @@ export async function googleFetchJson(
       const text = await res.text();
       throw new Error(`Google API ${res.status}: ${text.slice(0, 200)}`);
     }
-    return res.json();
+    return JsonValueSchema.parse(await res.json());
   }
   throw new Error("Google API retry exhausted");
 }

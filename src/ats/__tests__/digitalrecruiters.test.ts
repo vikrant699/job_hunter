@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import { normalizeDigitalRecruiters, digitalRecruitersAdapter } from "../digitalrecruiters.js";
 import type { DrListItem, DigitalRecruitersMeta } from "../digitalrecruiters.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const realFetch = globalThis.fetch;
-function jsonResponse(body: unknown): Response {
+function jsonResponse<T>(body: T): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 }
 function stubFetchSeq(responses: Array<() => Response>): void {

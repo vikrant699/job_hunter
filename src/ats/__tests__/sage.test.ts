@@ -1,7 +1,8 @@
 // src/ats/sage.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSage, filterIndiaSage, SageRecordSchema, type SageRecord } from "../sage.js";
+import { normalizeSage, filterIndiaSage, SageRecordSchema } from "../sage.js";
+import type { SageRecord } from "../sage.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

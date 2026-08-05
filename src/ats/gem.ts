@@ -11,9 +11,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const GEM_ORIGIN = "https://jobs.gem.com";
 const GEM_GRAPHQL_URL = `${GEM_ORIGIN}/api/public/graphql`;
@@ -138,13 +139,13 @@ export function gemJobUrl(slug: string, extId: string): string {
 }
 
 /** Unwrap the `data.oatsExternalJobPostings.jobPostings` envelope. Throws on shape mismatch. */
-export function parseGemJobBoardList(json: unknown): GemJobStub[] {
+export function parseGemJobBoardList(json: JsonValue): GemJobStub[] {
   const parsed = GemJobBoardListSchema.parse(json);
   return parsed.data.oatsExternalJobPostings.jobPostings;
 }
 
 /** Unwrap a job-detail response's `descriptionHtml`. Null when the posting was pulled/unlisted. */
-export function parseGemJobDetail(json: unknown): string | null {
+export function parseGemJobDetail(json: JsonValue): string | null {
   const parsed = GemJobDetailSchema.safeParse(json);
   if (!parsed.success) return null;
   return parsed.data.data.oatsExternalJobPosting?.descriptionHtml ?? null;

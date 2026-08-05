@@ -24,12 +24,14 @@ import nacl from "tweetnacl";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { withAtsTimeout } from "./http.js";
 import { REMOTE_RE, tenantOrigin, joinLocation } from "./shared.js";
-import { browserCaptureText } from "./browser-fetch.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { browserCaptureText } from "./browserFetch.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 import { config } from "../config.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 // ---- constants ----
 
@@ -74,11 +76,11 @@ export function boxOpen(blob: EncryptedBlob, seed: Uint8Array): Uint8Array | nul
 /** Decrypt a blob to parsed JSON. Returns null iff box.open fails (wrong seed).
  *  Throws only if decryption succeeds but the plaintext is not valid JSON — a
  *  genuinely different failure that re-extracting the seed would not fix. */
-export function decryptToJson(blob: EncryptedBlob, seed: Uint8Array): unknown | null {
+export function decryptToJson(blob: EncryptedBlob, seed: Uint8Array): JsonValue | null {
   const opened = boxOpen(blob, seed);
   if (!opened) return null;
   const text = Buffer.from(opened).toString("utf8");
-  return JSON.parse(text);
+  return JsonValueSchema.parse(JSON.parse(text));
 }
 
 // ---- seed extraction from the client bundle (pure) ----
@@ -119,7 +121,7 @@ export interface SeedStore {
 export function fileSeedStore(path: string = SEED_CACHE_PATH): SeedStore {
   const read = (): Record<string, number[]> => {
     try {
-      const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+      const parsed: JsonValue = JsonValueSchema.parse(JSON.parse(readFileSync(path, "utf8")));
       const schema = z.record(z.string(), z.array(z.number()));
       const r = schema.safeParse(parsed);
       return r.success ? r.data : {};
@@ -178,7 +180,7 @@ export async function decryptWithHealing(
   key: string,
   fetchBundle: () => Promise<string>,
   store: SeedStore,
-): Promise<unknown> {
+): Promise<JsonValue> {
   const cached = await resolveSeed(key, fetchBundle, store);
   const first = decryptToJson(blob, cached);
   if (first !== null) return first;
@@ -230,7 +232,7 @@ export interface JobListPage {
 }
 
 /** Unwrap the decrypted `{data:{data:{noOfTotalRecords,data:[...]}}}` envelope. */
-export function parseJobListPage(decrypted: unknown): JobListPage {
+export function parseJobListPage(decrypted: JsonValue): JobListPage {
   const parsed = JobListEnvelopeSchema.parse(decrypted);
   return {
     jobs: parsed.data.data.data,

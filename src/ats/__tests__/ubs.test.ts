@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ubsField, parseUbsMatchedJobs, ubsReportedJobsCount, ubsTruncationWarning } from "../ubs.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "ubs",

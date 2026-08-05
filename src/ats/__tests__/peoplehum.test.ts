@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { peoplehumListUrl, peoplehumJobs, isPeoplehumPrivate, normalizePeoplehum } from "../peoplehum.js";
 import type { PeoplehumJob } from "../peoplehum.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "peoplehum", slug: "16900", name: "Devnagri",
@@ -44,7 +45,7 @@ test("peoplehumListUrl builds the customerId-scoped list URL", () => {
 });
 
 test("peoplehumJobs unwraps responseObject.content, tolerating extra envelope keys", () => {
-  const jobs = peoplehumJobs(rawEnvelope);
+  const jobs = peoplehumJobs(asJson(rawEnvelope));
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.title, "Voicebot Developer");
   assert.equal(jobs[1]?.title, "Language Specialist");

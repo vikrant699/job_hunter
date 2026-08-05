@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeGreythr, greythrBase, GreythrJobSchema, type GreythrJob } from "../greythr.js";
+import { normalizeGreythr, greythrBase, GreythrJobSchema } from "../greythr.js";
+import type { GreythrJob } from "../greythr.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

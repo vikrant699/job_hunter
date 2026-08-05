@@ -24,7 +24,7 @@ export interface Company {
   postingsMatchedTotal: number;
   /** Consecutive clean fetches that saw 0 raw postings (dormancy input). */
   zeroYieldStreak: number;
-  /** Page fetched OK but doesn't look like a careers page — surfaced by scripts/registry-health.ts for manual repair. */
+  /** Page fetched OK but doesn't look like a careers page — surfaced by scripts/registryHealth.ts for manual repair. */
   urlSuspect: boolean;
 }
 

@@ -11,11 +11,12 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchHtml, atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
-import { tryParseJson, type JsonValue } from "../util/json.js";
+import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const PAGE_SIZE = 50;
 
@@ -65,7 +66,7 @@ export function extractSenseHqNextData(html: string): JsonValue | null {
 }
 
 /** Read `buildId` + `jobsData` off the initial page's parsed island. Null on shape mismatch. */
-export function senseHqInitialJobsData(nextData: unknown): (SenseHqJobsData & { buildId: string }) | null {
+export function senseHqInitialJobsData(nextData: JsonValue): (SenseHqJobsData & { buildId: string }) | null {
   const parsed = SenseHqInitialDataSchema.safeParse(nextData);
   if (!parsed.success) return null;
   const { rows, count } = parsed.data.props.pageProps.jobsData;
@@ -73,7 +74,7 @@ export function senseHqInitialJobsData(nextData: unknown): (SenseHqJobsData & { 
 }
 
 /** Read `jobsData` off a `_next/data/.../jobs.json` page. Null on shape mismatch. */
-export function senseHqPaginatedJobsData(pageJson: unknown): SenseHqJobsData | null {
+export function senseHqPaginatedJobsData(pageJson: JsonValue): SenseHqJobsData | null {
   const parsed = SenseHqPaginatedDataSchema.safeParse(pageJson);
   if (!parsed.success) return null;
   const { rows, count } = parsed.data.pageProps.jobsData;

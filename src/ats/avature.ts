@@ -34,10 +34,10 @@ import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchHtml, atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, collapseWs } from "./shared.js";
-import { assertNotEdgeChallenge } from "../util/error-cause.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 // Safety cap on page hops in case a tenant's Next link never disappears
 // (loops back on itself, etc.) — pagination normally ends on its own once the

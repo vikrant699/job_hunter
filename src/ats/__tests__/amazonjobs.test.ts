@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { amazonJobsApiUrl, amazonJobsPageJobs, normalizeAmazonJobs } from "../amazonjobs.js";
 import type { AmazonJob } from "../amazonjobs.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "amazonjobs", slug: "amazon", name: "Amazon",
@@ -52,7 +53,7 @@ test("amazonJobsApiUrl defaults country to IND without apiMeta", () => {
 
 test("amazonJobsPageJobs parses the jobs array and surfaces hits as total", () => {
   const page = { hits: 2680, jobs: [job, virtualJob], facets: {}, content: null };
-  const r = amazonJobsPageJobs(page);
+  const r = amazonJobsPageJobs(asJson(page));
   assert.equal(r.total, 2680);
   assert.equal(r.jobs.length, 2);
   assert.equal(r.jobs[0]?.title, job.title);
@@ -61,15 +62,15 @@ test("amazonJobsPageJobs parses the jobs array and surfaces hits as total", () =
 test("amazonJobsPageJobs: pagination-stop arithmetic — a page reaching hits ends the loop", () => {
   // A page whose offset + returned jobs meets/exceeds hits is the last page;
   // paginate() (src/ats/shared.ts) uses this exact `total` to decide that.
-  const lastPage = amazonJobsPageJobs({ hits: 2, jobs: [job, virtualJob] });
+  const lastPage = amazonJobsPageJobs(asJson({ hits: 2, jobs: [job, virtualJob] }));
   assert.equal(0 + lastPage.jobs.length >= (lastPage.total ?? 0), true);
 
-  const midPage = amazonJobsPageJobs({ hits: 5, jobs: [job, virtualJob] });
+  const midPage = amazonJobsPageJobs(asJson({ hits: 5, jobs: [job, virtualJob] }));
   assert.equal(0 + midPage.jobs.length >= (midPage.total ?? 0), false);
 });
 
 test("amazonJobsPageJobs tolerates a missing hits field", () => {
-  const r = amazonJobsPageJobs({ jobs: [job] });
+  const r = amazonJobsPageJobs(asJson({ jobs: [job] }));
   assert.equal(r.total, null);
   assert.equal(r.jobs.length, 1);
 });

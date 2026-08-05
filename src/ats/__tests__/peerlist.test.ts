@@ -19,7 +19,7 @@ const company: AdapterCompany = {
   careersUrl: PEERLIST_BOARD_URL, tenantUrl: null, apiMeta: null,
 };
 
-function pageHtml(pageProps: unknown): string {
+function pageHtml<T>(pageProps: T): string {
   const nextData = {
     props: { pageProps },
     page: "/",

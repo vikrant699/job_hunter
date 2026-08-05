@@ -38,7 +38,8 @@ import { atsFetchText } from "./http.js";
 import { REMOTE_RE, extractBalanced } from "./shared.js";
 import { digString, jdFromFields } from "./nextdata.js";
 import { kebabCase } from "../util/slug.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 export interface JsVarConfig {
   listUrl: string;
@@ -77,11 +78,22 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
 }
 
 /** Parse an extracted literal. JSON.parse for escaped-JSON blobs; a sandboxed
- *  vm eval for JS object/array literals (single quotes, backticks, bare keys). */
-export function parseLiteral(literal: string, viaJson: boolean): unknown {
-  if (viaJson) return JSON.parse(literal);
+ *  vm eval for JS object/array literals (single quotes, backticks, bare keys).
+ *
+ *  The vm branch is the one boundary here whose input is JavaScript, not JSON: a
+ *  scraped literal may legitimately hold `undefined`, array holes (`['a',,'c']`),
+ *  `NaN`, or a Date — none of which JsonValue can represent, and all of which a
+ *  real careers page has shipped. So that branch is normalised through JSON
+ *  first, which is precisely what the same data would look like had it arrived
+ *  over the wire (undefined/functions dropped, holes and NaN -> null, Date ->
+ *  ISO string). Validating the raw eval result instead would reject literals
+ *  this adapter parsed fine before — see the parseLiteral tests. */
+export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
+  if (viaJson) return JsonValueSchema.parse(JSON.parse(literal));
   const sandbox = createContext({ __proto__: null });
-  return runInContext(`(${literal})`, sandbox, { timeout: 1000 });
+  return JsonValueSchema.parse(
+    JSON.parse(JSON.stringify(runInContext(`(${literal})`, sandbox, { timeout: 1000 }))),
+  );
 }
 
 export function jsVarPostings(company: AdapterCompany, sourceText: string): NormalizedPosting[] {

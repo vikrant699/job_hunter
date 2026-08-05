@@ -1,6 +1,7 @@
 // src/google/sheets.ts
 import { z } from "zod";
-import { googleFetchJson, requireSpreadsheetId, CellsSchema, type RestDeps } from "./rest.js";
+import { googleFetchJson, requireSpreadsheetId, CellsSchema } from "./rest.js";
+import type { RestDeps } from "./rest.js";
 
 function baseUrl(): string {
   return `https://sheets.googleapis.com/v4/spreadsheets/${requireSpreadsheetId()}`;

@@ -297,6 +297,7 @@ test("parseGohireListPage reports the server's card count even when a card is un
 /** One captured log call: the level is the whole point of the stall report. */
 interface LogCall {
   level: "warn" | "info";
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
   fields: unknown;
   message: string | undefined;
 }
@@ -313,7 +314,9 @@ async function captureLogs(fn: () => Promise<void>): Promise<LogCall[]> {
   const calls: LogCall[] = [];
   const realWarn = logger.warn;
   const realInfo = logger.info;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
   logger.warn = (fields: unknown, message?: string) => { calls.push({ level: "warn", fields, message }); };
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
   logger.info = (fields: unknown, message?: string) => { calls.push({ level: "info", fields, message }); };
   try {
     await fn();

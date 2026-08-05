@@ -2,7 +2,8 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { googleFetchJson } from "../rest.js";
-import { __resetTokenCacheForTests, type GoogleAuthDeps } from "../auth.js";
+import { __resetTokenCacheForTests } from "../auth.js";
+import type { GoogleAuthDeps } from "../auth.js";
 
 const ENV_BACKUP = { ...process.env };
 

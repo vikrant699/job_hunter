@@ -34,11 +34,12 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin, collapseWs, extractBalanced } from "./shared.js";
-import { tryParseJson, type JsonValue } from "../util/json.js";
-import { assertNotEdgeChallenge } from "../util/error-cause.js";
+import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 /** The one (unpaginated — `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {

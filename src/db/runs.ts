@@ -1,4 +1,4 @@
-import { type SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { db } from "./db.js";
 
 const insertRunStmt = db.prepare(`

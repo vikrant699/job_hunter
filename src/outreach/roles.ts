@@ -3,7 +3,7 @@ import { SeveritySchema } from "../schemas.js";
 import { logger } from "../logger.js";
 
 /** Shape of one bundled role inside an outreach row's `roles_json` column.
- *  Single source of truth — imported by both sheet-sync.ts (sheet projection)
+ *  Single source of truth — imported by both sheetSync.ts (sheet projection)
  *  and verify.ts (per-role undrafted rows on draft_discarded). */
 export const RoleEntrySchema = z.object({
   title: z.string(),

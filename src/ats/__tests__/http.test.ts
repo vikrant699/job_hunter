@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson, parseOrThrow, parseOrNull } from "../http.js";
-import { stubFetch, jsonResponse } from "./test-helpers.js";
+import { stubFetch, jsonResponse } from "./testHelpers.js";
 
 test("atsHttpError: 404 gives a short provider-tagged message", () => {
   const e = atsHttpError("keka", 404, "<html>not found</html>");
@@ -32,6 +32,7 @@ test("atsFetchHtml returns the response body, falling back to the requested URL 
 
 test("atsFetchHtml throws atsHttpError on a non-OK response", async (t) => {
   stubFetch(t, async () => new Response("not found", { status: 404 }));
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   await assert.rejects(atsFetchHtml("https://example.com/careers", { provider: "keka" }), (err: unknown) => {
     assert.ok(err instanceof Error);
     assert.equal(err.message, "keka 404");

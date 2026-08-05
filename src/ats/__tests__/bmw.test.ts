@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl } from "../bmw.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 // Trimmed from the live India fragment (2026-07-18).
 const FRAGMENT = `

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { jibeApiUrl, jibePageJobs, normalizeJibe, jibeAdapter } from "../jibe.js";
 import type { JibeJob } from "../jibe.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "jibe", slug: "schneider-pw", name: "Schneider Electric India",
@@ -36,7 +37,7 @@ test("jibeApiUrl falls back to the careers URL origin and omits the filter witho
 
 test("jibePageJobs unwraps the jobs[].data envelope and totalCount", () => {
   const page = { jobs: [{ data: job }], totalCount: 497, count: 10 };
-  const r = jibePageJobs(page);
+  const r = jibePageJobs(asJson(page));
   assert.equal(r.totalCount, 497);
   assert.equal(r.jobs.length, 1);
   assert.equal(r.jobs[0]?.title, "Senior Software Engineer I - React Native");

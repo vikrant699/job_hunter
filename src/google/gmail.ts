@@ -1,6 +1,7 @@
 // src/google/gmail.ts
 import { z } from "zod";
-import { googleFetchJson, type RestDeps } from "./rest.js";
+import { googleFetchJson } from "./rest.js";
+import type { RestDeps } from "./rest.js";
 import { toBase64Url } from "./mime.js";
 
 const BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me";

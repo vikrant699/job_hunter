@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ATS_ADAPTERS, resolveAdapter } from "../registry.js";
 import { ProviderSchema } from "../../schemas.js";
-import { llmScrapeAdapter } from "../../scraper/llm-scrape.js";
-import { playwrightScrapeAdapter } from "../../scraper/playwright-llm-scrape.js";
+import { llmScrapeAdapter } from "../../scraper/llmScrape.js";
+import { playwrightScrapeAdapter } from "../../scraper/playwrightLlmScrape.js";
 import type { Company } from "../../types.js";
 
 test("every ATS_ADAPTERS key matches its adapter's provider string", () => {

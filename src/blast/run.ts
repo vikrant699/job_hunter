@@ -9,21 +9,19 @@ import { readFileSync } from "node:fs";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { buildDraftMime } from "../google/mime.js";
-import {
-  createDraft as createDraftDefault,
-  searchMessages as searchMessagesDefault,
-  getMessageMetadata as getMessageMetadataDefault,
-  type CreatedDraft, type MessageRef, type MessageMetadata,
-} from "../google/gmail.js";
+import { createDraft as createDraftDefault, searchMessages as searchMessagesDefault, getMessageMetadata as getMessageMetadataDefault } from "../google/gmail.js";
+import type { CreatedDraft, MessageRef, MessageMetadata } from "../google/gmail.js";
 import {
   readTab as readTabDefault,
   ensureTabs as ensureTabsDefault,
   rewriteTab as rewriteTabDefault,
 } from "../google/sheets.js";
 import { sleep } from "../util/sleep.js";
-import { loadState, loadAllStates, saveState, statePathFor, knownEmails, draftedEverCount, maxBatch, type BlastState } from "./state.js";
+import { loadState, loadAllStates, saveState, statePathFor, knownEmails, draftedEverCount, maxBatch } from "./state.js";
+import type { BlastState } from "./state.js";
 import { buildPool } from "./pool.js";
-import { MxChecker, type MxResolver } from "./mx.js";
+import { MxChecker } from "./mx.js";
+import type { MxResolver } from "./mx.js";
 import { loadBlastTemplate, loadBlastContent, renderBlast } from "./render.js";
 import { sweepBounces } from "./bounces.js";
 

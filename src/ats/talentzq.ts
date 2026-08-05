@@ -31,10 +31,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE, dateToIso, joinLocation } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 export function talentzqListUrl(origin: string, tenantId: string): string {
   return `${origin}/api/${tenantId}/jd`;
@@ -66,7 +67,7 @@ export type TalentzqJob = z.infer<typeof TalentzqJobSchema>;
 /** Unwrap the double-JSON-encoded list body (a JSON string whose parsed
  *  value is itself the array's JSON text). Never throws — anything that
  *  isn't a string, isn't valid JSON, or doesn't parse to an array yields []. */
-export function talentzqJobsFrom(raw: unknown): unknown[] {
+export function talentzqJobsFrom(raw: JsonValue): JsonValue[] {
   if (typeof raw !== "string") return [];
   const parsed = tryParseJson(raw);
   return Array.isArray(parsed) ? parsed : [];
@@ -101,7 +102,7 @@ export function normalizeTalentzq(company: AdapterCompany, origin: string, j: Ta
 
 /** Strip HTML from the (singly-encoded) detail response; "" on anything
  *  that isn't a string, so a malformed detail degrades instead of failing. */
-export function talentzqJdText(raw: unknown): string {
+export function talentzqJdText(raw: JsonValue): string {
   return htmlToText(typeof raw === "string" ? raw : "");
 }
 

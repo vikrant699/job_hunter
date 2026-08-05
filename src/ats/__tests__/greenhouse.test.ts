@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { greenhouseAdapter } from "../greenhouse.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./test-helpers.js";
+import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./testHelpers.js";
 
 const company: AdapterCompany = mkAdapterCompany({
   provider: "greenhouse",

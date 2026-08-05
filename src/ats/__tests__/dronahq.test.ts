@@ -1,15 +1,8 @@
 // src/ats/dronahq.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  dronahqListUrl,
-  stripDronahqShortcodes,
-  buildDronahqJd,
-  dronahqLocationFromContent,
-  dronahqWorkTypeFromContent,
-  normalizeDronahqJob,
-  type DronahqJob,
-} from "../dronahq.js";
+import { dronahqListUrl, stripDronahqShortcodes, buildDronahqJd, dronahqLocationFromContent, dronahqWorkTypeFromContent, normalizeDronahqJob } from "../dronahq.js";
+import type { DronahqJob } from "../dronahq.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

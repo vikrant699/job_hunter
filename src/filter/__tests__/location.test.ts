@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkLocation, checkLocationFromText, type LocationConfig } from "../location.js";
+import { checkLocation, checkLocationFromText } from "../location.js";
+import type { LocationConfig } from "../location.js";
 
 const cfg: LocationConfig = {
   targetCities: ["bangalore", "bengaluru", "mumbai", "pune"],

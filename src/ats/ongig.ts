@@ -20,9 +20,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 import { parseOrThrow, withAtsTimeout } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const PAGE = 10;
 
@@ -62,7 +64,7 @@ function groupId(company: AdapterCompany): string {
   return g;
 }
 
-export function ongigBody(groupId: string, countryFilter: string, current: number): unknown {
+export function ongigBody(groupId: string, countryFilter: string, current: number): JsonValue {
   return {
     query: "",
     result_fields: {
@@ -163,7 +165,7 @@ export const ongigAdapter: AtsAdapter = {
           }),
         );
         if (!res.ok) throw new Error(`ongig HTTP ${res.status} for ${company.slug}`);
-        const parsed = parseOrThrow(OngigResponseSchema, await res.json(), {
+        const parsed = parseOrThrow(OngigResponseSchema, JsonValueSchema.parse(await res.json()), {
           provider: "ongig",
           slug: company.slug,
           what: `list p${current}`,

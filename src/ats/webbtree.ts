@@ -38,7 +38,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText, parseOrThrow, parseOrNull } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 import { tryParseJson, JsonValueSchema } from "../util/json.js";
@@ -125,7 +125,7 @@ export function webbtreeJobsFromIsland(island: WebbtreeIsland, slug: string): We
   if (!entry) {
     throw new Error(`webbtree: no getjobs entry in serverApp-state island for ${slug} — layout/route change`);
   }
-  const parsed = parseOrThrow(WebbtreeJobsResponseSchema, entry.body, { provider: "webbtree", slug, what: "getjobs" });
+  const parsed = parseOrThrow(WebbtreeJobsResponseSchema, entry.body ?? null, { provider: "webbtree", slug, what: "getjobs" });
   return parsed.message;
 }
 

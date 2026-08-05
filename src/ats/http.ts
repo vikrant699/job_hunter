@@ -1,8 +1,9 @@
 // src/ats/http.ts
-import { type z } from "zod";
+import type { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
@@ -37,9 +38,9 @@ async function fetchOk(url: string, init: RequestInit, provider: string): Promis
 export async function atsFetchJson(
   url: string,
   opts: { method?: "GET" | "POST"; body?: JsonValue; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
-): Promise<unknown> {
+): Promise<JsonValue> {
   const provider = opts.provider ?? "ats";
-  return withAtsTimeout<unknown>(async (signal) => {
+  return withAtsTimeout<JsonValue>(async (signal) => {
     const res = await fetchOk(url, {
       method: opts.method ?? (opts.body !== undefined ? "POST" : "GET"),
       headers: {
@@ -53,7 +54,7 @@ export async function atsFetchJson(
       ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
       signal,
     }, provider);
-    return await res.json();
+    return JsonValueSchema.parse(await res.json());
   });
 }
 
@@ -75,7 +76,10 @@ export interface ParseCtx { provider: string; slug: string; what?: string }
 
 /** safeParse + warn-log + throw, the shape ~60 adapters hand-rolled. The word
  *  "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
-export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: unknown, ctx: ParseCtx): z.infer<S> {
+// The `<unknown>` bound is load-bearing: a bare `z.ZodType` defaults its params to
+// `any` and trips no-unsafe-return on the `return` below (see block comment above).
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- the `<unknown>` bound keeps `parsed.data` as `unknown` rather than `any`
+export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: JsonValue, ctx: ParseCtx): z.infer<S> {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "list";
@@ -86,7 +90,10 @@ export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: unkno
 }
 
 /** safeParse + warn-log + null, for detail fetches that degrade to "" instead of failing the company. */
-export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: unknown, ctx: ParseCtx): z.infer<S> | null {
+// The `<unknown>` bound is load-bearing: a bare `z.ZodType` defaults its params to
+// `any` and trips no-unsafe-return on the `return` below (see block comment above).
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- the `<unknown>` bound keeps `parsed.data` as `unknown` rather than `any`
+export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: JsonValue, ctx: ParseCtx): z.infer<S> | null {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "detail";
@@ -106,9 +113,9 @@ export async function atsFetchFormJson(
   url: string,
   form: Record<string, string>,
   opts: { provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
-): Promise<unknown> {
+): Promise<JsonValue> {
   const provider = opts.provider ?? "ats";
-  return withAtsTimeout<unknown>(async (signal) => {
+  return withAtsTimeout<JsonValue>(async (signal) => {
     const res = await fetchOk(url, {
       method: "POST",
       headers: {
@@ -122,7 +129,7 @@ export async function atsFetchFormJson(
       body: new URLSearchParams(form).toString(),
       signal,
     }, provider);
-    return await res.json();
+    return JsonValueSchema.parse(await res.json());
   });
 }
 
@@ -136,9 +143,9 @@ export async function atsFetchFormJson(
 export async function atsFetchJsonMultipart(
   url: string,
   opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string; userAgent?: string },
-): Promise<unknown> {
+): Promise<JsonValue> {
   const provider = opts.provider ?? "ats";
-  return withAtsTimeout<unknown>(async (signal) => {
+  return withAtsTimeout<JsonValue>(async (signal) => {
     const form = new FormData();
     for (const [key, value] of Object.entries(opts.fields)) form.append(key, value);
     const res = await fetchOk(url, {
@@ -151,7 +158,7 @@ export async function atsFetchJsonMultipart(
       body: form,
       signal,
     }, provider);
-    return await res.json();
+    return JsonValueSchema.parse(await res.json());
   });
 }
 

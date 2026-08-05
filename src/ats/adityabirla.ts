@@ -39,12 +39,14 @@ import { z } from "zod";
 import type { Request as PlaywrightRequest } from "playwright";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsHttpError, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
-import { withBrowserPage } from "./browser-fetch.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import { withBrowserPage } from "./browserFetch.js";
 import { config } from "../config.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const TENANT_ORIGIN = "https://careers.adityabirla.com";
 const JOB_SEARCH_URL = `${TENANT_ORIGIN}/job-search`;
@@ -136,7 +138,7 @@ export function adityaBirlaPageUrl(orgunit: string, page: number, pageSize: numb
   return `${TENANT_ORIGIN}${JOBS_API_PATH}?orgunit=${encodeURIComponent(orgunit)}&offset=${page}&limit=${pageSize}`;
 }
 
-async function fetchJobsPage(orgunit: string, page: number, token: string): Promise<unknown> {
+async function fetchJobsPage(orgunit: string, page: number, token: string): Promise<JsonValue> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetch.timeoutMs);
   try {
@@ -146,7 +148,7 @@ async function fetchJobsPage(orgunit: string, page: number, token: string): Prom
     });
     if (res.status === 401) throw new AuthExpiredError();
     if (!res.ok) throw atsHttpError("adityabirla", res.status, await res.text());
-    return await res.json();
+    return JsonValueSchema.parse(await res.json());
   } finally {
     clearTimeout(timer);
   }
@@ -184,7 +186,7 @@ export const adityabirlaAdapter: AtsAdapter = {
 
     let token = await getAuthToken(false);
 
-    async function fetchPageWithRetry(page: number): Promise<unknown> {
+    async function fetchPageWithRetry(page: number): Promise<JsonValue> {
       try {
         return await fetchJobsPage(orgunit, page, token);
       } catch (err) {

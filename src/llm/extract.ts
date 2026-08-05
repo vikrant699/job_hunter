@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
+import { parseJsonOrThrow } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate, generateOnce } from "./client.js";
@@ -54,6 +55,7 @@ export async function runExtract(jdText: string): Promise<ExtractResult> {
   //
   // Worst case: 3 HTTP calls from the first attempt's generate() (transport
   // retries) + 1 from the generateOnce() re-ask = 4, not 6.
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 1; attempt++) {
     const raw = attempt === 0

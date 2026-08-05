@@ -1,6 +1,7 @@
-import { type SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { z } from "zod";
-import { OutreachStatusSchema, UndraftedReasonSchema, type OutreachStatus, type UndraftedReason } from "../schemas.js";
+import { OutreachStatusSchema, UndraftedReasonSchema } from "../schemas.js";
+import type { OutreachStatus, UndraftedReason } from "../schemas.js";
 import { db, queryAll, queryOne } from "./db.js";
 
 /* ===== outreach ===== */

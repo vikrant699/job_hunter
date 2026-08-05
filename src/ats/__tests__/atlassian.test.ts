@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseAtlassianListings, normalizeAtlassian, atlassianJdText, AtlassianJobSchema } from "../atlassian.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "atlassian",

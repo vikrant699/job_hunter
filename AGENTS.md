@@ -47,10 +47,20 @@ npm run lint        # ZERO violations
 1. **No type assertions** except `as const`. No `x as T`, no `x as unknown as T`, no `<T>x`.
    If a value needs to be `T`, fix the upstream type or validate it (rule 4).
 2. **No `any`** anywhere, including tests.
-3. **No hand-written `unknown`.** Exception: a value a library hands you as `unknown`/`any`
-   (a `node:sqlite` row, `JSON.parse`, `res.json()`) may flow *directly* into a
-   `zod.parse()`/`.safeParse()` on the same expression. It must not land in a variable or
-   annotation you typed as `unknown`/`any`.
+3. **No hand-written `unknown`** — now enforced by `@typescript-eslint/no-restricted-types`.
+   Where a library hands you an untyped value (`JSON.parse`, `res.json()`, a `node:sqlite`
+   row, `page.evaluate`), validate it *at that point* with `JsonValueSchema.parse(...)` and
+   carry it as `JsonValue` (rule 6) — do not carry it as `unknown`. The ATS fetch helpers
+   (`atsFetchJson`, `atsFetchFormJson`, `atsFetchJsonMultipart`, `browserFetchJson*`) and
+   `google/rest.ts` already do this, so every adapter parse function takes `JsonValue`.
+   Two carve-outs, both requiring an `eslint-disable-next-line ... -- <reason>`:
+   - **Caught/thrown values.** TS types these `unknown` by design and there is no narrower
+     type; the predicates in `util/errorCause.ts` exist to narrow them.
+   - **Conforming to a library signature** whose parameter is `unknown` (e.g. pino's
+     `LogFn`) — narrowing it would break assignability.
+   In tests, prefer a generic (`function jsonResponse<T>(body: T)`) over `unknown`, and use
+   `asJson(fixture)` from `ats/__tests__/testHelpers.ts` to hand a schema-typed fixture to a
+   parser that takes `JsonValue` (it JSON round-trips, dropping `undefined` optionals).
 4. **Validate at boundaries, type the interior.** Every place external/untyped data enters
    (DB rows, parsed JSON, HTTP JSON, LLM output) gets a zod schema; the typed value comes from
    `schema.parse(...)` and `type X = z.infer<typeof XSchema>`.
@@ -62,6 +72,14 @@ npm run lint        # ZERO violations
 7. **Schemas vs types are separated.** Runtime zod schemas live in `src/schemas.ts`;
    `src/types.ts` holds only erasable types and imports inferred enum types from `schemas.ts`.
    Do not put schemas in `types.ts`.
+8. **Type imports are their own statement.** `import type { X } from "./x.js";` — never an
+   inline `{ value, type X }` mixed import (`consistent-type-imports` with
+   `separate-type-imports`, plus a `no-restricted-syntax` selector for the mixed shape).
+9. **No TypeScript `enum`.** Use a const object with `as const` and derive the type (rule 5).
+10. **Filenames are camelCase** (`unicorn/filename-case`), e.g. `sheetRegistry.ts`,
+    `postingPipeline.ts`. `__tests__` / `__mocks__` directories are exempt.
+11. **Tests live in `__tests__/`** next to the code they cover — enforced by
+    `local/tests-in-tests-folder` from `eslint-local-plugin.js` (ported from core-ui).
 
 ## Where things live
 
@@ -69,16 +87,16 @@ npm run lint        # ZERO violations
 src/
   ats/         one file per ATS provider; registry.ts = provider->adapter map;
                  http.ts (shared atsFetchJson/atsFetchText); shared.ts (REMOTE_RE,
-                 unixToIso, parsePostedOn); html-text.ts; workday-facet.ts; types.ts (AtsAdapter);
+                 unixToIso, parsePostedOn); htmlText.ts; workdayFacet.ts; types.ts (AtsAdapter);
                  detect.ts (ATS-redirect detection patterns used by llm-scrape)
   db/          per-table modules (companies, postings, runs, recruiters, outreach, link-cache,
                  api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
-  llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extract-text-jobs.ts,
+  llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extractTextJobs.ts,
                  render.ts; prompts/ holds the prompt strings (gate, shortlist, extract)
-  pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), posting-pipeline.ts
+  pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), postingPipeline.ts
   discord/     webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat),
                  status.ts (single end-of-run status embed; the progress channel is the
                  ONLY Discord surface - no per-posting pings, no per-profile webhooks)
@@ -87,12 +105,12 @@ src/
                  run.ts (post-run Gmail draft stage), verify.ts (bounce-only
                  verify pass: draft->sent/discarded, sent->bounced/verified, plus
                  raw-csv recruiter promotion onto the Recruiters List tab),
-                 roles.ts (shared roles_json schema), sheet-sync.ts (DB -> tab
+                 roles.ts (shared roles_json schema), sheetSync.ts (DB -> tab
                  projection), tabs.ts (tab header contracts)
-  registry/    sheet-registry.ts (syncs the Companies tab, with a registry-cache.json
+  registry/    sheetRegistry.ts (syncs the Companies tab, with a registry-cache.json
                  fallback, into the DB); companies.ts (shared upsert+prune core, JSON
-                 file reader for the cache); sheet-codec.ts (Companies-tab row <->
-                 RegistryEntry codec); sheet-writer.ts (Companies-tab mutations:
+                 file reader for the cache); sheetCodec.ts (Companies-tab row <->
+                 RegistryEntry codec); sheetWriter.ts (Companies-tab mutations:
                  SPA-sentinel strategy flip + appendToRegistry, the blessed write
                  path for registry-maintenance sessions)
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
@@ -110,7 +128,7 @@ data/          SQLite DB + caches (gitignored)
 
 Test files live in a `__tests__/` subdirectory of the module they cover rather than next
 to it: `src/ats/foo.ts` is tested by `src/ats/__tests__/foo.test.ts`, and the shared ATS
-fixture helpers are at `src/ats/__tests__/test-helpers.ts`. The `npm test` glob
+fixture helpers are at `src/ats/__tests__/testHelpers.ts`. The `npm test` glob
 (`src/**/*.test.ts`) matches at any depth, so a new `__tests__` directory needs no config
 change.
 
@@ -122,7 +140,7 @@ change.
   sheet is unreachable, not itself a source of truth. To add/remove a company, edit the tab
   (and check it isn't already present under a non-obvious slug), not the DB or the cache file.
 - **Registry appends from maintenance sessions** go through `appendToRegistry` in
-  `src/registry/sheet-writer.ts` (dedupes by (source, slug) key and mirrors the local cache);
+  `src/registry/sheetWriter.ts` (dedupes by (source, slug) key and mirrors the local cache);
   never hand-append rows via raw Sheets calls.
 - **New ATS adapter (2 wiring points + 1 optional):** implement the `AtsAdapter` interface, then:
   (1) add the provider to the `ProviderSchema` enum in `src/schemas.ts`;
@@ -133,10 +151,10 @@ change.
   subdomains), add a `PatternDef` to `src/ats/detect.ts` so llm-scrape's ATS-redirect
   detection can recognize boards that link out to it. No pattern for single-company
   or custom-domain vendors.
-  Write fixture tests (TDD) using `src/ats/__tests__/test-helpers.ts` (stubFetch/fetchSequence/
+  Write fixture tests (TDD) using `src/ats/__tests__/testHelpers.ts` (stubFetch/fetchSequence/
   jsonResponse/mkAdapterCompany). Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`,
   `unixToIso`, and `paginate` from `src/ats/shared.ts`; for WAF/anti-bot hosts use
-  `src/ats/browser-fetch.ts`.
+  `src/ats/browserFetch.ts`.
   There are just over 100 providers now (see `ProviderSchema`); some are browser-backed, and a few
   crack an encrypted payload or lift a token from the page bundle (see `icicibank`, `moglix`,
   `magicpin`, `metacareers`).

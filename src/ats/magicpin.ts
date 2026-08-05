@@ -45,9 +45,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 // Single-tenant: this is magicpin's own site, not a SaaS ATS host pattern.
 const API_BASE = "https://sales.magicpin.in/magickiosk/career";
@@ -83,7 +84,7 @@ const MagicpinDeptGroupSchema = z.object({
 const MagicpinListResponseSchema = z.array(MagicpinDeptGroupSchema);
 
 /** Flatten the department-grouped `[].jobs[]` into one job array. */
-export function flattenMagicpinJobs(raw: unknown): MagicpinListJob[] {
+export function flattenMagicpinJobs(raw: JsonValue): MagicpinListJob[] {
   const parsed = MagicpinListResponseSchema.parse(raw);
   return parsed.flatMap((group) => group.jobs);
 }
@@ -115,7 +116,7 @@ export function normalizeMagicpin(company: AdapterCompany, j: MagicpinListJob): 
  * text, sometimes empty) are both populated inconsistently across postings —
  * concatenate whichever are non-empty after HTML-stripping.
  */
-export function magicpinJdFromDetail(detailJson: unknown, ctx: { slug: string; jobId: string }): string {
+export function magicpinJdFromDetail(detailJson: JsonValue, ctx: { slug: string; jobId: string }): string {
   const parsed = parseOrNull(MagicpinDetailSchema, detailJson, {
     provider: "magicpin",
     slug: ctx.slug,

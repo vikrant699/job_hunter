@@ -1,14 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  breezyBase,
-  normalizeBreezyhr,
-  parseBreezyJobs,
-  extractBreezyJd,
-  BreezyJobSchema,
-  type BreezyJob,
-} from "../breezyhr.js";
+import { breezyBase, normalizeBreezyhr, parseBreezyJobs, extractBreezyJd, BreezyJobSchema } from "../breezyhr.js";
+import type { BreezyJob } from "../breezyhr.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "breezyhr",
@@ -53,7 +48,7 @@ test("parseBreezyJobs throws on a non-array top-level response", () => {
 
 test("parseBreezyJobs skips malformed items but keeps valid ones", () => {
   const raw = [job, { friendly_id: "no-id-or-name" }, { id: "x", friendly_id: "y", name: "z" }];
-  const out = parseBreezyJobs(raw, "talentmovers");
+  const out = parseBreezyJobs(asJson(raw), "talentmovers");
   assert.equal(out.length, 2);
   assert.equal(out[0]?.id, "c54d86f96c6e");
   assert.equal(out[1]?.id, "x");

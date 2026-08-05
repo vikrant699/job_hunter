@@ -10,10 +10,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, epochMsToIso } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 
 const LIST_URL = "https://www.happyeasygo.com/heg_api/join/getDepartmentJobList.do";
 const CAREERS_URL = "https://www.happyeasygo.com/Careers/";

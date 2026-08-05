@@ -1,6 +1,7 @@
-import { type SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { z } from "zod";
-import { RecruiterStatusSchema, RecruiterSourceSchema, type RecruiterStatus, type RecruiterSource } from "../schemas.js";
+import { RecruiterStatusSchema, RecruiterSourceSchema } from "../schemas.js";
+import type { RecruiterStatus, RecruiterSource } from "../schemas.js";
 import { db, queryAll } from "./db.js";
 
 /* ===== Row schema ===== */

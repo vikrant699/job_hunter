@@ -1,26 +1,14 @@
 // src/ats/talent500.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  talent500Adapter,
-  talent500ListUrl,
-  talent500DetailUrl,
-  talent500JobUrl,
-  talent500CompanyUrl,
-  talent500ShouldKeep,
-  talent500FilterWasIgnored,
-  normalizeTalent500Job,
-  talent500SlugFromUrl,
-  buildTalent500Jd,
-  type Talent500Job,
-  type Talent500Detail,
-} from "../talent500.js";
-import { jsonResponse, stubFetch } from "./test-helpers.js";
+import { talent500Adapter, talent500ListUrl, talent500DetailUrl, talent500JobUrl, talent500CompanyUrl, talent500ShouldKeep, talent500FilterWasIgnored, normalizeTalent500Job, talent500SlugFromUrl, buildTalent500Jd } from "../talent500.js";
+import type { Talent500Job, Talent500Detail } from "../talent500.js";
+import { jsonResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {
@@ -275,6 +263,7 @@ test("the dead-tenant error is charged to the company, not written off as infras
   stubFetch(t, () => Promise.resolve(jsonResponse(UNFILTERED_FEED)));
   const err = await talent500Adapter
     .listPostings({ ...company, slug: "zzz-no-such-tenant-9x" })
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     .then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);

@@ -1,4 +1,4 @@
-import { type SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { z } from "zod";
 import type { NormalizedPosting } from "../types.js";
 import type { Provider, Severity } from "../schemas.js";

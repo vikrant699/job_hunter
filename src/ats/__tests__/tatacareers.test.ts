@@ -11,6 +11,7 @@ import {
 } from "../tatacareers.js";
 import type { AdapterCompany } from "../../types.js";
 import type { TataJob } from "../tatacareers.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "tatacareers", slug: "tata-elxsi", name: "Tata Elxsi",
@@ -72,9 +73,9 @@ test("tataSearchParams marks continuation pages with filtersFlag=False", () => {
 });
 
 test("parseTataPage unwraps jobPostings + totalJobPostingsCount", () => {
-  const { jobs, total } = parseTataPage({
+  const { jobs, total } = parseTataPage(asJson({
     response: { totalJobPostingsCount: 100, jobPostings: [tcsJob] },
-  });
+  }));
   assert.equal(total, 100);
   assert.deepEqual(jobs, [tcsJob]);
 });

@@ -16,11 +16,12 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE, joinLocation } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
-import { tryParseJson, type JsonValue } from "../util/json.js";
+import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 export const PEERLIST_ORIGIN = "https://careers.peerlist.io";
 export const PEERLIST_BOARD_URL = `${PEERLIST_ORIGIN}/`;
@@ -69,7 +70,7 @@ export interface PeerlistPageProps {
 }
 
 /** Validate + unwrap `props.pageProps`. Throws a labeled error on shape mismatch. */
-export function parsePeerlistPageProps(nextData: unknown, slug: string): PeerlistPageProps {
+export function parsePeerlistPageProps(nextData: JsonValue, slug: string): PeerlistPageProps {
   const parsed = parseOrThrow(NextDataSchema, nextData, { provider: "peerlist", slug, what: "__NEXT_DATA__" });
   return {
     careersList: parsed.props.pageProps.careersList ?? [],

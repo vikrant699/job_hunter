@@ -1,16 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  extractYcDataPage,
-  ycJobsFromListPage,
-  ycJobFromDetailPage,
-  ycJobsPageUrl,
-  ycJobUrl,
-  normalizeYc,
-  parseYcRelative,
-  YcJobListingSchema,
-  type YcJobListing,
-} from "../ycombinator.js";
+import { extractYcDataPage, ycJobsFromListPage, ycJobFromDetailPage, ycJobsPageUrl, ycJobUrl, normalizeYc, parseYcRelative, YcJobListingSchema } from "../ycombinator.js";
+import type { YcJobListing } from "../ycombinator.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

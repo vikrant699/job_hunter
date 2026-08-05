@@ -53,11 +53,11 @@
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, collapseWs } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
-import { assertNotEdgeChallenge } from "../util/error-cause.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;

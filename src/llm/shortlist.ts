@@ -5,6 +5,8 @@ import { generate } from "./client.js";
 import { logger } from "../logger.js";
 import type { CandidateLink } from "../scraper/cheerio.js";
 import { parseJsonOrThrow } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const ShortlistItemSchema = z.object({
   url: z.string().url(),
@@ -13,7 +15,7 @@ const ShortlistItemSchema = z.object({
 
 /** Tolerant top-level shape — only fails when there's no `jobs` array at all.
  *  Items are validated per-element so one bad entry can't discard the whole batch. */
-const JobsArraySchema = z.object({ jobs: z.array(z.unknown()) });
+const JobsArraySchema = z.object({ jobs: z.array(JsonValueSchema) });
 
 export interface ShortlistItem {
   url: string;
@@ -37,7 +39,7 @@ function formatLinksList(candidates: CandidateLink[]): string {
 /** Per-item tolerant selection for cheerio link candidates: drops malformed items
  *  and hallucinated URLs (not in the candidate set), fills an empty title from the
  *  anchor text, and de-dupes by URL — so one bad item can't lose the whole company. */
-export function selectShortlistItems(rawJobs: unknown[], candidates: CandidateLink[]): ShortlistItem[] {
+export function selectShortlistItems(rawJobs: JsonValue[], candidates: CandidateLink[]): ShortlistItem[] {
   const anchorByUrl = new Map(
     candidates.map((c) => [c.url, c.text.trim().replace(/\s+/g, " ")]),
   );

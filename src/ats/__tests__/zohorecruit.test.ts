@@ -1,15 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  extractJobsIsland,
-  parseJobsIsland,
-  postingsFromZohoHtml,
-  zohoJobUrl,
-  ZohoRecruitJobSchema,
-  type ZohoRecruitJob,
-} from "../zohorecruit.js";
+import { extractJobsIsland, parseJobsIsland, postingsFromZohoHtml, zohoJobUrl, ZohoRecruitJobSchema } from "../zohorecruit.js";
+import type { ZohoRecruitJob } from "../zohorecruit.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "zohorecruit",

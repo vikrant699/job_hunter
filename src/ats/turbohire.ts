@@ -16,11 +16,12 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
-import { browserFetchJsonSteps } from "./browser-fetch.js";
+import { htmlToText } from "./htmlText.js";
+import { browserFetchJsonSteps } from "./browserFetch.js";
 import { parseOrThrow } from "./http.js";
 import { REMOTE_RE, dateToIso, tenantOrigin } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 export const TURBOHIRE_TOKEN_URL = "https://thapi.azurewebsites.net/api/token/noauth";
 const PAGE_SIZE = 50;
@@ -138,7 +139,7 @@ export function normalizeTurboHire(company: AdapterCompany, j: TurboHireJob): No
 export function mergeTurboHirePages(
   company: AdapterCompany,
   out: NormalizedPosting[],
-  pages: unknown[],
+  pages: JsonValue[],
   total: number,
 ): void {
   const seen = new Set(out.map((p) => p.externalId));
@@ -188,8 +189,8 @@ export const turbohireAdapter: AtsAdapter = {
 
     // Validation-only: the token itself was already consumed inside the
     // browserFetchJsonSteps callback above to build the list request.
-    parseOrThrow(TurboHireTokenSchema, first[0], { provider: "turbohire", slug: company.slug, what: "token" });
-    const parsed0 = parseOrThrow(TurboHireListSchema, first[1], { provider: "turbohire", slug: company.slug });
+    parseOrThrow(TurboHireTokenSchema, first[0] ?? null, { provider: "turbohire", slug: company.slug, what: "token" });
+    const parsed0 = parseOrThrow(TurboHireListSchema, first[1] ?? null, { provider: "turbohire", slug: company.slug });
     for (const j of parsed0.Result) out.push(normalizeTurboHire(company, j));
     const total = parsed0.Total ?? out.length;
 

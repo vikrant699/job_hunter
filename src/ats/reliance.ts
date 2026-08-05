@@ -22,7 +22,7 @@
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText, atsFetchFormHtml } from "./http.js";
 import { REMOTE_RE, warnDeepPagination } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
@@ -172,7 +172,7 @@ export function buildPageRequestBody(fields: Record<string, string>, targetPage:
  *
  * The live markup embeds Facebook/LinkedIn share buttons whose `href`
  * attributes contain a literal, unescaped "<url>" placeholder (invalid HTML —
- * confirmed on the live site). That trips up html-text.ts's regex-based tag
+ * confirmed on the live site). That trips up htmlText.ts's regex-based tag
  * stripper (it's documented as only safe for well-formed HTML), so this
  * removes those buttons — plus the Apply/Back submit inputs, neither of
  * which belongs in the JD body — with cheerio (a real, tolerant HTML parser)

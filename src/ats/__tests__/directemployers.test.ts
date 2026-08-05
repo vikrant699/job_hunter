@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { directemployersAdapter, normalizeDeJob } from "../directemployers.js";
 import type { DeJob } from "../directemployers.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch, jsonResponse, mkAdapterCompany } from "./test-helpers.js";
+import { stubFetch, jsonResponse, mkAdapterCompany } from "./testHelpers.js";
 
 const company: AdapterCompany = mkAdapterCompany(
   { provider: "directemployers", slug: "deere", name: "John Deere", careersUrl: "https://deerecareers.jobs/" },

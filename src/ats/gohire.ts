@@ -16,9 +16,9 @@
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchFormHtml, atsFetchText } from "./http.js";
-import { extractJsonLdJobs } from "../scraper/json-ld.js";
+import { extractJsonLdJobs } from "../scraper/jsonLd.js";
 import { REMOTE_RE, paginate, dateToIso, collapseWs } from "./shared.js";
 
 /** Board URL for a tenant, e.g. "https://jobs.gohire.io/<slug>/". The tenant

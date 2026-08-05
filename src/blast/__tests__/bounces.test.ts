@@ -1,7 +1,8 @@
 // src/blast/bounces.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sweepBounces, bounceQuery, type SweepDeps } from "../bounces.js";
+import { sweepBounces, bounceQuery } from "../bounces.js";
+import type { SweepDeps } from "../bounces.js";
 import type { BlastRecord, BlastState } from "../state.js";
 
 const NOW = new Date("2026-07-20T05:30:00.000Z");

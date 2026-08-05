@@ -22,7 +22,7 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { JsonValueSchema, tryParseJson } from "../util/json.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchHtml } from "./http.js";
 import { REMOTE_RE, dateToIso, collapseWs, extractBalanced } from "./shared.js";
 

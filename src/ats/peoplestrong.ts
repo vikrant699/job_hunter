@@ -19,9 +19,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const PAGE = 45; // vendor-fixed page size
 // Safety cap: 225,000 jobs (PAGE 45 x MAX_PAGES 5000). Largest known tenant
@@ -97,7 +98,7 @@ export function normalizePeoplestrong(
 }
 
 /** Extract the JD body HTML from a job-detail response and strip to plain text. */
-export function parsePeoplestrongJd(raw: unknown): string {
+export function parsePeoplestrongJd(raw: JsonValue): string {
   const parsed = PeoplestrongJdSchema.safeParse(raw);
   if (!parsed.success) return "";
   return htmlToText(parsed.data.response?.jobDescription ?? "");

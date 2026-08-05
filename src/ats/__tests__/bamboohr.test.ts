@@ -1,14 +1,8 @@
 // src/ats/bamboohr.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  normalizeBambooHr,
-  buildBambooHrLocation,
-  bambooHrListUrl,
-  bambooHrDetailUrl,
-  bambooHrJobUrl,
-  type BambooHrJob,
-} from "../bamboohr.js";
+import { normalizeBambooHr, buildBambooHrLocation, bambooHrListUrl, bambooHrDetailUrl, bambooHrJobUrl } from "../bamboohr.js";
+import type { BambooHrJob } from "../bamboohr.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

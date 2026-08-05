@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { UserProfileSchema, SILENT_SCORE_FLOOR } from "./schemas.js";
 import type { UserProfile } from "./types.js";
-import { ensureResumeText } from "./tools/extract-resume.js";
+import { ensureResumeText } from "./tools/extractResume.js";
 
 // Loads the user profile; see README "Setup". config/profile.ts and resume files are gitignored.
 

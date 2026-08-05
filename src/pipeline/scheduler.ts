@@ -5,14 +5,14 @@ import {
   markFetchFailure,
   markTransportFailure,
 } from "../db/index.js";
-import { describeError, isInfrastructureFault } from "../util/error-cause.js";
+import { describeError, isInfrastructureFault } from "../util/errorCause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import { OllamaUnavailableError } from "../llm/client.js";
 import { toAdapterCompany } from "./index.js";
 import type { DeferredBoard, RunContext } from "./index.js";
-import { processOnePosting } from "./posting-pipeline.js";
+import { processOnePosting } from "./postingPipeline.js";
 import { sleep } from "../util/sleep.js";
 
 /** Collapse a raw fetch error into a short tag for the Discord issue list. */
@@ -191,6 +191,7 @@ export async function listWithTransportRetry(
   stats: RunContext,
   retry: TransportRetryPolicy,
 ): Promise<NormalizedPosting[]> {
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retry.retries; attempt++) {
     try {

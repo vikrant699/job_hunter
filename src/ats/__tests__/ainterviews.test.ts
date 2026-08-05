@@ -1,13 +1,8 @@
 // src/ats/ainterviews.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ainterviewsAdapter,
-  ainterviewsListUrl,
-  normalizeAinterviews,
-  AinterviewsJobSchema,
-  type AinterviewsJob,
-} from "../ainterviews.js";
+import { ainterviewsAdapter, ainterviewsListUrl, normalizeAinterviews, AinterviewsJobSchema } from "../ainterviews.js";
+import type { AinterviewsJob } from "../ainterviews.js";
 import type { AdapterCompany } from "../../types.js";
 
 const realFetch = globalThis.fetch;
@@ -115,6 +110,7 @@ test("ainterviewsAdapter.listPostings returns an empty array for an empty board"
 test("ainterviewsAdapter.listPostings throws an actionable error on a malformed response", async () => {
   stubFetch(async () => Response.json({ nope: true }));
   try {
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     await assert.rejects(ainterviewsAdapter.listPostings(company), (err: unknown) => {
       assert.ok(err instanceof Error);
       assert.match(err.message, /ainterviews list response failed schema for lenskart_ho/);

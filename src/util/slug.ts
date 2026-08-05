@@ -16,7 +16,7 @@ export function resolveSlug(entry: {
 
 /**
  * The dedup/merge/prune key used across the registry pipeline:
- * `${source}::${resolveSlug(entry)}`. Centralized so sheet-writer.ts's
+ * `${source}::${resolveSlug(entry)}`. Centralized so sheetWriter.ts's
  * dedup, registry/companies.ts's merge map, and its prune-diff all agree on
  * identity (previously each derived this independently and could drift).
  */

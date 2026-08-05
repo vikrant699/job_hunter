@@ -25,8 +25,8 @@ import type { Page } from "playwright";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { withBrowserPage, captureFirstRequest } from "./browser-fetch.js";
-import { htmlToText } from "./html-text.js";
+import { withBrowserPage, captureFirstRequest } from "./browserFetch.js";
+import { htmlToText } from "./htmlText.js";
 import { REMOTE_RE } from "./shared.js";
 
 const FRAG_RE = /jobfinder\d*\.jobfinder_table\.content\.html/i;

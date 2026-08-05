@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ashbyAdapter } from "../ashby.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany, at } from "./test-helpers.js";
+import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany, at } from "./testHelpers.js";
 
 const company: AdapterCompany = mkAdapterCompany({
   provider: "ashby",

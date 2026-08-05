@@ -1,5 +1,6 @@
 // src/ats/zwayam.test.ts
-import { test, type TestContext } from "node:test";
+import { test } from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import {
@@ -10,12 +11,12 @@ import {
 } from "../zwayam.js";
 import type { ZwayamHit } from "../zwayam.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, fetchSequence, jsonResponse, stubFetch } from "./test-helpers.js";
+import { asJson, at, fetchSequence, jsonResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 const company: AdapterCompany = {
   provider: "zwayam", slug: "cyient", name: "Cyient",
@@ -68,7 +69,7 @@ test("zwayamPage unwraps data.data + totalCount + hasMoreData from a live-shaped
     code: 200,
     data: { data: [hitWithShortJd, hitWithMediumJd], totalCount: 152, hasMoreData: true },
   };
-  const page = zwayamPage(raw);
+  const page = zwayamPage(asJson(raw));
   assert.equal(page.total, 152);
   assert.equal(page.hasMoreData, true);
   assert.equal(page.hits.length, 2);
@@ -77,7 +78,7 @@ test("zwayamPage unwraps data.data + totalCount + hasMoreData from a live-shaped
 
 test("zwayamPage handles an empty last page", () => {
   const raw = { code: 200, data: { data: [], totalCount: 152, hasMoreData: false } };
-  const page = zwayamPage(raw);
+  const page = zwayamPage(asJson(raw));
   assert.equal(page.hits.length, 0);
   assert.equal(page.total, 152);
   assert.equal(page.hasMoreData, false);
@@ -175,6 +176,7 @@ test("the dead-tenant error is charged to the company, not written off as infras
   // A domain Zwayam no longer hosts is a per-company board defect and MUST count
   // toward the row's consecutive_failures. If any of these flipped true the
   // scheduler would retry the board forever and never quarantine it.
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let err: unknown;
   try {
     zwayamPage(DEAD_DOMAIN_RESPONSE, "cult");

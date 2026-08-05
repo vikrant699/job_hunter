@@ -21,10 +21,11 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const API_ORIGIN = "https://api.pyjamahr.com";
 const BOARD_ORIGIN = "https://app.pyjamahr.com";
@@ -120,7 +121,7 @@ export function pyjamahrLocation(j: PyjamahrJob): string | null {
 }
 
 /** Unwrap + validate one DRF list page. Throws on shape mismatch. */
-export function parsePyjamahrList(json: unknown): PyjamahrList {
+export function parsePyjamahrList(json: JsonValue): PyjamahrList {
   return PyjamahrListSchema.parse(json);
 }
 
@@ -221,7 +222,7 @@ export async function assertPyjamahrTenantExists(company: AdapterCompany, uuid: 
 }
 
 /** Pull the HTML description from a detail response. Null when absent. */
-export function parsePyjamahrDetail(json: unknown): string | null {
+export function parsePyjamahrDetail(json: JsonValue): string | null {
   const parsed = PyjamahrDetailSchema.safeParse(json);
   if (!parsed.success) return null;
   return parsed.data.description ?? null;

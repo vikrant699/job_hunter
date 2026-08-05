@@ -11,7 +11,7 @@ import {
   extractTalentsoftJdHtml,
 } from "../talentsoft.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "talentsoft",

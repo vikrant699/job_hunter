@@ -6,21 +6,23 @@ import { isDeniedCompany } from "../filter/denylist.js";
 import type { Provider, ParsingStrategy, CompanyStatus, RegistryEntry } from "../schemas.js";
 import { RegistryEntrySchema } from "../schemas.js";
 import { resolveSlug, registryKey } from "../util/slug.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);
 
 /**
  * Read+validate a JSON array of RegistryEntry from disk. Used by the
- * sheet-backed cache fallback (sheet-registry.ts), which reads
+ * sheet-backed cache fallback (sheetRegistry.ts), which reads
  * data/registry-cache.json through this same function — the cache is a plain
  * JSON snapshot of the last fully-valid Companies-tab sync.
  */
 export function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
   const raw = readFileSync(path, "utf-8");
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JsonValueSchema.parse(JSON.parse(raw));
   } catch (err) {
     throw new Error(`registry file ${path} is not valid JSON: ${err}`);
   }
@@ -40,7 +42,7 @@ export interface SyncEntriesResult {
 
 /**
  * Shared upsert+prune core behind the sheet-backed sync (both the live-sheet
- * path and the cache fallback in sheet-registry.ts). `opts.prune` gates the
+ * path and the cache fallback in sheetRegistry.ts). `opts.prune` gates the
  * delete-orphans pass: callers with any unvalidated/quarantined rows must
  * pass `prune: false` so a single bad row in the source can't wipe out
  * companies it doesn't even mention.

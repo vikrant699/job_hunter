@@ -1,5 +1,5 @@
 import { profile } from "../profile.js";
-import { NOISE_DENYLIST_SLUGS, isNoiseSlug } from "./noise-denylist.js";
+import { NOISE_DENYLIST_SLUGS, isNoiseSlug } from "./noiseDenylist.js";
 
 /**
  * Cheap pre-filter: is this company on the user's services/staffing denylist, or

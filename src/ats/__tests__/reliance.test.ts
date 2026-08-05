@@ -14,7 +14,7 @@ import {
 } from "../reliance.js";
 import type { RelianceJobRow } from "../reliance.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch, at } from "./test-helpers.js";
+import { stubFetch, at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "reliance", slug: "reliance", name: "Reliance Industries",

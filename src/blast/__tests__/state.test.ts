@@ -4,10 +4,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  loadState, loadAllStates, saveState, emptyState, knownEmails, draftedEverCount, maxBatch, statePathFor,
-  type BlastRecord,
-} from "../state.js";
+import { loadState, loadAllStates, saveState, emptyState, knownEmails, draftedEverCount, maxBatch, statePathFor } from "../state.js";
+import type { BlastRecord } from "../state.js";
 
 function withTempDir(fn: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "blast-state-"));

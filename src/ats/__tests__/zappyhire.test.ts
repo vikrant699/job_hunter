@@ -10,7 +10,7 @@ import {
 } from "../zappyhire.js";
 import type { NewGenJob, LegacyJobSummary, MtSource } from "../zappyhire.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
-import { stubFetch, fetchSequence, jsonResponse } from "./test-helpers.js";
+import { stubFetch, fetchSequence, jsonResponse } from "./testHelpers.js";
 
 const newGenCompany: AdapterCompany = {
   provider: "zappyhire", slug: "federalbank", name: "Federal Bank",

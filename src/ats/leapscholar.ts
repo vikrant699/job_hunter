@@ -8,10 +8,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { logger } from "../logger.js";
+import type { JsonValue } from "../util/json.js";
 
 const LEAPSCHOLAR_JOBS_URL = "https://careers-api-eight.vercel.app/api/jobs";
 
@@ -39,7 +40,7 @@ const LeapscholarLocationArraySchema = z.array(LeapscholarLocationEntrySchema);
 /** `Location` is a JSON-encoded `[{Address, PlaceId}]` string; joins multiple addresses. */
 function parseLeapscholarLocation(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  let parsed: z.SafeParseReturnType<unknown, z.infer<typeof LeapscholarLocationArraySchema>>;
+  let parsed: z.SafeParseReturnType<JsonValue, z.infer<typeof LeapscholarLocationArraySchema>>;
   try {
     parsed = LeapscholarLocationArraySchema.safeParse(JSON.parse(raw));
   } catch {
@@ -53,7 +54,7 @@ function parseLeapscholarLocation(raw: string | null | undefined): string | null
 /** Unwraps `{Total, Jobs}`, logging a warning if the reported total disagrees
  *  with the actual array length (the API has no pagination, so these should
  *  always match — a mismatch likely means the server started paginating). */
-export function leapscholarJobs(json: unknown): LeapscholarJob[] {
+export function leapscholarJobs(json: JsonValue): LeapscholarJob[] {
   const parsed = LeapscholarResponseSchema.parse(json);
   if (parsed.Total !== parsed.Jobs.length) {
     logger.warn(

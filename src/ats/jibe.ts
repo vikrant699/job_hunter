@@ -8,10 +8,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
 
 export const JibeJobSchema = z.object({
   slug: z.union([z.string(), z.number()]),
@@ -41,7 +42,7 @@ export function jibeApiUrl(company: AdapterCompany, page: number): string {
 }
 
 /** Unwrap the `jobs[].data` envelope; tolerates a missing totalCount. */
-export function jibePageJobs(pageJson: unknown): { jobs: JibeJob[]; totalCount: number | null } {
+export function jibePageJobs(pageJson: JsonValue): { jobs: JibeJob[]; totalCount: number | null } {
   const parsed = JibePageSchema.parse(pageJson);
   return { jobs: parsed.jobs.map((j) => j.data), totalCount: parsed.totalCount ?? null };
 }

@@ -2,24 +2,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import nacl from "tweetnacl";
-import {
-  DEFAULT_SEED,
-  seedBytes,
-  boxOpen,
-  decryptToJson,
-  extractSeedFromBundle,
-  bundleUrlFromResponses,
-  bundleKey,
-  resolveSeed,
-  decryptWithHealing,
-  parseJobListPage,
-  normalizeTalentRecruit,
-  EncryptedBlobSchema,
-  type EncryptedBlob,
-  type SeedStore,
-  type TalentRecruitJob,
-} from "../talentrecruit.js";
+import { DEFAULT_SEED, seedBytes, boxOpen, decryptToJson, extractSeedFromBundle, bundleUrlFromResponses, bundleKey, resolveSeed, decryptWithHealing, parseJobListPage, normalizeTalentRecruit, EncryptedBlobSchema } from "../talentrecruit.js";
+import type { EncryptedBlob, SeedStore, TalentRecruitJob } from "../talentrecruit.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 // --- fixtures ---
 
@@ -50,7 +36,7 @@ function bundleWithSeed(seed: readonly number[]): string {
   return `!function(){var e={backendseed:{secretKey:[${seed.join(",")}]},other:1};return e}()`;
 }
 
-const envelope = (jobs: unknown[], count: number): unknown => ({
+const envelope = <T,>(jobs: T[], count: number) => ({
   error: false, statusCode: 200, message: "Success!",
   data: { data: { noOfTotalRecords: { count }, data: jobs } },
 });
@@ -173,7 +159,7 @@ test("decryptWithHealing: throws loudly when every seed fails (scheme changed)",
 // --- envelope + normalize ---
 
 test("parseJobListPage unwraps the nested envelope and reads the total", () => {
-  const page = parseJobListPage(envelope([sampleJob], 7));
+  const page = parseJobListPage(asJson(envelope([sampleJob], 7)));
   assert.equal(page.total, 7);
   assert.equal(page.jobs.length, 1);
   assert.equal(page.jobs[0]?.code, "12184");

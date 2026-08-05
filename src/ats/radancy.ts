@@ -46,11 +46,11 @@
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
-import { assertNotEdgeChallenge } from "../util/error-cause.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 // Both live tenants' pager chrome carries data-records-per-page="15"; not
 // otherwise parsed/used (pagination relies on data-total-results, not a

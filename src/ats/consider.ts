@@ -18,7 +18,8 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import type { JsonValue } from "../util/json.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const PAGE = 100;
 
@@ -38,7 +39,7 @@ export type ConsiderJob = z.infer<typeof ConsiderJobSchema>;
 
 const ConsiderResponseSchema = z.object({
   total: z.number().optional(),
-  jobs: z.array(z.unknown()).optional(),
+  jobs: z.array(JsonValueSchema).optional(),
 });
 
 /** Request body for one page of one company's jobs. */
@@ -50,7 +51,7 @@ export function considerSearchBody(boardId: string, size: number, offset: number
   };
 }
 
-export function considerJobsFrom(raw: unknown): { jobs: unknown[]; total: number } {
+export function considerJobsFrom(raw: JsonValue): { jobs: JsonValue[]; total: number } {
   const parsed = ConsiderResponseSchema.safeParse(raw);
   const jobs = parsed.success ? (parsed.data.jobs ?? []) : [];
   const total = parsed.success ? (parsed.data.total ?? jobs.length) : 0;

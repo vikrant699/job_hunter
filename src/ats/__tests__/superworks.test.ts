@@ -10,12 +10,12 @@ import {
   parseSuperworksJd,
 } from "../superworks.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 const company: AdapterCompany = {
   provider: "superworks",
@@ -187,6 +187,7 @@ const EMPTY_BOARD_HTML = `<html><body>${pushScript(
 )}</body></html>`;
 
 /** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function thrownBy(fn: () => unknown): unknown {
   try {
     fn();

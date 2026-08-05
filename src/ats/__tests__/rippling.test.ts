@@ -1,16 +1,10 @@
 // src/ats/rippling.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ripplingListUrl,
-  ripplingDetailUrl,
-  normalizeRipplingJob,
-  buildRipplingJd,
-  type RipplingJob,
-  type RipplingDetail,
-} from "../rippling.js";
+import { ripplingListUrl, ripplingDetailUrl, normalizeRipplingJob, buildRipplingJd } from "../rippling.js";
+import type { RipplingJob, RipplingDetail } from "../rippling.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "rippling",

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { parseLiteral, jsVarPostings } from "../jsvar.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", () => {
   const v = z.array(z.record(z.string())).parse(parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false));
@@ -13,6 +13,29 @@ test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", 
 
 test("parseLiteral cannot reach host globals (sandboxed)", () => {
   assert.throws(() => parseLiteral("[process.pid]", false));
+});
+
+// A scraped JS literal is JavaScript, not JSON, so it can hold values JsonValue
+// cannot represent. parseLiteral normalises through JSON rather than validating
+// the raw eval result — validating it directly threw on all four of these, which
+// would have broken the jsvar boards that ship them.
+test("parseLiteral tolerates JS-only values that JSON cannot represent", () => {
+  const undef = z.array(z.object({ title: z.string(), deadline: z.string().optional() }))
+    .parse(parseLiteral("[{ title: 'A', deadline: undefined }]", false));
+  assert.equal(at(undef, 0).deadline, undefined, "an undefined value drops out, leaving the key absent");
+
+  const holes = z.object({ tags: z.array(z.string().nullable()) })
+    .parse(parseLiteral("({ tags: ['a', , 'c'] })", false));
+  assert.deepEqual(holes.tags, ["a", null, "c"], "an array hole becomes null, not a throw");
+
+  const nan = z.object({ n: z.number().nullable() }).parse(parseLiteral("({ n: NaN })", false));
+  assert.equal(nan.n, null, "NaN becomes null");
+
+  const dated = z.object({ posted: z.string() }).parse(parseLiteral("({ posted: new Date(0) })", false));
+  assert.equal(dated.posted, "1970-01-01T00:00:00.000Z", "a Date becomes its ISO string");
+
+  const fn = z.object({ title: z.string() }).parse(parseLiteral("({ title: 'A', fn: function () {} })", false));
+  assert.equal(fn.title, "A", "a function is dropped rather than failing the whole literal");
 });
 
 const arrayCompany: AdapterCompany = {

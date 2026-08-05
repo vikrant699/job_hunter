@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { dig, parseNextDataIsland, nextDataPostings } from "../nextdata.js";
 import type { AdapterCompany } from "../../types.js";
 import type { JsonValue } from "../../util/json.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "nextdata",
