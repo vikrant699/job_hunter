@@ -16,7 +16,7 @@ const plugins = {
 export default tseslint.config(
   {
     files: ["**/*.ts"],
-    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**"],
     languageOptions,
     plugins,
     rules: {
@@ -52,7 +52,7 @@ export default tseslint.config(
     // no-floating-promises only because node:test's top-level `test()` calls
     // return promises the runner itself tracks.
     files: ["**/*.ts"],
-    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "**/*.test.ts"],
+    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**", "**/*.test.ts"],
     languageOptions,
     plugins,
     rules: {
