@@ -6,6 +6,8 @@
 // the user: NO em dashes in outgoing mail.
 import { readFileSync } from "node:fs";
 import { z } from "zod";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const OpenerSchema = z.object({
   hello: z.string().min(1),
@@ -27,9 +29,9 @@ export type BlastContent = z.infer<typeof BlastContentSchema>;
  *  errors on structural problems, a missing {company} token, or any em dash
  *  (banned in outgoing mail). */
 export function loadBlastContent(path: string): BlastContent {
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf-8"));
+    parsed = JsonValueSchema.parse(JSON.parse(readFileSync(path, "utf-8")));
   } catch (err) {
     throw new Error(`blast content at ${path} is unreadable: ${String(err)}`);
   }

@@ -31,10 +31,11 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchFormJson } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
 
 const HOST = "https://www.tata.com";
 const SEARCH_URL = `${HOST}/bin/tata/jobPostingsFilterServlet?`;
@@ -97,7 +98,7 @@ export function tataSearchParams(company: AdapterCompany, start: number): URLSea
 }
 
 /** Unwrap+validate one page of the servlet's response envelope. */
-export function parseTataPage(json: unknown): { jobs: TataJob[]; total: number | null } {
+export function parseTataPage(json: JsonValue): { jobs: TataJob[]; total: number | null } {
   const parsed = TataResponseSchema.parse(json);
   return {
     jobs: parsed.response.jobPostings ?? [],
@@ -135,7 +136,7 @@ export function normalizeTataCareers(company: AdapterCompany, j: TataJob): Norma
 
 /** POST one page to the shared servlet. No cookie/session warm-up is needed
  *  (verified live) but the WAF 403s without a browser UA + these headers. */
-async function tataFetchPage(company: AdapterCompany, start: number): Promise<unknown> {
+async function tataFetchPage(company: AdapterCompany, start: number): Promise<JsonValue> {
   const form = Object.fromEntries(tataSearchParams(company, start));
   return atsFetchFormJson(SEARCH_URL, form, {
     provider: "tatacareers",

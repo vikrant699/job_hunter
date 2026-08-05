@@ -48,9 +48,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const API_URL = "https://moglix-api.flexiele.com/api-pub/rec/careers/list";
 const CAREERS_URL = "https://moglix.flexiele.com/careers/moglix/jobs";
@@ -124,7 +125,7 @@ function randomHexKey(): string {
  */
 const EnvelopeSchema = z.record(z.string(), z.string());
 
-export function unwrapEnvelope(json: unknown): string {
+export function unwrapEnvelope(json: JsonValue): string {
   const parsed = EnvelopeSchema.safeParse(json);
   if (!parsed.success) {
     throw new Error(`moglix: expected a string-valued envelope object: ${JSON.stringify(parsed.error.issues.slice(0, 2))}`);
@@ -160,7 +161,7 @@ const ListPayloadSchema = z.object({
 });
 
 /** Decrypt+validate one `careers/list` response envelope into its job rows. */
-export function parseListResponse(envelopeJson: unknown, passphrase: string): MoglixJob[] {
+export function parseListResponse(envelopeJson: JsonValue, passphrase: string): MoglixJob[] {
   const ciphertext = unwrapEnvelope(envelopeJson);
   const plaintext = moglixDecrypt(ciphertext, passphrase);
   const parsed = ListPayloadSchema.parse(JSON.parse(plaintext));
@@ -201,7 +202,7 @@ export function normalizeMoglix(company: AdapterCompany, j: MoglixJob): Normaliz
  * alongside its usual timeout/UA/error handling. No WAF gate observed live —
  * the default bot UA works fine, no cookies/session needed.
  */
-async function fetchEncryptedList(): Promise<unknown> {
+async function fetchEncryptedList(): Promise<JsonValue> {
   const hexKey = randomHexKey();
   const requestBody = { ...GRID_REQUEST, requiresCounts: true, skip: 0, take: TAKE };
   const ciphertext = moglixEncrypt(JSON.stringify(requestBody), ENC_PASSPHRASE);
@@ -218,6 +219,7 @@ export const moglixAdapter: AtsAdapter = {
   provider: "moglix",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     const json = await fetchEncryptedList().catch((err: unknown) => {
       logger.warn({ slug: company.slug, err: String(err).slice(0, 200) }, "moglix list fetch failed");
       throw err;

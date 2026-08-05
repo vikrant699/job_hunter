@@ -9,9 +9,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const PeoplehumLocationSchema = z.object({
   countryCity: z.string().nullable().optional(),
@@ -45,7 +46,7 @@ export function peoplehumListUrl(company: AdapterCompany): string {
 }
 
 /** Unwrap `responseObject.content`; tolerant of a missing/empty envelope. */
-export function peoplehumJobs(json: unknown): PeoplehumJob[] {
+export function peoplehumJobs(json: JsonValue): PeoplehumJob[] {
   return PeoplehumResponseSchema.parse(json).responseObject.content;
 }
 

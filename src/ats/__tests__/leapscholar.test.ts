@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { leapscholarJobs, normalizeLeapscholar } from "../leapscholar.js";
 import type { LeapscholarJob } from "../leapscholar.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "leapscholar", slug: "leapscholar", name: "Leap Scholar",
@@ -36,13 +37,13 @@ const remoteJob: LeapscholarJob = {
 };
 
 test("leapscholarJobs unwraps {Total, Jobs} when they agree", () => {
-  const jobs = leapscholarJobs({ Total: 2, Jobs: [job, remoteJob] });
+  const jobs = leapscholarJobs(asJson({ Total: 2, Jobs: [job, remoteJob] }));
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.JobTitle, "SDE -II");
 });
 
 test("leapscholarJobs still returns Jobs when Total disagrees with Jobs.length (warns, doesn't throw)", () => {
-  const jobs = leapscholarJobs({ Total: 99, Jobs: [job] });
+  const jobs = leapscholarJobs(asJson({ Total: 99, Jobs: [job] }));
   assert.equal(jobs.length, 1);
 });
 

@@ -17,7 +17,7 @@
 // per-job detail endpoint exists.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { makeJsonListAdapter } from "./json-list.js";
+import { makeJsonListAdapter } from "./jsonList.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://joinus.juspay.in/api/careerJobOpening?limit=1000";

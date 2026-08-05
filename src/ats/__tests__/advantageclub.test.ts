@@ -1,15 +1,8 @@
 // src/ats/advantageclub.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  advantageClubListUrl,
-  advantageClubDetailUrl,
-  advantageClubJobUrl,
-  normalizeAdvantageClubJob,
-  buildAdvantageClubJd,
-  type AdvantageClubJob,
-  type AdvantageClubDetail,
-} from "../advantageclub.js";
+import { advantageClubListUrl, advantageClubDetailUrl, advantageClubJobUrl, normalizeAdvantageClubJob, buildAdvantageClubJd } from "../advantageclub.js";
+import type { AdvantageClubJob, AdvantageClubDetail } from "../advantageclub.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

@@ -26,10 +26,10 @@ import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
-import { assertNotEdgeChallenge } from "../util/error-cause.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 // Safety cap: 50,000-125,000 jobs, depending on the tenant's page size (10-25
 // rows x MAX_PAGES 5000). paginate stops earlier once it reaches the parsed

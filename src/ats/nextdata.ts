@@ -19,9 +19,10 @@
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 import { REMOTE_RE } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 

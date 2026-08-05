@@ -9,7 +9,8 @@ import {
 } from "../eightfoldpcs.js";
 import type { EightfoldPcsPosition } from "../eightfoldpcs.js";
 import type { AdapterCompany } from "../../types.js";
-import { htmlToText } from "../html-text.js";
+import { htmlToText } from "../htmlText.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "eightfoldpcs", slug: "qualcomm", name: "Qualcomm",
@@ -91,7 +92,7 @@ test("eightfoldPcsDetailsUrl builds the position_details URL", () => {
 });
 
 test("eightfoldPcsPageJobs unwraps the data.{positions,count} envelope", () => {
-  const { positions, count } = eightfoldPcsPageJobs(searchFixture);
+  const { positions, count } = eightfoldPcsPageJobs(asJson(searchFixture));
   assert.equal(count, 461);
   assert.equal(positions.length, 2);
   assert.equal(positions[0]?.name, "IP Validation Engineer (Security) - Senior/Lead");

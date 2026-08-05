@@ -1,12 +1,15 @@
 import "dotenv/config";
 import { logger } from "./logger.js";
-import { syncRegistryFromSheet, type RegistrySyncResult } from "./registry/sheet-registry.js";
+import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
+import type { RegistrySyncResult } from "./registry/sheetRegistry.js";
 import { runProductionTick } from "./pipeline/index.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
-import { runOutreach, type RunOutreachResult } from "./outreach/run.js";
-import { runVerify, type VerifyResult } from "./outreach/verify.js";
-import { projectToSheet } from "./outreach/sheet-sync.js";
+import { runOutreach } from "./outreach/run.js";
+import type { RunOutreachResult } from "./outreach/run.js";
+import { runVerify } from "./outreach/verify.js";
+import type { VerifyResult } from "./outreach/verify.js";
+import { projectToSheet } from "./outreach/sheetSync.js";
 import { postRunStatus } from "./discord/status.js";
 import { profile } from "./profile.js";
 

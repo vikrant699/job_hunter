@@ -1,4 +1,5 @@
-import { DatabaseSync, type StatementSync, type SQLInputValue } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
+import type { StatementSync, SQLInputValue } from "node:sqlite";
 import { readFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

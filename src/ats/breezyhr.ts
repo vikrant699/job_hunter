@@ -4,9 +4,10 @@ import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchHtml } from "./http.js";
 import { REMOTE_RE, tenantOriginOr } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 // BreezyHR public boards: <tenant>.breezy.hr
 //   list: GET https://<tenant>.breezy.hr/json  (no auth; ?limit= is ignored,
@@ -60,7 +61,7 @@ export function breezyBase(company: AdapterCompany): string {
  * unauthenticated endpoint like this can carry the occasional odd record.
  * Throws only if the top-level shape isn't an array at all.
  */
-export function parseBreezyJobs(raw: unknown, slug: string): BreezyJob[] {
+export function parseBreezyJobs(raw: JsonValue, slug: string): BreezyJob[] {
   if (!Array.isArray(raw)) {
     throw new Error(`breezyhr list response for ${slug} was not an array`);
   }

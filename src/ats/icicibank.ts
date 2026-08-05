@@ -49,10 +49,12 @@ import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 // Single-tenant: this is ICICI Bank's own site, not a SaaS ATS host pattern.
 const API_BASE = "https://careers.icici.bank.in/CareerApplicantApi";
@@ -80,7 +82,7 @@ function randomIv(): string {
  * `ENCRYPT_KEY` with a fresh random IV, IV appended in plain text after the
  * base64 ciphertext. Exported for the round-trip test.
  */
-export function encryptPayload(value: unknown): string {
+export function encryptPayload<T>(value: T): string {
   const iv = randomIv();
   const cipher = createCipheriv("aes-128-cbc", Buffer.from(ENCRYPT_KEY, "utf8"), Buffer.from(iv, "utf8"));
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
@@ -93,13 +95,13 @@ export function encryptPayload(value: unknown): string {
  * an IV (malformed) or the key/IV don't unpad cleanly (wrong key — see the
  * module header on key rotation).
  */
-export function decryptPayload(blob: string): unknown {
+export function decryptPayload(blob: string): JsonValue {
   if (blob.length <= 16) throw new Error(`icicibank: ciphertext too short to hold a 16-char IV suffix (${blob.length})`);
   const iv = blob.slice(blob.length - 16);
   const ciphertext = blob.slice(0, blob.length - 16);
   const decipher = createDecipheriv("aes-128-cbc", Buffer.from(ENCRYPT_KEY, "utf8"), Buffer.from(iv, "utf8"));
   const plaintext = Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64")), decipher.final()]);
-  return JSON.parse(plaintext.toString("utf8"));
+  return JsonValueSchema.parse(JSON.parse(plaintext.toString("utf8")));
 }
 
 /** Request body shape for Career/Search/1 (pre-encryption), mirrors the real client's fields exactly. */
@@ -146,7 +148,7 @@ const JdEnvelopeSchema = z.object({
 });
 
 /** Unwrap+decrypt one Career/Search/1 response. `null` means "no more pages" (ResponseCode 103). */
-export function parseSearchEnvelope(json: unknown): IciciJob[] | null {
+export function parseSearchEnvelope(json: JsonValue): IciciJob[] | null {
   const parsed = SearchEnvelopeSchema.parse(json);
   if (!parsed.Data) return null;
   const decrypted = decryptPayload(parsed.Data);

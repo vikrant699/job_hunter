@@ -15,11 +15,12 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, tenantOrigin } from "./shared.js";
 import { JsonValueSchema } from "../util/json.js";
 import * as cheerio from "cheerio";
+import type { JsonValue } from "../util/json.js";
 
 export const SuperopsCareerSchema = z.object({
   jobTitle: z.string(),
@@ -35,7 +36,7 @@ const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
 
 /** Find the careers[] array inside any sq-data blob (shape:
  *  data.<Anything>.careers). Returns null when this blob isn't the one. */
-export function extractSuperopsCareers(blob: unknown): SuperopsCareer[] | null {
+export function extractSuperopsCareers(blob: JsonValue): SuperopsCareer[] | null {
   const parsed = SqBlobSchema.safeParse(blob);
   if (!parsed.success) return null;
   for (const v of Object.values(parsed.data.data)) {

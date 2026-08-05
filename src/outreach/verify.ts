@@ -1,13 +1,10 @@
 import { logger } from "../logger.js";
 import { config } from "../config.js";
-import { getDraft as getDraftDefault, searchMessages as searchMessagesDefault, getMessageMetadata as getMessageMetadataDefault, type MessageMetadata, type MessageRef } from "../google/gmail.js";
+import { getDraft as getDraftDefault, searchMessages as searchMessagesDefault, getMessageMetadata as getMessageMetadataDefault } from "../google/gmail.js";
+import type { MessageMetadata, MessageRef } from "../google/gmail.js";
 import { GoogleAuthExpiredError } from "../google/auth.js";
-import {
-  selectOutreachByStatus as selectOutreachByStatusDefault,
-  updateOutreachStatus as updateOutreachStatusDefault,
-  insertUndrafted as insertUndraftedDefault,
-  type OutreachRow, type UpdateOutreachStatusInput, type InsertUndraftedInput,
-} from "../db/outreach.js";
+import { selectOutreachByStatus as selectOutreachByStatusDefault, updateOutreachStatus as updateOutreachStatusDefault, insertUndrafted as insertUndraftedDefault } from "../db/outreach.js";
+import type { OutreachRow, UpdateOutreachStatusInput, InsertUndraftedInput } from "../db/outreach.js";
 import { selectAllRecruiters, setRecruiterStatus as setRecruiterStatusDefault } from "../db/recruiters.js";
 import { readTab as readTabDefault, appendRows as appendRowsDefault } from "../google/sheets.js";
 import { parseRoles } from "./roles.js";

@@ -1,15 +1,8 @@
 // src/ats/peoplestrong.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  peoplestrongListUrl,
-  peoplestrongJdUrl,
-  peoplestrongJobUrl,
-  normalizePeoplestrong,
-  parsePeoplestrongJd,
-  PeoplestrongListSchema,
-  type PeoplestrongJob,
-} from "../peoplestrong.js";
+import { peoplestrongListUrl, peoplestrongJdUrl, peoplestrongJobUrl, normalizePeoplestrong, parsePeoplestrongJd, PeoplestrongListSchema } from "../peoplestrong.js";
+import type { PeoplestrongJob } from "../peoplestrong.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

@@ -10,12 +10,12 @@ import {
   extractHtmlBoardJd,
 } from "../htmlboard.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 function company(apiMeta: Record<string, string>): AdapterCompany {
   return {
@@ -190,6 +190,7 @@ test("the dead-page error is charged to the company, not written off as infrastr
   stubFetch(t, fetchSequence(() => htmlResponse(PARKED_HTML)));
   const err = await htmlboardAdapter
     .listPostings(company(boardMeta))
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     .then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);
@@ -203,6 +204,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await htmlboardAdapter
     .listPostings(company(boardMeta))
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     .then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
@@ -216,6 +218,7 @@ test("a boardSelector-less row also refuses to read a block page as an empty boa
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await htmlboardAdapter
     .listPostings(company({ itemSelector: "li.card" }))
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     .then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.ok(isInfrastructureFault(err));

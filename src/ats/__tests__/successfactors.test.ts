@@ -14,9 +14,9 @@ import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, CHALLENGE_PAGE_HTML, htmlResponse, mkAdapterCompany, stubFetch } from "./test-helpers.js";
+import { at, CHALLENGE_PAGE_HTML, htmlResponse, mkAdapterCompany, stubFetch } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "successfactors",
@@ -384,6 +384,7 @@ test("the dead-domain error is charged to the company, not written off as infras
   // MUST count toward consecutive_failures. If any of these flipped true the
   // scheduler would retry it forever and never quarantine it.
   stubFetch(t, () => Promise.resolve(htmlResponse(PARKED_HTML)));
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   const err = await successfactorsAdapter.listPostings(mahindra).then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);
@@ -396,6 +397,7 @@ test("the dead-domain error is charged to the company, not written off as infras
 // block page") while charging it to the company.
 test("a WAF challenge page is an edge refusal, NOT a dead custom domain", async (t) => {
   stubFetch(t, () => Promise.resolve(htmlResponse(CHALLENGE_PAGE_HTML)));
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   const err = await successfactorsAdapter.listPostings(mahindra).then(() => null, (e: unknown) => e);
   assert.ok(err instanceof Error);
   assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");

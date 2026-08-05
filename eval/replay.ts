@@ -5,10 +5,8 @@ import { buildCsv } from "../src/util/csv.js";
 import { runGate } from "../src/llm/gate.js";
 import { loadLabels } from "./labels.js";
 import { loadLabeledPostings } from "./dataset.js";
-import {
-  rocAuc, recallAtThreshold, precisionAtThreshold,
-  maxThresholdForFullRecall, scoreSpread, type ScoredLabel,
-} from "./metrics.js";
+import { rocAuc, recallAtThreshold, precisionAtThreshold, maxThresholdForFullRecall, scoreSpread } from "./metrics.js";
+import type { ScoredLabel } from "./metrics.js";
 
 function flag(name: string, def: string): string;
 function flag(name: string, def: null): string | null;

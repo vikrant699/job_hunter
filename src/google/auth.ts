@@ -3,6 +3,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { z } from "zod";
 import { config } from "../config.js";
 import { writeFileAtomic } from "../util/fs.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const TokenFileSchema = z.object({
   refresh_token: z.string(),
@@ -59,10 +61,10 @@ function requireClientCreds(): { clientId: string; clientSecret: string } {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || clientId.trim() === "") {
-    throw new Error("GOOGLE_CLIENT_ID is not set in .env — see scripts/google-auth.ts for setup.");
+    throw new Error("GOOGLE_CLIENT_ID is not set in .env — see scripts/googleAuth.ts for setup.");
   }
   if (!clientSecret || clientSecret.trim() === "") {
-    throw new Error("GOOGLE_CLIENT_SECRET is not set in .env — see scripts/google-auth.ts for setup.");
+    throw new Error("GOOGLE_CLIENT_SECRET is not set in .env — see scripts/googleAuth.ts for setup.");
   }
   return { clientId, clientSecret };
 }
@@ -77,9 +79,9 @@ function readTokenFile(profileId: string, deps: GoogleAuthDeps): TokenFile {
   } catch {
     throw new GoogleAuthExpiredError(profileId, `could not read token file at ${deps.tokenPath}`);
   }
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(raw);
+    parsed = JsonValueSchema.parse(JSON.parse(raw));
   } catch {
     throw new GoogleAuthExpiredError(profileId, `token file at ${deps.tokenPath} is not valid JSON`);
   }

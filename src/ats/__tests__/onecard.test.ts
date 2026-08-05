@@ -1,7 +1,8 @@
 // src/ats/onecard.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeOnecard, onecardJdText, onecardListUrl, OnecardJobSchema, type OnecardJob } from "../onecard.js";
+import { normalizeOnecard, onecardJdText, onecardListUrl, OnecardJobSchema } from "../onecard.js";
+import type { OnecardJob } from "../onecard.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

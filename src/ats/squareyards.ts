@@ -15,10 +15,12 @@ import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { logger } from "../logger.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { INTER_PAGE_DELAY_MS, REMOTE_RE, joinLocation, sleep } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 // Enumerated from the careers page nav (https://www.squareyards.com/career)
 // on 2026-08-01. Not discoverable from a single JSON call — the nav itself
@@ -40,7 +42,7 @@ export type SquareYardsJob = z.infer<typeof SquareYardsJobSchema>;
 const SquareYardsResponseSchema = z.object({
   status: z.number().optional(),
   message: z.string().optional(),
-  data: z.array(z.unknown()).optional(),
+  data: z.array(JsonValueSchema).optional(),
 });
 
 /** URL for one department's job list. `origin` is the company's careers host. */
@@ -51,7 +53,7 @@ export function squareyardsDeptUrl(origin: string, department: string): string {
 /** Unwrap one department page's job list. Never throws — a malformed or
  *  non-JSON (e.g. HTML shell) response yields [] so the caller can skip the
  *  department instead of failing the whole board. */
-export function squareyardsJobsFrom(raw: unknown): unknown[] {
+export function squareyardsJobsFrom(raw: JsonValue): JsonValue[] {
   const parsed = SquareYardsResponseSchema.safeParse(raw);
   return parsed.success ? (parsed.data.data ?? []) : [];
 }
@@ -87,7 +89,7 @@ export const squareyardsAdapter: AtsAdapter = {
 
     for (const department of SQUAREYARDS_DEPARTMENTS) {
       const url = squareyardsDeptUrl(origin, department);
-      let raw: unknown;
+      let raw: JsonValue;
       try {
         raw = await atsFetchJson(url, { provider: "squareyards", userAgent: BROWSER_UA });
       } catch (err) {

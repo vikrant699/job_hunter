@@ -1,4 +1,4 @@
-function escapeCsvCell(value: unknown): string {
+function escapeCsvCell<T>(value: T): string {
   if (value === null || value === undefined) return "";
   const s = String(value);
   if (s.includes(",") || s.includes('"') || s.includes("\n") || s.includes("\r")) {
@@ -7,7 +7,7 @@ function escapeCsvCell(value: unknown): string {
   return s;
 }
 
-export function buildCsv(headers: readonly string[], rows: ReadonlyArray<ReadonlyArray<unknown>>): string {
+export function buildCsv<T>(headers: readonly string[], rows: ReadonlyArray<ReadonlyArray<T>>): string {
   const lines: string[] = [];
   lines.push(headers.map((h) => escapeCsvCell(h)).join(","));
   for (const row of rows) {

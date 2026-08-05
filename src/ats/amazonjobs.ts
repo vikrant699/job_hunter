@@ -5,10 +5,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
 
 const BASE = "https://www.amazon.jobs";
 const RESULT_LIMIT = 100; // server max for result_limit
@@ -39,7 +40,7 @@ export function amazonJobsApiUrl(company: AdapterCompany, offset: number): strin
 }
 
 /** Parse one search.json page into its jobs and the reported total (`hits`). */
-export function amazonJobsPageJobs(pageJson: unknown): { jobs: AmazonJob[]; total: number | null } {
+export function amazonJobsPageJobs(pageJson: JsonValue): { jobs: AmazonJob[]; total: number | null } {
   const parsed = AmazonJobsPageSchema.parse(pageJson);
   return { jobs: parsed.jobs, total: parsed.hits ?? null };
 }

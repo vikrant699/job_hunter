@@ -10,8 +10,8 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { BROWSER_UA } from "../util/user-agent.js";
-import { htmlToText } from "./html-text.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, joinLocation } from "./shared.js";
 

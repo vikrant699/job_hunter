@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { normalizeHappyEasyGo, flattenDepartment, happyeasygoAdapter } from "../happyeasygo.js";
 import type { HappyEasyGoDepartment, HappyEasyGoPosition } from "../happyeasygo.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "happyeasygo", slug: "happyeasygo", name: "HappyEasyGo",
@@ -85,7 +85,7 @@ const realFetch = globalThis.fetch;
 function setFetch(fn: typeof globalThis.fetch): void {
   globalThis.fetch = fn;
 }
-function stubFetch(payload: unknown): void {
+function stubFetch<T>(payload: T): void {
   setFetch(async () => new Response(JSON.stringify(payload), { status: 200 }));
 }
 function restoreFetch(): void {

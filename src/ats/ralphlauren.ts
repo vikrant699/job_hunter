@@ -24,8 +24,8 @@ import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { browserFetchJson, withBrowserPage } from "./browser-fetch.js";
-import { htmlToText } from "./html-text.js";
+import { browserFetchJson, withBrowserPage } from "./browserFetch.js";
+import { htmlToText } from "./htmlText.js";
 import { parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
@@ -114,7 +114,7 @@ export const ralphlaurenAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const [raw] = await browserFetchJson(SEARCH_PAGE, [DATA_URL]);
-    const parsed = parseOrThrow(DataSchema, raw, { provider: "ralphlauren", slug: company.slug });
+    const parsed = parseOrThrow(DataSchema, raw ?? null, { provider: "ralphlauren", slug: company.slug });
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
     for (const loc of Object.values(parsed.locations)) {

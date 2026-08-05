@@ -12,6 +12,7 @@ import {
   talentzqJdText,
 } from "../talentzq.js";
 import type { AdapterCompany } from "../../types.js";
+import { JsonValueSchema } from "../../util/json.js";
 
 const company: AdapterCompany = {
   provider: "talentzq", slug: "pratilipi", name: "Pratilipi",
@@ -60,7 +61,7 @@ test("TalentzqJobSchema rejects a record with no id", () => {
 });
 
 test("talentzqJobsFrom double-decodes the JSON-string-wrapped array", () => {
-  const jobs = talentzqJobsFrom(JSON.parse(DOUBLE_ENCODED_RESPONSE));
+  const jobs = talentzqJobsFrom(JsonValueSchema.parse(JSON.parse(DOUBLE_ENCODED_RESPONSE)));
   assert.equal(jobs.length, 2);
 });
 

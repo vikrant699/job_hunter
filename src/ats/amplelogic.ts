@@ -11,7 +11,7 @@
 // pagination params observed. Only publish:true rows are surfaced.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { makeJsonListAdapter } from "./json-list.js";
+import { makeJsonListAdapter } from "./jsonList.js";
 import { REMOTE_RE } from "./shared.js";
 
 const LIST_URL = "https://www.amplelogic.com/api/careers?locale=en";

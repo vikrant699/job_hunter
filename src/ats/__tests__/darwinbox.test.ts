@@ -8,6 +8,8 @@ import {
 } from "../darwinbox.js";
 import type { DarwinboxJob, DarwinboxV2Job } from "../darwinbox.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
+import type { JsonValue } from "../../util/json.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "darwinbox", slug: "emeritus", name: "Emeritus",
@@ -103,8 +105,8 @@ test("darwinboxPagesNeeded guards against a zero/absent page size", () => {
   assert.equal(darwinboxPagesNeeded(0, 10), 0);
 });
 
-function page(jobs: DarwinboxJob[]) {
-  return { status: "ok", message: { jobscount: null, jobs } };
+function page(jobs: DarwinboxJob[]): JsonValue {
+  return asJson({ status: "ok", message: { jobscount: null, jobs } });
 }
 
 test("mergeDarwinboxPages accumulates valid pages in order", () => {
@@ -175,8 +177,8 @@ test("normalizeDarwinboxV2 treats is_remote as authoritative over the location r
   assert.equal(p.isRemote, true);
 });
 
-function v2Page(jobs: DarwinboxV2Job[]) {
-  return { status: "success", data: jobs, job_counts: null };
+function v2Page(jobs: DarwinboxV2Job[]): JsonValue {
+  return asJson({ status: "success", data: jobs, job_counts: null });
 }
 
 test("mergeDarwinboxV2Pages accumulates valid pages in order", () => {

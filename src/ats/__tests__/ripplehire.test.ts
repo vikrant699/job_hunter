@@ -2,18 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import {
-  extractRipplehireToken,
-  ripplehireListUrl,
-  ripplehireListBody,
-  ripplehireJdUrl,
-  ripplehireBoardUrl,
-  normalizeRipplehire,
-  parseRipplehireJd,
-  RipplehireListSchema,
-  RipplehireJdSchema,
-  type RipplehireJob,
-} from "../ripplehire.js";
+import { extractRipplehireToken, ripplehireListUrl, ripplehireListBody, ripplehireJdUrl, ripplehireBoardUrl, normalizeRipplehire, parseRipplehireJd, RipplehireListSchema, RipplehireJdSchema } from "../ripplehire.js";
+import type { RipplehireJob } from "../ripplehire.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

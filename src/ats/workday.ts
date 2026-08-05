@@ -2,10 +2,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
-import { discoverIndiaFacet } from "./workday-facet.js";
+import { discoverIndiaFacet } from "./workdayFacet.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
 

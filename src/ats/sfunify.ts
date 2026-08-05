@@ -27,7 +27,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
@@ -88,7 +88,7 @@ export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number):
 }
 
 /** Parse a list-page response body into its raw job entries + totalJobs. */
-export function sfunifyPageJobs(pageJson: unknown): { jobs: SfunifyJob[]; totalJobs: number | null } {
+export function sfunifyPageJobs(pageJson: JsonValue): { jobs: SfunifyJob[]; totalJobs: number | null } {
   const parsed = SfunifyListSchema.parse(pageJson);
   return { jobs: (parsed.jobSearchResult ?? []).map((j) => j.response), totalJobs: parsed.totalJobs ?? null };
 }

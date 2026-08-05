@@ -12,9 +12,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE, epochMsToIso } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const CAREERS_LIST_URL = "https://sharechat.com/api/careersList?limit=100";
 
@@ -38,7 +39,7 @@ const ShareChatListResponseSchema = z.object({
 });
 
 /** Flatten the category-grouped `careersList[].data[]` into one job array. */
-export function flattenShareChatJobs(raw: unknown): ShareChatJob[] {
+export function flattenShareChatJobs(raw: JsonValue): ShareChatJob[] {
   const parsed = ShareChatListResponseSchema.parse(raw);
   return parsed.data.careersList.flatMap((group) => group.data);
 }

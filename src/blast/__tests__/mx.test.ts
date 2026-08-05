@@ -1,7 +1,8 @@
 // src/blast/mx.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MxChecker, type MxResolver } from "../mx.js";
+import { MxChecker } from "../mx.js";
+import type { MxResolver } from "../mx.js";
 
 function countingResolver(answers: Record<string, { exchange: string; priority: number }[] | Error>): {
   resolver: MxResolver;

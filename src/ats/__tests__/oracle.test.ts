@@ -3,12 +3,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeOracle, oracleAdapter } from "../oracle.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./test-helpers.js";
+import { at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 const company: AdapterCompany = {
   provider: "oracle", slug: "onsemi", name: "ON Semiconductor",
@@ -114,6 +114,7 @@ test("a dead pod's HTTP status error stays chargeable to the company", async (t)
   stubFetch(t, fetchSequence(() => htmlResponse("<HTML><TITLE>Service Unavailable</TITLE></HTML>", 503)));
   const err = await oracleAdapter.listPostings(company).then(
     () => new Error("expected the call to reject, but it resolved"),
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     (e: unknown) => e,
   );
   assert.equal(isTransportError(err), false);

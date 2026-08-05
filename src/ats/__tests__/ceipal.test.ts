@@ -1,18 +1,8 @@
 // src/ats/ceipal.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ceipalAdapter,
-  ceipalDescriptionUrl,
-  ceipalDetailToken,
-  ceipalListUrl,
-  ceipalLocation,
-  ceipalTeaser,
-  ceipalTokens,
-  normalizeCeipal,
-  parseCeipalDate,
-  type CeipalJob,
-} from "../ceipal.js";
+import { ceipalAdapter, ceipalDescriptionUrl, ceipalDetailToken, ceipalListUrl, ceipalLocation, ceipalTeaser, ceipalTokens, normalizeCeipal, parseCeipalDate } from "../ceipal.js";
+import type { CeipalJob } from "../ceipal.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {
@@ -164,7 +154,7 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-function pageResponse(_page: number, results: unknown[], count: number): Response {
+function pageResponse(_page: number, results: CeipalJob[], count: number): Response {
   return new Response(JSON.stringify({ count, num_pages: Math.ceil(count / 20), results }), { status: 200 });
 }
 

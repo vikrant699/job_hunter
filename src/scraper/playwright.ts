@@ -1,7 +1,8 @@
-import { chromium, type Browser } from "playwright";
+import { chromium } from "playwright";
+import type { Browser } from "playwright";
 import { logger } from "../logger.js";
 import type { FetchedHtml } from "./cheerio.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 import { makeSemaphore } from "../util/semaphore.js";
 import { envInt } from "../util/env.js";
 

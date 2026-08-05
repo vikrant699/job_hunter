@@ -29,6 +29,7 @@ export class OllamaUnavailableError extends Error {
 
 // A connection-level failure (server down / unreachable / not responding) as
 // opposed to a model or output error, which is per-posting and recoverable.
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isConnectionError(err: unknown): boolean {
   const s = String(err).toLowerCase();
   return (
@@ -119,6 +120,7 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
 // breaker once enough *consecutive* connection failures pile up so the run
 // aborts instead of silently producing thousands of gate-errors against a
 // dead backend. Throws — never returns normally.
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function recordFailureAndThrow(lastErr: unknown): never {
   if (isConnectionError(lastErr)) {
     consecutiveConnFailures++;
@@ -154,6 +156,7 @@ export async function generateOnce(prompt: string, opts: GenerateOpts = {}): Pro
 }
 
 export async function generate(prompt: string, opts: GenerateOpts = {}): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
     try {

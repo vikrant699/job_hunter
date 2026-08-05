@@ -13,10 +13,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
-import { extractJsonLdJobs } from "../scraper/json-ld.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { extractJsonLdJobs } from "../scraper/jsonLd.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 import { matchGroup } from "../util/regex.js";
 import { kebabCase } from "../util/slug.js";
 

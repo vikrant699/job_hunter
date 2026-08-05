@@ -1,10 +1,8 @@
 // src/eval/metrics.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  rocAuc, recallAtThreshold, precisionAtThreshold,
-  maxThresholdForFullRecall, scoreSpread, type ScoredLabel,
-} from "../metrics.js";
+import { rocAuc, recallAtThreshold, precisionAtThreshold, maxThresholdForFullRecall, scoreSpread } from "../metrics.js";
+import type { ScoredLabel } from "../metrics.js";
 
 const rows: ScoredLabel[] = [
   { score: 0.9, relevant: true },

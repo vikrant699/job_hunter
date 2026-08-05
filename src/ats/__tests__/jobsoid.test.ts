@@ -9,12 +9,12 @@ import {
   jobsoidJdFromHtml,
 } from "../jobsoid.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, fetchSequence, htmlResponseFrom, stubFetch } from "./test-helpers.js";
+import { at, fetchSequence, htmlResponseFrom, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 const company: AdapterCompany = {
   provider: "jobsoid",
@@ -192,6 +192,7 @@ test("jobsoidJdFromHtml returns empty string when there's no JobPosting JSON-LD"
 // --- dead subdomain (redirected to the vendor's portal) vs empty board ---------
 
 /** Run `fn` and hand back whatever it threw, failing the test if it returned. */
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function thrownBy(fn: () => unknown): unknown {
   try {
     fn();

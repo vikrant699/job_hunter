@@ -1,16 +1,12 @@
 // src/ats/mynexthire.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  normalizeMyNextHire,
-  mynexthireBase,
-  mynexthireJobUrl,
-  mynexthireAdapter,
-  MyNextHireJobSchema,
-  type MyNextHireJob,
-} from "../mynexthire.js";
+import { normalizeMyNextHire, mynexthireBase, mynexthireJobUrl, mynexthireAdapter, MyNextHireJobSchema } from "../mynexthire.js";
+import type { MyNextHireJob } from "../mynexthire.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
+import type { JsonValue } from "../../util/json.js";
+import { JsonValueSchema } from "../../util/json.js";
 
 const company: AdapterCompany = {
   provider: "mynexthire",
@@ -83,7 +79,7 @@ test("mynexthireJobUrl builds a link the vendor's own SPA can decode", () => {
   }
   assert.equal(params.src, "careers");
   assert(params.p);
-  const recovered: unknown = JSON.parse(Buffer.from(params.p, "base64").toString("utf8"));
+  const recovered: JsonValue = JsonValueSchema.parse(JSON.parse(Buffer.from(params.p, "base64").toString("utf8")));
   assert.deepEqual(recovered, {
     pageType: "jd",
     cvSource: "careers",
@@ -130,9 +126,9 @@ function restoreFetch(): void {
 }
 
 test("mynexthireAdapter.listPostings filters to the open statusId and normalizes the rest", async () => {
-  let capturedBody: unknown;
+  let capturedBody: JsonValue | undefined;
   stubFetch(async (_url, init) => {
-    capturedBody = init?.body ? JSON.parse(String(init.body)) : undefined;
+    capturedBody = init?.body ? JsonValueSchema.parse(JSON.parse(String(init.body))) : undefined;
     return new Response(
       JSON.stringify({ reqDetailsBOList: [openJob, closedJob, remoteJob] }),
       { status: 200 },

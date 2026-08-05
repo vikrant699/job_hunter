@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { ongigAdapter } from "../ongig.js";
 import type { OngigResult } from "../ongig.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./test-helpers.js";
+import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./testHelpers.js";
 
 const company: AdapterCompany = mkAdapterCompany(
   { provider: "ongig", slug: "yum", name: "Yum! Brands", careersUrl: "https://jobs.yum.com/" },

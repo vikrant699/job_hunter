@@ -16,9 +16,10 @@ import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
-import { decodeAttrEntities } from "./html-text.js";
+import { decodeAttrEntities } from "./htmlText.js";
 import { matchGroup } from "../util/regex.js";
-import { tryParseJson, type JsonValue } from "../util/json.js";
+import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
 
@@ -73,13 +74,13 @@ export function ycJobUrl(relativeOrAbsolute: string): string {
 }
 
 /** Extract jobPostings[] from a parsed jobs-list page's data-page payload. Throws on schema mismatch. */
-export function ycJobsFromListPage(pageData: unknown, slug: string): YcJobListing[] {
+export function ycJobsFromListPage(pageData: JsonValue, slug: string): YcJobListing[] {
   const parsed = parseOrThrow(YcJobsListPageSchema, pageData, { provider: "ycombinator", slug, what: "jobPostings" });
   return parsed.props.jobPostings;
 }
 
 /** Extract props.job from a parsed job-detail page's data-page payload. Null (not throw) on mismatch — fetchJd falls back to an empty JD. */
-export function ycJobFromDetailPage(pageData: unknown, slug: string, externalId: string): YcJobDetail | null {
+export function ycJobFromDetailPage(pageData: JsonValue, slug: string, externalId: string): YcJobDetail | null {
   const parsed = YcJobDetailPageSchema.safeParse(pageData);
   if (!parsed.success) {
     logger.debug(

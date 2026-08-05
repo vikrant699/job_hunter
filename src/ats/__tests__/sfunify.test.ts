@@ -12,7 +12,7 @@ import {
   SfunifyJobSchema,
 } from "../sfunify.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "sfunify", slug: "skyworks", name: "Skyworks Solutions India",

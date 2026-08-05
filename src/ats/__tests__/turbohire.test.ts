@@ -12,6 +12,8 @@ import {
 } from "../turbohire.js";
 import type { TurboHireJob } from "../turbohire.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
+import type { JsonValue } from "../../util/json.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "turbohire", slug: "flipkart", name: "Flipkart",
@@ -99,8 +101,8 @@ test("normalizeTurboHire marks remote via location/type text", () => {
   assert.equal(p.isRemote, true);
 });
 
-function page(jobs: TurboHireJob[], total: number | null = null) {
-  return { Total: total, Result: jobs };
+function page(jobs: TurboHireJob[], total: number | null = null): JsonValue {
+  return asJson({ Total: total, Result: jobs });
 }
 
 test("mergeTurboHirePages accumulates valid pages in order", () => {

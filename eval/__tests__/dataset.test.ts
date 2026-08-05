@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { buildLabeledPostings } from "../dataset.js";
-import { at } from "../../src/ats/__tests__/test-helpers.js";
+import { at } from "../../src/ats/__tests__/testHelpers.js";
 
 function seed(): DatabaseSync {
   const db = new DatabaseSync(":memory:");

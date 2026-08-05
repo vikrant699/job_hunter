@@ -18,7 +18,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 

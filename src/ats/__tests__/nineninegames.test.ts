@@ -1,12 +1,8 @@
 // src/ats/nineninegames.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  nineNineGamesShouldKeep,
-  nineNineGamesJobUrl,
-  normalizeNineNineGamesJob,
-  type NineNineGamesJob,
-} from "../nineninegames.js";
+import { nineNineGamesShouldKeep, nineNineGamesJobUrl, normalizeNineNineGamesJob } from "../nineninegames.js";
+import type { NineNineGamesJob } from "../nineninegames.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {

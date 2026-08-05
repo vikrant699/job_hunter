@@ -17,9 +17,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, dateToIso, tenantOriginOr } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 export const RecruiteeOfferSchema = z.object({
   id: z.number(),
@@ -69,14 +70,14 @@ export function normalizeRecruitee(company: AdapterCompany, o: RecruiteeOffer): 
 /** Zod-validate the raw `/api/offers/` body. Throws with an actionable
  *  message (rather than letting a zod error bubble raw) on a schema
  *  mismatch — mirrors zohorecruit's parseJobsIsland. */
-export function parseRecruiteeOffers(raw: unknown, slug: string): RecruiteeOffer[] {
+export function parseRecruiteeOffers(raw: JsonValue, slug: string): RecruiteeOffer[] {
   const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "recruitee", slug });
   return parsed.offers;
 }
 
 /** Full JSON -> postings pipeline, exposed so tests cover filtering + mapping
  *  without HTTP (validate -> keep only status:"published" -> normalize). */
-export function postingsFromRecruiteeJson(company: AdapterCompany, raw: unknown): NormalizedPosting[] {
+export function postingsFromRecruiteeJson(company: AdapterCompany, raw: JsonValue): NormalizedPosting[] {
   return parseRecruiteeOffers(raw, company.slug)
     .filter((o) => o.status === "published")
     .map((o) => normalizeRecruitee(company, o));

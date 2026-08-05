@@ -1,19 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  classifyFetchError,
-  defaultRetryPolicy,
-  processBucket,
-  runDeferredTransportPass,
-  type TransportRetryPolicy,
-} from "../scheduler.js";
+import { classifyFetchError, defaultRetryPolicy, processBucket, runDeferredTransportPass } from "../scheduler.js";
+import type { TransportRetryPolicy } from "../scheduler.js";
 import type { RunContext } from "../index.js";
 import type { AtsAdapter } from "../../ats/types.js";
 import type { Provider } from "../../schemas.js";
 import type { Company, NormalizedPosting } from "../../types.js";
 import { upsertCompany, db } from "../../db/index.js";
 import { sleep } from "../../util/sleep.js";
-import { assertNotEdgeChallenge } from "../../util/error-cause.js";
+import { assertNotEdgeChallenge } from "../../util/errorCause.js";
 
 test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("AbortError: This operation was aborted"), "timeout");

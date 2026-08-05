@@ -4,7 +4,8 @@ import { profile } from "../profile.js";
 import { render } from "./render.js";
 import { generate, generateOnce } from "./client.js";
 import { logger } from "../logger.js";
-import { parseJsonOrThrow, type JsonValue } from "../util/json.js";
+import { parseJsonOrThrow } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 
 export const GateResultSchema = z.object({
@@ -100,6 +101,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
   // calls). Each re-ask after a *parse* failure uses generateOnce() (exactly
   // 1 HTTP call each) instead of another full transport-retry cascade, so the
   // worst case here is 3 + 1 + 1 = 5 HTTP calls, not 9.
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 2; attempt++) {
     const raw = attempt === 0

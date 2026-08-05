@@ -19,12 +19,12 @@ import {
 } from "../pyjamahr.js";
 import type { PyjamahrJob } from "../pyjamahr.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./test-helpers.js";
+import { asJson, at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 
 const company: AdapterCompany = {
   provider: "pyjamahr",
@@ -112,7 +112,7 @@ test("pyjamahrLocation combines location + other_locations + country without dup
 });
 
 test("parsePyjamahrList unwraps the DRF envelope", () => {
-  const page = parsePyjamahrList(listResponse);
+  const page = parsePyjamahrList(asJson(listResponse));
   assert.equal(page.count, 23);
   assert.equal(page.next, listResponse.next);
   assert.equal(page.results.length, 1);
@@ -159,7 +159,7 @@ test("normalizePyjamahr flags REMOTE workplace_type", () => {
 const emptyListResponse = { count: 0, next: null, previous: null, results: [] };
 
 /** Board page HTML the way Next.js ships it: one __NEXT_DATA__ JSON island. */
-function boardPage(pageProps: unknown): string {
+function boardPage<T>(pageProps: T): string {
   const island = {
     props: { pageProps, __N_SSP: true },
     page: "/careers",
@@ -246,6 +246,7 @@ test("the dead-uuid error is charged to the company, not written off as infrastr
   stubFetch(t, fetchSequence(() => htmlResponse(ABSENT_HTML)));
   const err = await assertPyjamahrTenantExists(company, "2615584222").then(
     () => new Error("expected the call to reject, but it resolved"),
+    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     (e: unknown) => e,
   );
   assert.equal(isTransportError(err), false);

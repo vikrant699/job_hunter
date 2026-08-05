@@ -10,10 +10,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, getObj, type JsonValue } from "../util/json.js";
-import { htmlToText } from "./html-text.js";
+import { JsonValueSchema, getObj } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
+import { htmlToText } from "./htmlText.js";
 import { parseOrThrow } from "./http.js";
-import { browserFetchJson, browserFetchJsonRequests } from "./browser-fetch.js";
+import { browserFetchJson, browserFetchJsonRequests } from "./browserFetch.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
@@ -115,7 +116,7 @@ export function darwinboxPagesNeeded(total: number, pageSize: number): number {
 export function mergeDarwinboxPages(
   company: AdapterCompany,
   out: NormalizedPosting[],
-  results: unknown[],
+  results: JsonValue[],
   total: number,
 ): void {
   for (const raw of results) {
@@ -136,7 +137,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   const out: NormalizedPosting[] = [];
   // First page (in-browser; clears Cloudflare) reveals jobscount.
   const [first] = await browserFetchJson(careersUrl, [API(1)]);
-  const parsed0 = parseOrThrow(ListSchema, first, { provider: "darwinbox", slug: company.slug });
+  const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
   // If more pages are needed, fetch them ALL in one browserFetchJson call
@@ -233,7 +234,7 @@ export function mergeDarwinboxV2Pages(
   company: AdapterCompany,
   token: string,
   out: NormalizedPosting[],
-  results: unknown[],
+  results: JsonValue[],
   total: number,
 ): void {
   for (const raw of results) {
@@ -254,7 +255,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   const [first] = await browserFetchJsonRequests(pageUrl, [
     { path: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
   ]);
-  const parsed0 = parseOrThrow(V2ListSchema, first, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
+  const parsed0 = parseOrThrow(V2ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
   for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, token, j));
   const total = parsed0.job_counts ?? out.length;
   if (out.length < total) {

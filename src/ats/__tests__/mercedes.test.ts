@@ -9,7 +9,7 @@ import {
 } from "../mercedes.js";
 import type { MercedesDescriptor } from "../mercedes.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const SearchUrlQuerySchema = z.object({
   SearchParameters: z.object({ FirstItem: z.number(), CountItem: z.number() }),

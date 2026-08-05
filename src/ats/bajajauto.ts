@@ -7,9 +7,9 @@
 // 2026-07-18.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { BROWSER_UA } from "../util/user-agent.js";
-import { htmlToText } from "./html-text.js";
-import { makeJsonListAdapter } from "./json-list.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import { htmlToText } from "./htmlText.js";
+import { makeJsonListAdapter } from "./jsonList.js";
 import { REMOTE_RE, joinLocation } from "./shared.js";
 
 const LIST_URL = "https://www.bajajauto.com/handlers/careers/get-requisitions.ashx";

@@ -15,7 +15,9 @@ import {
   WebbtreeJobSchema,
 } from "../webbtree.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
+import type { JsonValue } from "../../util/json.js";
+import { JsonValueSchema } from "../../util/json.js";
 
 function makeCompany(slug: string, overrides: Partial<AdapterCompany> = {}): AdapterCompany {
   return {
@@ -32,7 +34,7 @@ function makeCompany(slug: string, overrides: Partial<AdapterCompany> = {}): Ada
 // Webbtree's TransferState serializer: JSON.stringify the whole island, then
 // escape every literal "&" to "&a;" FIRST (so the escape tokens it inserts
 // aren't themselves re-escaped), then every literal '"' to "&q;".
-function encodeIsland(obj: unknown): string {
+function encodeIsland<T>(obj: T): string {
   return JSON.stringify(obj).replace(/&/g, "&a;").replace(/"/g, "&q;");
 }
 
@@ -54,7 +56,7 @@ function companyInfoEntry(slug: string, ceToken: string) {
   };
 }
 
-function getjobsEntry(jobs: ReadonlyArray<Record<string, unknown>>) {
+function getjobsEntry(jobs: ReadonlyArray<Record<string, JsonValue>>) {
   const url = "https://appapi.webbtree.com/candidate/jobs/getjobs";
   return {
     [url]: {
@@ -88,7 +90,7 @@ const job2 = {
 };
 
 /** Wrap an island object in a realistic page: junk before/after the script tag. */
-function pageWith(island: unknown): string {
+function pageWith<T>(island: T): string {
   return [
     "<!DOCTYPE html><html><head><title>Careers</title></head><body>",
     "<app-root></app-root>",
@@ -98,7 +100,7 @@ function pageWith(island: unknown): string {
   ].join("");
 }
 
-function fullIsland(jobs: ReadonlyArray<Record<string, unknown>> = [job1, job2]) {
+function fullIsland(jobs: ReadonlyArray<Record<string, JsonValue>> = [job1, job2]) {
   return { ...companyInfoEntry(SLUG, CE_TOKEN), ...getjobsEntry(jobs) };
 }
 
@@ -344,7 +346,7 @@ test("webbtreeAdapter.listPostings fetches the board and returns mapped postings
 test("webbtreeAdapter.fetchJd reuses the token cached by listPostings — no second board fetch", async () => {
   const slug = "cache-hit-tenant";
   let boardFetches = 0;
-  let jdCall: { url: string; body: unknown; headers: Record<string, string> } | undefined;
+  let jdCall: { url: string; body: JsonValue; headers: Record<string, string> } | undefined;
   stubFetch(async (url, init) => {
     const u = String(url);
     if (u.includes("/company/")) {
@@ -354,7 +356,7 @@ test("webbtreeAdapter.fetchJd reuses the token cached by listPostings — no sec
     const headers = new Headers(init?.headers);
     jdCall = {
       url: u,
-      body: JSON.parse(String(init?.body)),
+      body: JsonValueSchema.parse(JSON.parse(String(init?.body))),
       headers: { customurl: headers.get("customurl") ?? "" },
     };
     return new Response(

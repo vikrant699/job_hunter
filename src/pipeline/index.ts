@@ -13,7 +13,7 @@ import { startProgressHeartbeat } from "../discord/progress.js";
 import { resolveAdapter } from "../ats/registry.js";
 import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
 import { profile } from "../profile.js";
-import { describeError } from "../util/error-cause.js";
+import { describeError } from "../util/errorCause.js";
 import { processBucket, runDeferredTransportPass } from "./scheduler.js";
 
 /** A board whose fetch died on infrastructure, parked for the end-of-run pass.

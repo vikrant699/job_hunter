@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 main().catch((err: unknown) => {
   logger.error({ err: String(err) }, "blast failed");
   process.exitCode = 1;

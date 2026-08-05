@@ -8,9 +8,10 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { paginate, tenantOrigin, dateToIso } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const TRPC_PATH = "/api/trpc/job.getJobs";
 const PAGE_LIMIT = 100;
@@ -87,7 +88,7 @@ export function mediatekApiUrl(company: AdapterCompany, cityCode: string, page: 
 }
 
 /** Unwraps the tRPC batch envelope down to `{ jobs, pagination }`. */
-export function mediatekPageJobs(pageJson: unknown): { jobs: MediatekJob[]; totalItems: number | null } {
+export function mediatekPageJobs(pageJson: JsonValue): { jobs: MediatekJob[]; totalItems: number | null } {
   const parsed = MediatekResponseSchema.parse(pageJson);
   const first = parsed[0];
   const json = first?.result.data.json;

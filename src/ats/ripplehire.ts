@@ -27,9 +27,10 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
+import type { JsonValue } from "../util/json.js";
 
 const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
 // Safety cap: 500,000 jobs (PAGE 100 x MAX_PAGES 5000). Largest known tenant
@@ -146,7 +147,7 @@ export function normalizeRipplehire(
 }
 
 /** Extract the JD body HTML from a job-detail response and strip to plain text. */
-export function parseRipplehireJd(raw: unknown): string {
+export function parseRipplehireJd(raw: JsonValue): string {
   const parsed = RipplehireJdSchema.safeParse(raw);
   if (!parsed.success) return "";
   return htmlToText(parsed.data.jobVO?.jobDesc ?? "");

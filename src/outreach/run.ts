@@ -3,17 +3,20 @@ import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { profile, resumePdfPath } from "../profile.js";
 import { syncContactsFromSheet } from "./contacts.js";
-import { findContacts, normalizeCompanyName, type IneligibleReason } from "./match.js";
-import { loadTemplate as loadTemplateDefault, renderDraft, type OutreachTemplate } from "./template.js";
+import { findContacts, normalizeCompanyName } from "./match.js";
+import type { IneligibleReason } from "./match.js";
+import { loadTemplate as loadTemplateDefault, renderDraft } from "./template.js";
+import type { OutreachTemplate } from "./template.js";
 import { buildDraftMime } from "../google/mime.js";
-import { createDraft as createDraftDefault, type CreatedDraft } from "../google/gmail.js";
+import { createDraft as createDraftDefault } from "../google/gmail.js";
+import type { CreatedDraft } from "../google/gmail.js";
 import { GoogleAuthExpiredError } from "../google/auth.js";
-import { selectNotifiedPostingsSince, type OutreachNotifiedPosting } from "../db/postings.js";
-import { selectAllRecruiters, type RecruiterRow } from "../db/recruiters.js";
-import {
-  insertOutreach, insertUndrafted, selectLastDraftedAt,
-  type InsertOutreachInput, type InsertUndraftedInput,
-} from "../db/outreach.js";
+import { selectNotifiedPostingsSince } from "../db/postings.js";
+import type { OutreachNotifiedPosting } from "../db/postings.js";
+import { selectAllRecruiters } from "../db/recruiters.js";
+import type { RecruiterRow } from "../db/recruiters.js";
+import { insertOutreach, insertUndrafted, selectLastDraftedAt } from "../db/outreach.js";
+import type { InsertOutreachInput, InsertUndraftedInput } from "../db/outreach.js";
 import type { UndraftedReason } from "../schemas.js";
 
 /** IST (Asia/Kolkata) calendar date for `now`, formatted YYYY-MM-DD. Pure. */

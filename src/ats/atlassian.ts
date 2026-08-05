@@ -8,10 +8,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const ATLASSIAN_LISTINGS_URL = "https://www.atlassian.com/endpoint/careers/listings";
 
@@ -36,7 +37,7 @@ export type AtlassianJob = z.infer<typeof AtlassianJobSchema>;
 const AtlassianListingsSchema = z.array(JsonValueSchema);
 
 /** Parse the bare listings array, skipping malformed entries. */
-export function parseAtlassianListings(json: unknown): AtlassianJob[] {
+export function parseAtlassianListings(json: JsonValue): AtlassianJob[] {
   const arr = AtlassianListingsSchema.parse(json);
   const jobs: AtlassianJob[] = [];
   for (const raw of arr) {

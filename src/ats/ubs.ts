@@ -31,10 +31,11 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { withBrowserPage } from "./browser-fetch.js";
-import { htmlToText } from "./html-text.js";
+import { withBrowserPage } from "./browserFetch.js";
+import { htmlToText } from "./htmlText.js";
 import { REMOTE_RE } from "./shared.js";
 import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const DEFAULT_LOCATION = "India";
 const NAV_TIMEOUT = 45_000;
@@ -55,7 +56,7 @@ const JobsCountSchema = z.object({ JobsCount: z.number() });
 /** The server's own job count for the executed search, or null when absent.
  *  This is the only completeness signal available: the response has no paging
  *  cursor, and `TotalJobsCount`/`PageSize` come back as 0. */
-export function ubsReportedJobsCount(payload: unknown): number | null {
+export function ubsReportedJobsCount(payload: JsonValue): number | null {
   const parsed = JobsCountSchema.safeParse(payload);
   return parsed.success ? parsed.data.JobsCount : null;
 }
@@ -87,7 +88,7 @@ export function ubsField(job: UbsJob, name: string): string | null {
 }
 
 /** Parse the MatchedJobs payload into normalized postings. Pure/testable. */
-export function parseUbsMatchedJobs(payload: unknown, company: AdapterCompany, homeUrl: string, siteId: string): NormalizedPosting[] {
+export function parseUbsMatchedJobs(payload: JsonValue, company: AdapterCompany, homeUrl: string, siteId: string): NormalizedPosting[] {
   const parsed = MatchedJobsSchema.safeParse(payload);
   const jobs = parsed.success ? parsed.data.Jobs?.Job ?? [] : [];
   const out: NormalizedPosting[] = [];
@@ -151,7 +152,7 @@ export const ubsAdapter: AtsAdapter = {
           logger.warn({ slug: company.slug }, "ubs: no MatchedJobs response captured");
           return [];
         }
-        const payload: unknown = await resp.json();
+        const payload: JsonValue = JsonValueSchema.parse(await resp.json());
         const postings = parseUbsMatchedJobs(payload, company, homeUrl, siteId);
         const truncated = ubsTruncationWarning(postings.length, ubsReportedJobsCount(payload));
         if (truncated) logger.warn({ slug: company.slug }, truncated);

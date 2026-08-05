@@ -4,10 +4,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  companyForMention, loadBlastTemplate, loadBlastContent, renderBlast,
-  type BlastTemplate, type BlastContent,
-} from "../render.js";
+import { companyForMention, loadBlastTemplate, loadBlastContent, renderBlast } from "../render.js";
+import type { BlastTemplate, BlastContent } from "../render.js";
 
 const TEMPLATE: BlastTemplate = {
   body: "{{greeting}}\n\n{{opener}}\n\nFixed body.\n\nBest regards,\nDivya\n",

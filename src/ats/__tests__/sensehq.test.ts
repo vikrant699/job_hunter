@@ -12,7 +12,7 @@ import {
 } from "../sensehq.js";
 import type { SenseHqRow } from "../sensehq.js";
 import type { AdapterCompany } from "../../types.js";
-import { stubFetch } from "./test-helpers.js";
+import { asJson, stubFetch } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "sensehq",
@@ -35,7 +35,7 @@ const row: SenseHqRow = {
 };
 
 // Trimmed real initial-page __NEXT_DATA__ island (props.buildId + jobsData).
-function initialHtml(rows: unknown[], count: number, buildId = "jEPRsaxO17zCozEuBEAkW"): string {
+function initialHtml<T>(rows: T[], count: number, buildId = "jEPRsaxO17zCozEuBEAkW"): string {
   const data = {
     props: { pageProps: { jobsData: { rows, count } } },
     page: "/",
@@ -78,7 +78,7 @@ test("senseHqInitialJobsData returns null on a shape mismatch (no buildId / no j
 
 test("senseHqPaginatedJobsData reads rows + count from a _next/data page (no buildId in this shape)", () => {
   const page = { pageProps: { jobsData: { rows: [row], count: 113 } }, __N_SSP: true };
-  const parsed = senseHqPaginatedJobsData(page);
+  const parsed = senseHqPaginatedJobsData(asJson(page));
   assert.ok(parsed);
   assert.equal(parsed.count, 113);
   assert.equal(parsed.rows.length, 1);

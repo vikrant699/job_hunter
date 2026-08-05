@@ -36,7 +36,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 

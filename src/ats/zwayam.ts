@@ -34,10 +34,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
 
 const HitSourceSchema = z.object({
   jobTitle: z.string(),
@@ -84,7 +85,7 @@ export function zwayamFilterCri(paginationStartNo: number): string {
  *  `slug` defaults to the provider name for callers (tests) with no company
  *  context; the adapter itself passes the real company slug. */
 export function zwayamPage(
-  raw: unknown,
+  raw: JsonValue,
   slug = "zwayam",
 ): { hits: ZwayamHit[]; total: number | null; hasMoreData: boolean } {
   const parsed = parseOrThrow(SearchResponseSchema, raw, { provider: "zwayam", slug, what: "page" });

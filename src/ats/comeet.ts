@@ -12,10 +12,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, dateToIso } from "./shared.js";
-import { tryParseJson, type JsonValue } from "../util/json.js";
+import { tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const ComeetLocationSchema = z.object({
   name: z.string().nullable().optional(),

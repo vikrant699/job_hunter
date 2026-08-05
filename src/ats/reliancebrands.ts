@@ -26,10 +26,11 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { withBrowserPage } from "./browser-fetch.js";
-import { htmlToText } from "./html-text.js";
+import { withBrowserPage } from "./browserFetch.js";
+import { htmlToText } from "./htmlText.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
 
 const JOBSEARCH_URL = "https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSearch";
 const WARM_URL = "https://peoplefirst.ril.com/ocandidate/";
@@ -90,8 +91,8 @@ export function normalizeReliance(company: AdapterCompany, job: Record<string, J
   };
 }
 
-function searchBody(pageno: number, country: string, subtenant: string | null): unknown {
-  const body: Record<string, unknown> = {
+function searchBody(pageno: number, country: string, subtenant: string | null): JsonValue {
+  const body: Record<string, JsonValue> = {
     pageno,
     pagesize: PAGE_SIZE,
     filters: [{ match: { Country: country } }],
@@ -102,22 +103,29 @@ function searchBody(pageno: number, country: string, subtenant: string | null): 
 
 const JobRowSchema = z.record(z.string(), JsonValueSchema);
 
-async function postJobSearch(page: Page, body: unknown): Promise<{ result: unknown[] }> {
-  return page.evaluate(
-    async ({ url, body }) => {
+async function postJobSearch(page: Page, body: JsonValue): Promise<{ result: JsonValue[] }> {
+  // Both the Arg and the return cross the Playwright boundary as strings: a
+  // JsonValue-typed Arg makes Playwright's recursive Unboxed<Arg> mapped type
+  // recurse into JsonValue's own recursive union and exceed TS's
+  // instantiation-depth limit (same reason as browserFetch.ts). Validating the
+  // response text back on the Node side also keeps the parse in one place.
+  const bodyJson = JSON.stringify(body);
+  const raw = await page.evaluate(
+    async ({ url, bodyJson }) => {
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(body),
+        body: bodyJson,
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
-      const j: unknown = await r.json();
-      const result: unknown[] =
-        j !== null && typeof j === "object" && "result" in j && Array.isArray(j.result) ? j.result : [];
-      return { result };
+      return await r.text();
     },
-    { url: JOBSEARCH_URL, body },
+    { url: JOBSEARCH_URL, bodyJson },
   );
+  const j = JsonValueSchema.parse(JSON.parse(raw));
+  const result =
+    j !== null && typeof j === "object" && !Array.isArray(j) && Array.isArray(j.result) ? j.result : [];
+  return { result };
 }
 
 export const reliancebrandsAdapter: AtsAdapter = {
@@ -137,7 +145,7 @@ export const reliancebrandsAdapter: AtsAdapter = {
           maxPages: DEFAULT_MAX_PAGES,
           dedupeBy: (p) => p.externalId,
           fetchPage: async (_offset, pageno) => {
-            let res: { result: unknown[] };
+            let res: { result: JsonValue[] };
             try {
               res = await postJobSearch(browserPage, searchBody(pageno, country, subtenant));
             } catch (e) {

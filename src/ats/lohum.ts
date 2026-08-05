@@ -9,9 +9,9 @@
 // falls back to the company's careers page. Verified live 2026-08-01: 4
 // openings, all Greater Noida.
 import { z } from "zod";
-import { makeJsonListAdapter } from "./json-list.js";
+import { makeJsonListAdapter } from "./jsonList.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { joinLocation, REMOTE_RE } from "./shared.js";
 
 export function lohumListUrl(): string {

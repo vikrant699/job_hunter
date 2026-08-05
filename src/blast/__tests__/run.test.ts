@@ -4,8 +4,10 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runBlast, BLAST_LOG_TAB, type BlastDeps } from "../run.js";
-import { loadState, saveState, type BlastState } from "../state.js";
+import { runBlast, BLAST_LOG_TAB } from "../run.js";
+import type { BlastDeps } from "../run.js";
+import { loadState, saveState } from "../state.js";
+import type { BlastState } from "../state.js";
 
 const NOW = new Date("2026-07-11T05:30:00.000Z"); // Sat before Mon 2026-07-13
 

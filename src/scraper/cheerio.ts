@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { config } from "../config.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 
 export interface FetchedHtml {
   finalUrl: string;

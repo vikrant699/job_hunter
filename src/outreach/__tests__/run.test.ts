@@ -1,11 +1,14 @@
 ﻿import { test } from "node:test";
 import assert from "node:assert/strict";
 import { GoogleAuthExpiredError } from "../../google/auth.js";
-import { at } from "../../ats/__tests__/test-helpers.js";
+import { at } from "../../ats/__tests__/testHelpers.js";
 import type { RecruiterRow } from "../../db/recruiters.js";
 import type { OutreachNotifiedPosting } from "../../db/postings.js";
 import type { InsertOutreachInput, InsertUndraftedInput } from "../../db/outreach.js";
-import { groupByCompany, istDate, runOutreach, type RunOutreachDeps } from "../run.js";
+import { groupByCompany, istDate, runOutreach } from "../run.js";
+import type { RunOutreachDeps } from "../run.js";
+import type { JsonValue } from "../../util/json.js";
+import { JsonValueSchema } from "../../util/json.js";
 
 function mkRecruiter(overrides: Partial<RecruiterRow> = {}): RecruiterRow {
   return {
@@ -111,7 +114,7 @@ test("runOutreach creates one draft per eligible (company, recruiter) pair with 
   assert.equal(drafts.length, 2);
   assert.equal(inserted.length, 2);
   for (const row of inserted) {
-    const roles: unknown = JSON.parse(row.rolesJson);
+    const roles: JsonValue = JsonValueSchema.parse(JSON.parse(row.rolesJson));
     assert.ok(Array.isArray(roles));
     assert.equal(roles.length, 2);
   }

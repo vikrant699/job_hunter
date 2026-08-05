@@ -6,7 +6,7 @@ import {
   isEdgeInterstitialError,
   isInfrastructureFault,
   isTransportError,
-} from "../../util/error-cause.js";
+} from "../../util/errorCause.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {
@@ -123,6 +123,7 @@ test("a dead account rejects rather than reporting an empty board", async () => 
   try {
     const err = await kulaAdapter
       .listPostings({ ...company, slug: "zzznosuchtenant9x" })
+      // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
       .then(() => null, (e: unknown) => e);
     assert.ok(err instanceof Error, "a 404 account-not-found must not resolve to []");
     // Charged to the company: a dead account is a per-company defect, so it has

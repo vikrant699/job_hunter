@@ -15,7 +15,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText, decodeAttrEntities } from "./html-text.js";
+import { htmlToText, decodeAttrEntities } from "./htmlText.js";
 import { atsFetchText, parseOrThrow } from "./http.js";
 import { matchGroup } from "../util/regex.js";
 import { tryParseJson } from "../util/json.js";

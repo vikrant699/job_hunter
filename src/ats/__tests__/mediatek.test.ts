@@ -11,6 +11,7 @@ import {
 } from "../mediatek.js";
 import type { MediatekJob } from "../mediatek.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "mediatek", slug: "mediatek", name: "MediaTek",
@@ -54,14 +55,14 @@ function page(jobs: MediatekJob[], pagination?: { current_page: number; total_pa
 }
 
 test("mediatekPageJobs unwraps the tRPC batch envelope and total_items", () => {
-  const r = mediatekPageJobs(page([job], { current_page: 1, total_pages: 0, total_items: 21 }));
+  const r = mediatekPageJobs(asJson(page([job], { current_page: 1, total_pages: 0, total_items: 21 })));
   assert.equal(r.jobs.length, 1);
   assert.equal(r.jobs[0]?.title, "SRAM Design Engineer");
   assert.equal(r.totalItems, 21);
 });
 
 test("mediatekPageJobs tolerates a null pagination block", () => {
-  const r = mediatekPageJobs(page([]));
+  const r = mediatekPageJobs(asJson(page([])));
   assert.deepEqual(r.jobs, []);
   assert.equal(r.totalItems, null);
 });

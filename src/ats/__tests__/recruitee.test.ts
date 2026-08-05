@@ -1,14 +1,10 @@
 // src/ats/recruitee.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  recruiteeBase,
-  normalizeRecruitee,
-  postingsFromRecruiteeJson,
-  RecruiteeOfferSchema,
-  type RecruiteeOffer,
-} from "../recruitee.js";
+import { recruiteeBase, normalizeRecruitee, postingsFromRecruiteeJson, RecruiteeOfferSchema } from "../recruitee.js";
+import type { RecruiteeOffer } from "../recruitee.js";
 import type { AdapterCompany } from "../../types.js";
+import { asJson } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "recruitee",
@@ -105,7 +101,7 @@ test("normalizeRecruitee omits requirements from jdText when absent", () => {
 
 test("postingsFromRecruiteeJson maps offers and filters out non-published statuses", () => {
   const fixture = { offers: [publishedOffer, closedOffer, remoteOffer] };
-  const postings = postingsFromRecruiteeJson(company, fixture);
+  const postings = postingsFromRecruiteeJson(company, asJson(fixture));
   assert.equal(postings.length, 2);
   assert.deepEqual(postings.map((p) => p.externalId).sort(), ["2644511", "2671592"]);
   assert.ok(!postings.some((p) => p.jobTitle === "Old Closed Role"));

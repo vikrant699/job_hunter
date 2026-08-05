@@ -1,17 +1,10 @@
 // src/ats/setu.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  parseCsvRows,
-  parseSetuCsv,
-  setuExternalId,
-  normalizeSetuRow,
-  extractSetuJdText,
-  SETU_LOCATION,
-  type SetuRow,
-} from "../setu.js";
+import { parseCsvRows, parseSetuCsv, setuExternalId, normalizeSetuRow, extractSetuJdText, SETU_LOCATION } from "../setu.js";
+import type { SetuRow } from "../setu.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./test-helpers.js";
+import { at } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "setu",

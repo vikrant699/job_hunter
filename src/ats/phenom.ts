@@ -2,12 +2,13 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, getObj, tryParseJson, type JsonValue } from "../util/json.js";
-import { htmlToText } from "./html-text.js";
+import { JsonValueSchema, getObj, tryParseJson } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 import { logger } from "../logger.js";
 
 const PAGE = 50;
@@ -62,7 +63,7 @@ export function phenomTenantHasLocale(tenantUrl: string): boolean {
 }
 
 /** Full JD from a job page's ddo: `jobDetail.data.job.description`. */
-export function phenomJobDescriptionFrom(ddo: unknown): string | null {
+export function phenomJobDescriptionFrom(ddo: JsonValue): string | null {
   const parseResult = JsonValueSchema.safeParse(ddo);
   const d: JsonValue | null = parseResult.success ? parseResult.data : null;
   const job = getObj(getObj(getObj(d, "jobDetail"), "data"), "job");
@@ -71,7 +72,7 @@ export function phenomJobDescriptionFrom(ddo: unknown): string | null {
 }
 
 /** Pull jobs[] + totalHits from a parsed ddo (tolerant of both key shapes). */
-export function phenomJobsFrom(ddo: unknown): { jobs: unknown[]; totalHits: number } {
+export function phenomJobsFrom(ddo: JsonValue): { jobs: JsonValue[]; totalHits: number } {
   const parseResult = JsonValueSchema.safeParse(ddo);
   const d: JsonValue | null = parseResult.success ? parseResult.data : null;
   const nodeObj = getObj(d, "eagerLoadRefineSearch") ?? getObj(d, "refineSearch");
@@ -160,7 +161,7 @@ export const phenomAdapter: AtsAdapter = {
       );
     }
 
-    const toItems = (jobs: unknown[]): NormalizedPosting[] => {
+    const toItems = (jobs: JsonValue[]): NormalizedPosting[] => {
       const items: NormalizedPosting[] = [];
       for (const raw of jobs) {
         const parsed = PhenomJobSchema.safeParse(raw);
@@ -173,7 +174,7 @@ export const phenomAdapter: AtsAdapter = {
       return items;
     };
 
-    const fetchWidgetsPage = async (from: number): Promise<{ jobs: unknown[]; totalHits: number }> => {
+    const fetchWidgetsPage = async (from: number): Promise<{ jobs: JsonValue[]; totalHits: number }> => {
       const raw = await atsFetchJson(phenomWidgetsUrl(tenantUrl), {
         method: "POST",
         body: phenomWidgetsBody(from, PAGE),

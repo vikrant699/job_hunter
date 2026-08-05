@@ -1,10 +1,10 @@
-import { type SQLInputValue } from "node:sqlite";
+import type { SQLInputValue } from "node:sqlite";
 import { z } from "zod";
 import type { Company } from "../types.js";
 import type { Provider, ParsingStrategy, CompanyStatus } from "../schemas.js";
 import { ProviderSchema, ParsingStrategySchema, CompanyStatusSchema } from "../schemas.js";
 import { db, queryAll } from "./db.js";
-import { parseApiMeta } from "./api-meta.js";
+import { parseApiMeta } from "./apiMeta.js";
 
 /* ===== Row schema ===== */
 

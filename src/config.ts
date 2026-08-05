@@ -31,7 +31,7 @@ export const config = {
      *  load, dropping their entire posting set. See config-repair memory. */
     timeoutMs: 60_000,
     /** Retries for transport-layer failures only (DNS/socket — see
-     *  util/error-cause.ts). Board-shaped errors (HTTP status, schema) are never
+     *  util/errorCause.ts). Board-shaped errors (HTTP status, schema) are never
      *  retried. 3 retries at the base delay below span ~35s, which covers a brief
      *  blip; anything longer is caught by the end-of-run deferred pass. */
     transportRetries: 3,
@@ -83,7 +83,7 @@ export const config = {
     /** LOCAL SNAPSHOT of the Companies tab (the registry source of truth),
      *  not itself a source of truth. Written atomically after every fully-
      *  valid sheet sync; read back only when the sheet is unreachable
-     *  (sheet-registry.ts) or by read-only ops scripts. */
+     *  (sheetRegistry.ts) or by read-only ops scripts. */
     registryPath: "data/registry-cache.json",
   },
 
@@ -99,7 +99,7 @@ export const config = {
 
   google: {
     spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID ?? "",
-    /** Per-profile token written by scripts/google-auth.ts. */
+    /** Per-profile token written by scripts/googleAuth.ts. */
     tokenPathFor: (profileId: string) => `data/google-token-${profileId}.json`,
     scopes: [
       "https://www.googleapis.com/auth/gmail.compose",

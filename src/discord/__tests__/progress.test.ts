@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildBreakdown, buildProgressEmbed, type ProgressContext } from "../progress.js";
+import { buildBreakdown, buildProgressEmbed } from "../progress.js";
+import type { ProgressContext } from "../progress.js";
 import type { RunContext } from "../../pipeline/index.js";
 
 function ctxWith(

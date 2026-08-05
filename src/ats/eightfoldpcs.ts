@@ -16,10 +16,11 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { htmlToText } from "./html-text.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
-import { BROWSER_UA } from "../util/user-agent.js";
+import { BROWSER_UA } from "../util/userAgent.js";
+import type { JsonValue } from "../util/json.js";
 
 const PAGE = 10; // server-fixed; the num= param is ignored
 
@@ -79,7 +80,7 @@ export function eightfoldPcsDetailsUrl(company: AdapterCompany, positionId: stri
  *  provider name for callers (tests) with no company context; the adapter
  *  itself passes the real company slug. */
 export function eightfoldPcsPageJobs(
-  pageJson: unknown,
+  pageJson: JsonValue,
   slug = "eightfoldpcs",
 ): { positions: EightfoldPcsPosition[]; count: number | null } {
   const parsed = parseOrThrow(SearchResponseSchema, pageJson, { provider: "eightfoldpcs", slug });

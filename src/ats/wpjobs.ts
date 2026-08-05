@@ -31,8 +31,9 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, type JsonValue } from "../util/json.js";
-import { htmlToText } from "./html-text.js";
+import { JsonValueSchema } from "../util/json.js";
+import type { JsonValue } from "../util/json.js";
+import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 

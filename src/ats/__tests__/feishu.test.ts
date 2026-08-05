@@ -6,7 +6,7 @@ import type { FeishuJobPost, FeishuMeta } from "../feishu.js";
 import type { AdapterCompany } from "../../types.js";
 
 const realFetch = globalThis.fetch;
-function jsonResponse(body: unknown): Response {
+function jsonResponse<T>(body: T): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 }
 function stubFetchSeq(responses: Array<() => Response>): void {
