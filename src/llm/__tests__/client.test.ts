@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { config } from "../../config.js";
-import { isConnectionError, OllamaUnavailableError, assertOllamaAvailable, generateOnce } from "../client.js";
+import { isConnectionError, assertLlmAvailable, generateOnce } from "../client.js";
+import { LlmUnavailableError } from "../errors.js";
 
 test("isConnectionError flags backend-down signatures", () => {
   for (const e of [
@@ -28,6 +29,22 @@ test("isConnectionError does NOT flag model/output errors", () => {
   }
 });
 
+// Guards the whole OpenRouter feature: if an HTTP-status error from the hosted
+// provider were classified as connection-shaped, five of them in a row would
+// trip the breaker and abort a sweep over what is just traffic shaping. The
+// messages thrown by openrouter.ts must stay free of the words sniffed above.
+test("isConnectionError does NOT flag OpenRouter HTTP-status errors", () => {
+  for (const e of [
+    "OpenRouter HTTP 429: rate limit exceeded",
+    "OpenRouter HTTP 500: upstream error",
+    "OpenRouter HTTP 502: bad gateway",
+    "OpenRouter returned no message content",
+    "OpenRouter HTTP retries exhausted after 4 attempts",
+  ]) {
+    assert.equal(isConnectionError(e), false, `should not look backend-down: ${String(e)}`);
+  }
+});
+
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {
   globalThis.fetch = fn;
@@ -36,32 +53,32 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-test("assertOllamaAvailable passes when the configured model is present", async () => {
+test("assertLlmAvailable passes when the configured model is present", async () => {
   stubFetch(async () =>
     new Response(JSON.stringify({ models: [{ name: config.llm.model }, { name: "other:1b" }] }), { status: 200 }),
   );
   try {
-    await assert.doesNotReject(assertOllamaAvailable());
+    await assert.doesNotReject(assertLlmAvailable());
   } finally {
     restoreFetch();
   }
 });
 
-test("assertOllamaAvailable throws when Ollama is unreachable", async () => {
+test("assertLlmAvailable throws when Ollama is unreachable", async () => {
   stubFetch(async () => { throw new TypeError("fetch failed"); });
   try {
-    await assert.rejects(assertOllamaAvailable(), OllamaUnavailableError);
+    await assert.rejects(assertLlmAvailable(), LlmUnavailableError);
   } finally {
     restoreFetch();
   }
 });
 
-test("assertOllamaAvailable throws when the model is not pulled", async () => {
+test("assertLlmAvailable throws when the model is not pulled", async () => {
   stubFetch(async () =>
     new Response(JSON.stringify({ models: [{ name: "some-other-model:7b" }] }), { status: 200 }),
   );
   try {
-    await assert.rejects(assertOllamaAvailable(), OllamaUnavailableError);
+    await assert.rejects(assertLlmAvailable(), LlmUnavailableError);
   } finally {
     restoreFetch();
   }

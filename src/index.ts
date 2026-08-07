@@ -3,7 +3,8 @@ import { logger } from "./logger.js";
 import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
 import type { RegistrySyncResult } from "./registry/sheetRegistry.js";
 import { runProductionTick } from "./pipeline/index.js";
-import { assertOllamaAvailable, OllamaUnavailableError } from "./llm/client.js";
+import { assertLlmAvailable } from "./llm/client.js";
+import { LlmUnavailableError } from "./llm/errors.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
 import { runOutreach } from "./outreach/run.js";
 import type { RunOutreachResult } from "./outreach/run.js";
@@ -96,7 +97,7 @@ async function main(): Promise<void> {
   // The Google token check is likewise fail-fast pre-flight: abort BEFORE any
   // scraping so a revoked/expired refresh token surfaces immediately, instead
   // of discovering it only after a multi-hour tick when outreach runs.
-  await assertOllamaAvailable();
+  await assertLlmAvailable();
   await assertGoogleTokenValid(profile.id ?? "default");
 
   const profileId = profile.id ?? "default";
@@ -109,7 +110,7 @@ async function main(): Promise<void> {
 main().catch((err) => {
   // The Ollama/Google pre-flight guards are expected, actionable stops — log
   // just the message (no stack noise) so the operator sees exactly what to fix.
-  if (err instanceof OllamaUnavailableError || err instanceof GoogleAuthExpiredError) {
+  if (err instanceof LlmUnavailableError || err instanceof GoogleAuthExpiredError) {
     logger.error(`aborting — ${err.message}`);
   } else {
     logger.error({ err: String(err) }, "fatal");

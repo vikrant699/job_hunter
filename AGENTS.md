@@ -94,8 +94,11 @@ src/
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
-  llm/         client.ts (Ollama); gate.ts, extract.ts, shortlist.ts, extractTextJobs.ts,
-                 render.ts; prompts/ holds the prompt strings (gate, shortlist, extract)
+  llm/         client.ts (provider-agnostic: semaphore, retry, circuit breaker, and the
+                 LOCAL dispatch); ollama.ts + openrouter.ts (the two transports);
+                 errors.ts (LlmUnavailableError, its own module so both transports can
+                 throw it without importing client.ts); gate.ts, extract.ts, shortlist.ts,
+                 extractTextJobs.ts, render.ts; prompts/ holds the prompt strings
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), postingPipeline.ts
   discord/     webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat),
                  status.ts (single end-of-run status embed; the progress channel is the
@@ -181,7 +184,22 @@ change.
   (Desktop-app OAuth client; consent screen in Testing mode means refresh tokens die
   ~weekly - the bot's pre-flight guard names the renew command) and
   `GOOGLE_SPREADSHEET_ID`. Per-profile tokens live at `data/google-token-<name>.json`.
-- **Ollama** runs locally with `qwen3.5:9b` pulled; the relevance "gate" judges each posting
-  against the full resume text from `config/resume.txt` (generated once from `config/resume.pdf`;
-  the bot stops if neither exists).
+- **LLM backend** is chosen by `LOCAL` in `.env` (default `true`). Only the exact word
+  `false` switches providers - `LOCAL=1`/`yes`/a typo falls back to local, so a slip never
+  silently spends money. `client.ts` reads the flag at call time and dispatches to
+  `ollama.ts` or `openrouter.ts`; everything above the transport (semaphore, retry,
+  breaker, `generate`/`generateOnce`) is shared, so callers never care which is live.
+  - `LOCAL=true`: **Ollama** with `qwen3.5:9b` pulled. Concurrency 1 (the GPU serializes),
+    90s timeout.
+  - `LOCAL=false`: **OpenRouter** (`OPENROUTER_API_KEY`, default model
+    `deepseek/deepseek-v4-flash`). Concurrency 8, 30s timeout. 429/5xx are retried inside
+    the transport with `Retry-After` so a rate limit never trips the backend-down breaker;
+    401/403 aborts the run immediately. The prompt goes as ONE user message - splitting it
+    would change the token prefix and lose provider-side prompt-cache hits. The running
+    cache hit-rate is logged every 100 calls; watch it, since cached vs uncached input is
+    roughly a 4x cost difference.
+  - Both override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS`.
+- The relevance "gate" judges each posting against the full resume text from
+  `config/resume.txt` (generated once from `config/resume.pdf`; the bot stops if neither
+  exists).
 - Development is on **Windows / PowerShell**; prefer cross-platform commands.

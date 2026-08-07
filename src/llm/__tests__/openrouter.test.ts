@@ -1,0 +1,167 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { z } from "zod";
+import { stubFetch, jsonResponse } from "../../ats/__tests__/testHelpers.js";
+import { LlmUnavailableError } from "../errors.js";
+import { openRouterGenerate, getCacheStats, resetCacheStats } from "../openrouter.js";
+
+// The request body we send is an external boundary like any other, so it gets a
+// schema rather than a cast (Standard rule 4).
+const SentBodySchema = z.object({
+  model: z.string(),
+  messages: z.array(z.object({ role: z.string(), content: z.string() })),
+  temperature: z.number(),
+  reasoning: z.object({ enabled: z.boolean() }),
+  response_format: z.object({ type: z.string() }).optional(),
+});
+
+function sentBody(init: RequestInit | undefined): z.infer<typeof SentBodySchema> {
+  return SentBodySchema.parse(JSON.parse(String(init?.body)));
+}
+
+function completion(content: string, usage?: { prompt_tokens: number; cached: number }): Response {
+  return jsonResponse({
+    choices: [{ message: { content } }],
+    ...(usage
+      ? {
+          usage: {
+            prompt_tokens: usage.prompt_tokens,
+            completion_tokens: 10,
+            prompt_tokens_details: { cached_tokens: usage.cached },
+          },
+        }
+      : {}),
+  });
+}
+
+function throttled(retryAfter: string): Response {
+  return new Response("rate limited", { status: 429, headers: { "retry-after": retryAfter } });
+}
+
+test("openRouterGenerate unwraps choices[0].message.content", async (t) => {
+  stubFetch(t, async () => completion('{"matchScore":0.9}'));
+  assert.equal(await openRouterGenerate("prompt", { format: "json" }), '{"matchScore":0.9}');
+});
+
+test("openRouterGenerate sends one user message, json response_format, and the bearer key", async (t) => {
+  let seenUrl = "";
+  let seenInit: RequestInit | undefined;
+  stubFetch(t, async (url, init) => {
+    seenUrl = String(url);
+    seenInit = init;
+    return completion("{}");
+  });
+
+  await openRouterGenerate("THE PROMPT", { format: "json", temperature: 0 });
+
+  assert.match(seenUrl, /openrouter\.ai\/api\/v1\/chat\/completions/);
+  const headers = new Headers(seenInit?.headers);
+  // OPENROUTER_API_KEY is unset under test (config.ts reads process.env at
+  // import), so the value is a bare "Bearer" — the scheme is what we can pin
+  // here. An actually-missing key is caught by assertOpenRouterAvailable.
+  assert.match(headers.get("authorization") ?? "", /^Bearer/);
+  const body = sentBody(seenInit);
+  // One message keeps the token prefix byte-identical across postings, which is
+  // what the provider's prompt cache keys on.
+  assert.deepEqual(body.messages, [{ role: "user", content: "THE PROMPT" }]);
+  assert.deepEqual(body.response_format, { type: "json_object" });
+  assert.equal(body.reasoning.enabled, false);
+  assert.equal(body.temperature, 0);
+});
+
+test("openRouterGenerate omits response_format when no json format is requested", async (t) => {
+  let seenInit: RequestInit | undefined;
+  stubFetch(t, async (_url, init) => {
+    seenInit = init;
+    return completion("plain text");
+  });
+
+  await openRouterGenerate("prompt", {});
+  assert.equal(sentBody(seenInit).response_format, undefined);
+});
+
+test("openRouterGenerate retries a 429 honouring Retry-After, then succeeds", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    // "0.1" clamps to the 250ms floor so the test stays fast.
+    return calls === 1 ? throttled("0.1") : completion("recovered");
+  });
+
+  const started = Date.now();
+  const out = await openRouterGenerate("prompt", { format: "json" });
+
+  assert.equal(out, "recovered");
+  assert.equal(calls, 2);
+  assert.ok(Date.now() - started >= 200, "should have waited out the Retry-After");
+});
+
+test("openRouterGenerate retries transient 5xx", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return calls < 3 ? new Response("boom", { status: 503 }) : completion("ok");
+  });
+
+  assert.equal(await openRouterGenerate("prompt", {}), "ok");
+  assert.equal(calls, 3);
+});
+
+test("openRouterGenerate gives up after exhausting status retries", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return throttled("0.1");
+  });
+
+  await assert.rejects(openRouterGenerate("prompt", {}), /OpenRouter HTTP 429/);
+  assert.equal(calls, 4, "1 initial + 3 retries");
+});
+
+test("openRouterGenerate throws LlmUnavailableError on 401 without retrying", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return new Response("no credits", { status: 401 });
+  });
+
+  await assert.rejects(openRouterGenerate("prompt", {}), LlmUnavailableError);
+  assert.equal(calls, 1, "a bad key must fail fast, not burn retries");
+});
+
+test("openRouterGenerate does not retry a non-retryable 4xx", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return new Response("bad model", { status: 400 });
+  });
+
+  await assert.rejects(openRouterGenerate("prompt", {}), /OpenRouter HTTP 400/);
+  assert.equal(calls, 1);
+});
+
+test("openRouterGenerate rejects an empty completion", async (t) => {
+  stubFetch(t, async () => completion(""));
+  await assert.rejects(openRouterGenerate("prompt", {}), /no message content/);
+});
+
+test("getCacheStats accumulates prompt and cached token counts", async (t) => {
+  resetCacheStats();
+  t.after(() => resetCacheStats());
+  stubFetch(t, async () => completion("ok", { prompt_tokens: 4300, cached: 3400 }));
+
+  await openRouterGenerate("prompt", {});
+  await openRouterGenerate("prompt", {});
+
+  assert.deepEqual(getCacheStats(), { calls: 2, promptTokens: 8600, cachedTokens: 6800 });
+});
+
+test("getCacheStats tolerates a response with no usage block", async (t) => {
+  resetCacheStats();
+  t.after(() => resetCacheStats());
+  stubFetch(t, async () => completion("ok"));
+
+  await openRouterGenerate("prompt", {});
+
+  assert.deepEqual(getCacheStats(), { calls: 1, promptTokens: 0, cachedTokens: 0 });
+});
