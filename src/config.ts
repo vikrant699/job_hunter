@@ -7,7 +7,7 @@
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
-import { envInt } from "./util/env.js";
+import { envInt, envBool } from "./util/env.js";
 
 // Both delays are compared against 0 by pipeline/scheduler.ts to skip the sleep
 // when they are disabled, so both are declared outside the `as const` config
@@ -16,6 +16,12 @@ import { envInt } from "./util/env.js";
 // compile-time-always-true ones.
 const INTER_CALL_DELAY_MS: number = 250;
 const DEFERRED_PASS_PACE_MS: number = 3_000;
+
+// Hoisted because the llm block reads it three times (transport dispatch plus
+// the two knobs whose sane default differs per provider). envBool returns
+// `boolean`, not a literal, so `as const` does not narrow config.llm.local into
+// a compile-time-constant comparison the way a bare `true` would.
+const LLM_LOCAL = envBool("LOCAL", true);
 
 export const config = {
   fetch: {
@@ -52,16 +58,30 @@ export const config = {
   },
 
   llm: {
+    /** Which transport llm/client.ts dispatches to. true = local Ollama (the
+     *  default, and what every existing .env gets); false = OpenRouter. Only the
+     *  exact word "false" flips it - see envBool. */
+    local: LLM_LOCAL,
     ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
     /** Model to use. Pull once: `ollama pull qwen3.5:9b`. Override via OLLAMA_MODEL. */
     model: process.env.OLLAMA_MODEL ?? "qwen3.5:9b",
-    /** Timeout starts AFTER the semaphore slot is acquired (measures generation, not queue wait). */
-    timeoutMs: 90_000,
+    /** OpenRouter (LOCAL=false). Key is required only when local is false; the
+     *  pre-flight in llm/client.ts fails fast with the fix if it is missing. */
+    openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
+    openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash",
+    openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
+    /** Timeout starts AFTER the semaphore slot is acquired (measures generation, not queue wait).
+     *  90s locally covers a cold prefill on a busy GPU; a hosted call that has not
+     *  answered in 30s is hung, and holding a concurrency slot for it just wastes throughput. */
+    timeoutMs: envInt("LLM_TIMEOUT_MS", LLM_LOCAL ? 90_000 : 30_000),
     maxRetries: 2,
-    /** Only raise above 1 if running multiple Ollama instances behind a load balancer. */
-    maxConcurrent: 1,
+    /** Ollama serializes on the GPU, so 1 is right locally (raise only if running
+     *  multiple instances behind a load balancer). A hosted API has no such
+     *  constraint, so LOCAL=false defaults to 8. Override with LLM_MAX_CONCURRENT. */
+    maxConcurrent: envInt("LLM_MAX_CONCURRENT", LLM_LOCAL ? 1 : 8),
     /** Context window (tokens). Pair with OLLAMA_FLASH_ATTENTION=1 + OLLAMA_KV_CACHE_TYPE=q8_0
-     *  so the KV cache fits in VRAM alongside model weights. jdMaxChars is sized to this. */
+     *  so the KV cache fits in VRAM alongside model weights. jdMaxChars is sized to this.
+     *  Ollama-only - OpenRouter sizes its own context. */
     numCtx: envInt("OLLAMA_NUM_CTX", 9000),
     // max chars of JD/text sent to the model
     jdMaxChars: 18000,

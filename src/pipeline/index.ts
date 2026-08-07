@@ -11,7 +11,8 @@ import type { AdapterCompany, Company } from "../types.js";
 import { notifyKey } from "../filter/dedup.js";
 import { startProgressHeartbeat } from "../discord/progress.js";
 import { resolveAdapter } from "../ats/registry.js";
-import { assertOllamaAvailable, OllamaUnavailableError } from "../llm/client.js";
+import { assertLlmAvailable } from "../llm/client.js";
+import { LlmUnavailableError } from "../llm/errors.js";
 import { profile } from "../profile.js";
 import { describeError } from "../util/errorCause.js";
 import { processBucket, runDeferredTransportPass } from "./scheduler.js";
@@ -96,7 +97,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   // Pre-flight: a production tick is useless without the LLM backend. Fail fast
   // with an actionable message instead of churning the whole company list into
   // gate-errors against a dead Ollama (the 2026-06-17 failure mode).
-  await assertOllamaAvailable();
+  await assertLlmAvailable();
 
   const profileId = profile.id ?? "default";
   const runId = startRun("production", profileId);
@@ -204,8 +205,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     // Close out the run row with the abort reason so the partial run is
     // recorded, then propagate to exit non-zero. Dormancy/summary are skipped -
     // the data this run produced is suspect.
-    const reason = err instanceof OllamaUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
-    if (err instanceof OllamaUnavailableError) {
+    const reason = err instanceof LlmUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
+    if (err instanceof LlmUnavailableError) {
       logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
     }
     closeRun(reason);

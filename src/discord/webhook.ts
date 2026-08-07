@@ -1,5 +1,6 @@
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
+import { parseRetryAfterMs } from "../util/httpRetry.js";
 import type { JsonValue } from "../util/json.js";
 
 const WEBHOOK_TIMEOUT_MS = 15_000;
@@ -32,10 +33,8 @@ export async function postWebhookJson(url: string, body: JsonValue): Promise<voi
     }
 
     if (res.status === 429 && attempt < WEBHOOK_MAX_429_RETRIES) {
-      const parsedRetryAfter = Number(res.headers.get("retry-after") ?? "1");
-      const retryAfter = Number.isFinite(parsedRetryAfter) ? parsedRetryAfter : 1;
-      const waitMs = Math.min(Math.max(retryAfter, 0.25) * 1000, 30_000);
-      logger.warn({ retryAfter, attempt }, "Discord 429; backing off");
+      const waitMs = parseRetryAfterMs(res.headers.get("retry-after"));
+      logger.warn({ waitMs, attempt }, "Discord 429; backing off");
       await sleep(waitMs);
       continue;
     }

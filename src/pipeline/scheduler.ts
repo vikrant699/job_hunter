@@ -9,7 +9,7 @@ import { describeError, isInfrastructureFault } from "../util/errorCause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import { isDeniedCompany } from "../filter/denylist.js";
-import { OllamaUnavailableError } from "../llm/client.js";
+import { LlmUnavailableError } from "../llm/errors.js";
 import { toAdapterCompany } from "./index.js";
 import type { DeferredBoard, RunContext } from "./index.js";
 import { processOnePosting } from "./postingPipeline.js";
@@ -197,7 +197,7 @@ export async function listWithTransportRetry(
     try {
       return await adapter.listPostings(adapterCompany);
     } catch (err) {
-      if (err instanceof OllamaUnavailableError) throw err;
+      if (err instanceof LlmUnavailableError) throw err;
       if (!isInfrastructureFault(err)) throw err;
       lastErr = err;
       if (attempt < retry.retries) {
@@ -234,7 +234,7 @@ async function processOneCompany(
   } catch (err) {
     // Backend down (scrape adapters call the LLM shortlist) — abort, don't
     // mark every company a fetch failure against a dead Ollama.
-    if (err instanceof OllamaUnavailableError) throw err;
+    if (err instanceof LlmUnavailableError) throw err;
     const msg = describeError(err);
 
     // Infrastructure failed even after retries — the transport died, or an edge
@@ -282,7 +282,7 @@ async function processOneCompany(
         await processOnePosting(adapter, adapterCompany, posting, company, stats, retry);
       } catch (err) {
         // Propagate a backend-down abort; only swallow per-posting errors.
-        if (err instanceof OllamaUnavailableError) throw err;
+        if (err instanceof LlmUnavailableError) throw err;
         logger.error(
           { company: company.name, externalId: posting.externalId, err: describeError(err) },
           "posting pipeline error",
