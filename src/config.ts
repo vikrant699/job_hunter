@@ -125,7 +125,14 @@ export const config = {
       "https://www.googleapis.com/auth/gmail.compose",
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/spreadsheets",
+      // drive.file grants access ONLY to files this app creates - not your whole
+      // Drive. Used to sync data/job_hunter.db between machines (see db/sync.ts).
+      // Adding this scope requires re-running `npm run google-auth --profile <name>`.
+      "https://www.googleapis.com/auth/drive.file",
     ],
+    /** Filename the DB backup is stored under in Drive. drive.file scope means a
+     *  name lookup only ever sees files this app itself created. */
+    driveDbFileName: "job_hunter.db",
     tabs: {
       rawData: "Raw Data",
       recruiters: "Recruiters List",

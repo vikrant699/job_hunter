@@ -12,6 +12,7 @@ import { runVerify } from "./outreach/verify.js";
 import type { VerifyResult } from "./outreach/verify.js";
 import { projectToSheet } from "./outreach/sheetSync.js";
 import { postRunStatus } from "./discord/status.js";
+import { syncBeforeRun, syncAfterRun } from "./db/sync.js";
 import { profile } from "./profile.js";
 
 function printUsage(): void {
@@ -101,9 +102,20 @@ async function main(): Promise<void> {
   await assertGoogleTokenValid(profile.id ?? "default");
 
   const profileId = profile.id ?? "default";
+
+  // Pull a newer DB from Drive BEFORE anything reads it. Running against a stale
+  // database makes postingExists() miss postings the other machine already
+  // handled, which re-scores them and drafts duplicate emails to recruiters who
+  // were already contacted. Must happen before the registry sync, which writes.
+  await syncBeforeRun(profileId);
+
   const registryResult = await syncRegistryFromSheet(profileId);
 
   await runOnce(registryResult);
+
+  // Push the finished state so the other machine can pick up where this left off.
+  // Best-effort by design: a Drive failure here must not fail a completed run.
+  await syncAfterRun(profileId);
   process.exit(0);
 }
 

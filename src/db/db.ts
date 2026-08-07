@@ -54,7 +54,6 @@ db.exec(schema);
         job_url        TEXT    NOT NULL,
         location       TEXT,
         is_remote      INTEGER NOT NULL DEFAULT 0,
-        jd_text        TEXT,
         posted_at      TEXT,
         discovered_at  TEXT    NOT NULL,
         profile_id     TEXT    NOT NULL DEFAULT 'default',
@@ -69,11 +68,11 @@ db.exec(schema);
       );
       INSERT INTO postings_new
         (provider, external_id, company_slug, job_title, job_url, location,
-         is_remote, jd_text, posted_at, discovered_at, profile_id,
+         is_remote, posted_at, discovered_at, profile_id,
          llm_relevant, llm_reason, llm_confidence, yoe_min, yoe_max, drop_stage, notified_at)
         SELECT
          provider, external_id, company_slug, job_title, job_url, location,
-         is_remote, jd_text, posted_at, discovered_at, 'default',
+         is_remote, posted_at, discovered_at, 'default',
          llm_relevant, llm_reason, llm_confidence, yoe_min, yoe_max, drop_stage, notified_at
         FROM postings;
       DROP TABLE postings;
@@ -82,6 +81,21 @@ db.exec(schema);
       CREATE INDEX IF NOT EXISTS idx_postings_discovered ON postings(discovered_at);
     `);
     logger.info("migration: postings rebuilt with profile_id in PK (existing rows -> 'default')");
+  }
+
+  // postings.jd_text: the gate reads the JD in-memory during the run and nothing
+  // ever read the column back, so it was pure write-only bulk - 453 MB of a
+  // 609 MB database. Dropped 2026-08-07. Runs after the profile_id rebuild above
+  // so a pre-profile_id DB is migrated first, then loses the column here.
+  // DROP COLUMN only hides it; VACUUM is what returns the disk space, hence the
+  // one-time (and slow, ~30-60s on a 600 MB file) rewrite. Re-read table_info
+  // because the rebuild above may have just recreated the table.
+  const postingColsAfter = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
+  if (postingColsAfter.some((c) => c.name === "jd_text")) {
+    db.exec("ALTER TABLE postings DROP COLUMN jd_text");
+    logger.info("migration: dropped postings.jd_text; reclaiming space (VACUUM, may take ~1 min)");
+    db.exec("VACUUM");
+    logger.info("migration: VACUUM complete");
   }
 
   // brave_quota was the Brave Search API's monthly-quota tracker; the Brave

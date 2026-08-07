@@ -15,11 +15,12 @@
     "google-auth": "tsx scripts/googleAuth.ts",
     "bootstrap-sheet": "tsx scripts/bootstrapSheet.ts",
     "verify-outreach": "tsx scripts/verifyOutreach.ts",
+    "db:push": "tsx scripts/dbPush.ts",
+    "db:pull": "tsx scripts/dbPull.ts",
     "blast": "tsx scripts/blast.ts",
     "health": "tsx scripts/registryHealth.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./test-setup.mjs --import tsx --test \"src/**/*.test.ts\" \"eval/**/*.test.ts\"",
-    "eval": "tsx eval/replay.ts",
+    "test": "node --import ./test-setup.mjs --import tsx --test \"src/**/*.test.ts\"",
     "lint": "eslint ."
   },
   "dependencies": {

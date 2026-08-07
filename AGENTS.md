@@ -26,8 +26,9 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data and Companies from local files when they exist (both are gitignored), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
 | `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends; own JSON state at `data/blast-state-<name>.json`, projects a Blast Log tab). Flags: `--limit N` (default 100), `--verify-only`, `--force`. Delete `src/blast/`, `scripts/blast.ts`, and this row when the campaign ends. |
-| `npm run eval` | Replay the labelled eval dataset through the gate. |
 | `npm run health` | Read-only registry health report (status/strategy/provider yield tallies from the local DB + cache). |
+| `npm run db:push -- --profile <name>` | Upload `data/job_hunter.db` to Google Drive (WAL-checkpointed first). Refuses if the Drive copy is newer; `--force` overrides. |
+| `npm run db:pull -- --profile <name>` | Download it back, integrity-checked before it replaces the local file. Refuses if the local copy is newer; `--force` overrides. |
 | `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
 
 ## Before you commit (non-negotiable)
@@ -90,10 +91,13 @@ src/
                  unixToIso, parsePostedOn); htmlText.ts; workdayFacet.ts; types.ts (AtsAdapter);
                  detect.ts (ATS-redirect detection patterns used by llm-scrape)
   db/          per-table modules (companies, postings, runs, recruiters, outreach, link-cache,
-                 api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers
+                 api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers;
+                 sync.ts (Drive push/pull + the staleness guard that runs before/after a tick)
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
-                 fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder)
+                 fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder),
+                 drive.ts (resumable upload/download of the DB backup; binary, so it
+                 cannot use rest.ts's JSON helper)
   llm/         client.ts (provider-agnostic: semaphore, retry, circuit breaker, and the
                  LOCAL dispatch); ollama.ts + openrouter.ts (the two transports);
                  errors.ts (LlmUnavailableError, its own module so both transports can
@@ -124,7 +128,6 @@ src/
   config.ts profile.ts logger.ts index.ts
 config/        profile.ts, resume.* (gitignored); profiles/<name>/ (named multi-profile
                  dirs: profile.ts + resume.*, gitignored)
-eval/          offline gate-replay harness (NOT shipped, not in the bot's runtime graph)
 scripts/       ops/maintenance CLIs (NOT shipped)
 data/          SQLite DB + caches (gitignored)
 ```
@@ -180,6 +183,16 @@ change.
 ## Environment
 
 - **Node 22+** required (uses the built-in `node:sqlite`, an experimental module).
+- **Multi-machine DB sync**: the bot runs by hand on more than one machine, so
+  `data/job_hunter.db` is synced through Google Drive using the SAME OAuth client as
+  Gmail/Sheets (extra scope `drive.file`, which sees only files this app created).
+  `npm run once` pulls before the tick when Drive is ahead and pushes after it finishes;
+  `db:pull`/`db:push` are the manual equivalents. **Adding the scope means re-consenting
+  once per profile** (`npm run google-auth -- --profile <name>`) - until that is done, the
+  sync logs a warning and the run continues on the local DB.
+  Never run the bot on two machines at once: SQLite has one writer, and a stale DB makes
+  `postingExists` miss postings the other machine handled, which drafts duplicate emails
+  to recruiters already contacted. That guard is `compareState` in `src/db/sync.ts`.
 - **Google APIs (outreach)**: `.env` needs `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
   (Desktop-app OAuth client; consent screen in Testing mode means refresh tokens die
   ~weekly - the bot's pre-flight guard names the renew command) and
