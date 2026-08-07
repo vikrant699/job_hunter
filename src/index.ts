@@ -1,19 +1,16 @@
 import "dotenv/config";
 import { logger } from "./logger.js";
-import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
-import type { RegistrySyncResult } from "./registry/sheetRegistry.js";
-import { runProductionTick } from "./pipeline/index.js";
 import { assertLlmAvailable } from "./llm/client.js";
 import { LlmUnavailableError } from "./llm/errors.js";
 import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js";
-import { runOutreach } from "./outreach/run.js";
-import type { RunOutreachResult } from "./outreach/run.js";
-import { runVerify } from "./outreach/verify.js";
-import type { VerifyResult } from "./outreach/verify.js";
-import { projectToSheet } from "./outreach/sheetSync.js";
-import { postRunStatus } from "./discord/status.js";
 import { syncBeforeRun, syncAfterRun } from "./db/sync.js";
+import { startConnectivityMonitor } from "./util/connectivity.js";
 import { profile } from "./profile.js";
+
+// NOTHING in this file's static imports may reach src/db/db.ts. That module opens
+// the SQLite file when it loads, and syncBeforeRun replaces that file - so the
+// run's body lives in ./runOnce.ts and is reached by dynamic import AFTER the
+// sync. src/__tests__/indexImportGraph.test.ts pins the rule.
 
 function printUsage(): void {
   console.log(`Usage: npm run <command> [-- --profile <name>]
@@ -23,58 +20,6 @@ function printUsage(): void {
   --profile <name>   Use config/profiles/<name>/ (profile.ts + resume.pdf).
                      Omit for the default (config/profile.ts).
 `);
-}
-
-async function runOnce(registryResult: RegistrySyncResult): Promise<void> {
-  const outcome = await runProductionTick();
-  const profileId = profile.id ?? "default";
-
-  let verifyResult: VerifyResult | null = null;
-  let outreachResult: RunOutreachResult | null = null;
-  let outreachError: string | null = null;
-  try {
-    // Verify runs FIRST: yesterday's bounces must set the recruiter's status
-    // to 'bounced' before today's runOutreach does its contact matching, or a
-    // known-dead address would get drafted to again.
-    verifyResult = await runVerify({ profileId, runId: outcome.runId });
-    outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
-    await projectToSheet(profileId, outcome.runId);
-    // The happy path above is otherwise silent — without this line a clean
-    // run's log just stops at "production tick complete".
-    logger.info(
-      {
-        profileId,
-        draftsCreated: outreachResult.draftsCreated,
-        undrafted: outreachResult.undrafted,
-        companiesMatched: outreachResult.companiesMatched,
-        verify: verifyResult,
-      },
-      "outreach stage complete; sheet projected",
-    );
-  } catch (err) {
-    if (err instanceof GoogleAuthExpiredError) {
-      // Scrape results are already saved — a stale/revoked Google token must
-      // not crash the process. Log the exact renewal command and move on.
-      logger.error({ err: err.message }, "outreach skipped — Google auth expired");
-      outreachError = err.message;
-    } else {
-      logger.error({ err: String(err) }, "outreach stage threw");
-      outreachError = String(err);
-    }
-  }
-
-  try {
-    await postRunStatus({
-      profileId,
-      stats: outcome.stats,
-      outreach: outreachResult,
-      outreachError,
-      verify: verifyResult,
-      registry: { source: registryResult.source, invalidRows: registryResult.invalidRows.length },
-    });
-  } catch (err) {
-    logger.error({ err: String(err) }, "status post threw");
-  }
 }
 
 async function main(): Promise<void> {
@@ -92,35 +37,45 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // A production tick needs the LLM backend — check it before the (~30s)
-  // registry sync so a down Ollama fails in seconds with a clear message.
-  // (runProductionTick re-checks, so programmatic callers stay protected too.)
-  // The Google token check is likewise fail-fast pre-flight: abort BEFORE any
-  // scraping so a revoked/expired refresh token surfaces immediately, instead
-  // of discovering it only after a multi-hour tick when outreach runs.
-  await assertLlmAvailable();
-  await assertGoogleTokenValid(profile.id ?? "default");
-
   const profileId = profile.id ?? "default";
 
-  // Pull a newer DB from Drive BEFORE anything reads it. Running against a stale
+  // Start watching connectivity BEFORE the pre-flights. A run launched while the
+  // connection happens to be down should wait for it rather than exit — and from
+  // here on, every outbound call (boards, JDs, OpenRouter, Sheets/Gmail/Drive)
+  // pauses during an outage and resumes exactly where it left off, instead of
+  // failing its way through the company list. The wait is deliberately unbounded.
+  const stopConnectivity = startConnectivityMonitor();
+
+  // A production tick needs the LLM backend — check it before the (~30s)
+  // registry sync so a down Ollama or a bad OpenRouter key/model fails in seconds
+  // with a clear message. (runProductionTick re-checks, so programmatic callers
+  // stay protected too.) The Google token check is likewise fail-fast pre-flight:
+  // abort BEFORE any scraping so a revoked/expired refresh token surfaces
+  // immediately, instead of discovering it only after a multi-hour tick when
+  // outreach runs.
+  await assertLlmAvailable();
+  await assertGoogleTokenValid(profileId);
+
+  // Pull a newer DB from Drive BEFORE anything opens it. Running against a stale
   // database makes postingExists() miss postings the other machine already
   // handled, which re-scores them and drafts duplicate emails to recruiters who
-  // were already contacted. Must happen before the registry sync, which writes.
+  // were already contacted.
   await syncBeforeRun(profileId);
 
-  const registryResult = await syncRegistryFromSheet(profileId);
-
-  await runOnce(registryResult);
+  // Only now is it safe to load the DB-backed half of the app.
+  const { runOnceAfterSync, releaseDbForSync } = await import("./runOnce.js");
+  await runOnceAfterSync(profileId);
 
   // Push the finished state so the other machine can pick up where this left off.
   // Best-effort by design: a Drive failure here must not fail a completed run.
+  releaseDbForSync();
   await syncAfterRun(profileId);
+  stopConnectivity();
   process.exit(0);
 }
 
 main().catch((err) => {
-  // The Ollama/Google pre-flight guards are expected, actionable stops — log
+  // The LLM/Google pre-flight guards are expected, actionable stops — log
   // just the message (no stack noise) so the operator sees exactly what to fix.
   if (err instanceof LlmUnavailableError || err instanceof GoogleAuthExpiredError) {
     logger.error(`aborting — ${err.message}`);

@@ -4,6 +4,11 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson, parseOrThrow, parseOrNull } from "../http.js";
 import { stubFetch, jsonResponse } from "./testHelpers.js";
+import {
+  startConnectivityMonitor,
+  stopConnectivityMonitor,
+  connectivityStatus,
+} from "../../util/connectivity.js";
 
 test("atsHttpError: 404 gives a short provider-tagged message", () => {
   const e = atsHttpError("keka", 404, "<html>not found</html>");
@@ -77,4 +82,50 @@ test("parseOrThrow throws with provider/slug and 'schema' in the message on mism
 test("parseOrNull returns null on mismatch", () => {
   const S = z.object({ a: z.number() });
   assert.equal(parseOrNull(S, { a: "no" }, { provider: "x", slug: "acme" }), null);
+});
+
+/* ===== the connectivity gate, at the level that actually matters ===== */
+
+// The behaviour the whole gate exists for: during an outage a board fetch must WAIT,
+// not fail and let the run march on to the next company. Run 29 skipped hundreds of
+// boards in an ~8-minute drop precisely because this call returned instead of waiting.
+test("atsFetchJson waits out a network outage instead of failing the board", async (t) => {
+  let online = false;
+  t.after(stopConnectivityMonitor);
+  startConnectivityMonitor({ intervalMs: 5, downIntervalMs: 5, probe: async () => online });
+  await new Promise((r) => setTimeout(r, 20));
+
+  let fetchCalls = 0;
+  stubFetch(t, async () => {
+    fetchCalls++;
+    return jsonResponse({ ok: true });
+  });
+
+  let settled = false;
+  const pending = atsFetchJson("https://boards.example/jobs").then((v) => {
+    settled = true;
+    return v;
+  });
+
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(fetchCalls, 0, "must not have touched the network while it was down");
+  assert.equal(settled, false, "must still be waiting, not skipped");
+
+  online = true;
+  const result = await pending;
+  assert.equal(fetchCalls, 1, "resumed exactly once, after recovery");
+  assert.deepEqual(result, { ok: true });
+});
+
+// A board that answers - even with a block page - proves the connection is fine, so
+// one hostile host must never pause everything else.
+test("a blocked board reports success to the monitor and does not pause the run", async (t) => {
+  t.after(stopConnectivityMonitor);
+  startConnectivityMonitor({ intervalMs: 10_000, downIntervalMs: 10_000, probe: async () => true });
+  await new Promise((r) => setTimeout(r, 15));
+
+  stubFetch(t, async () => new Response("<html>Access Denied</html>", { status: 403 }));
+  await assert.rejects(atsFetchJson("https://waf.example/jobs"));
+
+  assert.equal(connectivityStatus().down, false, "a 403 is the board's problem, not the network's");
 });

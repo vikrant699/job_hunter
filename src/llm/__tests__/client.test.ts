@@ -38,6 +38,9 @@ test("isConnectionError does NOT flag OpenRouter HTTP-status errors", () => {
     "OpenRouter HTTP 429: rate limit exceeded",
     "OpenRouter HTTP 500: upstream error",
     "OpenRouter HTTP 502: bad gateway",
+    // 403 is a per-posting moderation block, so it flows through the ordinary
+    // failure path — and must not be mistaken there for the backend being down.
+    "OpenRouter HTTP 403: flagged by moderation",
     "OpenRouter returned no message content",
     "OpenRouter HTTP retries exhausted after 4 attempts",
   ]) {

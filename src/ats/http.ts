@@ -4,6 +4,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
+import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
@@ -24,9 +25,28 @@ export async function withAtsTimeout<T>(
   return fn(AbortSignal.timeout(timeoutMs));
 }
 
-/** fetch() that throws `atsHttpError` on a non-OK response. */
+/**
+ * fetch() that throws `atsHttpError` on a non-OK response.
+ *
+ * Every atsFetch* helper funnels through here, which makes it the one place that has
+ * to know about the connectivity gate: park before the request while the network is
+ * down (so a run waits out an outage instead of burning through the company list),
+ * and feed the outcome back so the monitor can act on real evidence.
+ */
 async function fetchOk(url: string, init: RequestInit, provider: string): Promise<Response> {
-  const res = await fetch(url, init);
+  await awaitNetwork();
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (err) {
+    // Not a verdict — just a request for an immediate probe. If the connection is
+    // fine, this host is simply refusing us and the run carries on untouched.
+    reportNetworkFailure();
+    throw err;
+  }
+  // ANY response proves the connection works, including a 403 from a bot-blocker:
+  // that says everything about the board and nothing about the network.
+  reportNetworkSuccess();
   if (!res.ok) throw atsHttpError(provider, res.status, await res.text());
   return res;
 }

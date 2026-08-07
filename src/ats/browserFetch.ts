@@ -4,6 +4,7 @@ import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
+import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 export const HEAVY_ASSET_RE = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 
@@ -56,6 +57,11 @@ export async function withBrowserPage<T>(
   } = {},
 ): Promise<T> {
   const blockHeavyAssets = opts.blockHeavyAssets ?? true;
+  // Wait out an outage BEFORE taking a page slot or launching a browser. This path
+  // matters more than the plain-fetch one: a goto failure is swallowed below as a
+  // presumed interstitial, so without this a network drop yields a blank page and
+  // the adapter's parse error gets charged to the board as if it were broken.
+  await awaitNetwork();
   // Outer try guarantees the page slot is released even if getBrowser /
   // newContext / route throws; inner try guarantees the context is closed.
   const release = await acquirePageSlot();
@@ -75,7 +81,11 @@ export async function withBrowserPage<T>(
       opts.beforeGoto?.(page);
       try {
         await page.goto(pageUrl, { waitUntil: opts.waitUntil ?? "domcontentloaded" });
+        reportNetworkSuccess();
       } catch (err) {
+        // Ask for a probe: this is the swallow path, so a network drop would
+        // otherwise be indistinguishable from the interstitial it assumes.
+        reportNetworkFailure();
         if (opts.rethrowGotoErrors) throw err;
         /* CF interstitial */
       }

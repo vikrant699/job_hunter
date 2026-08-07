@@ -68,7 +68,11 @@ export const config = {
     /** OpenRouter (LOCAL=false). Key is required only when local is false; the
      *  pre-flight in llm/client.ts fails fast with the fix if it is missing. */
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
-    openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash",
+    /** Pinned to a dated snapshot on purpose. The undated `deepseek/deepseek-v4-flash`
+     *  alias still resolves, but to the older 0423 build - which is also 55% dearer
+     *  ($0.14/M in vs $0.09/M). A dated slug means the model cannot change under a
+     *  run's feet, and the pre-flight verifies it still resolves. */
+    openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
     /** Timeout starts AFTER the semaphore slot is acquired (measures generation, not queue wait).
      *  90s locally covers a cold prefill on a busy GPU; a hosted call that has not
@@ -92,6 +96,18 @@ export const config = {
     shortlist: SHORTLIST_PROMPT,
     shortlistFromText: SHORTLIST_FROM_TEXT_PROMPT,
     extract: EXTRACT_PROMPT,
+  },
+
+  network: {
+    /** Neutral and tiny (HTTP 204, empty body). The target is irrelevant beyond
+     *  "something on the public internet that is essentially always up" — this
+     *  answers "do we have a connection", not "is any particular board healthy". */
+    probeUrl: process.env.NETWORK_PROBE_URL ?? "https://www.google.com/generate_204",
+    probeTimeoutMs: envInt("NETWORK_PROBE_TIMEOUT_MS", 5_000),
+    /** Healthy cadence. Cheap enough to leave running for a 14h sweep. */
+    probeIntervalMs: envInt("NETWORK_PROBE_INTERVAL_MS", 10_000),
+    /** During an outage — tighter, so the run resumes promptly once it is back. */
+    probeDownIntervalMs: envInt("NETWORK_PROBE_DOWN_INTERVAL_MS", 5_000),
   },
 
   storage: {
@@ -133,6 +149,11 @@ export const config = {
     /** Filename the DB backup is stored under in Drive. drive.file scope means a
      *  name lookup only ever sees files this app itself created. */
     driveDbFileName: "job_hunter.db",
+    /** Which profile's Google account owns the Drive backup. Profiles are separate
+     *  accounts, so an unpinned second profile would create its OWN backup and pull
+     *  it over the shared local DB. Empty = unpinned (single-profile setups); set
+     *  DB_SYNC_PROFILE to the owning profile as soon as there is a second one. */
+    driveSyncProfile: process.env.DB_SYNC_PROFILE ?? "",
     tabs: {
       rawData: "Raw Data",
       recruiters: "Recruiters List",

@@ -12,7 +12,7 @@
  * per-profile: it is one database.
  */
 import "dotenv/config";
-import { pushDb, checkState } from "../src/db/sync.js";
+import { pushDb, checkState, syncSkipReason } from "../src/db/sync.js";
 import { assertGoogleTokenValid } from "../src/google/auth.js";
 import { logger } from "../src/logger.js";
 
@@ -24,10 +24,20 @@ function argValue(flag: string): string | null {
 
 async function main(): Promise<void> {
   const profileId = argValue("--profile") ?? "default";
+  const force = process.argv.includes("--force");
   await assertGoogleTokenValid(profileId);
 
+  // Profiles are separate Google accounts, so pushing from the wrong one does not
+  // overwrite the backup - it creates a SECOND one in that account's Drive, which
+  // then starts competing with the real one.
+  const skip = syncSkipReason(profileId);
+  if (skip !== null && !force) {
+    logger.error({ profileId }, `refusing to push: ${skip} Pass --force only if you intend a separate backup in that account's Drive.`);
+    process.exit(1);
+  }
+
   const before = await checkState(profileId);
-  if (before.verdict === "remote-newer" && !process.argv.includes("--force")) {
+  if (before.verdict === "remote-newer" && !force) {
     logger.error(
       { remoteModified: before.remote?.modifiedTime },
       "refusing to push: the Drive copy is NEWER than your local DB. " +
@@ -37,7 +47,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const result = await pushDb(profileId);
+  // force also lifts pushDb's own refusals (empty DB / a file less than half the
+  // size of the backup) - both are shapes that usually mean loss, but a migration
+  // that drops a column is a legitimate reason to shrink.
+  const result = await pushDb(profileId, { force });
   logger.info(
     { megabytes: (result.bytes / 1048576).toFixed(1), fileId: result.remote?.id },
     "db:push complete",
