@@ -13,7 +13,7 @@
  * --force only if you are sure the local state is disposable.
  */
 import "dotenv/config";
-import { pullDb, checkState } from "../src/db/sync.js";
+import { pullDb, checkState, syncSkipReason } from "../src/db/sync.js";
 import { assertGoogleTokenValid } from "../src/google/auth.js";
 import { logger } from "../src/logger.js";
 
@@ -25,10 +25,19 @@ function argValue(flag: string): string | null {
 
 async function main(): Promise<void> {
   const profileId = argValue("--profile") ?? "default";
+  const force = process.argv.includes("--force");
   await assertGoogleTokenValid(profileId);
 
+  // Each profile is a separate Google account with its own Drive, so pulling as the
+  // wrong profile would fetch a DIFFERENT database over this machine's.
+  const skip = syncSkipReason(profileId);
+  if (skip !== null && !force) {
+    logger.error({ profileId }, `refusing to pull: ${skip}`);
+    process.exit(1);
+  }
+
   const before = await checkState(profileId);
-  if (before.verdict === "local-newer" && !process.argv.includes("--force")) {
+  if (before.verdict === "local-newer" && !force) {
     logger.error(
       { remoteModified: before.remote?.modifiedTime },
       "refusing to pull: your local DB is NEWER than the Drive copy. " +
@@ -38,7 +47,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const result = await pullDb(profileId);
+  const result = await pullDb(profileId, { force });
   if (result.action === "skipped") {
     logger.info("nothing to pull — no backup exists in Drive yet");
     process.exit(0);

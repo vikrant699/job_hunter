@@ -18,10 +18,16 @@ const plugins = {
   local,
 };
 
+// config/profiles/* is gitignored, per-machine content (a profile's own resume,
+// deal-breakers and gate prompt). ESLint's flat config does not read .gitignore, so
+// without this the repo's own rules - filename-case in particular - fail the
+// non-negotiable `npm run lint` check on files that are not in the repo at all.
+const IGNORES = ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**", "config/profiles/**"];
+
 export default tseslint.config(
   {
     files: ["**/*.ts"],
-    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**"],
+    ignores: IGNORES,
     languageOptions,
     plugins,
     rules: {
@@ -100,7 +106,7 @@ export default tseslint.config(
     // no-floating-promises only because node:test's top-level `test()` calls
     // return promises the runner itself tracks.
     files: ["**/*.ts"],
-    ignores: ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**", "**/*.test.ts"],
+    ignores: [...IGNORES, "**/*.test.ts"],
     languageOptions,
     plugins,
     rules: {

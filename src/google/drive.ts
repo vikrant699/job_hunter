@@ -30,7 +30,36 @@ export type DriveFileMeta = z.infer<typeof FileMetaSchema>;
 
 const FileListSchema = z.object({ files: z.array(FileMetaSchema).default([]) });
 
+/**
+ * All Drive endpoints return only a DEFAULT field set (id, name, mimeType, kind)
+ * unless `fields` asks for more - so the upload response carries no modifiedTime or
+ * size, and parsing it as a full FileMeta would fail on the first real push. The id
+ * is all we take from it; the metadata the sync actually needs is read back
+ * explicitly below.
+ */
+const UploadedIdSchema = z.object({ id: z.string() });
+
+const META_FIELDS = "id,name,size,modifiedTime";
+
+/**
+ * Google reports "the Drive API is switched off for this project" as a 403 whose
+ * body carries the console URL that fixes it — about 250 characters in, i.e. past
+ * the snippet limit. Worth pulling out by hand: it is a one-time setup step that is
+ * easy to mistake for the permission problem it is NOT (consent grants the scope;
+ * enabling the API is a separate switch), and the answer is a single link.
+ */
+const API_DISABLED_RE = /has not been used in project|accessNotConfigured|it is disabled/i;
+
 function driveError(what: string, status: number, body: string): Error {
+  if (API_DISABLED_RE.test(body)) {
+    const project = /project (\d+)/.exec(body)?.[1];
+    const link = `https://console.cloud.google.com/apis/library/drive.googleapis.com${project === undefined ? "" : `?project=${project}`}`;
+    return new Error(
+      `Drive ${what} failed (HTTP ${status}): the Google Drive API is not enabled for this ` +
+        `OAuth project${project === undefined ? "" : ` (${project})`}. Enable it at ${link}, wait a minute, then retry. ` +
+        `Note this is separate from consent — the drive.file scope can be granted while the API itself is still off.`,
+    );
+  }
   return new Error(`Drive ${what} failed (HTTP ${status}): ${body.slice(0, 200)}`);
 }
 
@@ -49,7 +78,7 @@ export async function findDbFile(
 ): Promise<DriveFileMeta | null> {
   const fetchFn = deps.fetchFn ?? fetch;
   const q = encodeURIComponent(`name = '${config.google.driveDbFileName}' and trashed = false`);
-  const url = `${DRIVE_FILES}?q=${q}&fields=${encodeURIComponent("files(id,name,size,modifiedTime)")}&orderBy=modifiedTime desc`;
+  const url = `${DRIVE_FILES}?q=${q}&fields=${encodeURIComponent(`files(${META_FIELDS})`)}&orderBy=modifiedTime desc`;
   const res = await fetchFn(url, { headers: { Authorization: await authHeader(profileId, deps) } });
   if (!res.ok) throw driveError("lookup", res.status, await res.text());
   const list = FileListSchema.parse(await res.json());
@@ -99,7 +128,25 @@ export async function uploadDbFile(
     body: bytes,
   });
   if (!putRes.ok) throw driveError("upload", putRes.status, await putRes.text());
-  return FileMetaSchema.parse(await putRes.json());
+  const { id } = UploadedIdSchema.parse(await putRes.json());
+  // db/sync.ts stamps the local file with the returned modifiedTime, so it has to
+  // be Drive's authoritative value — read it back rather than inferred from a
+  // response whose field set we do not control.
+  return getFileMeta(profileId, id, deps);
+}
+
+/** Full metadata for one file, with `fields` asked for explicitly. */
+export async function getFileMeta(
+  profileId: string,
+  fileId: string,
+  deps: DriveDeps = {},
+): Promise<DriveFileMeta> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  const res = await fetchFn(`${DRIVE_FILES}/${fileId}?fields=${encodeURIComponent(META_FIELDS)}`, {
+    headers: { Authorization: await authHeader(profileId, deps) },
+  });
+  if (!res.ok) throw driveError("metadata", res.status, await res.text());
+  return FileMetaSchema.parse(await res.json());
 }
 
 /** Download the backup's bytes. */

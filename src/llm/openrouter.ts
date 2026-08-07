@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
 import { parseRetryAfterMs, isRetryableHttpStatus } from "../util/httpRetry.js";
+import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { LlmUnavailableError } from "./errors.js";
 
 /**
@@ -83,8 +84,109 @@ function recordUsage(usage: z.infer<typeof OpenRouterResponseSchema>["usage"]): 
 }
 
 /**
- * Pre-flight: key present and accepted. Mirrors assertOllamaAvailable's
- * fail-fast role so a bad key surfaces in seconds, before any scraping.
+ * How a response status is treated. Split out from the request loop so the policy
+ * is one readable table instead of a chain of ifs, and so the reasoning behind
+ * each verdict is written down next to it.
+ *
+ * The distinction that matters: "fatal" means every remaining posting would fail
+ * the same way, so the run must stop; "perCall" means this one posting failed and
+ * the sweep should carry on. Getting this backwards is expensive in both
+ * directions - a fatal misread as perCall floods the DB with gate-errors, and a
+ * perCall misread as fatal throws away a multi-hour sweep.
+ */
+type StatusVerdict = "ok" | "retry" | "fatalKey" | "fatalCredits" | "fatalModel" | "perCall";
+
+export function classifyOpenRouterStatus(status: number): StatusVerdict {
+  // Per OpenRouter's documented error codes: 401 = invalid/disabled key,
+  // 402 = out of credits, 403 = permissions OR a guardrail/moderation flag,
+  // 404 = unknown model / no provider serving it.
+  if (status === 401) return "fatalKey";
+  if (status === 402) return "fatalCredits";
+  if (status === 404) return "fatalModel";
+  // 403 is deliberately NOT fatal: it is most often a moderation block on this
+  // particular JD, and one flagged posting must not end the run.
+  if (status === 403) return "perCall";
+  if (isRetryableHttpStatus(status)) return "retry";
+  return status >= 200 && status < 300 ? "ok" : "perCall";
+}
+
+/**
+ * Second look at a per-call verdict once the body is in hand.
+ *
+ * Needed because the live API answers an unknown model slug with **400** ("<id> is
+ * not a valid model ID"), not the 404 you would expect - and a 400 cannot be fatal
+ * in general, since it is also what an over-long prompt returns, which really is
+ * per-posting. So the model case is picked out by message instead. In practice
+ * pre-flight catches a typo'd OPENROUTER_MODEL before any scraping; this covers the
+ * model being delisted mid-sweep, where every remaining call would fail the same way.
+ */
+export function refineVerdict(verdict: StatusVerdict, status: number, body: string): StatusVerdict {
+  if (verdict === "perCall" && status === 400 && /not a valid model/i.test(body)) {
+    return "fatalModel";
+  }
+  return verdict;
+}
+
+/** The fatal verdicts, each with the knob the operator actually has to change. */
+function fatalMessage(verdict: StatusVerdict, status: number, body: string): string | null {
+  const detail = body.slice(0, 160);
+  switch (verdict) {
+    case "fatalKey":
+      return `OpenRouter rejected the API key (HTTP ${status}): ${detail}. Check OPENROUTER_API_KEY in .env.`;
+    case "fatalCredits":
+      return `OpenRouter is out of credits (HTTP ${status}): ${detail}. Top up at https://openrouter.ai/credits, or set LOCAL=true to fall back to Ollama.`;
+    case "fatalModel":
+      return `OpenRouter has no endpoint for model '${config.llm.openRouterModel}' (HTTP ${status}): ${detail}. Fix OPENROUTER_MODEL in .env.`;
+    default:
+      return null;
+  }
+}
+
+const API_BASE = "https://openrouter.ai/api/v1";
+const MODEL_ENDPOINTS_BASE = `${API_BASE}/models`;
+
+/**
+ * Confirm the configured model slug actually resolves to a served model.
+ *
+ * Worth a pre-flight call of its own because a wrong slug is invisible until it
+ * has already cost you the run: the key check passes, scraping starts, and then
+ * every single gate call fails. Only an explicit 404 is treated as a verdict -
+ * a 5xx or an unreachable metadata endpoint is not evidence about the model, and
+ * blocking a sweep on it would be worse than proceeding.
+ *
+ * No auth needed: this route is public, which also means it costs nothing.
+ */
+export async function assertModelAvailable(model: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch(`${MODEL_ENDPOINTS_BASE}/${model}/endpoints`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    logger.warn(
+      { model, err: String(err).slice(0, 120) },
+      "openrouter: could not verify the model slug — continuing",
+    );
+    return;
+  }
+  if (res.status === 404) {
+    throw new LlmUnavailableError(
+      `OpenRouter does not serve a model called '${model}'. Fix OPENROUTER_MODEL in .env ` +
+        `(check the exact slug at https://openrouter.ai/models), or set LOCAL=true to use Ollama.`,
+    );
+  }
+  if (!res.ok) {
+    logger.warn(
+      { model, status: res.status },
+      "openrouter: model-metadata lookup failed — continuing without verifying the slug",
+    );
+  }
+}
+
+/**
+ * Pre-flight: key present and accepted, and the configured model served. Mirrors
+ * assertOllamaAvailable's fail-fast role (which checks reachability AND that the
+ * model is pulled) so both backends refuse to start a sweep they cannot finish.
  */
 export async function assertOpenRouterAvailable(): Promise<void> {
   if (config.llm.openRouterKey.trim() === "") {
@@ -94,7 +196,7 @@ export async function assertOpenRouterAvailable(): Promise<void> {
   }
   let res: Response;
   try {
-    res = await fetch("https://openrouter.ai/api/v1/key", {
+    res = await fetch(`${API_BASE}/key`, {
       headers: { Authorization: `Bearer ${config.llm.openRouterKey}` },
       signal: AbortSignal.timeout(10_000),
     });
@@ -103,14 +205,20 @@ export async function assertOpenRouterAvailable(): Promise<void> {
       `OpenRouter not reachable (${String(err).slice(0, 120)}). Check connectivity, or set LOCAL=true to use Ollama.`,
     );
   }
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     throw new LlmUnavailableError(
-      `OpenRouter rejected OPENROUTER_API_KEY (HTTP ${res.status}). Check the key in .env.`,
+      `OpenRouter rejected OPENROUTER_API_KEY (HTTP 401). Check the key in .env.`,
+    );
+  }
+  if (res.status === 402) {
+    throw new LlmUnavailableError(
+      "OpenRouter reports no remaining credits. Top up at https://openrouter.ai/credits, or set LOCAL=true to use Ollama.",
     );
   }
   if (!res.ok) {
     throw new LlmUnavailableError(`OpenRouter pre-flight failed with HTTP ${res.status}.`);
   }
+  await assertModelAvailable(config.llm.openRouterModel);
 }
 
 /**
@@ -126,43 +234,58 @@ export async function openRouterGenerate(
   opts: OpenRouterGenerateOpts,
 ): Promise<string> {
   for (let attempt = 0; attempt <= MAX_STATUS_RETRIES; attempt++) {
-    const res = await fetch(config.llm.openRouterUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${config.llm.openRouterKey}`,
-      },
-      body: JSON.stringify({
-        model: config.llm.openRouterModel,
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-        temperature: opts.temperature ?? 0.2,
-        ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
-        // Reasoning traces would multiply output tokens on every posting; the
-        // gate wants a score and a reason, not a chain of thought. This is the
-        // hosted equivalent of Ollama's `think: false`.
-        reasoning: { enabled: false },
-      }),
-      signal: AbortSignal.timeout(config.llm.timeoutMs),
-    });
-
-    // A bad/exhausted key is not a per-posting failure — stop the whole run.
-    if (res.status === 401 || res.status === 403) {
-      const body = await res.text();
-      throw new LlmUnavailableError(
-        `OpenRouter rejected the API key (HTTP ${res.status}): ${body.slice(0, 160)}. Check OPENROUTER_API_KEY in .env.`,
-      );
+    // Unlike Ollama on localhost, this backend is across the internet: an outage
+    // would otherwise fail five calls in a row and trip client.ts's backend-down
+    // breaker, killing a multi-hour sweep over a few minutes of downtime. Waiting
+    // here keeps that breaker meaning what it was built to mean — a backend that is
+    // genuinely dead or misconfigured — and costs nothing, since a paused run makes
+    // no billable calls at all.
+    await awaitNetwork();
+    let res: Response;
+    try {
+      res = await fetch(config.llm.openRouterUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.llm.openRouterKey}`,
+        },
+        body: JSON.stringify({
+          model: config.llm.openRouterModel,
+          messages: [{ role: "user", content: prompt }],
+          stream: false,
+          temperature: opts.temperature ?? 0.2,
+          ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
+          // Reasoning traces would multiply output tokens on every posting; the
+          // gate wants a score and a reason, not a chain of thought. This is the
+          // hosted equivalent of Ollama's `think: false`.
+          reasoning: { enabled: false },
+        }),
+        signal: AbortSignal.timeout(config.llm.timeoutMs),
+      });
+    } catch (err) {
+      reportNetworkFailure();
+      throw err;
     }
+    reportNetworkSuccess();
 
-    if (isRetryableHttpStatus(res.status) && attempt < MAX_STATUS_RETRIES) {
+    const verdict = classifyOpenRouterStatus(res.status);
+
+    // Throttling and transient 5xx are handled here so they never reach the
+    // consecutive-connection-failure breaker in client.ts.
+    if (verdict === "retry" && attempt < MAX_STATUS_RETRIES) {
       const waitMs = parseRetryAfterMs(res.headers.get("retry-after"));
       logger.warn({ status: res.status, waitMs, attempt }, "openrouter throttled; backing off");
       await sleep(waitMs);
       continue;
     }
 
-    if (!res.ok) {
+    if (verdict !== "ok") {
+      // One read only — a Response body cannot be consumed twice.
       const body = await res.text();
+      // A bad key, an empty balance, or a model that does not resolve would fail
+      // identically on every remaining posting — stop the whole run.
+      const fatal = fatalMessage(refineVerdict(verdict, res.status, body), res.status, body);
+      if (fatal !== null) throw new LlmUnavailableError(fatal);
       // Deliberately free of the words isConnectionError() sniffs for
       // ("timeout", "aborted", "network"): an HTTP-status failure must not be
       // mistaken for the backend being down and trip the breaker.

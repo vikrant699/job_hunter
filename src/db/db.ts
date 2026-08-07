@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { markDbOpened, markDbClosed } from "./openState.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const schemaPath = resolve(here, "schema.sql");
@@ -14,6 +15,10 @@ const dbPath = resolve(process.cwd(), config.storage.dbPath);
 mkdirSync(dirname(dbPath), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
+// Tell sync.ts the file is now held open, so a Drive pull refuses to swap it out
+// from under us instead of failing with EPERM (Windows) or silently reading the
+// replaced file (Linux). See db/openState.ts.
+markDbOpened();
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
 // Wait instead of throwing SQLITE_BUSY when a script runs while the bot holds a write lock.
@@ -105,6 +110,21 @@ db.exec(schema);
 }
 
 logger.info({ path: dbPath }, "sqlite initialized");
+
+/**
+ * Close the singleton connection. TERMINAL for the process: every module-scope
+ * prepared statement in db/*.ts is bound to this handle, so anything touching the
+ * DB afterwards throws.
+ *
+ * Exists for one caller - the post-run Drive push. Holding the handle open there
+ * makes `PRAGMA wal_checkpoint(TRUNCATE)` return busy, which would silently
+ * upload a .db missing whatever is still sitting in the -wal file.
+ */
+export function closeDb(): void {
+  db.close();
+  markDbClosed();
+  logger.info("sqlite closed for sync");
+}
 
 export function queryAll<T>(
   stmt: StatementSync,

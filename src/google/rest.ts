@@ -6,6 +6,7 @@ import { getAccessToken } from "./auth.js";
 import type { GoogleAuthDeps } from "./auth.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
+import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 
 /** How long to back off before the single retry on 429/5xx. */
 const DEFAULT_RETRY_DELAY_MS = 2_000;
@@ -44,14 +45,24 @@ export async function googleFetchJson(
   const method = init.method ?? "GET";
   const idempotent = method !== "POST";
   for (let attempt = 0; attempt <= 1; attempt++) {
-    const res = await fetchFn(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
-    });
+    // Sheets/Gmail fail in exactly the same outage as everything else, and losing
+    // the outreach stage is the expensive half of a run to lose.
+    await awaitNetwork();
+    let res: Response;
+    try {
+      res = await fetchFn(url, {
+        method,
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...(init.body !== undefined ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      });
+    } catch (err) {
+      reportNetworkFailure();
+      throw err;
+    }
+    reportNetworkSuccess();
 
     if ((res.status === 429 || (idempotent && res.status >= 500)) && attempt === 0) {
       logger.warn({ url, status: res.status, attempt }, "Google API transient failure; retrying once");

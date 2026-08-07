@@ -43,6 +43,36 @@ function requiredEnv(name: string): string {
   return v;
 }
 
+/**
+ * How to hand a URL to the desktop's default browser, per platform.
+ *
+ * Explicitly NOT via `cmd /c start`: cmd.exe reads `&` as a command separator, so an
+ * OAuth URL arrived truncated at its first parameter and Google rejected the request
+ * with "Required parameter is missing: response_type". Quoting around that is
+ * fiddly and easy to get wrong again; spawning the handler directly means the URL is
+ * one argv entry with no shell left to reinterpret it.
+ */
+function browserCommand(url: string): { command: string; args: string[] } {
+  if (process.platform === "win32") {
+    return { command: "rundll32", args: ["url.dll,FileProtocolHandler", url] };
+  }
+  if (process.platform === "darwin") return { command: "open", args: [url] };
+  return { command: "xdg-open", args: [url] };
+}
+
+function openBrowser(url: string): void {
+  const { command, args } = browserCommand(url);
+  // detached+unref so the browser-launcher child never keeps our event loop
+  // alive (a lingering child handle triggers a libuv assert on Windows exit)
+  const child = spawn(command, args, { detached: true, stdio: "ignore" });
+  // A machine with no handler registered must not take the consent flow down with
+  // it — the URL is printed above precisely so this stays optional.
+  child.on("error", (err) => {
+    console.log(`(couldn't open a browser automatically: ${err.message} — use the URL above)`);
+  });
+  child.unref();
+}
+
 async function main(): Promise<void> {
   const profileId = argValue("--profile") ?? "default";
   const clientId = requiredEnv("GOOGLE_CLIENT_ID");
@@ -66,12 +96,7 @@ async function main(): Promise<void> {
   console.log(`\nConsenting profile: ${profileId}`);
   console.log(`Log in with the Gmail account this profile SENDS from.\n`);
   console.log(`If the browser doesn't open, visit:\n\n${authUrl}\n`);
-  // detached+unref so the browser-launcher child never keeps our event loop
-  // alive (a lingering child handle triggers a libuv assert on Windows exit)
-  spawn("cmd", ["/c", "start", "", authUrl.replace(/"/g, "")], {
-    detached: true,
-    stdio: "ignore",
-  }).unref();
+  openBrowser(authUrl);
 
   const code = await new Promise<string>((res, rej) => {
     server.on("request", (req, resp) => {
