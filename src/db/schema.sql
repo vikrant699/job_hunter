@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS postings (
   job_url        TEXT    NOT NULL,
   location       TEXT,
   is_remote      INTEGER NOT NULL DEFAULT 0,
-  jd_text        TEXT,
+  -- No jd_text: the gate reads the JD in-memory during the run and nothing ever
+  -- read it back, so persisting it was 453 MB of write-only data (dropped 2026-08-07).
   posted_at      TEXT,
   discovered_at  TEXT    NOT NULL,
   profile_id     TEXT    NOT NULL DEFAULT 'default',

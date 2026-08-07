@@ -7,13 +7,15 @@ import { db, queryAll } from "./db.js";
 
 /* ===== Statements ===== */
 
+// p.jdText is deliberately NOT persisted: the gate consumes it in-memory during
+// the run and nothing reads it back afterwards.
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
     provider, external_id, profile_id, company_slug, job_title, job_url, location,
-    is_remote, jd_text, posted_at, discovered_at
+    is_remote, posted_at, discovered_at
   ) VALUES (
     :provider, :externalId, :profileId, :companySlug, :jobTitle, :jobUrl, :location,
-    :isRemote, :jdText, :postedAt, :discoveredAt
+    :isRemote, :postedAt, :discoveredAt
   )
   ON CONFLICT(provider, external_id, profile_id) DO NOTHING
 `);
@@ -29,7 +31,6 @@ export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boo
     jobUrl: p.jobUrl,
     location: p.location,
     isRemote: p.isRemote ? 1 : 0,
-    jdText: p.jdText,
     postedAt: p.postedAt,
     discoveredAt: new Date().toISOString(),
   });

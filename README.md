@@ -87,7 +87,8 @@ gitignored.
 | `npm run verify` | Checks every entry in your registry is still reachable (verifies against the local registry cache snapshot, so run it after at least one successful sync). Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
 | `npm run health` | Read-only registry health report: status/strategy/provider yield tallies from the local DB and cache. |
-| `npm run eval` | Replays a labelled eval dataset through the gate and prints accuracy stats. |
+| `npm run db:push -- --profile <name>` | Upload the SQLite DB to Google Drive so another machine can pick it up. |
+| `npm run db:pull -- --profile <name>` | Download it back, integrity-checked before replacing the local file. |
 | `npm run lint` | `eslint .` |
 | `npm run typecheck` | `tsc --noEmit`. |
 
@@ -179,7 +180,6 @@ config/
   resume.pdf             your resume PDF                             (gitignored)
   resume.txt             extracted resume text the gate judges on    (gitignored)
 data/                    SQLite DB, registry-cache.json, other caches (gitignored)
-eval/                    offline gate-replay harness (replay.ts, dataset, metrics)
 scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
                            scrape-probe
 src/
