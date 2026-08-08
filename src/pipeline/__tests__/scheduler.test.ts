@@ -35,6 +35,7 @@ function mkRunContext(): RunContext {
     postingsGreen: 0,
     postingsYellow: 0,
     postingsTitleDenied: 0,
+    postingsYoeDenied: 0,
     postingsDuplicated: 0,
     jdFetchFailed: 0,
     errors: [],
