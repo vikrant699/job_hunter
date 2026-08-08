@@ -32,6 +32,7 @@ export interface RunContext {
   postingsGreen: number;
   postingsYellow: number;
   postingsTitleDenied: number;
+  postingsYoeDenied: number;
   postingsDuplicated: number;
   /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
   jdFetchFailed: number;
@@ -83,6 +84,7 @@ export interface ProductionTickOutcome {
     postingsGreen: number;
     postingsYellow: number;
     postingsTitleDenied: number;
+    postingsYoeDenied: number;
     postingsDuplicated: number;
     jdFetchFailed: number;
     transportRetried: number;
@@ -119,6 +121,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsGreen: 0,
     postingsYellow: 0,
     postingsTitleDenied: 0,
+    postingsYoeDenied: 0,
     postingsDuplicated: 0,
     jdFetchFailed: 0,
     errors: [],
@@ -236,6 +239,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       green: stats.postingsGreen,
       yellow: stats.postingsYellow,
       titleDenied: stats.postingsTitleDenied,
+      yoeDenied: stats.postingsYoeDenied,
       duplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
       transportRetried: stats.transportRetried,
@@ -258,6 +262,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
       postingsGreen: stats.postingsGreen,
       postingsYellow: stats.postingsYellow,
       postingsTitleDenied: stats.postingsTitleDenied,
+      postingsYoeDenied: stats.postingsYoeDenied,
       postingsDuplicated: stats.postingsDuplicated,
       jdFetchFailed: stats.jdFetchFailed,
       transportRetried: stats.transportRetried,

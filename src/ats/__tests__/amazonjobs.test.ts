@@ -24,6 +24,23 @@ const job: AmazonJob = {
   description_short: "Build the future of human-technology interaction.",
 };
 
+// The real PayUI payload shape: Amazon keeps the experience bar in its OWN
+// field, so a description-only jdText showed the gate a role with no seniority
+// at all — and left extract with nothing to read.
+const payUiJob: AmazonJob = {
+  id_icims: "10472171",
+  title: "Software Development Engineer I, Amazon Payments",
+  location: "IN, TS, Hyderabad",
+  city: "Hyderabad",
+  country_code: "IND",
+  job_path: "/en/jobs/10472171/software-development-engineer-i-amazon-payments",
+  posted_date: "July 30, 2026",
+  description: "<p>PayUI is a greenfield initiative building standardized UX components.</p>",
+  description_short: "Build UX components for Amazon Pay.",
+  basic_qualifications: "- 1+ years of non-internship professional software development experience<br/>- Experience programming with at least one software programming language",
+  preferred_qualifications: "- Bachelor's degree in computer science or equivalent",
+};
+
 const virtualJob: AmazonJob = {
   id_icims: "10555001",
   title: "GSS - Tech Sourcing Recruiter, WWAS TA C Sourcing",
@@ -115,4 +132,25 @@ test("normalizeAmazonJobs: unparseable posted_date maps to null", () => {
 test("normalizeAmazonJobs: missing posted_date maps to null", () => {
   const p = normalizeAmazonJobs(company, { ...job, posted_date: null });
   assert.equal(p.postedAt, null);
+});
+
+// Regression for the defect that made every Amazon posting look seniority-less:
+// basic/preferred qualifications are separate API fields, and jdText took only
+// `description`. The gate never saw "1+ years", extract returned null YOE, and
+// the profile's "minimum 7+ years" hard deal-breaker could not fire.
+test("normalizeAmazonJobs includes the qualification fields in jdText", () => {
+  const p = normalizeAmazonJobs(company, payUiJob);
+  assert.match(p.jdText, /greenfield initiative/, "description still present");
+  assert.match(p.jdText, /1\+ years of non-internship professional software development/);
+  assert.match(p.jdText, /Basic qualifications:/);
+  assert.match(p.jdText, /Preferred qualifications:/);
+  assert.match(p.jdText, /Bachelor's degree in computer science/);
+  assert.doesNotMatch(p.jdText, /<br\/>/, "html is stripped from the qualification fields too");
+});
+
+test("normalizeAmazonJobs omits qualification headings when the fields are absent", () => {
+  const p = normalizeAmazonJobs(company, job);
+  assert.doesNotMatch(p.jdText, /Basic qualifications:/);
+  assert.doesNotMatch(p.jdText, /Preferred qualifications:/);
+  assert.match(p.jdText, /Build the future of human-technology interaction/);
 });

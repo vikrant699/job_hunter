@@ -25,6 +25,12 @@ export const AmazonJobSchema = z.object({
   posted_date: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   description_short: z.string().nullable().optional(),
+  // Amazon returns the qualifications as their OWN fields, not inside
+  // `description`. Dropping them cost every Amazon posting its experience
+  // requirement: the gate never saw "1+ years", extract returned null YOE, and
+  // the profile's "minimum 7+ years" hard deal-breaker could never fire.
+  basic_qualifications: z.string().nullable().optional(),
+  preferred_qualifications: z.string().nullable().optional(),
 });
 export type AmazonJob = z.infer<typeof AmazonJobSchema>;
 
@@ -45,6 +51,24 @@ export function amazonJobsPageJobs(pageJson: JsonValue): { jobs: AmazonJob[]; to
   return { jobs: parsed.jobs, total: parsed.hits ?? null };
 }
 
+/**
+ * Assemble the full JD from Amazon's three separate fields.
+ *
+ * The qualifications are where the experience bar lives ("1+ years", "3+ years")
+ * and they are NOT part of `description`, so a description-only jdText left every
+ * Amazon posting looking seniority-less to the gate, to extract, and to the
+ * pre-gate YOE check. Sections are labelled because that is how the JD reads on
+ * the site, and the labels give the reader an anchor for what follows.
+ */
+export function amazonJdText(j: AmazonJob): string {
+  const sections: string[] = [htmlToText(j.description ?? j.description_short ?? "")];
+  const basic = htmlToText(j.basic_qualifications ?? "");
+  if (basic !== "") sections.push(`Basic qualifications:\n${basic}`);
+  const preferred = htmlToText(j.preferred_qualifications ?? "");
+  if (preferred !== "") sections.push(`Preferred qualifications:\n${preferred}`);
+  return sections.filter((s) => s.trim() !== "").join("\n\n");
+}
+
 export function normalizeAmazonJobs(company: AdapterCompany, j: AmazonJob): NormalizedPosting {
   const cityCountry = [j.city, j.country_code]
     .filter((v): v is string => typeof v === "string" && v.length > 0)
@@ -59,7 +83,7 @@ export function normalizeAmazonJobs(company: AdapterCompany, j: AmazonJob): Norm
     jobUrl: `${BASE}${j.job_path}`,
     location,
     isRemote: REMOTE_RE.test(location ?? ""),
-    jdText: htmlToText(j.description ?? j.description_short ?? ""),
+    jdText: amazonJdText(j),
     postedAt: dateToIso(j.posted_date),
   };
 }

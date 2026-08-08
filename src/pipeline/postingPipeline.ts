@@ -19,6 +19,7 @@ import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { profile } from "../profile.js";
 import { sleep } from "../util/sleep.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
+import { parseStatedYoeMin } from "../filter/yoe.js";
 import type { RunContext } from "./index.js";
 // Type-only: the scheduler owns the policy and is this function's only production
 // caller, so importing the shape back creates no runtime dependency on it.
@@ -187,6 +188,25 @@ export async function processOnePosting(
 
   if (!posting.jdText) {
     writePostingResult(posting, droppedResult("no-jd", "no-jd"), stats.profileId);
+    return;
+  }
+
+  // The profile's "minimum N+ years" hard deal-breaker, applied deterministically
+  // before spending a gate call. Only fires on an explicitly stated bar — an
+  // unstated requirement is never a rejection, so the gate still sees anything
+  // ambiguous. Stored (not silently discarded) so the drop stays auditable.
+  const statedYoeMin = parseStatedYoeMin(posting.jdText);
+  if (statedYoeMin !== null && statedYoeMin >= profile.filters.hardYoeCap) {
+    stats.postingsYoeDenied++;
+    logger.debug(
+      { company: company.name, title: posting.jobTitle, statedYoeMin, cap: profile.filters.hardYoeCap },
+      "yoe-deny: pre-filter dropped before LLM",
+    );
+    writePostingResult(
+      posting,
+      droppedResult(`needs ${statedYoeMin}+ years (hard cap ${profile.filters.hardYoeCap})`, "yoe-deny"),
+      stats.profileId,
+    );
     return;
   }
 
