@@ -8,9 +8,15 @@
 // iterates a fixed department list and concatenates. A department that 404s
 // or returns non-JSON is skipped (logged) rather than failing the whole
 // board. JD is inline HTML in the list response; no fetchJd needed. The API
-// gives no per-job URL, so jobUrl falls back to the department's page.
-// Verified live 2026-08-01: Sales 22 jobs, Technology 7, Marketing 8, HR/
-// Finance/Operations 0 (empty data: [], not an error).
+// gives no per-job URL field, but the careers page's own "Apply Now" button
+// navigates to /career_form/<id>?location=<Loc>&dept=<Dept> (underscored),
+// which is the only human-viewable per-job page — the /career/<Department>
+// URLs themselves serve raw JSON in a browser, so they must never be used as
+// jobUrl (verified 2026-08-11: they return application/json even for an HTML
+// Accept header).
+// Verified live 2026-08-01 (recounted 2026-08-11): Sales 22 jobs, Technology
+// 7, Marketing 8, Human_Resources 1, Customer_Relations 1, Finance/Operations/
+// General_Administration/Agent_Partner 0 (empty data: [], not an error).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -22,10 +28,16 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 
-// Enumerated from the careers page nav (https://www.squareyards.com/career)
-// on 2026-08-01. Not discoverable from a single JSON call — the nav itself
-// is rendered client-side — so this is a manually maintained list.
-export const SQUAREYARDS_DEPARTMENTS = ["Sales", "Technology", "Marketing", "HR", "Finance", "Operations"] as const;
+// The API department slugs the careers page's tab JS (carriers-*.min.js
+// leftBoxTabClick) maps to, enumerated 2026-08-11. Not discoverable from a
+// single JSON call — the nav is rendered client-side — so this is a manually
+// maintained list. Note the tab labels alias to longer API slugs (HR ->
+// Human_Resources, CR -> Customer_Relations, ...); the short forms return an
+// empty data array rather than an error, so a wrong slug silently drops jobs.
+export const SQUAREYARDS_DEPARTMENTS = [
+  "Sales", "Technology", "Marketing", "Human_Resources", "Finance",
+  "Operations", "General_Administration", "Customer_Relations", "Agent_Partner",
+] as const;
 
 export const SquareYardsJobSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -58,6 +70,19 @@ export function squareyardsJobsFrom(raw: JsonValue): JsonValue[] {
   return parsed.success ? (parsed.data.data ?? []) : [];
 }
 
+/** The human-viewable per-job page: where the careers UI's "Apply Now"
+ *  navigates (`/career_form/<id>?location=<Loc>&dept=<Dept>`, spaces
+ *  underscored). Uses the numeric `id` (not `jobId`); absent/blank params are
+ *  omitted. */
+export function squareyardsJobUrl(origin: string, department: string, j: SquareYardsJob): string {
+  const params: string[] = [];
+  if (j.location) params.push(`location=${j.location.split(" ").join("_")}`);
+  const dept = j.department ?? department;
+  if (dept) params.push(`dept=${dept.split(" ").join("_")}`);
+  const query = params.length > 0 ? `?${params.join("&")}` : "";
+  return `${origin}/career_form/${String(j.id)}${query}`;
+}
+
 export function normalizeSquareYards(
   company: AdapterCompany,
   department: string,
@@ -71,7 +96,7 @@ export function normalizeSquareYards(
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.positionName,
-    jobUrl: squareyardsDeptUrl(origin, department),
+    jobUrl: squareyardsJobUrl(origin, department, j),
     location,
     isRemote: location !== null && REMOTE_RE.test(location),
     jdText: htmlToText(j.description ?? ""),

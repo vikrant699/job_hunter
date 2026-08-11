@@ -5,6 +5,7 @@ import {
   SquareYardsJobSchema,
   squareyardsJobsFrom,
   squareyardsDeptUrl,
+  squareyardsJobUrl,
   normalizeSquareYards,
   SQUAREYARDS_DEPARTMENTS,
 } from "../squareyards.js";
@@ -41,8 +42,11 @@ const RESPONSE = {
   ],
 };
 
-test("SQUAREYARDS_DEPARTMENTS lists the enumerated nav departments", () => {
-  assert.deepEqual(SQUAREYARDS_DEPARTMENTS, ["Sales", "Technology", "Marketing", "HR", "Finance", "Operations"]);
+test("SQUAREYARDS_DEPARTMENTS lists the API department slugs the tab JS maps to", () => {
+  assert.deepEqual(SQUAREYARDS_DEPARTMENTS, [
+    "Sales", "Technology", "Marketing", "Human_Resources", "Finance",
+    "Operations", "General_Administration", "Customer_Relations", "Agent_Partner",
+  ]);
 });
 
 test("squareyardsDeptUrl builds the department-scoped career URL", () => {
@@ -71,16 +75,33 @@ test("normalizeSquareYards maps positionName/location/HTML-stripped JD, external
   assert.equal(p.externalId, "JD8729");
   assert.equal(p.jobTitle, "Business Development Manager (Data Intelligence) ");
   assert.equal(p.location, "Mumbai");
-  assert.equal(p.jobUrl, "https://www.squareyards.com/career/Technology");
+  assert.equal(p.jobUrl, "https://www.squareyards.com/career_form/11375?location=Mumbai&dept=Technology");
   assert.equal(p.isRemote, false);
   assert.match(p.jdText, /Business Development Manager role\./);
   assert.doesNotMatch(p.jdText, /<p>|<strong>/);
+});
+
+test("squareyardsJobUrl underscores multi-word values and omits absent params", () => {
+  const j = SquareYardsJobSchema.parse({
+    id: 7, jobId: "JD7", positionName: "R", location: "New Delhi", department: "Human Resources",
+  });
+  assert.equal(
+    squareyardsJobUrl("https://www.squareyards.com", "Human_Resources", j),
+    "https://www.squareyards.com/career_form/7?location=New_Delhi&dept=Human_Resources",
+  );
+
+  const bare = SquareYardsJobSchema.parse({ id: 9, positionName: "R", location: "" });
+  assert.equal(
+    squareyardsJobUrl("https://www.squareyards.com", "Sales", bare),
+    "https://www.squareyards.com/career_form/9?dept=Sales",
+  );
 });
 
 test("normalizeSquareYards falls back to String(id) when jobId is absent", () => {
   const noJobId = SquareYardsJobSchema.parse({ id: 42, positionName: "No JobId Role", location: "Pune" });
   const p = normalizeSquareYards(company, "Sales", "https://www.squareyards.com", noJobId);
   assert.equal(p.externalId, "42");
+  assert.equal(p.jobUrl, "https://www.squareyards.com/career_form/42?location=Pune&dept=Sales");
 });
 
 test("normalizeSquareYards detects a remote location and treats a blank location as null", () => {
