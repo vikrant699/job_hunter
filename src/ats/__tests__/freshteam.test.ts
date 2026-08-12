@@ -311,10 +311,11 @@ const LEGACY_TEMPLATE_HTML = `<html><body><ul>
 test("parseFreshteamList also parses the legacy template (bare a.job-title rows, ninjacart-style)", () => {
   const posts = parseFreshteamList(LEGACY_TEMPLATE_HTML, company);
   assert.equal(posts.length, 2);
-  assert.equal(posts[0]?.externalId, "Doy_p4CnkDuE");
-  assert.equal(posts[0]?.jobTitle, "Record to Report - Bangalore");
-  assert.equal(posts[0]?.location, "Bangalore, India");
-  assert.match(posts[0]?.jobUrl ?? "", /^https:\/\/.*\/jobs\/Doy_p4CnkDuE\/record-to-report-bangalore$/);
-  assert.equal(posts[1]?.location, "Remote");
-  assert.equal(posts[1]?.isRemote, true);
+  const [rtr, hrbp] = posts;
+  assert.equal(rtr?.externalId, "Doy_p4CnkDuE");
+  assert.equal(rtr.jobTitle, "Record to Report - Bangalore");
+  assert.equal(rtr.location, "Bangalore, India");
+  assert.match(rtr.jobUrl, /^https:\/\/.*\/jobs\/Doy_p4CnkDuE\/record-to-report-bangalore$/);
+  assert.equal(hrbp?.location, "Remote");
+  assert.equal(hrbp.isRemote, true);
 });
