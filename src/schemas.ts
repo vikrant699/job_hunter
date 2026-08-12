@@ -17,7 +17,7 @@ export const ProviderSchema = z.enum([
   "zohorecruit", "successfactors", "peoplestrong",
   "ainterviews", "recruitee", "freshteam", "gohire", "jobsoid", "ceipal",
   "ripplehire", "zwayam", "sensehq", "breezyhr",
-  "turbohire", "avature", "jazzhr", "webbtree", "zappyhire", "talentrecruit", "trakstar",
+  "turbohire", "avature", "jazzhr", "jobvite", "webbtree", "zappyhire", "talentrecruit", "trakstar",
   "sharechat", "amazonjobs", "wpjobs", "mynexthire", "metacareers",
   "gem", "dover", "ycombinator", "icicibank", "reliance", "magicpin", "tatacareers",
   "peoplehum", "leapscholar", "bamboohr", "setu", "radancy", "atlassian", "kula", "urbancompany",

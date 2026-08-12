@@ -202,6 +202,17 @@ const PATTERNS: PatternDef[] = [
     },
   },
   {
+    provider: "jobvite",
+    re: /https?:\/\/jobs\.jobvite\.com\/[a-z0-9-]+\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const slug = u.pathname.split("/").find((s) => s !== "");
+      if (slug === undefined || slug === "search" || slug === "job" || slug === "api") return null;
+      return { url: `https://jobs.jobvite.com/${slug}`, slug };
+    },
+  },
+  {
     provider: "jazzhr",
     re: /https?:\/\/[a-z0-9-]+\.applytojob\.com\b/gi,
     parse(m) {

@@ -31,6 +31,7 @@ import { breezyhrAdapter } from "./breezyhr.js";
 import { turbohireAdapter } from "./turbohire.js";
 import { avatureAdapter } from "./avature.js";
 import { jazzhrAdapter } from "./jazzhr.js";
+import { jobviteAdapter } from "./jobvite.js";
 import { webbtreeAdapter } from "./webbtree.js";
 import { zappyhireAdapter } from "./zappyhire.js";
 import { talentRecruitAdapter } from "./talentrecruit.js";
@@ -143,6 +144,7 @@ export const ATS_ADAPTERS = {
   turbohire: turbohireAdapter,
   avature: avatureAdapter,
   jazzhr: jazzhrAdapter,
+  jobvite: jobviteAdapter,
   webbtree: webbtreeAdapter,
   zappyhire: zappyhireAdapter,
   talentrecruit: talentRecruitAdapter,
