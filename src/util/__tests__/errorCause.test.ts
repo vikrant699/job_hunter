@@ -127,6 +127,37 @@ test("isEdgeInterstitialError is false for failures the board really produced", 
   assert.equal(isEdgeInterstitialError(new Error("workday HTTP 520: <!DOCTYPE html>")), false);
 });
 
+test("isTransportError is true for an AbortSignal.timeout TimeoutError", () => {
+  // AbortSignal.timeout rejects fetch with a DOMException named TimeoutError.
+  // A timeout under run congestion says nothing about the board (recruitee /
+  // greenhouse / ashby all answered in under 3s when probed individually on
+  // 2026-08-12), so it must be retryable and never quarantine-chargeable.
+  const timedOut = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+  assert.ok(isTransportError(timedOut));
+  assert.ok(isInfrastructureFault(timedOut));
+  // Wrapped by an adapter, as the real ones do.
+  assert.ok(isTransportError(new Error("recruitee list fetch failed", { cause: timedOut })));
+  // A rethrow that kept only the message text still classifies.
+  assert.ok(isTransportError(new Error("TimeoutError: The operation was aborted due to timeout")));
+});
+
+test("isEdgeInterstitialError treats HTTP 406/429 as the edge throttling, not the board", () => {
+  // Avature answers 406 (bare nginx page) to request bursts and 200 to the same
+  // request minutes later; eightfold's 429 is an explicit rate limit. Both are
+  // the edge refusing the moment, not the board being dead.
+  assert.ok(
+    isEdgeInterstitialError(
+      new Error("avature HTTP 406: <html>\r\n<head><title>406 Not Acceptable</title></head>"),
+    ),
+  );
+  assert.ok(isEdgeInterstitialError(new Error("eightfoldpcs HTTP 429: Please try again later")));
+  // Still not transport-shaped — the predicates stay disjoint.
+  assert.equal(isTransportError(new Error("eightfoldpcs HTTP 429: Please try again later")), false);
+  // Neighbouring statuses stay board defects.
+  assert.equal(isEdgeInterstitialError(new Error("workday HTTP 422: {\"errorCode\":\"x\"}")), false);
+  assert.equal(isEdgeInterstitialError(new Error("onecard HTTP 500: upstream broke")), false);
+});
+
 test("the two infrastructure predicates stay disjoint", () => {
   // A DNS death is transport-shaped, and must not be what the new predicate catches.
   assert.equal(isEdgeInterstitialError(undiciDnsFailure()), false);

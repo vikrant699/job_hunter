@@ -1,7 +1,13 @@
 // src/ats/workday.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeWorkdayListing, selectPartitionFacet, crawlWorkdayPostings } from "../workday.js";
+import {
+  normalizeWorkdayListing,
+  selectPartitionFacet,
+  crawlWorkdayPostings,
+  parseWorkdayListPage,
+} from "../workday.js";
+import { asJson } from "./testHelpers.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
 import type { JsonValue } from "../../util/json.js";
 
@@ -280,4 +286,54 @@ test("crawlWorkdayPostings still returns results (without throwing) when a parti
   });
   const ids = items.map((p) => p.externalId).sort();
   assert.deepEqual(ids, ["huge-a", "small-a"]);
+});
+
+// --- parseWorkdayListPage: stub tolerance (2026-08-12) ---
+// Live barclays/bdx/cisco/comcast/intel pages occasionally contain a stub
+// jobPosting with no title/externalPath; one such row must not fail the whole
+// board (it was costing 1000+ postings per tenant per run).
+
+const completePosting = {
+  title: "Software Engineer",
+  externalPath: "/job/Pune/Software-Engineer_R-1",
+  locationsText: "Pune, India",
+  postedOn: "Posted Today",
+  bulletFields: ["R-1"],
+  jobPostingId: "R-1",
+  shortId: null,
+};
+
+test("parseWorkdayListPage skips a stub jobPosting instead of failing the board", () => {
+  const page = parseWorkdayListPage(
+    asJson({
+      total: 3,
+      jobPostings: [completePosting, { bulletFields: [] }, { ...completePosting, jobPostingId: "R-2" }],
+    }),
+    "barclays",
+  );
+  assert.equal(page.postings.length, 2);
+  assert.equal(page.skipped, 1);
+  assert.equal(page.total, 3);
+});
+
+test("parseWorkdayListPage still throws when EVERY posting fails the item schema (field drift, not stubs)", () => {
+  assert.throws(
+    () =>
+      parseWorkdayListPage(
+        asJson({ total: 2, jobPostings: [{ titleText: "a" }, { titleText: "b" }] }),
+        "barclays",
+      ),
+    /schema/,
+  );
+});
+
+test("parseWorkdayListPage passes an empty page through (end of pagination, not drift)", () => {
+  const page = parseWorkdayListPage(asJson({ total: 0, jobPostings: [] }), "barclays");
+  assert.equal(page.postings.length, 0);
+  assert.equal(page.skipped, 0);
+  assert.equal(page.total, null);
+});
+
+test("parseWorkdayListPage still throws when the envelope itself is wrong", () => {
+  assert.throws(() => parseWorkdayListPage(asJson({ error: "nope" }), "barclays"), /schema/);
 });
