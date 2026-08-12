@@ -49,6 +49,29 @@ test("normalizePhenom maps fields", () => {
   assert.equal(p.jdText, "");
 });
 
+test("normalizePhenom builds the canonical job page when applyUrl is absent or empty", () => {
+  // idfcfirst (2026-08-12): the widgets response carries applyUrl: "" on every
+  // job, so the old `applyUrl ?? tenantUrl` fallback linked 2751 postings to
+  // the search-results page.
+  const noApply = PhenomJobSchema.parse({ jobId: "P-183145", title: "Cluster Manager" });
+  assert.equal(
+    normalizePhenom(company, noApply).jobUrl,
+    "https://www.jobs.abbott/us/en/job/P-183145",
+  );
+
+  const emptyApply = PhenomJobSchema.parse({ jobId: "P-183807", title: "Banker", applyUrl: "" });
+  assert.equal(
+    normalizePhenom(company, emptyApply).jobUrl,
+    "https://www.jobs.abbott/us/en/job/P-183807",
+  );
+});
+
+test("normalizePhenom falls back to careersUrl only when tenantUrl is missing", () => {
+  const noTenant = { ...company, tenantUrl: null };
+  const j = PhenomJobSchema.parse({ jobId: "P-1", title: "Role" });
+  assert.equal(normalizePhenom(noTenant, j).jobUrl, company.careersUrl);
+});
+
 test("phenomJobPageUrl derives origin + locale prefix from the tenant search URL", () => {
   assert.equal(
     phenomJobPageUrl("https://www.jobs.abbott/us/en/search-results?qcountry=India", "31146766"),

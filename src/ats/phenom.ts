@@ -86,13 +86,22 @@ export function phenomJobsFrom(ddo: JsonValue): { jobs: JsonValue[]; totalHits: 
 
 export function normalizePhenom(company: AdapterCompany, j: PhenomJob): NormalizedPosting {
   const location = j.cityStateCountry ?? j.cityState ?? j.location ?? null;
+  const externalId = String(j.jobId ?? j.reqId ?? "");
+  // Some tenants (idfcfirst, conduent, godrej*) serve applyUrl as "" or null
+  // on every job; falling back to tenantUrl there linked whole boards to
+  // their search-results page. The canonical /<locale>/job/<id> page (the
+  // same one fetchJd reads) is always a real per-job page, so prefer it as
+  // the fallback; careersUrl remains only for a tenantUrl-less company.
+  const jobPage = company.tenantUrl !== null && externalId !== ""
+    ? phenomJobPageUrl(company.tenantUrl, externalId)
+    : null;
   return {
     provider: "phenom",
-    externalId: String(j.jobId ?? j.reqId ?? ""),
+    externalId,
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: j.applyUrl ?? company.tenantUrl ?? company.careersUrl,
+    jobUrl: (j.applyUrl !== null && j.applyUrl !== undefined && j.applyUrl !== "" ? j.applyUrl : null) ?? jobPage ?? company.careersUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     // Left empty on purpose: the search ddo only carries a ~300-char teaser,
