@@ -21,7 +21,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm test` | Run the test suite (`node:test`). |
 | `npm run typecheck` | `tsc --noEmit`. |
 | `npm run lint` | `eslint .` (enforces the type-hygiene rules below). |
-| `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. |
+| `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. Add `-- --profile <name>` for a named profile's dir. Startup also re-extracts automatically whenever the PDF is newer than the txt. |
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data and Companies from local files when they exist (both are gitignored), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
