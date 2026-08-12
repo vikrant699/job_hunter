@@ -283,3 +283,38 @@ test("parseFreshteamJd extracts the JD text and strips the trailing application 
 test("parseFreshteamJd returns '' when .job-details-content is absent (malformed/changed page)", () => {
   assert.equal(parseFreshteamJd("<html><body>Not found</body></html>"), "");
 });
+
+// --- legacy (pre data-portal) board template, live on ninjacart 2026-08-12 ---
+// No [data-portal-id="jobs_list"] wrapper and no data-portal-* attributes:
+// each row is li.heading > .row > .job-list-info with bare anchor classes, and
+// the location lives in a sibling .job-location block before a <br/>.
+const LEGACY_TEMPLATE_HTML = `<html><body><ul>
+  <li class="heading"><div class="row">
+    <div class="job-list-info">
+      <a href="/jobs/Doy_p4CnkDuE/record-to-report-bangalore" class="job-title">Record to Report - Bangalore</a>
+      <a href="/jobs/Doy_p4CnkDuE/record-to-report-bangalore" class="job-desc text">Ninjacart - Pioneer...</a>
+    </div>
+    <div class="job-location">
+      <a href="/jobs/Doy_p4CnkDuE/record-to-report-bangalore" class="location-info"> Bangalore, India <br/> Full Time </a>
+    </div>
+  </div></li>
+  <li class="heading"><div class="row">
+    <div class="job-list-info">
+      <a href="/jobs/1d8yS9-LquXv/sales-hrbp" class="job-title">Sales HRBP</a>
+    </div>
+    <div class="job-location">
+      <a href="/jobs/1d8yS9-LquXv/sales-hrbp" class="location-info"> Remote <br/> Full Time </a>
+    </div>
+  </div></li>
+</ul></body></html>`;
+
+test("parseFreshteamList also parses the legacy template (bare a.job-title rows, ninjacart-style)", () => {
+  const posts = parseFreshteamList(LEGACY_TEMPLATE_HTML, company);
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0]?.externalId, "Doy_p4CnkDuE");
+  assert.equal(posts[0]?.jobTitle, "Record to Report - Bangalore");
+  assert.equal(posts[0]?.location, "Bangalore, India");
+  assert.match(posts[0]?.jobUrl ?? "", /^https:\/\/.*\/jobs\/Doy_p4CnkDuE\/record-to-report-bangalore$/);
+  assert.equal(posts[1]?.location, "Remote");
+  assert.equal(posts[1]?.isRemote, true);
+});

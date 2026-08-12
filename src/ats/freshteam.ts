@@ -98,6 +98,51 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     });
   });
 
+  // Legacy template (live on ninjacart, 2026-08-12): no data-portal-* markup at
+  // all — bare `a.job-title` anchors inside .job-list-info rows, location in a
+  // sibling .job-location block as "City, Country <br/> Employment Type". Only
+  // consulted when the data-portal pass found nothing, so a board that carries
+  // both never double-counts.
+  if (postings.length === 0) {
+    $(".job-list-info a.job-title").each((_, el) => {
+      const $a = $(el);
+      const href = $a.attr("href");
+      if (!href) return;
+      const parsed = parseFreshteamHref(href);
+      if (!parsed) return;
+      if (seen.has(parsed.id)) return;
+
+      const title = collapseWs($a.text());
+      if (!title) return;
+
+      let jobUrl: string;
+      try {
+        jobUrl = new URL(href, base).toString();
+      } catch {
+        return;
+      }
+
+      // First <br/>-separated line of .location-info is the location; the rest
+      // is the employment type ("Full Time"), which is not a location.
+      const locationHtml = $a.closest(".row").find(".job-location .location-info").first().html() ?? "";
+      const location = collapseWs(cheerio.load(locationHtml.split(/<br\s*\/?>/i)[0] ?? "").text()) || null;
+
+      seen.add(parsed.id);
+      postings.push({
+        provider: "freshteam",
+        externalId: parsed.id,
+        companySlug: company.slug,
+        companyName: company.name,
+        jobTitle: title,
+        jobUrl,
+        location,
+        isRemote: location ? REMOTE_RE.test(location) : false,
+        jdText: "",
+        postedAt: null,
+      });
+    });
+  }
+
   // Checked only after the parse comes up empty: a page that yielded rows is a
   // live tenant whatever its (customer-editable) template names its classes, so
   // a marker collision can never fail a working board. The URL comes from the
