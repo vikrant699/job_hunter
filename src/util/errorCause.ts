@@ -92,11 +92,26 @@ const TRANSPORT_CODES = new Set([
 
 /** Matches transport failures that surface as a message rather than a code. */
 const TRANSPORT_MESSAGE_RE =
-  /fetch failed|socket hang up|network socket disconnected|other side closed|terminated|client network socket/i;
+  /fetch failed|socket hang up|network socket disconnected|other side closed|terminated|client network socket|aborted due to timeout/i;
+
+/** AbortSignal.timeout rejects with a DOMException whose name is "TimeoutError"
+ *  (it is not always an Error subclass, so match the name, not instanceof). */
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- narrows a caught value, so `unknown` is the input type by construction
+function hasTimeoutName(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("name" in value)) return false;
+  return value.name === "TimeoutError";
+}
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isTransportError(err: unknown): boolean {
   if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
+  // A per-call timeout (AbortSignal.timeout in ats/http.ts) died on OUR side of
+  // the wire: under run congestion a 5MB board response can outlast the budget
+  // while the board itself is healthy (every "timed out" board probed on
+  // 2026-08-12 answered in under 3s individually). No response was read, so the
+  // error says nothing about the board.
+  if (chain(err).some(hasTimeoutName)) return true;
   return TRANSPORT_MESSAGE_RE.test(describeError(err));
 }
 
@@ -237,10 +252,21 @@ export function assertNotEdgeChallenge(provider: string, url: string, body: stri
  * error whose 200-char body snippet from atsHttpError is a block page. A 403 served
  * by Cloudflare's block page is an edge refusing us, not a board defect.
  */
+/**
+ * HTTP statuses that are an edge refusing the MOMENT, not the board refusing the
+ * request: 429 is an explicit rate limit, and 406 is how Avature's nginx edge
+ * (and AppTrana, see ats/adityabirla.ts) answers traffic it decides looks
+ * automated — the same request returns 200 minutes later (verified live
+ * 2026-08-12 on siemens + tesco). Deliberately narrow: 403/422/5xx stay board
+ * defects, because those regularly ARE the board's application answering.
+ */
+const EDGE_REFUSAL_STATUS_RE = /\bHTTP (?:406|429)\b/;
+
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isEdgeInterstitialError(err: unknown): boolean {
   const text = describeError(err);
   if (looksLikeChallengePage(text)) return true;
+  if (EDGE_REFUSAL_STATUS_RE.test(text)) return true;
   const parseFailed =
     chain(err).some((e) => e instanceof SyntaxError) || JSON_PARSE_MESSAGE_RE.test(text);
   return parseFailed && MARKUP_BODY_RE.test(text);

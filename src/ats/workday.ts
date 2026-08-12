@@ -49,13 +49,52 @@ type WorkdayJobPosting = z.infer<typeof WorkdayJobPostingSchema>;
 
 const WorkdayListResponseSchema = z.object({
   total: z.number().nullable().optional(),
-  jobPostings: z.array(WorkdayJobPostingSchema),
+  // Items validated one at a time in parseWorkdayListPage: live tenants
+  // (barclays, bdx, cisco, comcast, intel — run of 2026-08-12) occasionally
+  // include a stub row with no title/externalPath, and one stub must not fail
+  // a board of 1000+ postings.
+  jobPostings: z.array(JsonValueSchema),
   // Raw facet tree (shape varies a lot by tenant — some leaves are flat
   // id+count values, some nest a sub-facet group first). Only consumed by
   // the 2000-total-latch partitioning path below; left unvalidated beyond
   // "is JSON" since we defensively narrow it with getObj at read time.
   facets: z.array(JsonValueSchema).nullable().optional(),
 });
+
+export interface WorkdayListPage {
+  postings: WorkdayJobPosting[];
+  total: number | null;
+  facets: JsonValue[] | null;
+  skipped: number;
+}
+
+/**
+ * Validate one CXS /jobs page. The envelope must parse (anything else is real
+ * drift), but items are judged individually: a stub row is skipped, and only
+ * EVERY item failing on a non-empty page throws — that shape means the field
+ * names moved, and silently skipping all of them would report a healthy board
+ * with zero jobs.
+ */
+export function parseWorkdayListPage(raw: JsonValue, slug: string): WorkdayListPage {
+  const envelope = parseOrThrow(WorkdayListResponseSchema, raw, { provider: "workday", slug });
+  const postings: WorkdayJobPosting[] = [];
+  let skipped = 0;
+  for (const item of envelope.jobPostings) {
+    const parsed = WorkdayJobPostingSchema.safeParse(item);
+    if (parsed.success) postings.push(parsed.data);
+    else skipped++;
+  }
+  if (skipped > 0 && postings.length === 0) {
+    throw new Error(
+      `workday list response failed schema for ${slug} (all ${skipped} jobPostings rejected)`,
+    );
+  }
+  if (skipped > 0) {
+    logger.warn({ slug, skipped }, "workday: skipped stub jobPostings missing title/externalPath");
+  }
+  const total = typeof envelope.total === "number" && envelope.total > 0 ? envelope.total : null;
+  return { postings, total, facets: envelope.facets ?? null, skipped };
+}
 
 const WorkdayJobDetailSchema = z.object({
   jobPostingInfo: z.object({
@@ -118,11 +157,10 @@ export const workdayAdapter: AtsAdapter = {
         provider: "workday",
       });
 
-      const parsed = parseOrThrow(WorkdayListResponseSchema, data, { provider: "workday", slug: company.slug });
+      const page = parseWorkdayListPage(data, company.slug);
 
-      const items = parsed.jobPostings.map((j) => normalizeWorkdayListing(company, j, parts));
-      const total = typeof parsed.total === "number" && parsed.total > 0 ? parsed.total : null;
-      return { items, total, facets: parsed.facets ?? null };
+      const items = page.postings.map((j) => normalizeWorkdayListing(company, j, parts));
+      return { items, total: page.total, facets: page.facets };
     });
   },
 
