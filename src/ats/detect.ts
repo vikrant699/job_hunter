@@ -97,6 +97,16 @@ const PATTERNS: PatternDef[] = [
     },
   },
   {
+    provider: "pinpoint",
+    re: /https?:\/\/[a-z0-9-]+\.pinpointhq\.com\b/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const slug = u.host.split(".")[0];
+      return slug ? { url: `https://${u.host}`, slug } : null;
+    },
+  },
+  {
     provider: "ainterviews",
     // ainterviews.com/job_board/<slug>/ or /api/job_board/<slug>/ — single shared host.
     re: /https?:\/\/(?:www\.)?ainterviews\.com\/(?:api\/)?job_board\/[a-z0-9._-]+/gi,

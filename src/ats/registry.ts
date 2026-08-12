@@ -108,6 +108,7 @@ import { lohumAdapter } from "./lohum.js";
 import { squareyardsAdapter } from "./squareyards.js";
 import { talentzqAdapter } from "./talentzq.js";
 import { zwayamPublicAdapter } from "./zwayamPublic.js";
+import { pinpointAdapter } from "./pinpoint.js";
 import { llmScrapeAdapter } from "../scraper/llmScrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
@@ -219,6 +220,7 @@ export const ATS_ADAPTERS = {
   squareyards: squareyardsAdapter,
   talentzq: talentzqAdapter,
   "zwayam-public": zwayamPublicAdapter,
+  pinpoint: pinpointAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
