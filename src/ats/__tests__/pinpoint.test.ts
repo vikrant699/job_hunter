@@ -81,9 +81,10 @@ test("normalizePinpoint flags isRemote when workplace_type is remote", () => {
 test("postingsFromPinpointJson validates the {data:[...]} envelope and maps every row", () => {
   const posts = postingsFromPinpointJson(company, asJson({ data: [rawPosting, { ...rawPosting, id: "2" }] }));
   assert.equal(posts.length, 2);
-  assert.equal(posts[0]?.externalId, "524572");
-  assert.equal(posts[1]?.externalId, "2");
-  assert.equal(posts[0]?.location, "Bengaluru, Karnataka");
+  const [first, second] = posts;
+  assert.equal(first?.externalId, "524572");
+  assert.equal(second?.externalId, "2");
+  assert.equal(first.location, "Bengaluru, Karnataka");
 });
 
 test("postingsFromPinpointJson returns [] for an empty board", () => {
