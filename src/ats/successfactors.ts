@@ -30,6 +30,7 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
+import { BROWSER_UA } from "../util/userAgent.js";
 
 // Safety cap: 50,000-125,000 jobs, depending on the tenant's page size (10-25
 // rows x MAX_PAGES 5000). paginate stops earlier once it reaches the parsed
@@ -252,8 +253,11 @@ export const successfactorsAdapter: AtsAdapter = {
       maxPages: MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, pageNum) => {
+        // Browser UA: some tenants 404 the bot UA outright (tataelectronics,
+        // ihcltata - verified 2026-08-14); the browser UA is accepted by all.
         const html = await atsFetchText(successfactorsSearchUrl(origin, offset), {
           provider: "successfactors",
+          userAgent: BROWSER_UA,
         });
         const page = parseSuccessfactorsSearch(html, company);
         // Page 1 only, and only once it has produced no row containers at all.
@@ -317,7 +321,7 @@ export const successfactorsAdapter: AtsAdapter = {
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    const html = await atsFetchText(posting.jobUrl, { provider: "successfactors" });
+    const html = await atsFetchText(posting.jobUrl, { provider: "successfactors", userAgent: BROWSER_UA });
     return parseSuccessfactorsJd(html);
   },
 };
