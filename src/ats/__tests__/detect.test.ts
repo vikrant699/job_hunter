@@ -53,7 +53,8 @@ test("hasAdapter is true exactly when the provider is in ProviderSchema", () => 
   assert.equal(gh[0]?.hasAdapter, true);
   const icims = extractAtsCandidates(`<a href="https://careers-foo.icims.com/jobs">jobs</a>`, "https://foo.com/careers");
   assert.equal(icims[0]?.provider, "icims");
-  assert.equal(icims[0].hasAdapter, false);
+  assert.equal(icims[0].hasAdapter, true); // icims adapter now exists
+  // The detect-only false case is covered by the successfactors-ui5 test below.
 });
 
 test("detect recognises SuccessFactors SAPUI5 portals as detect-only", () => {
