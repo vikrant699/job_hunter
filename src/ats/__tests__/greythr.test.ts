@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeGreythr, greythrBase, GreythrJobSchema } from "../greythr.js";
+import { greythrLocationFromJd, normalizeGreythr, greythrBase, GreythrJobSchema } from "../greythr.js";
 import type { GreythrJob } from "../greythr.js";
 import type { AdapterCompany } from "../../types.js";
 
@@ -59,4 +59,9 @@ test("normalizeGreythr synthesizes a job URL from slug when apply_url is absent"
 
 test("normalizeGreythr honors is_remote", () => {
   assert.equal(normalizeGreythr(company, { ...job, is_remote: true }).isRemote, true);
+});
+
+test("greythrLocationFromJd pulls the Location: line out of the JD text", () => {
+  assert.equal(greythrLocationFromJd("About us...\nLocation: Bangalore\nRole: build"), "Bangalore");
+  assert.equal(greythrLocationFromJd("no location here"), null);
 });

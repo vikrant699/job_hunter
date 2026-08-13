@@ -50,6 +50,17 @@ export const greythrAdapter: AtsAdapter = {
   },
 };
 
+// The API's `locations` array is opaque ids with no lookup endpoint, but most
+// tenants write the human location INTO the JD ("<strong>Location:</strong>
+// Bangalore" — verified live firstclub 2026-08-13). Same fallback pattern as
+// wpjobs. Stops at tag/line boundaries so it never swallows the next field.
+const JD_LOCATION_RE = /\blocation\s*:\s*([^\n<,;|]{2,60})/i;
+export function greythrLocationFromJd(jdText: string): string | null {
+  const m = JD_LOCATION_RE.exec(jdText);
+  const loc = m?.[1]?.trim() ?? "";
+  return loc !== "" ? loc : null;
+}
+
 export function normalizeGreythr(company: AdapterCompany, j: GreythrJob): NormalizedPosting {
   const base = greythrBase(company);
   const jobUrl =
@@ -59,6 +70,7 @@ export function normalizeGreythr(company: AdapterCompany, j: GreythrJob): Normal
         ? `${base}/hire/jobs/${j.slug}`
         : `${base}/hire/jobs`;
 
+  const jdText = htmlToText(j.description);
   return {
     provider: "greythr",
     externalId: j.id,
@@ -66,9 +78,9 @@ export function normalizeGreythr(company: AdapterCompany, j: GreythrJob): Normal
     companyName: company.name,
     jobTitle: j.title,
     jobUrl,
-    location: null, // greytHR exposes only opaque location IDs; text filter decides
+    location: greythrLocationFromJd(jdText),
     isRemote: j.is_remote === true,
-    jdText: htmlToText(j.description),
+    jdText,
     postedAt: j.created_at ?? null,
   };
 }

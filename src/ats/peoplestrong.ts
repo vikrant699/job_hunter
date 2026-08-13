@@ -42,7 +42,9 @@ export type PeoplestrongJob = z.infer<typeof PeoplestrongJobSchema>;
 
 export const PeoplestrongListSchema = z.object({
   totalRecords: z.number().nullable().optional(),
-  response: z.array(PeoplestrongJobSchema),
+  // An EMPTY board serializes response as null, not [] (matrimony-com,
+  // verified live 2026-08-13) — rejecting it made empty boards look broken.
+  response: z.array(PeoplestrongJobSchema).nullable(),
 });
 
 export const PeoplestrongJdSchema = z.object({
@@ -134,12 +136,13 @@ export const peoplestrongAdapter: AtsAdapter = {
         if (state.total === null && typeof parsed.totalRecords === "number") {
           state.total = parsed.totalRecords;
         }
-        const items = parsed.response
+        const rows = parsed.response ?? [];
+        const items = rows
           .map((j) => normalizePeoplestrong(company, j))
           .filter((p): p is NormalizedPosting => p !== null);
         // Advance by the raw record count, not the filtered count, so jobs
         // dropped for a missing jobCode don't shorten the page and stop early.
-        return { items, total: parsed.totalRecords ?? null, rawCount: parsed.response.length };
+        return { items, total: parsed.totalRecords ?? null, rawCount: rows.length };
       },
     });
 

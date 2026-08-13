@@ -74,6 +74,41 @@ export function parseSuccessfactorsTotal(html: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Location from one tile, across the three tenant variants seen live
+ * (2026-08-13): (1) the standard labeled .section-field.location block;
+ * (2) tenants that relabel a customfieldN as "Location"/"City" (cipla:
+ * customfield2) or expose only "Country/Region" (renew-power: value "IN");
+ * (3) tenants whose tiles carry NO fields at all (icici-direct) - fall back
+ * to the city token SF itself bakes into the job slug
+ * (/job/NAVI-MUMBAI-Sr_-Manager/id/ -> "NAVI MUMBAI").
+ */
+type TileSelection = ReturnType<cheerio.CheerioAPI>;
+export function tileLocation($: cheerio.CheerioAPI, $tile: TileSelection, jobSlug: string): string | null {
+  const std = collapseWs($tile.find(".section-field.location div[id$='-value']").first().text());
+  if (std !== "") return std;
+
+  // Boxed: assignments inside the .each() closure defeat TS narrowing on
+  // bare lets (same pattern as peoplestrong's total box).
+  const found: { labeled: string | null; country: string | null } = { labeled: null, country: null };
+  $tile.find(".section-field").each((_, f) => {
+    const $f = $(f);
+    const label = collapseWs($f.find(".section-label").first().text()).toLowerCase();
+    const value = collapseWs($f.find("div[id$='-value']").first().text());
+    if (value === "") return;
+    if (found.labeled === null && (label === "location" || label === "city")) found.labeled = value;
+    if (found.country === null && label.startsWith("country")) found.country = value;
+  });
+  if (found.labeled !== null) return found.labeled;
+  if (found.country !== null) return found.country;
+
+  // Slug fallback: leading UPPERCASE tokens before the title words are the
+  // city SF prepends to the slug. Take hyphen-joined leading caps tokens.
+  const m = /^([A-Z][A-Z .]*(?:-[A-Z][A-Z .]*)*)-/.exec(jobSlug);
+  const city = m?.[1]?.replace(/-/g, " ").trim() ?? "";
+  return city !== "" && city.length >= 3 ? city : null;
+}
+
 /** reqId + slug from a "/job/<slug>/<reqId>/" href. The "/job/<slug>/<reqId>"
  *  pair may appear ANYWHERE in the path, not just at the root: multi-brand
  *  tenants prefix real postings with a subsidiary segment
@@ -152,8 +187,7 @@ export function parseSuccessfactorsSearch(
       const parsed = parseJobHref(href);
       if (!parsed) return;
 
-      const locText = collapseWs($tile.find(".section-field.location div[id$='-value']").first().text());
-      const location = locText || null;
+      const location = tileLocation($, $tile, parsed.slug);
 
       let jobUrl: string;
       try {

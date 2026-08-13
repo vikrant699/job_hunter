@@ -110,7 +110,13 @@ export function parseJobsoidList(html: string, baseUrl: string, company: Adapter
 
     seen.add(id);
     const row = $(el).closest("li");
-    const location = collapseWs(row.find(".sub-title .r-space:has(i.tek-address)").first().text()) || null;
+    // Per-item location next to the address icon; some tenants (webbeds,
+    // verified live 2026-08-13) carry NO per-item location and instead group
+    // jobs under `.list-title` headers ("Shanghai - China") — inherit the
+    // nearest preceding group title in that case.
+    const perItem = collapseWs(row.find(".sub-title .r-space:has(i.tek-address)").first().text());
+    const groupTitle = perItem === "" ? collapseWs(row.closest("ul.list").prevAll(".list-title").first().text()) : "";
+    const location = perItem || groupTitle || null;
 
     out.push({
       provider: "jobsoid",
