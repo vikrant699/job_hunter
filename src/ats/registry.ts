@@ -113,6 +113,7 @@ import { pinpointAdapter } from "./pinpoint.js";
 import { talentfunnelAdapter } from "./talentfunnel.js";
 import { brassringAdapter } from "./brassring.js";
 import { sfcsbAdapter } from "./sfcsb.js";
+import { icimsAdapter } from "./icims.js";
 import { llmScrapeAdapter } from "../scraper/llmScrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
@@ -229,6 +230,7 @@ export const ATS_ADAPTERS = {
   talentfunnel: talentfunnelAdapter,
   brassring: brassringAdapter,
   sfcsb: sfcsbAdapter,
+  icims: icimsAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

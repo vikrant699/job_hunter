@@ -11,7 +11,7 @@ import type { Provider } from "../schemas.js";
 
 /** Providers the detector can recognize in page HTML. A recognized provider
  *  "hasAdapter" exactly when it is a ProviderSchema enum value - detect-only
- *  vendors (icims, personio, jobvite) are recognized for logging but cannot
+ *  vendors (personio, successfactors-ui5) are recognized for logging but cannot
  *  be promoted to ats-api. */
 export type DetectableProvider =
   | Provider
