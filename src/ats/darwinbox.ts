@@ -91,7 +91,16 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
 }
 
 const CAREERS_PATH = "/ms/candidate/careers";
-const API = (page: number) => `/ms/candidateapi/job?page=${page}&companyId=main`;
+/** Legacy tenants can carry a per-tenant token in the careers path
+ *  (`/ms/candidate/<token>/careers`); most use the bare path, whose implicit
+ *  companyId is "main". Hardcoding "main" returned 0 jobs for token tenants
+ *  (pwhr: 0 with "main", 126 with its real token — verified 2026-08-13). */
+const LEGACY_TOKEN_RE = /\/ms\/candidate\/(?!careers)([^/]+)\/careers/i;
+export function legacyCompanyId(company: AdapterCompany): string {
+  const raw = company.tenantUrl ?? company.careersUrl;
+  return matchGroup(LEGACY_TOKEN_RE, raw) ?? "main";
+}
+const API = (page: number, companyId: string) => `/ms/candidateapi/job?page=${page}&companyId=${encodeURIComponent(companyId)}`;
 
 // Runaway backstop only — fetch every page, never truncate (matches turbohire).
 // The legacy list API serves 10 jobs/page, so the previous cap of 100 was a
@@ -134,9 +143,10 @@ export function mergeDarwinboxPages(
 async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPosting[]> {
   const base = darwinboxTenantBase(company);
   const careersUrl = `${base}${CAREERS_PATH}`;
+  const companyId = legacyCompanyId(company);
   const out: NormalizedPosting[] = [];
   // First page (in-browser; clears Cloudflare) reveals jobscount.
-  const [first] = await browserFetchJson(careersUrl, [API(1)]);
+  const [first] = await browserFetchJson(careersUrl, [API(1, companyId)]);
   const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
@@ -146,7 +156,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
     const pageSize = parsed0.message.jobs.length;
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
     if (pagesNeeded >= 2) {
-      const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2));
+      const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2, companyId));
       const results = await browserFetchJson(careersUrl, remainingApis);
       mergeDarwinboxPages(company, out, results, total);
     }
@@ -157,7 +167,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
 async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
   const base = darwinboxTenantBase(company);
   const careersUrl = `${base}${CAREERS_PATH}`;
-  const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=main`]);
+  const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=${encodeURIComponent(legacyCompanyId(company))}`]);
   // Confirmed live: detail.message = { job: [{...fields, jd: "<html>"}], isSaved: bool }
   // "jd" is the primary key; tolerate flat-object fallback for other tenants.
   const parseResult = JsonValueSchema.safeParse(raw);
@@ -171,7 +181,15 @@ async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting
   const jd = typeof jdRaw === "string" ? jdRaw : "";
   // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;).
   // Decode entities once to get real HTML, then strip tags to plain text.
-  return htmlToText(htmlToText(jd));
+  return cleanDarwinboxJd(htmlToText(htmlToText(jd)));
+}
+
+/** Darwinbox's rich-text editor saves its own hint text as the JD when the
+ *  recruiter never typed one (bigbasket, unacademy — verified live
+ *  2026-08-13). Null it so the posting takes the honest no-jd path. */
+const PLACEHOLDER_JD_RE = /^please enter job description\.?$/i;
+export function cleanDarwinboxJd(jd: string): string {
+  return PLACEHOLDER_JD_RE.test(jd.trim()) ? "" : jd;
 }
 
 // ---- candidatev2 (SPA rewrite) ----
@@ -209,7 +227,7 @@ export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: 
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
   // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;);
   // decode entities once to get real HTML, then strip tags to plain text.
-  const jdText = j.jd ? htmlToText(htmlToText(j.jd)) : "";
+  const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : "";
   return {
     provider: "darwinbox",
     externalId: String(j.id),

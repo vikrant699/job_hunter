@@ -406,3 +406,15 @@ test("avatureAdapter.listPostings resolves a tenant_url override that omits /Sea
   stubFetch(t, fetchSequence(() => htmlResponse(EMPTY_PORTAL_HTML)));
   assert.deepEqual(await avatureAdapter.listPostings(metlife), []);
 });
+
+test("parseAvatureJd prefers the description section over the metadata sidebar", () => {
+  const html = `
+    <section class="section"><div class="section__content">Permanent Full time Mumbai</div></section>
+    <section class="section section--description"><div class="section__content"><p>Own the Nordic launch plan.</p></div></section>`;
+  assert.equal(parseAvatureJd(html), "Own the Nordic launch plan.");
+});
+
+test("parseAvatureJd falls back to the first section__content when no description section exists", () => {
+  const html = `<div class="section__content"><p>Classic skin body.</p></div>`;
+  assert.equal(parseAvatureJd(html), "Classic skin body.");
+});

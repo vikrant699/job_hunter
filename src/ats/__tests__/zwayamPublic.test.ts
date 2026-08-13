@@ -487,3 +487,34 @@ test("listPostings stops on a board that ignores the offset and re-serves page 1
   assert.equal(calls, 2, "the second identical page must end pagination");
   assert.equal(postings.length, 10, "the repeated rows must not be accumulated twice");
 });
+
+// --- fetchJd via the jobs-service detail endpoint ----------------------------
+
+test("fetchJd POSTs the jobUrl slug + learned companyId to the detail endpoint and reads longDescription", async (t) => {
+  const calls: { url: string; body: string }[] = [];
+  stubFetch(t, (input, init) => {
+    const url = String(input);
+    if (url.endsWith("/jobs/search")) {
+      const hits = makeHits(1, 2).map((h) => ({ ...h, _source: { ...h._source, companyId: 15061 } }));
+      return Promise.resolve(searchResponse(hits, 2));
+    }
+    calls.push({ url, body: String(init?.body ?? "") });
+    return Promise.resolve(
+      new Response(JSON.stringify({ longDescription: "<p>Recover premiums.</p>" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  });
+
+  const postings = await zwayamPublicAdapter.listPostings(bajaj);
+  const jd = await zwayamPublicAdapter.fetchJd?.(bajaj, at(postings, 0));
+  assert.equal(jd, "Recover premiums.");
+  assert.equal(at(calls, 0).url, "https://apic2.zwayam.com/jobs-service/v1/jobs/careersite");
+  const body = z
+    .object({ jobUrl: z.string(), companyId: z.string(), externalSource: z.string(), campusUrl: z.string() })
+    .parse(JSON.parse(at(calls, 0).body));
+  assert.equal(body.companyId, "15061");
+  assert.equal(body.externalSource, "CareerSite");
+  assert.ok(body.jobUrl.length > 0);
+});
