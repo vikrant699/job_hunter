@@ -112,6 +112,7 @@ import { zwayamPublicAdapter } from "./zwayamPublic.js";
 import { pinpointAdapter } from "./pinpoint.js";
 import { talentfunnelAdapter } from "./talentfunnel.js";
 import { brassringAdapter } from "./brassring.js";
+import { sfcsbAdapter } from "./sfcsb.js";
 import { llmScrapeAdapter } from "../scraper/llmScrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
@@ -227,6 +228,7 @@ export const ATS_ADAPTERS = {
   pinpoint: pinpointAdapter,
   talentfunnel: talentfunnelAdapter,
   brassring: brassringAdapter,
+  sfcsb: sfcsbAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
