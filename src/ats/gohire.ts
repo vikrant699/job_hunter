@@ -176,7 +176,14 @@ export const gohireAdapter: AtsAdapter = {
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "gohire" });
+    // Preferred: the schema.org JobPosting island. Some tenants stopped
+    // emitting it (piersight, 2026-08-13) but still server-render the JD in
+    // the page body inside div.jp-text — fall back to that.
     const [job] = extractJsonLdJobs(html);
-    return job?.description ? htmlToText(job.description) : "";
+    if (job?.description) return htmlToText(job.description);
+    const $ = cheerio.load(html);
+    const body = $("div.jp-text").first();
+    const inner = body.length ? body.html() : null;
+    return inner ? htmlToText(inner) : "";
   },
 };

@@ -32,10 +32,11 @@
 // One-phase: the JD is inline in _source, same shape/inconsistency as
 // zwayam.ts (see bestJdText) — no fetchJd needed.
 import { z } from "zod";
+import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
-import { atsFetchJsonMultipart, parseOrThrow } from "./http.js";
+import { atsFetchJson, atsFetchJsonMultipart, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
@@ -56,6 +57,7 @@ const JobLocationRecordSchema = z.object({
 const HitSourceSchema = z.object({
   jobTitle: z.string(),
   jobUrl: z.string().nullable().optional(),
+  companyId: z.union([z.string(), z.number()]).nullable().optional(),
   locationSeparatedbySlash: z.string().nullable().optional(),
   jobLocationRecord: z.array(JobLocationRecordSchema).nullable().optional(),
   shortDescription: z.string().nullable().optional(),
@@ -118,6 +120,19 @@ function bestJdText(src: z.infer<typeof HitSourceSchema>): string {
   ];
   return candidates.reduce((best, c) => (c.length > best.length ? c : best), "");
 }
+
+// Detail endpoint (same shard host as the search): returns the FULL JD in
+// `longDescription`, which the apic2 shard omits from search hits entirely
+// (Bajaj Allianz: every search hit's description fields empty, 2026-08-13).
+// Body shape captured from the tenant's own Angular detail view.
+const DetailResponseSchema = z.object({
+  longDescription: z.string().nullable().optional(),
+  shortDescription: z.string().nullable().optional(),
+});
+
+/** companyId per registry slug, learned from search hits during listPostings.
+ *  The detail endpoint requires it; hits carry it consistently per tenant. */
+const companyIdBySlug = new Map<string, string>();
 
 /**
  * Whether a raw location code is the tenant's HEAD-OFFICE marker rather than a
@@ -243,6 +258,9 @@ export const zwayamPublicAdapter: AtsAdapter = {
           userAgent: BROWSER_UA,
         });
         const { hits, total } = zwayamPublicPage(raw, company.slug);
+        // Remember the tenant's companyId for fetchJd (consistent across hits).
+        const cid = hits.find((h) => h._source.companyId !== null && h._source.companyId !== undefined)?._source.companyId;
+        if (cid !== undefined && cid !== null) companyIdBySlug.set(company.slug, String(cid));
         return {
           items: hits.map((h) => normalizeZwayamPublic(company, h, origin, tenantPath)),
           total,
@@ -250,5 +268,33 @@ export const zwayamPublicAdapter: AtsAdapter = {
         };
       },
     });
+  },
+
+  // Called for postings whose search hit carried no usable description (the
+  // whole apic2 shard). The detail endpoint wants the raw jobUrl SLUG (the
+  // last path segment of our built jobview URL) plus the tenant's companyId
+  // learned during listPostings.
+  async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+    const companyId = companyIdBySlug.get(company.slug);
+    if (companyId === undefined) {
+      logger.warn({ slug: company.slug }, "zwayam-public: no companyId learned from search hits; cannot fetch JD");
+      return posting.jdText;
+    }
+    const tenantUrl = company.tenantUrl ?? company.careersUrl;
+    const apiHost = company.apiMeta?.apiHost ?? DEFAULT_API_HOST;
+    const slug = new URL(posting.jobUrl).pathname.split("/").filter(Boolean).pop() ?? "";
+    const raw = await atsFetchJson(`https://${apiHost}/jobs-service/v1/jobs/careersite`, {
+      provider: "zwayam-public",
+      userAgent: BROWSER_UA,
+      headers: { Origin: new URL(tenantUrl).origin, Referer: tenantUrl },
+      body: { jobUrl: slug, externalSource: "CareerSite", campusUrl: "empty", companyId },
+    });
+    const parsed = parseOrThrow(DetailResponseSchema, raw, {
+      provider: "zwayam-public",
+      slug: company.slug,
+      what: `detail ${slug}`,
+    });
+    const jd = htmlToText(parsed.longDescription ?? parsed.shortDescription ?? "");
+    return jd !== "" ? jd : posting.jdText;
   },
 };

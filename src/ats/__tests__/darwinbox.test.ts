@@ -2,6 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  cleanDarwinboxJd,
+  legacyCompanyId,
   normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages,
   darwinboxV2Token, normalizeDarwinboxV2, mergeDarwinboxV2Pages,
   darwinboxLocation, darwinboxPagesNeeded,
@@ -200,4 +202,17 @@ test("mergeDarwinboxV2Pages throws (not warn+truncate) on a mid-pagination schem
     /darwinbox v2 page \(fetched \d+\/\d+ so far\) response failed schema for lg-soft-india/,
   );
   assert.equal(out.length, 1);
+});
+
+test("cleanDarwinboxJd nulls the editor placeholder, keeps real JDs", () => {
+  assert.equal(cleanDarwinboxJd("Please enter job description"), "");
+  assert.equal(cleanDarwinboxJd(" please enter job description. "), "");
+  assert.equal(cleanDarwinboxJd("Build our payments stack."), "Build our payments stack.");
+});
+
+test("legacyCompanyId extracts the tenant token from the careers path, defaulting to main", () => {
+  const mk = (url: string): AdapterCompany => ({ ...company, tenantUrl: url });
+  assert.equal(legacyCompanyId(mk("https://pwhr.darwinbox.in/ms/candidate/a62d7a6e288992/careers")), "a62d7a6e288992");
+  assert.equal(legacyCompanyId(mk("https://acme.darwinbox.in/ms/candidate/careers")), "main");
+  assert.equal(legacyCompanyId(mk("https://acme.darwinbox.in")), "main");
 });

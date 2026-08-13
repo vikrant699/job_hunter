@@ -567,3 +567,26 @@ test("gohireAdapter.listPostings paginates via POST form body and stops on an em
     restoreFetch();
   }
 });
+
+test("gohireAdapter.fetchJd falls back to div.jp-text when JSON-LD is absent", async () => {
+  const page = `<html><body><div class="jp-text"><div><p>Design antennas.</p><ul><li>RF chains</li></ul></div></div></body></html>`;
+  stubFetch(async () => new Response(page, { status: 200 }));
+  try {
+    const posting: NormalizedPosting = {
+      provider: "gohire",
+      externalId: "295601",
+      companySlug: company.slug,
+      companyName: company.name,
+      jobTitle: "Sr Antenna Design Engineer",
+      jobUrl: "https://jobs.gohire.io/piersight-rfd9c90d/sr-antenna-design-engineer-295601/",
+      location: "Ahmedabad, India",
+      isRemote: false,
+      jdText: "",
+      postedAt: null,
+    };
+    const jd = await fetchJd(company, posting);
+    assert.equal(jd, "Design antennas.\nRF chains");
+  } finally {
+    restoreFetch();
+  }
+});

@@ -235,10 +235,16 @@ export function parseAvatureSearch(
   return { postings, nextHref: parseAvatureNextHref(html, baseUrl) };
 }
 
-/** Extract the JD body (`.section__content`, first match) as plain text. */
+/** Extract the JD body as plain text. The description lives in
+ *  `section.section--description`; a bare `.section__content` first-match
+ *  grabs the metadata SIDEBAR on some skins (L'Oréal served 80-97 char
+ *  "JDs" of location tags while the real 4.5k-char body sat one section
+ *  over — verified live 2026-08-13). Fall back to the old selector for
+ *  skins without the description section class. */
 export function parseAvatureJd(html: string): string {
   const $ = cheerio.load(html);
-  const el = $(".section__content").first();
+  const described = $("section.section--description .section__content").first();
+  const el = described.length ? described : $(".section__content").first();
   if (!el.length) return "";
   const inner = el.html();
   return inner ? htmlToText(inner) : collapseWs(el.text());
