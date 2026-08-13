@@ -47,7 +47,10 @@ export const eightfoldAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "eightfold",
       company: company.slug,
-      pageSize: PAGE,
+      // "infer", not PAGE: some tenants clamp num= server-side (HSBC serves 10
+      // per page whatever we request), and judging that first page short
+      // against the requested size stopped pagination at 10 of 1,563.
+      pageSize: "infer",
       fetchPage: async (start) => {
         const url = `https://${host}/api/apply/v2/jobs?domain=${encodeURIComponent(domain)}&start=${start}&num=${PAGE}&sort_by=relevance`;
         const raw = await atsFetchJson(url, { provider: "eightfold" });
