@@ -53,15 +53,18 @@ const SfcsbResponseSchema = z.object({
   jobSearchResult: z.array(z.object({ response: SfcsbJobSchema })).nullable().optional(),
 });
 
-/** The POST body for a 1-based page. */
-export function sfcsbSearchBody(pageNumber: number): JsonValue {
-  return { keywords: "", locale: LOCALE, pageNumber };
+/** The POST body for a 1-based page. Locale defaults to en_US but is a
+ *  TENANT setting: indegene's board returns totalJobs=4 under en_US and 73
+ *  under en_GB (verified live 2026-08-13) — apiMeta.locale overrides. */
+export function sfcsbSearchBody(pageNumber: number, locale: string = LOCALE): JsonValue {
+  return { keywords: "", locale, pageNumber };
 }
 
 /** Canonical public job URL; the slug segment is cosmetic. */
 export function sfcsbJobUrl(company: AdapterCompany, id: string, slug: string | null | undefined): string {
   const seg = slug !== undefined && slug !== null && slug !== "" ? slug : "x";
-  return `${tenantOrigin(company)}/job/${seg}/${id}-${LOCALE}/`;
+  const locale = company.apiMeta?.locale ?? LOCALE;
+  return `${tenantOrigin(company)}/job/${seg}/${id}-${locale}/`;
 }
 
 function sfcsbLocation(j: z.infer<typeof SfcsbJobSchema>): string | null {
@@ -128,7 +131,7 @@ export const sfcsbAdapter: AtsAdapter = {
       fetchPage: async (_offset, page) => {
         const json = await atsFetchJson(`${tenantOrigin(company)}/services/recruiting/v1/jobs`, {
           method: "POST",
-          body: sfcsbSearchBody(page + 1),
+          body: sfcsbSearchBody(page + 1, company.apiMeta?.locale ?? undefined),
           provider: "sfcsb",
         });
         const { jobs, total } = parseSfcsbPage(json, company);

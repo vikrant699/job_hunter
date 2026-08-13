@@ -418,3 +418,13 @@ test("parseAvatureJd falls back to the first section__content when no descriptio
   const html = `<div class="section__content"><p>Classic skin body.</p></div>`;
   assert.equal(parseAvatureJd(html), "Classic skin body.");
 });
+
+test("avatureSearchUrl appends the per-tenant country filter suffix", () => {
+  const c: AdapterCompany = {
+    provider: "avature", slug: "siemens", name: "Siemens",
+    careersUrl: "https://jobs.siemens.com/en_US/externaljobs",
+    tenantUrl: null,
+    apiMeta: { countryFilter: "42386[]=812053" },
+  };
+  assert.equal(avatureSearchUrl(c), "https://jobs.siemens.com/en_US/externaljobs/SearchJobs?42386[]=812053");
+});

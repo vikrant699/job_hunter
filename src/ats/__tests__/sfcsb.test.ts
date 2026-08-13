@@ -118,3 +118,8 @@ test("an alive-but-empty tenant (totalJobs 0, no result array) yields nothing", 
   const postings = await sfcsbAdapter.listPostings(company);
   assert.equal(postings.length, 0);
 });
+
+test("sfcsbSearchBody honors a locale override (indegene needs en_GB)", () => {
+  assert.deepEqual(sfcsbSearchBody(2, "en_GB"), { keywords: "", locale: "en_GB", pageNumber: 2 });
+  assert.deepEqual(sfcsbSearchBody(1), { keywords: "", locale: "en_US", pageNumber: 1 });
+});
