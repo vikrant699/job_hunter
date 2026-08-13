@@ -232,3 +232,18 @@ test("extractHtmlBoardJd honors detailJdSelector and falls back to main", () => 
     /Fallback body/,
   );
 });
+
+test("jdSelector joins ALL matches (agnikul-style sibling widget blocks)", () => {
+  const html = `<div class="col"><h2 class="t">Engineer</h2><div class="w"><p>Part one.</p></div><div class="w"><p>Part two.</p></div></div>`;
+  const c = company({ itemSelector: ".col", titleSelector: "h2.t", jdSelector: ".w", noItemLinks: "true" });
+  const items = parseHtmlBoardListing(html, htmlBoardConfig(c));
+  assert.equal(items.length, 1);
+  assert.match(items[0]?.jdText ?? "", /Part one\./);
+  assert.match(items[0]?.jdText ?? "", /Part two\./);
+});
+
+test("detailJdRegex captures a script-payload JD and unescapes it (shopify RSC shape)", () => {
+  const page = 'chrome... "descriptionHtml","<p>Build \\"commerce\\" tools.</p>" ...more';
+  const cfg = htmlBoardConfig(company({ itemSelector: "li", detailJdRegex: '"descriptionHtml","((?:[^"\\\\]|\\\\.)*)"' }));
+  assert.equal(extractHtmlBoardJd(page, cfg), 'Build "commerce" tools.');
+});

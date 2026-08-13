@@ -85,6 +85,11 @@ export interface HtmlBoardConfig {
   fixedLocation: string | null;
   jdSelector: string | null;
   detailJdSelector: string | null;
+  /** Regex with ONE capture group run against the RAW detail-page source
+   *  before any selector — for JDs embedded in script payloads rather than
+   *  markup (shopify ships the JD as RSC data: `"descriptionHtml","<html>"`).
+   *  The captured group is JSON-string-unescaped before the HTML strip. */
+  detailJdRegex: string | null;
   pageParam: string | null;
   titleRegex: RegExp | null;
   excludeTitleRegex: RegExp | null;
@@ -112,6 +117,7 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
     fixedLocation: meta.fixedLocation ?? null,
     jdSelector: meta.jdSelector ?? null,
     detailJdSelector: meta.detailJdSelector ?? null,
+    detailJdRegex: meta.detailJdRegex ?? null,
     pageParam: meta.pageParam ?? null,
     titleRegex: meta.titleRegex ? new RegExp(meta.titleRegex, "i") : null,
     excludeTitleRegex: meta.excludeTitleRegex ? new RegExp(meta.excludeTitleRegex, "i") : null,
@@ -211,7 +217,17 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
     }
     if (!location && cfg.fixedLocation) location = cfg.fixedLocation;
 
-    const jdText = cfg.jdSelector ? htmlToText($item.find(cfg.jdSelector).first().html() ?? "") : "";
+    // Join EVERY jdSelector match: single-page boards (agnikul, agrostar)
+    // spread the JD across sibling widget blocks inside one item.
+    const jdText = cfg.jdSelector
+      ? htmlToText(
+          $item
+            .find(cfg.jdSelector)
+            .map((_, el) => $(el).html() ?? "")
+            .get()
+            .join("\n"),
+        )
+      : "";
 
     const externalId =
       (cfg.idAttr ? $item.attr(cfg.idAttr)?.trim() : null) ??
@@ -261,6 +277,18 @@ export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, item
 }
 
 export function extractHtmlBoardJd(html: string, cfg: HtmlBoardConfig): string {
+  if (cfg.detailJdRegex !== null) {
+    const m = new RegExp(cfg.detailJdRegex, "s").exec(html);
+    const captured = m?.[1];
+    if (captured !== undefined && captured !== "") {
+      // Script-payload JDs arrive as JSON string content: decode the common
+      // escapes before stripping tags.
+      const decoded = captured
+        .replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\(["/nrt\\])/g, (_, c: string) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
+      return htmlToText(decoded);
+    }
+  }
   const $ = cheerio.load(html);
   if (cfg.detailJdSelector) {
     const el = $(cfg.detailJdSelector).first();
