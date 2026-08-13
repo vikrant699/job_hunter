@@ -116,6 +116,7 @@ import { sfcsbAdapter } from "./sfcsb.js";
 import { hdfclifeAdapter } from "./hdfclife.js";
 import { icimsAdapter } from "./icims.js";
 import { cvvizAdapter } from "./cvviz.js";
+import { googleAdapter } from "./google.js";
 import { llmScrapeAdapter } from "../scraper/llmScrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
@@ -235,6 +236,7 @@ export const ATS_ADAPTERS = {
   hdfclife: hdfclifeAdapter,
   icims: icimsAdapter,
   cvviz: cvvizAdapter,
+  google: googleAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {
