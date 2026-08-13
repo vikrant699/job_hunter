@@ -115,3 +115,35 @@ test("jsVarPostings unescapes and JSON-parses a flight-style blob", () => {
   assert.equal(p0.location, "Manesar");
   assert.equal(p0.externalId, "1");
 });
+
+// slugField: {slug} in urlTemplate resolves via a configurable dot-path
+// (ofbcareers.com stores the job path in "link-jobs-jobTitle", not "slug").
+test("jsVarPostings resolves {slug} from apiMeta.slugField when set", () => {
+  const company: AdapterCompany = {
+    ...arrayCompany,
+    slug: "ofbusiness",
+    apiMeta: {
+      startMarker: '"recordsByCollectionId":{"Jobs":',
+      open: "{",
+      container: "object",
+      titleField: "jobTitle",
+      locationField: "location",
+      jdFields: "jobDescription,whatYouWillDo",
+      slugField: "link-jobs-jobTitle",
+      urlTemplate: "https://www.ofbcareers.com{slug}",
+    },
+  };
+  const html = `..."recordsByCollectionId":{"Jobs":{
+    "uuid-1": { "jobTitle": "Quality Executive", "location": "Indore",
+      "jobDescription": "<p>Inspect pulses.</p>", "whatYouWillDo": "<p>Grade grains.</p>",
+      "link-jobs-jobTitle": "/jobs/quality-executive" },
+    "uuid-2": { "_id": "stub-without-title" }
+  }}...`;
+  const p = jsVarPostings(company, html);
+  assert.equal(p.length, 1);
+  const p0 = at(p, 0);
+  assert.equal(p0.externalId, "uuid-1");
+  assert.equal(p0.jobUrl, "https://www.ofbcareers.com/jobs/quality-executive");
+  assert.match(p0.jdText, /Inspect pulses\./);
+  assert.match(p0.jdText, /Grade grains\./);
+});

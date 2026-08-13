@@ -23,6 +23,9 @@
 //   titleField / idField / locationField / jdFields / fixedLocation:
 //                  same dot-path mapping semantics as the nextdata adapter.
 //   urlTemplate    optional — {id}/{slug} placeholders; defaults to listUrl.
+//   slugField      optional — dot-path that feeds {slug} (e.g. ofbcareers.com
+//                  keeps the job path in "link-jobs-jobTitle"); falls back to
+//                  a literal "slug" field, then the externalId.
 //
 // Parsing: JS literals with single quotes / backticks / unquoted keys aren't
 // JSON, so the extracted text is evaluated in a locked-down `vm` context (no
@@ -53,6 +56,7 @@ export interface JsVarConfig {
   locationField: string | null;
   jdFields: string[];
   urlTemplate: string | null;
+  slugField: string | null;
   fixedLocation: string | null;
 }
 
@@ -73,6 +77,7 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
     locationField: m.locationField ?? null,
     jdFields: m.jdFields ? m.jdFields.split(",").map((s) => s.trim()).filter(Boolean) : [],
     urlTemplate: m.urlTemplate ?? null,
+    slugField: m.slugField ?? null,
     fixedLocation: m.fixedLocation ?? null,
   };
 }
@@ -127,7 +132,8 @@ export function jsVarPostings(company: AdapterCompany, sourceText: string): Norm
     if (!externalId || seen.has(externalId)) continue;
     seen.add(externalId);
 
-    const slug = digString(job, "slug") ?? externalId;
+    const slug =
+      (cfg.slugField ? digString(job, cfg.slugField) : null) ?? digString(job, "slug") ?? externalId;
     const jobUrl = cfg.urlTemplate
       ? cfg.urlTemplate.replace("{id}", externalId).replace("{slug}", slug)
       : cfg.listUrl;
