@@ -44,8 +44,17 @@ export const workableAdapter: AtsAdapter = {
 };
 
 export function normalizeWorkable(company: AdapterCompany, j: Job): NormalizedPosting {
-  const loc = j.locations?.[0];
-  const location = joinLocation(loc?.city ?? j.city, loc?.region ?? j.state, loc?.country ?? j.country);
+  // Join EVERY location, not just the first: the widget API serializes
+  // multi-location postings with a locations[] array (and sometimes as
+  // duplicate rows), and keeping only [0] geo-rejected postings whose first
+  // location is foreign but which also hire in India ("Boston; Bengaluru").
+  // The location filter deliberately keeps multi-location strings whose
+  // foreign city sits next to an in-region one.
+  const locs = (j.locations ?? [])
+    .map((l) => joinLocation(l.city, l.region, l.country))
+    .filter((s): s is string => s !== null);
+  const location =
+    locs.length > 0 ? [...new Set(locs)].join("; ") : joinLocation(j.city, j.state, j.country);
   return {
     provider: "workable",
     externalId: j.shortcode,

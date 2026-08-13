@@ -1,5 +1,6 @@
 // src/ats/successfactors.test.ts
 import { test } from "node:test";
+import * as cheerio from "cheerio";
 import assert from "node:assert/strict";
 import {
   successfactorsSearchUrl,
@@ -9,6 +10,7 @@ import {
   parseSuccessfactorsSearch,
   parseSuccessfactorsJd,
   successfactorsAdapter,
+  tileLocation,
 } from "../successfactors.js";
 import {
   isEdgeInterstitialError,
@@ -422,4 +424,19 @@ test("only page 1 is audited: a parked-looking page past the end just ends the c
   });
   const postings = await successfactorsAdapter.listPostings(mahindra);
   assert.equal(postings.length, 10, "page 1's postings are kept, not thrown away");
+});
+
+test("tileLocation: labeled customfield wins when the standard location block is absent (cipla shape)", () => {
+  const $ = cheerio.load(`<li class="job-tile"><div class="section-field customfield2">
+    <div class="section-label">Location</div><div id="job-1-customfield2-value">Fall River</div></div></li>`);
+  assert.equal(tileLocation($, $("li.job-tile"), "SAP-Ariba-Techo-Functional"), "Fall River");
+});
+
+test("tileLocation: Country/Region fallback (renew shape), then slug city (icici shape)", () => {
+  const $c = cheerio.load(`<li class="job-tile"><div class="section-field country">
+    <div class="section-label">Country/Region</div><div id="job-2-country-value">IN</div></div></li>`);
+  assert.equal(tileLocation($c, $c("li.job-tile"), "Sr-Manager"), "IN");
+  const $e = cheerio.load(`<li class="job-tile"></li>`);
+  assert.equal(tileLocation($e, $e("li.job-tile"), "NAVI-MUMBAI-Sr_-Manager"), "NAVI MUMBAI");
+  assert.equal(tileLocation($e, $e("li.job-tile"), "lowercase-slug"), null);
 });

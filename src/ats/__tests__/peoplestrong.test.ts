@@ -117,7 +117,7 @@ test("PeoplestrongListSchema parses the wrapper and totalRecords pagination math
   const parsed = PeoplestrongListSchema.safeParse(raw);
   assert.ok(parsed.success);
   assert.equal(parsed.data.totalRecords, 57);
-  assert.equal(parsed.data.response.length, 2);
+  assert.equal(parsed.data.response?.length, 2);
   // 57 records at page size 45 -> 2 pages.
   const { totalRecords } = parsed.data;
   assert(typeof totalRecords === "number");
@@ -127,9 +127,11 @@ test("PeoplestrongListSchema parses the wrapper and totalRecords pagination math
 test("empty board: response array present but empty", () => {
   const parsed = PeoplestrongListSchema.safeParse({ totalRecords: 0, response: [] });
   assert.ok(parsed.success);
-  assert.equal(parsed.data.response.length, 0);
+  const rows = parsed.data.response;
+  assert.ok(rows !== null);
+  assert.equal(rows.length, 0);
   assert.deepEqual(
-    parsed.data.response.map((j) => normalizePeoplestrong(company, j)),
+    rows.map((j) => normalizePeoplestrong(company, j)),
     [],
   );
 });
@@ -159,4 +161,14 @@ test("parsePeoplestrongJd returns empty string when the description is absent or
   assert.equal(parsePeoplestrongJd({ response: null }), "");
   assert.equal(parsePeoplestrongJd({}), "");
   assert.equal(parsePeoplestrongJd("garbage"), "");
+});
+
+test("empty board: response serialized as NULL parses as zero jobs (matrimony-com shape)", () => {
+  const parsed = PeoplestrongListSchema.safeParse({
+    totalRecords: 0,
+    response: null,
+    messageCode: { code: 200, messages: "success" },
+  });
+  assert.ok(parsed.success);
+  assert.equal(parsed.data.response, null);
 });

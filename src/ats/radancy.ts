@@ -44,6 +44,7 @@
 // Both tenants' WAF/CDN blocks the plain bot UA on at least some routes, so
 // every request goes out with a browser UA.
 import * as cheerio from "cheerio";
+import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
@@ -174,7 +175,10 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
       }
 
       const $li = $a.closest("li");
-      const $card = $li.length ? $li : $a;
+      // Table-layout tenants (Disney) put the location span in a SIBLING <td>,
+      // outside the anchor entirely - scope to the row when no <li> exists.
+      const $tr = $li.length ? $li : $a.closest("tr");
+      const $card = $tr.length ? $tr : $a;
       // Some tenants (ARM) use a bare `class="location"` span instead of the
       // usual `job-location` — fall back to it before giving up.
       const $loc = $card.find('[class*="job-location"]').first();
@@ -228,6 +232,7 @@ export const radancyAdapter: AtsAdapter = {
   provider: "radancy",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    const state: { page1Total: number | null } = { page1Total: null };
     return paginate<NormalizedPosting>({
       provider: "radancy",
       company: company.slug,
@@ -256,6 +261,20 @@ export const radancyAdapter: AtsAdapter = {
         // running off the end on a later page must just stop, not fail.
         if (page === 0 && items.length === 0) {
           assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1), html);
+        }
+        if (page === 0) state.page1Total = totalResults;
+        // Location-scoped boards (careers_url ending in a location path like
+        // /search-jobs/India) can DROP the scope when ?p=N is appended: Disney's
+        // page 2 answers with the full global board (total 772 vs page 1's 29),
+        // silently merging foreign postings into the scoped result set
+        // (verified live 2026-08-13). A page whose own reported total differs
+        // from page 1's is answering a different query - discard it and stop.
+        if (page > 0 && state.page1Total !== null && totalResults !== null && totalResults !== state.page1Total) {
+          logger.warn(
+            { slug: company.slug, page: page + 1, page1Total: state.page1Total, pageTotal: totalResults },
+            "radancy page answered a different query than page 1 (location scope dropped) - discarding page and stopping",
+          );
+          return { items: [], total: state.page1Total };
         }
         return { items, total: totalResults };
       },

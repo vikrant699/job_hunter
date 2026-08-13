@@ -27,3 +27,15 @@ test("normalizeWorkable maps fields and flattens location", () => {
   assert.equal(p.jobUrl, "https://apply.workable.com/j/ABC123");
   assert.match(p.jdText, /Analyze data with SQL/);
 });
+
+test("normalizeWorkable joins ALL locations so an India-second posting is not geo-rejected", () => {
+  const p = normalizeWorkable(company, {
+    title: "Staff Engineer",
+    shortcode: "ABC123",
+    locations: [
+      { city: "Boston", region: "MA", country: "United States" },
+      { city: "Bengaluru", region: "Karnataka", country: "India" },
+    ],
+  });
+  assert.equal(p.location, "Boston, MA, United States; Bengaluru, Karnataka, India");
+});
