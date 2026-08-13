@@ -9,9 +9,14 @@
 //
 //   <input type="hidden" value="[{&#34;Posting_Title&#34;:...}]" id="jobs">
 //
-// One request, no pagination, full JD inline — so jdText is populated in
-// listPostings and no fetchJd is needed. An empty board serializes as
-// value="[]". The default bot UA is accepted (verified live 2026-07-10).
+// One request, no pagination — and on MOST tenants the island carries the full
+// JD inline, so jdText is populated in listPostings. But 22 of 57 live tenants
+// (2026-08-13 sweep) omit Job_Description from the list island entirely (and a
+// few serve a ~153-char snippet), which used to drop every posting as no-jd.
+// For those, fetchJd reads the job DETAIL page, where the full JD is embedded
+// in a JS-escaped (\x22-quoted) data blob — see extractZohoDetailJd. An empty
+// board serializes as value="[]". The default bot UA is accepted (verified
+// live 2026-07-10).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -125,6 +130,41 @@ export function postingsFromZohoHtml(company: AdapterCompany, html: string): Nor
     .map((j) => normalizeZohoRecruit(company, j));
 }
 
+/**
+ * Pull the JD out of a zoho job DETAIL page. The page embeds the job record in
+ * a JS string whose quotes are hex-escaped (`\x22Job_Description\x22:\x22<span
+ * ...`), with the value's own inner quotes escaped one layer deeper (`\\` +
+ * `\x22`). So the first bare (non-backslash-preceded) `\x22` after the value
+ * opens is the terminator. Returns null when the page carries no JD value
+ * (occurrences of the field NAME in layout metadata don't count — only one
+ * followed by `\x22:\x22` does).
+ */
+export function extractZohoDetailJd(html: string): string | null {
+  const OPEN = "\\x22:\\x22";
+  let i = html.indexOf("Job_Description");
+  while (i !== -1) {
+    if (html.startsWith(OPEN, i + "Job_Description".length)) break;
+    i = html.indexOf("Job_Description", i + 1);
+  }
+  if (i === -1) return null;
+  const valueStart = i + "Job_Description".length + OPEN.length;
+  let j = valueStart;
+  for (;;) {
+    j = html.indexOf("\\x22", j);
+    if (j === -1) return null;
+    if (html[j - 1] !== "\\") break;
+    j += 4;
+  }
+  let s = html.slice(valueStart, j);
+  // Unescape layers in order: \xNN hex, \uNNNN unicode, then one pass of
+  // simple JS escapes (the blob double-escapes the value's own content, so
+  // after the hex pass inner quotes/slashes still carry one backslash).
+  s = s.replace(/\\x([0-9a-fA-F]{2})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+  s = s.replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+  s = s.replace(/\\(.)/g, (_, c: string) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
+  return s;
+}
+
 export const zohorecruitAdapter: AtsAdapter = {
   provider: "zohorecruit",
 
@@ -132,5 +172,12 @@ export const zohorecruitAdapter: AtsAdapter = {
     const html = await atsFetchText(company.careersUrl, { provider: "zohorecruit" });
     return postingsFromZohoHtml(company, html);
   },
-  // The island carries the full JD — no fetchJd needed.
+
+  // Called only for postings whose list island carried no JD (the pipeline
+  // skips fetchJd when jdText is already populated).
+  async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
+    const html = await atsFetchText(posting.jobUrl, { provider: "zohorecruit" });
+    const jd = extractZohoDetailJd(html);
+    return jd === null ? "" : htmlToText(jd);
+  },
 };

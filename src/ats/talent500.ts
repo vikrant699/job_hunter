@@ -71,6 +71,11 @@ export type Talent500Job = z.infer<typeof TalentJobSchema>;
 const TalentListSchema = z.object({
   total: z.number().nullable().optional(),
   data: z.array(TalentJobSchema),
+  /** Elasticsearch-style cursor for the NEXT page. The server IGNORES the
+   *  offset param (verified 2026-08-13: every offset re-serves page 1, which
+   *  silently truncated eight GCC boards to their first 50 rows), so this is
+   *  the only real pagination mechanism. */
+  search_after: z.array(z.union([z.number(), z.string()])).nullable().optional(),
 });
 
 const TalentDetailSchema = z.object({
@@ -83,9 +88,18 @@ const TalentDetailSchema = z.object({
 });
 export type Talent500Detail = z.infer<typeof TalentDetailSchema>;
 
-/** Build the paged list-search URL for one company. */
-export function talent500ListUrl(companySlug: string, offset: number, size: number = PAGE_SIZE): string {
-  return `${API_ORIGIN}/api/v3/jobs/search/?company_slug=${encodeURIComponent(companySlug)}&offset=${offset}&size=${size}`;
+/** Build the paged list-search URL for one company. Pages after the first
+ *  paginate via the server's `search_after` cursor (JSON array, URL-encoded);
+ *  the `offset` param is kept for the first call's shape but the server
+ *  ignores it, so the cursor is what actually advances. */
+export function talent500ListUrl(
+  companySlug: string,
+  offset: number,
+  size: number = PAGE_SIZE,
+  searchAfter: ReadonlyArray<number | string> | null = null,
+): string {
+  const base = `${API_ORIGIN}/api/v3/jobs/search/?company_slug=${encodeURIComponent(companySlug)}&offset=${offset}&size=${size}`;
+  return searchAfter === null ? base : `${base}&search_after=${encodeURIComponent(JSON.stringify(searchAfter))}`;
 }
 
 /** Build the job-detail URL from a job's slug (NOT its uuid `id`). */
@@ -207,13 +221,20 @@ export const talent500Adapter: AtsAdapter = {
   provider: "talent500",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    // Boxed cursor state: fetchPage closes over it because paginate() only
+    // hands us (offset, page) and the server ignores the offset entirely.
+    let cursor: ReadonlyArray<number | string> | null = null;
     return paginate<NormalizedPosting>({
       provider: "talent500",
       company: company.slug,
       pageSize: PAGE_SIZE,
       maxPages: MAX_PAGES,
+      // Safety net: if the vendor ever stops returning search_after we fall
+      // back to the (ignored) offset walk, and the exact-repeat stall check
+      // ends pagination honestly instead of double-counting page 1.
+      dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
-        const raw = await atsFetchJson(talent500ListUrl(company.slug, offset), { provider: "talent500" });
+        const raw = await atsFetchJson(talent500ListUrl(company.slug, offset, PAGE_SIZE, cursor), { provider: "talent500" });
         const parsed = parseOrThrow(TalentListSchema, raw, {
           provider: "talent500",
           slug: company.slug,
@@ -240,6 +261,7 @@ export const talent500Adapter: AtsAdapter = {
           // instead of going quietly green.
           if (parsed.data.length === 0) await assertTalent500TenantExists(company.slug);
         }
+        cursor = parsed.search_after ?? null;
         const items = parsed.data
           .filter(talent500ShouldKeep)
           .map((j) => normalizeTalent500Job(company, j));

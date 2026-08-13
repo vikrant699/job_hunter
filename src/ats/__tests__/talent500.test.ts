@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { talent500Adapter, talent500ListUrl, talent500DetailUrl, talent500JobUrl, talent500CompanyUrl, talent500ShouldKeep, talent500FilterWasIgnored, normalizeTalent500Job, talent500SlugFromUrl, buildTalent500Jd } from "../talent500.js";
 import type { Talent500Job, Talent500Detail } from "../talent500.js";
-import { jsonResponse, stubFetch } from "./testHelpers.js";
+import { jsonResponse, stubFetch, mkAdapterCompany } from "./testHelpers.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -338,4 +338,37 @@ test("a populated page is never re-audited on later pages", async (t) => {
   stubFetch(t, () => Promise.resolve(jsonResponse(call++ === 0 ? full : tail)));
   const postings = await talent500Adapter.listPostings(nokia);
   assert.equal(postings.length, 51);
+});
+
+// --- search_after cursor pagination -----------------------------------------
+
+test("listPostings paginates via the search_after cursor (server ignores offset)", async (t) => {
+  const mk = (n: number): Talent500Job => ({
+    ...baseJob,
+    id: `a1b2c3d4-0000-0000-0000-${String(n).padStart(12, "0")}`,
+    slug: `job-${n}-T500-2695${n}`,
+  });
+  // A FULL first page (50 rows) so pagination continues, then a short page 2.
+  const page1 = Array.from({ length: 50 }, (_, i) => mk(i + 1));
+  const urls: string[] = [];
+  stubFetch(t, async (input) => {
+    const url = String(input);
+    urls.push(url);
+    if (url.includes("/api/companies/")) return jsonResponse({ slug: "acme" });
+    if (!url.includes("search_after=")) {
+      return jsonResponse({ total: 51, data: page1, search_after: [0, 28.6, "cursor-1"] });
+    }
+    return jsonResponse({ total: 51, data: [mk(51)], search_after: [0, 27.1, "cursor-2"] });
+  });
+  const postings = await talent500Adapter.listPostings(
+    mkAdapterCompany({ provider: "talent500", slug: "acme", name: "Acme", careersUrl: "https://talent500.com/careers/acme" }),
+  );
+  assert.equal(postings.length, 51);
+  assert.equal(new Set(postings.map((p) => p.externalId)).size, 51);
+  const second = urls.find((u) => u.includes("search_after="));
+  assert.ok(second, "second page request must carry the cursor");
+  assert.ok(
+    second.includes(encodeURIComponent(JSON.stringify([0, 28.6, "cursor-1"]))),
+    `cursor must be the URL-encoded JSON array from page 1, got ${second}`,
+  );
 });

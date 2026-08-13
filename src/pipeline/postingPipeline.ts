@@ -11,6 +11,7 @@ import { checkLocation, checkLocationFromText } from "../filter/location.js";
 import type { LocationCheck } from "../filter/location.js";
 import { notifyKey } from "../filter/dedup.js";
 import { checkTitle } from "../filter/title.js";
+import { isJunkJd } from "../filter/junkJd.js";
 import { runGate } from "../llm/gate.js";
 import { runExtract } from "../llm/extract.js";
 import type { ExtractResult } from "../llm/extract.js";
@@ -188,6 +189,18 @@ export async function processOnePosting(
 
   if (!posting.jdText) {
     writePostingResult(posting, droppedResult("no-jd", "no-jd"), stats.profileId);
+    return;
+  }
+
+  // Non-empty but content-free (vendor placeholder, dots-only): same outcome
+  // as no-jd, but with the junk preserved in the reason so the drop stays
+  // auditable per-tenant.
+  if (isJunkJd(posting.jdText)) {
+    writePostingResult(
+      posting,
+      droppedResult(`junk-jd: ${posting.jdText.trim().slice(0, 60)}`, "no-jd"),
+      stats.profileId,
+    );
     return;
   }
 

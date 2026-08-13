@@ -47,10 +47,23 @@ export function decodeAttrEntities(s: string): string {
   );
 }
 
+// An escaped opening tag (`&lt;p&gt;`, `&lt;div class=...`) — evidence the whole
+// payload is entity-escaped HTML rather than text that merely mentions `&lt;`.
+const ESCAPED_TAG_RE = /&lt;\s*\/?[a-z][a-z0-9-]*[\s/&>]/i;
+
 export function htmlToText(html: string | null | undefined): string {
   if (!html) return "";
 
   let s = html;
+
+  // Some vendors ship the JD fully entity-escaped (Greenhouse's `content`
+  // field, aye-finance's inline cards): the tag-strip pass below would find no
+  // tags, and the later entity decode would resurrect the markup as literal
+  // `<p>` text. If there are no raw tags but there are escaped ones, decode a
+  // layer first so the strip pass sees real markup.
+  if (!/<[a-z!/]/i.test(s) && ESCAPED_TAG_RE.test(s)) {
+    s = decodeAttrEntities(s);
+  }
 
   // Drop <script>/<style> blocks entirely.
   s = s.replace(/<(script|style)\b[^<]*(?:(?!<\/\1>)<[^<]*)*<\/\1>/gi, "");
