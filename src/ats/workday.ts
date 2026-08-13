@@ -125,7 +125,7 @@ export const workdayAdapter: AtsAdapter = {
     // the locationsText.
     const indiaFacet = await discoverIndiaFacet(parts);
     const appliedFacets: Record<string, string[]> = indiaFacet
-      ? { [indiaFacet.param]: [indiaFacet.uuid] }
+      ? { [indiaFacet.param]: indiaFacet.uuids }
       : {};
     if (!indiaFacet) {
       logger.warn(

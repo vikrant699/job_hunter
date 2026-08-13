@@ -109,13 +109,20 @@ export function assertAvatureBoardServed(html: string, url: string): void {
 export function avatureSearchUrl(company: AdapterCompany): string {
   const base = company.tenantUrl ?? company.careersUrl;
   const u = new URL(base);
+  // Optional server-side country filter: a raw query suffix like
+  // "42386[]=812053" (siemens: 2004 -> 1058 India rows, and the engine's own
+  // Next links carry the filter through every page — verified live
+  // 2026-08-13; synopsys: "2001=21372"). The field/option ids are
+  // tenant-specific, so this is per-row config, not adapter logic.
+  const filter = company.apiMeta?.countryFilter;
+  const suffix = filter !== undefined && filter !== "" ? `?${filter}` : "";
   if (/\/SearchJobs\/?$/i.test(u.pathname)) {
     u.search = "";
     u.hash = "";
-    return u.toString();
+    return `${u.toString()}${suffix}`;
   }
   const path = u.pathname.replace(/\/+$/, "");
-  return `${u.protocol}//${u.host}${path}/SearchJobs`;
+  return `${u.protocol}//${u.host}${path}/SearchJobs${suffix}`;
 }
 
 /**

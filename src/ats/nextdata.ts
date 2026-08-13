@@ -102,9 +102,17 @@ export function jdFromFields(job: JsonValue, fields: string[]): string {
 
 export function nextDataPostings(company: AdapterCompany, island: JsonValue): NormalizedPosting[] {
   const cfg = nextDataConfig(company);
-  const arr = dig(island, cfg.jobsPath.split("."));
+  const dug = dig(island, cfg.jobsPath.split("."));
+  // Some tenants group jobs as an OBJECT of department -> array (uni-cards'
+  // openPositionsByDepartment) rather than one flat array - flatten the
+  // values. A path resolving to neither shape is still a config error.
+  const arr = Array.isArray(dug)
+    ? dug
+    : dug !== null && typeof dug === "object"
+      ? Object.values(dug).flatMap((v) => (Array.isArray(v) ? v : []))
+      : null;
   if (!Array.isArray(arr)) {
-    throw new Error(`nextdata: jobsPath "${cfg.jobsPath}" did not resolve to an array for ${company.slug}`);
+    throw new Error(`nextdata: jobsPath "${cfg.jobsPath}" did not resolve to an array (or object of arrays) for ${company.slug}`);
   }
 
   const out: NormalizedPosting[] = [];

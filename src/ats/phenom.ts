@@ -10,7 +10,12 @@ import { REMOTE_RE, paginate } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import { logger } from "../logger.js";
+import { describeError } from "../util/errorCause.js";
 
+/** Eager-load boards at/above this size get the India-filtered widgets probe
+ *  instead of a full walk (Lowe's walked 3854 rows for 0 India). Well above
+ *  any India-focused tenant's board size. */
+const WIDGETS_PREFER_THRESHOLD = 600;
 const PAGE = 50;
 
 export const PhenomJobSchema = z.object({
@@ -131,7 +136,7 @@ export function phenomWidgetsUrl(tenantUrl: string): string {
   return `${u.protocol}//${u.host}/widgets`;
 }
 
-export function phenomWidgetsBody(from: number, size: number): Record<string, JsonValue> {
+export function phenomWidgetsBody(from: number, size: number, indiaOnly = true): Record<string, JsonValue> {
   return {
     lang: "en",
     deviceType: "desktop",
@@ -152,7 +157,7 @@ export function phenomWidgetsBody(from: number, size: number): Record<string, Js
     siteType: "external",
     keywords: "",
     global: true,
-    selected_fields: { country: ["India"] },
+    ...(indiaOnly ? { selected_fields: { country: ["India"] } } : {}),
     locationData: {},
   };
 }
@@ -183,16 +188,18 @@ export const phenomAdapter: AtsAdapter = {
       return items;
     };
 
-    const fetchWidgetsPage = async (from: number): Promise<{ jobs: JsonValue[]; totalHits: number }> => {
+    const fetchWidgetsPage2 = async (from: number, indiaOnly: boolean): Promise<{ jobs: JsonValue[]; totalHits: number }> => {
       const raw = await atsFetchJson(phenomWidgetsUrl(tenantUrl), {
         method: "POST",
-        body: phenomWidgetsBody(from, PAGE),
+        body: phenomWidgetsBody(from, PAGE, indiaOnly),
         provider: "phenom",
         userAgent: BROWSER_UA,
         headers: { Origin: new URL(tenantUrl).origin, Referer: tenantUrl },
       });
       return phenomJobsFrom(raw);
     };
+    const fetchWidgetsPage = async (from: number): Promise<{ jobs: JsonValue[]; totalHits: number }> =>
+      fetchWidgetsPage2(from, true);
 
     // Tenants whose eager-load is empty serve jobs only from the widget XHR.
     // Decided once on page 0 and reused for the rest of the run.
@@ -237,6 +244,39 @@ export const phenomAdapter: AtsAdapter = {
               "phenom: empty eager-load, using the widget XHR for this tenant",
             );
             return { items: toItems(widget.jobs), total: widget.totalHits, rawCount: widget.jobs.length };
+          }
+        }
+
+        // Large global board: the widget XHR takes a server-side India filter
+        // (selected_fields.country), so prefer it over walking thousands of
+        // eager-load pages (Lowe's: 3854 rows for 0 India). A zero-hit India
+        // answer is only trusted after the UNFILTERED widget call proves the
+        // endpoint itself is live for this tenant — a tenant tagging countries
+        // differently must fall back to the complete eager-load walk.
+        if (page === 0 && totalHits >= WIDGETS_PREFER_THRESHOLD) {
+          try {
+            const india = await fetchWidgetsPage(from);
+            if (india.jobs.length > 0) {
+              useWidgets = true;
+              logger.info(
+                { company: company.slug, boardTotal: totalHits, indiaTotal: india.totalHits },
+                "phenom: large board, using the India-filtered widget XHR",
+              );
+              return { items: toItems(india.jobs), total: india.totalHits, rawCount: india.jobs.length };
+            }
+            const unfiltered = await fetchWidgetsPage2(from, false);
+            if (unfiltered.jobs.length > 0) {
+              logger.info(
+                { company: company.slug, boardTotal: totalHits },
+                "phenom: large board has zero India-tagged jobs (verified via widgets) - skipping the full walk",
+              );
+              return { items: [], total: 0 };
+            }
+          } catch (err) {
+            logger.warn(
+              { company: company.slug, err: describeError(err) },
+              "phenom: widgets probe failed on a large board - falling back to the eager-load walk",
+            );
           }
         }
 

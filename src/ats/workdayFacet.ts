@@ -4,15 +4,30 @@ import { JsonValueSchema } from "../util/json.js";
 
 export interface DiscoveredFacet {
   param: string;
-  uuid: string;
+  /** Every facet-value id that selects India. One id on tenants with a real
+   *  country facet; several on tenants whose only location facet has
+   *  composite per-city leaves ("Ahmedabad, Gujarat, India") — hpe exposes 36. */
+  uuids: string[];
 }
 
 interface WorkdayUrlPartsForFacet {
   cxsBase: string;
 }
 
-// Walks the facet tree (handles both flat and nested shapes) for an India
-// country leaf. Returns the param + UUID needed for appliedFacets.
+/**
+ * Whether a facet-value descriptor denotes India. Exact-token match after
+ * splitting on comma/dash/whitespace — NEVER a substring test, which would
+ * select "Indiana"/"Indianapolis" leaves (live false-positives on 7 US
+ * tenants, 2026-08-13 audit). Covers every live variant seen: bare "India",
+ * "Ahmedabad, Gujarat, India", "India - Chennai", "India Remote",
+ * "India-Bangalore-Remote Location".
+ */
+export function descriptorIsIndia(descriptor: string): boolean {
+  return descriptor.split(/[,\-\s]+/).some((t) => t.toLowerCase() === "india");
+}
+
+// Walks the facet tree (handles both flat and nested shapes) collecting India
+// leaves. Returns the param + every matching value UUID for appliedFacets.
 function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
   if (typeof node !== "object" || node === null || Array.isArray(node)) return null;
 
@@ -27,22 +42,24 @@ function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
   const valuesRaw = node["values"];
   if (!Array.isArray(valuesRaw)) return null;
 
-  const looksCountry = param !== null && /country|location/i.test(param);
+  const looksLocation = param !== null && /country|location/i.test(param);
 
-  // Direct check: any value with descriptor=India that has its own id (leaf value).
-  if (looksCountry) {
+  if (param !== null) {
+    const uuids: string[] = [];
     for (const v of valuesRaw) {
       if (typeof v !== "object" || v === null || Array.isArray(v)) continue;
       const descriptor = v["descriptor"];
       const valueId = v["id"];
-      if (
-        typeof descriptor === "string" &&
-        typeof valueId === "string" &&
-        /^\s*india\s*$/i.test(descriptor)
-      ) {
-        return { param, uuid: valueId };
+      if (typeof descriptor !== "string" || typeof valueId !== "string") continue;
+      // Location-ish params take any India-token leaf (composite city leaves
+      // included). Oddly-named params (redhat's country facet node id is
+      // literally "a") only ever take a BARE "India" leaf — token-matching
+      // there could select an unrelated text facet.
+      if (looksLocation ? descriptorIsIndia(descriptor) : /^\s*india\s*$/i.test(descriptor)) {
+        uuids.push(valueId);
       }
     }
+    if (uuids.length > 0) return { param, uuids };
   }
 
   // Recurse into nested facets (each value can itself be a facet group).
@@ -53,7 +70,7 @@ function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
   return null;
 }
 
-function findIndiaFacet(data: JsonValue): DiscoveredFacet | null {
+export function findIndiaFacet(data: JsonValue): DiscoveredFacet | null {
   if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
   for (const key of ["refineFilters", "facets", "filters"] as const) {
     const arr = data[key];
