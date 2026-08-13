@@ -40,3 +40,13 @@ test("decodeAttrEntities decodes numeric/hex/named entities exactly one layer", 
   // Unknown named entities pass through untouched.
   assert.equal(decodeAttrEntities("&bogus; &amp;"), "&bogus; &");
 });
+
+test("htmlToText decodes a fully entity-escaped HTML payload before stripping (Greenhouse content)", () => {
+  const escaped =
+    "&lt;div class=&quot;content-intro&quot;&gt;&lt;p&gt;Build &amp;amp; ship things.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Item one&lt;/li&gt;&lt;/ul&gt;&lt;/div&gt;";
+  assert.equal(htmlToText(escaped), "Build & ship things.\nItem one");
+});
+
+test("htmlToText leaves plain text mentioning &lt; entities intact when no escaped tags follow", () => {
+  assert.equal(htmlToText("<p>salary &lt; 50 LPA &amp; equity</p>"), "salary < 50 LPA & equity");
+});

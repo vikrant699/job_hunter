@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractJobsIsland, parseJobsIsland, postingsFromZohoHtml, zohoJobUrl, ZohoRecruitJobSchema } from "../zohorecruit.js";
+import { extractJobsIsland, parseJobsIsland, postingsFromZohoHtml, zohoJobUrl, ZohoRecruitJobSchema, extractZohoDetailJd } from "../zohorecruit.js";
+import { htmlToText } from "../htmlText.js";
 import type { ZohoRecruitJob } from "../zohorecruit.js";
 import type { AdapterCompany } from "../../types.js";
 import { at } from "./testHelpers.js";
@@ -183,4 +184,27 @@ test("zohoJobUrl tolerates trailing slashes and unslugifiable titles", () => {
   assert.equal(zohoJobUrl(c, j), "https://spendflo.zohorecruit.com/jobs/Job-openings/9/SDE-II-Platform-Chennai");
   const weird: ZohoRecruitJob = { id: "9", Posting_Title: "???" };
   assert.equal(zohoJobUrl(c, weird), "https://spendflo.zohorecruit.com/jobs/Job-openings/9");
+});
+
+// --- extractZohoDetailJd -----------------------------------------------------
+
+test("extractZohoDetailJd decodes the hex-escaped detail blob into JD HTML", () => {
+  // Build the raw page bytes explicitly: Q is the blob's quote token (backslash
+  // + x22, four chars), IQ an inner escaped quote (backslash + Q, five chars) -
+  // exactly what the live detail pages serve (verified indiagold 2026-08-13).
+  const Q = "\\" + "x22";
+  const IQ = "\\" + Q;
+  const U = "\\" + "u2013"; // an en dash as a unicode escape
+  const page =
+    'junk {"layout":[{"api_name":"Job_Description","data_type":"richtext"}]} more ' +
+    `${Q}City${Q}:${Q}Chennai${Q},${Q}Job_Description${Q}:${Q}<span id=${IQ}spandesc${IQ}><li>Recover dues.<br/><\\/li><li>Follow\\-ups ${U} daily.<\\/li><\\/span>${Q},${Q}Job_Type${Q}:${Q}Full time${Q}`;
+  const jd = extractZohoDetailJd(page);
+  assert.ok(jd !== null);
+  assert.ok(jd.includes('<span id="spandesc">'), `inner quotes must decode, got ${jd.slice(0, 60)}`);
+  assert.ok(jd.includes("Follow-ups – daily."), `unicode + dash escapes must decode, got ${jd}`);
+  assert.equal(htmlToText(jd), "Recover dues.\n\nFollow-ups – daily.");
+});
+
+test("extractZohoDetailJd returns null when only the field NAME appears (layout metadata)", () => {
+  assert.equal(extractZohoDetailJd('{"api_name":"Job_Description","data_type":"richtext"}'), null);
 });
