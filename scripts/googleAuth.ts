@@ -68,7 +68,9 @@ function openBrowser(url: string): void {
   // A machine with no handler registered must not take the consent flow down with
   // it — the URL is printed above precisely so this stays optional.
   child.on("error", (err) => {
-    console.log(`(couldn't open a browser automatically: ${err.message} — use the URL above)`);
+    console.log(
+      `(couldn't open a browser automatically: ${err.message} — use the URL above)`,
+    );
   });
   child.unref();
 }
@@ -81,7 +83,8 @@ async function main(): Promise<void> {
   const server = createServer();
   await new Promise<void>((res) => server.listen(0, "127.0.0.1", res));
   const address = server.address();
-  if (address === null || typeof address === "string") throw new Error("no server port");
+  if (address === null || typeof address === "string")
+    throw new Error("no server port");
   const redirectUri = `http://127.0.0.1:${address.port}`;
 
   const authUrl =
@@ -106,8 +109,8 @@ async function main(): Promise<void> {
       resp.writeHead(200, { "content-type": "text/html" });
       resp.end(
         c
-          ? "<h2>job-hunter: consent captured — you can close this tab.</h2>"
-          : `<h2>job-hunter: consent failed (${err ?? "no code"}) — check the terminal.</h2>`,
+          ? "<h2>job-hunter: consent captured. you can close this tab.</h2>"
+          : `<h2>job-hunter: consent failed (${err ?? "no code"}). check the terminal.</h2>`,
       );
       if (c) res(c);
       else rej(new Error(`consent denied: ${err ?? "no code in callback"}`));
@@ -127,12 +130,17 @@ async function main(): Promise<void> {
     }),
   });
   if (!tokenResp.ok) {
-    throw new Error(`token exchange failed: ${tokenResp.status} ${await tokenResp.text()}`);
+    throw new Error(
+      `token exchange failed: ${tokenResp.status} ${await tokenResp.text()}`,
+    );
   }
   const parsed = TokenResponseSchema.parse(await tokenResp.json());
 
   mkdirSync(resolve(process.cwd(), "data"), { recursive: true });
-  const tokenPath = resolve(process.cwd(), `data/google-token-${profileId}.json`);
+  const tokenPath = resolve(
+    process.cwd(),
+    `data/google-token-${profileId}.json`,
+  );
   writeFileSync(
     tokenPath,
     JSON.stringify(
@@ -147,7 +155,9 @@ async function main(): Promise<void> {
     "utf-8",
   );
   console.log(`\nToken written: ${tokenPath}`);
-  console.log(`Verify the account: the drafts for profile "${profileId}" will be created in the`);
+  console.log(
+    `Verify the account: the drafts for profile "${profileId}" will be created in the`,
+  );
   console.log(`Gmail account you just logged in with.`);
   // no process.exit() — a hard exit races tsx/esbuild's async handles on
   // Windows (libuv assert in win/async.c); let the drained loop end naturally
