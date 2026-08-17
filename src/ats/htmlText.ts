@@ -1,5 +1,4 @@
-// Cheap HTML → plain text. Adequate for the simple, well-formed HTML the
-// ATSes return. Anything weird should go through cheerio.
+// Cheap HTML -> plain text, adequate for the simple, well-formed HTML the ATSes return. Anything weird should go through cheerio.
 const ENTITY_MAP: Record<string, string> = {
   "&amp;": "&",
   "&lt;": "<",
@@ -17,8 +16,7 @@ const ENTITY_MAP: Record<string, string> = {
   "&ndash;": "–",
 };
 
-/** Decode both numeric entity forms (&#123; / &#x1F600;). fromCodePoint so
- *  astral characters survive; malformed/out-of-range entities pass through. */
+/** Decode both numeric entity forms (&#123; / &#x1F600;); malformed/out-of-range entities pass through. */
 export function decodeNumericEntities(s: string): string {
   const decode = (entity: string, cp: number): string =>
     Number.isInteger(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : entity;
@@ -31,11 +29,7 @@ const ATTR_NAMED_ENTITIES: Record<string, string> = {
   amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
 };
 
-/**
- * Decode HTML-attribute entity escaping (&#34; &#x2F; &amp; &lt; ...) in a
- * single pass, so a double-escaped sequence (&amp;#34;) decodes exactly one
- * layer. Unknown named entities pass through untouched.
- */
+/** Decode HTML-attribute entity escaping in a single pass, so a double-escaped sequence decodes exactly one layer. */
 export function decodeAttrEntities(s: string): string {
   return s.replace(
     /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([a-zA-Z]+));/g,
@@ -47,8 +41,7 @@ export function decodeAttrEntities(s: string): string {
   );
 }
 
-// An escaped opening tag (`&lt;p&gt;`, `&lt;div class=...`) — evidence the whole
-// payload is entity-escaped HTML rather than text that merely mentions `&lt;`.
+// An escaped opening tag is evidence the whole payload is entity-escaped HTML, not text merely mentioning `&lt;`.
 const ESCAPED_TAG_RE = /&lt;\s*\/?[a-z][a-z0-9-]*[\s/&>]/i;
 
 export function htmlToText(html: string | null | undefined): string {
@@ -56,11 +49,7 @@ export function htmlToText(html: string | null | undefined): string {
 
   let s = html;
 
-  // Some vendors ship the JD fully entity-escaped (Greenhouse's `content`
-  // field, aye-finance's inline cards): the tag-strip pass below would find no
-  // tags, and the later entity decode would resurrect the markup as literal
-  // `<p>` text. If there are no raw tags but there are escaped ones, decode a
-  // layer first so the strip pass sees real markup.
+  // Some vendors ship the JD fully entity-escaped; if there are no raw tags but escaped ones exist, decode one layer first so the strip pass sees real markup.
   if (!/<[a-z!/]/i.test(s) && ESCAPED_TAG_RE.test(s)) {
     s = decodeAttrEntities(s);
   }

@@ -1,12 +1,6 @@
-// src/ats/gem.ts — Gem career boards (jobs.gem.com/<slug>), e.g. PromptQL,
-// Fireflies, Bolna. The board is a client-rendered SPA (no __NEXT_DATA__ /
-// SSR island) that talks to a same-origin, anonymous GraphQL endpoint:
-// POST https://jobs.gem.com/api/public/graphql. The `JobBoardList` query
-// returns every posting's metadata (locations, department, publish date) in
-// one shot — no pagination params, no WAF UA gate — but NOT the description.
-// The JD comes from a second query, `ExternalJobPostingQuery`, keyed by the
-// board's slug + the posting's opaque `extId`; fetched only for postings that
-// survive location + dedup (see AtsAdapter.fetchJd).
+// src/ats/gem.ts — Gem career boards (jobs.gem.com/<slug>): anonymous GraphQL API, POST /api/public/graphql.
+// JobBoardList returns all posting metadata in one shot (no pagination, no WAF gate) but not the description;
+// ExternalJobPostingQuery fetches JD per posting lazily, only for postings that survive location + dedup.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -110,9 +104,7 @@ const GemJobDetailSchema = z.object({
   }),
 });
 
-// A type alias (not interface): JsonValue callers assignability relies on the
-// implicit index signature TS infers for object type literals, which
-// interfaces don't get.
+// Type alias, not interface: JsonValue assignability needs the implicit index signature TS infers for object literals.
 export type GemGraphqlRequest = {
   operationName: string;
   variables: Record<string, string>;

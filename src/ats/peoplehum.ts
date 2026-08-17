@@ -45,12 +45,11 @@ export function peoplehumListUrl(company: AdapterCompany): string {
   return `https://webapi.peoplehum.com/api/web/internal-api/customer/${company.slug}/external/job/list`;
 }
 
-/** Unwrap `responseObject.content`; tolerant of a missing/empty envelope. */
 export function peoplehumJobs(json: JsonValue): PeoplehumJob[] {
   return PeoplehumResponseSchema.parse(json).responseObject.content;
 }
 
-/** `isPrivate` has been observed as both `0`/`1` and boolean — normalize truthiness. */
+// isPrivate has been observed as both 0/1 and boolean — normalize truthiness.
 export function isPeoplehumPrivate(j: PeoplehumJob): boolean {
   return Boolean(j.isPrivate);
 }

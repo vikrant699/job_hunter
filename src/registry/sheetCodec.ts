@@ -3,12 +3,7 @@ import { RegistryEntrySchema, ApiMetaSchema } from "../schemas.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 
-/**
- * Column contract for the Companies tab in the outreach spreadsheet. Order is
- * load-bearing: entryToRow/rowToEntry index into it, and the sheet's header row
- * is generated from it. Add new columns at the END so existing sheet rows stay
- * aligned.
- */
+/** Column contract for the Companies tab; order is load-bearing (entryToRow/rowToEntry index into it) - add new columns at the END. */
 export const REGISTRY_COLUMNS = [
   "name",
   "careers_url",
@@ -40,12 +35,7 @@ export type RowDecodeResult =
   | { ok: true; entry: RegistryEntry }
   | { ok: false; issues: string };
 
-/**
- * Decode one sheet row back into a validated RegistryEntry. Empty cells map to
- * absent fields; api_meta cells must hold a JSON object of string values.
- * Returns issues instead of throwing so the caller can quarantine bad rows
- * without aborting a whole registry sync.
- */
+/** Decodes one sheet row into a validated RegistryEntry; returns issues instead of throwing so bad rows can be quarantined without aborting the sync. */
 export function rowToEntry(row: string[]): RowDecodeResult {
   const candidate: Record<string, string | Record<string, string>> = {};
   for (let i = 0; i < REGISTRY_COLUMNS.length; i++) {

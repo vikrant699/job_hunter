@@ -1,11 +1,8 @@
 import pino from "pino";
 import pretty from "pino-pretty";
 
-// pino-pretty runs as a SYNCHRONOUS in-process stream, not the usual
-// worker-thread transport: the bot ends every run with process.exit(0), which
-// kills a transport worker before it drains and silently drops the final log
-// lines (the end-of-run outreach/verify stage). sync:true trades a little
-// throughput for never losing the tail. (src/logger.test.ts guards this.)
+// sync:true (not the usual worker-thread transport): process.exit(0) at the end of a run would otherwise kill the
+// transport before it drains, silently dropping the final log lines. Guarded by src/logger.test.ts.
 export const logger = pino(
   { level: process.env.LOG_LEVEL ?? "info" },
   process.env.NODE_ENV === "production"

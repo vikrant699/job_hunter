@@ -36,9 +36,7 @@ function defaultDeps(_profileId: string): SyncRegistryFromSheetDeps {
   };
 }
 
-/** Decode every data row (skipping the header), splitting into valid entries
- *  and quarantined issues keyed by the 1-based row index the user sees in the
- *  sheet UI (row 1 = header, so the first data row is row 2). */
+/** Decodes data rows into valid entries + quarantined issues, keyed by 1-based sheet row index (row 1 = header). */
 function decodeRows(rows: string[][]): { entries: RegistryEntry[]; invalidRows: InvalidRow[] } {
   const entries: RegistryEntry[] = [];
   const invalidRows: InvalidRow[] = [];
@@ -56,16 +54,7 @@ function decodeRows(rows: string[][]): { entries: RegistryEntry[]; invalidRows: 
   return { entries, invalidRows };
 }
 
-/**
- * Sync the company registry from the Companies tab of the outreach
- * spreadsheet (the source of truth the user hand-edits). Per-row validation
- * quarantines bad rows instead of aborting the whole sync; a single bad row
- * disables the prune pass for this run (a partial read must never look like
- * "everything else was deleted"). On a fully successful sheet read, the valid
- * entries are snapshotted to a local cache file so the bot can still run
- * offline (network/auth failure) — that fallback path trusts the cache fully
- * (prune: true) since it was written from a completely valid sync.
- */
+/** Syncs the registry from the Companies tab; a bad row is quarantined and disables prune for the run (a partial read must never look like "everything else was deleted"). Valid syncs are snapshotted to a local cache for offline fallback. */
 export async function syncRegistryFromSheet(
   profileId: string,
   deps: SyncRegistryFromSheetDeps = defaultDeps(profileId),
@@ -98,10 +87,7 @@ export async function syncRegistryFromSheet(
       "registry sync: quarantined invalid Companies-tab rows — prune disabled this run",
     );
   }
-  // A successful read with ZERO valid entries is treated as a suspect read
-  // (cleared tab, API returning no `values`), not as "delete everything":
-  // pruning here would wipe every company AND overwrite the offline cache
-  // with an empty list, destroying both recovery paths in one tick.
+  // A read with ZERO valid entries is treated as suspect, not "delete everything" - pruning would wipe both the DB and the offline cache.
   if (entries.length === 0) {
     logger.warn(
       { profileId },
@@ -111,10 +97,7 @@ export async function syncRegistryFromSheet(
   const trustworthy = invalidRows.length === 0 && entries.length > 0;
   const result = syncEntries(entries, { prune: trustworthy });
 
-  // Snapshot ONLY fully-valid syncs: the offline fallback path trusts the
-  // cache with prune enabled, so a partial snapshot (quarantined rows missing)
-  // would let a later offline run prune companies that still exist on the
-  // sheet but had a cell typo at snapshot time.
+  // Snapshot only fully-valid syncs - a partial snapshot would let a later offline run prune still-valid companies.
   if (trustworthy) {
     writeAtomic(deps.cachePath, entries);
   } else {

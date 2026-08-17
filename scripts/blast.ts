@@ -1,16 +1,7 @@
 /**
- * TEMPORARY weekly blast for the Raw Data tab (design spec:
- * docs/superpowers/specs/2026-07-09-divya-blast-design.md).
- *
- *   npm run blast -- --profile divya                # sweep + draft next 100
- *   npm run blast -- --profile divya --limit 50
- *   npm run blast -- --profile divya --verify-only  # bounce check only
- *   npm run blast -- --profile divya --force        # override safety guards
- *
- * Drafts only, NEVER sends. Divya schedule-sends from the Gmail UI
- * (11:00-12:30 IST weekdays, ~20/day). Deliberately does not import
- * src/profile.ts: the blast needs only the Gmail/Sheets token identity, not
- * the job_hunter profile config.
+ * Weekly blast for the Raw Data tab.
+ *   npm run blast -- --profile divya [--limit N] [--verify-only] [--force]
+ * Drafts only, never sends. Doesn't import src/profile.ts - only needs the Gmail/Sheets token identity.
  */
 import "dotenv/config";
 import { assertGoogleTokenValid } from "../src/google/auth.js";

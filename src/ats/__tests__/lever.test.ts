@@ -30,8 +30,7 @@ test("listPostings assembles jdText from descriptionPlain + lists[] + additional
   );
   const postings = await leverAdapter.listPostings(company);
   assert.equal(postings.length, 1);
-  // Pinned real output (htmlToText("<ul><li>TS</li></ul>") -> "TS"); the
-  // invariant that matters is all three segments (Requirements/TS/Perks.) present.
+  // The invariant that matters: all three segments (Requirements/TS/Perks.) present.
   assert.equal(postings[0]?.jdText, "Intro.\n\nRequirements\nTS\n\nPerks.");
 });
 

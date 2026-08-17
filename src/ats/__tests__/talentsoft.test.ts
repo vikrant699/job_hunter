@@ -22,8 +22,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// --- talentsoftListingUrl / talentsoftPageUrl -----------------------------
-
 test("talentsoftListingUrl prefers tenantUrl over careersUrl", () => {
   const withTenant: AdapterCompany = {
     ...company,
@@ -63,8 +61,6 @@ test("talentsoftPageUrl appends &page=N for page > 1", () => {
   assert.equal(u.searchParams.get("facet_Country"), "96"); // untouched
 });
 
-// --- talentsoftIdFromUrl ----------------------------------------------------
-
 test("talentsoftIdFromUrl extracts the trailing numeric id", () => {
   assert.equal(
     talentsoftIdFromUrl("https://jobs.ca-cib.com/job/job-caspl-head-of-trade-finance_114086.aspx"),
@@ -81,8 +77,6 @@ test("talentsoftIdFromUrl ignores a trailing query string", () => {
   assert.equal(talentsoftIdFromUrl("/job/job-trainee_113040.aspx?lcid=2057"), "113040");
 });
 
-// --- talentsoftLocationFromDescItems ---------------------------------------
-
 test("talentsoftLocationFromDescItems joins the last two of three entries as city, country", () => {
   assert.equal(talentsoftLocationFromDescItems(["Permanent Contract", "India", "MUMBAI "]), "MUMBAI, India");
 });
@@ -95,12 +89,6 @@ test("talentsoftLocationFromDescItems returns null for no entries", () => {
   assert.equal(talentsoftLocationFromDescItems([]), null);
 });
 
-// --- parseTalentsoftListingHtml: real listing markup -----------------------
-
-// Trimmed excerpt of the real listing page (GET jobs.ca-cib.com/pages/offre/
-// listeoffre.aspx?mode=list&lcid=2057&facet_Country=96) — two full
-// `.ts-offer-list-item` cards plus the `.ts-ol-pagination__title.resultat`
-// count block, matching what the integrator verified live.
 const REAL_LISTING_HTML = `<!doctype html><html><body>
 <div id="main" class="ts-related-offers listing-offres">
 <a id="offercontent" name="listoffre"></a>
@@ -171,8 +159,6 @@ test("parseTalentsoftListingHtml returns total null when the count block is abse
   assert.equal(total, null);
 });
 
-// --- normalizeTalentsoftItem -------------------------------------------------
-
 test("normalizeTalentsoftItem builds a posting and flags remote via REMOTE_RE", () => {
   const { items } = parseTalentsoftListingHtml(REAL_LISTING_HTML, company.careersUrl);
   const p = normalizeTalentsoftItem(company, at(items, 0));
@@ -187,13 +173,7 @@ test("normalizeTalentsoftItem builds a posting and flags remote via REMOTE_RE", 
   assert.equal(remote.isRemote, true);
 });
 
-// --- extractTalentsoftJdHtml: real detail-page markup -----------------------
-
-// Trimmed excerpt of the real detail page (GET jobs.ca-cib.com/job/job-caspl-
-// head-of-trade-finance_114086.aspx) — the "General information" block (must
-// be EXCLUDED), the "Job description" section (must be INCLUDED), and the
-// start of "Position location" (must be EXCLUDED) — matching the boundary
-// the integrator verified live.
+// Real detail-page markup: General information (excluded), Job description (included), Position location (excluded).
 const REAL_DETAIL_HTML = `<!doctype html><html><body>
 <div class="ts-offer-page__content-details" id="contenu-ficheoffre" data-class="ts-offer-details-content">
     <h2>General information</h2>

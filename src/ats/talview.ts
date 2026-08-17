@@ -1,19 +1,9 @@
-// src/ats/talview.ts — Talview's own careers board (careers.talview.com,
-// "Powered by Talview" — the vendor dogfooding its own product; the org id
-// is the tenant key, so other Talview-hosted boards would reuse this shape).
-//
-//   categories: GET https://apiv4.talview.com/attend/menu-card?organization_id=<org>
-//     -> [{ id, name }]                                (departments, ~11)
-//   jobs:       GET https://pages.talview.com/api/attend/menu-card-assessment
-//                 ?menu_card_id=<id>&organization_id=<org>
-//     -> [{ id, title, description, descriptionHTML, location,
-//           first_assessment_section_id }]
-//
-// Verified live (2026-07-18, plain curl, no auth): only jobs with a truthy
-// first_assessment_section_id are live/published (matches the site's own
-// filter). `location` is always null — the description text carries a
-// "Based in: <City>, <State>, <Country>" line instead, parsed here.
-// apiMeta.organizationId selects the tenant (default 183 = Talview Inc).
+// src/ats/talview.ts — Talview's own careers board (careers.talview.com). categories:
+// GET apiv4.talview.com/attend/menu-card?organization_id=<org> -> [{id,name}]. jobs: GET
+// pages.talview.com/api/attend/menu-card-assessment?menu_card_id=<id>&organization_id=<org>.
+// Only jobs with a truthy first_assessment_section_id are live/published. `location` is
+// always null — the description carries a "Based in: <City>, <State>, <Country>" line
+// instead, parsed here. apiMeta.organizationId selects the tenant (default 183 = Talview Inc).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -52,8 +42,7 @@ export function talviewJobsUrl(org: string, menuCardId: string): string {
   return `https://pages.talview.com/api/attend/menu-card-assessment?menu_card_id=${menuCardId}&organization_id=${org}`;
 }
 
-/** "Based in: Bengaluru, Karnataka, India" (anywhere in the JD text) -> the
- *  city/state/country string. Null when the marker is absent. */
+// "Based in: Bengaluru, Karnataka, India" -> the city/state/country string; null if absent.
 export function talviewLocationFromDescription(text: string | null | undefined): string | null {
   if (!text) return null;
   const m = text.match(/Based in:?\s*([^\n.]+)/i);

@@ -7,18 +7,11 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, joinLocation } from "./shared.js";
 
-// Keka careers API — two UI generations, same Job[] response shape:
-//   legacy embed widget:
-//     GET <slug>.keka.com/careers/api/embedjobs/default/active/<orgGuid>
-//     orgGuid is org-level (stable), extracted from the careers page HTML at
-//     conversion time and stored in api_meta.orgGuid.
-//   newer Blazor UI (e.g. signzy):
-//     GET <slug>.keka.com/careers/api/jobs/default/active   (NO orgGuid — its
-//     HTML embeds no GUID at all, which silently broke orgGuid-based conversion
-//     and dormanted these tenants).
-// A tenant without a stored orgGuid uses the Blazor endpoint; a tenant WITH one
-// tries the embed endpoint first and falls back to the Blazor endpoint if that
-// fails (covers tenants that migrated UIs after conversion). One-phase (JD inline).
+// Keka careers API, two UI generations sharing one Job[] shape: legacy embed widget (GET
+// .../embedjobs/default/active/<orgGuid>, orgGuid stored in apiMeta) and newer Blazor UI (GET
+// .../jobs/default/active, no orgGuid — its HTML embeds none).
+// No stored orgGuid -> Blazor endpoint directly; with one, try embed first and fall back to Blazor
+// (covers tenants that migrated UIs post-conversion). One-phase (JD inline).
 const LocSchema = z.object({
   city: z.string().nullable().optional(),
   state: z.string().nullable().optional(),
@@ -62,14 +55,9 @@ async function fetchKeka(company: AdapterCompany, url: string): Promise<Normaliz
 export const kekaAdapter: AtsAdapter = {
   provider: "keka",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // The keka subdomain is usually the registry slug, but apiMeta.boardSlug
-    // overrides it when they differ (e.g. browntape's tenant is "ginesysone",
-    // greaves' is "peopleatgems").
+    // Subdomain defaults to the registry slug; apiMeta.boardSlug overrides it when they differ.
     const sub = company.apiMeta?.boardSlug ?? company.slug;
     const orgGuid = company.apiMeta?.orgGuid;
-    // No orgGuid -> Blazor-UI tenant (no GUID to store). With an orgGuid, try
-    // the legacy embed endpoint first, then fall back to the Blazor endpoint
-    // for tenants that migrated UIs after conversion.
     if (!orgGuid) return fetchKeka(company, kekaJobsUrl(sub));
     try {
       return await fetchKeka(company, kekaEmbedUrl(sub, orgGuid));

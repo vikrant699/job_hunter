@@ -1,8 +1,5 @@
-// src/blast/pool.ts
-//
-// Ordered pool of not-yet-processed candidates from the Raw Data tab. Email
-// splitting/normalization mirrors src/outreach/contacts.ts but is duplicated
-// on purpose: the blast tool must stay deletable without touching outreach.
+// Ordered pool of not-yet-processed candidates from the Raw Data tab. Email splitting/normalization
+// mirrors contacts.ts but is duplicated on purpose so the blast tool stays deletable.
 export interface BlastCandidate {
   email: string;
   company: string;

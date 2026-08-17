@@ -1,12 +1,5 @@
-// src/ats/spire2grow.ts — Spire2Grow careers boards (jobs.<company>.com shells
-// backed by io.spire2grow.com). The API is unlocked by a single tenant header
-// (no bearer token):
-//   GET https://io.spire2grow.com/ies/v1/p/requisition/_search
-//         ?page=<n>&size=<N>&selectedSortOrder=desc&selectedSortField=postedOn
-//     header: workspaceid: <apiMeta.workspaceId, e.g. MYNTRA-93as3>
-//     -> { entities: [{ id, displayId, jobTitle, jobLocation: [{city,state,
-//          country,fqLocationName}], departmentName, jobDescription (HTML) }] }
-// Verified live on Myntra (70 jobs, 2026-07-18). Paged by page/size.
+// src/ats/spire2grow.ts — Spire2Grow careers boards (jobs.<company>.com backed by io.spire2grow.com); unlocked via a per-tenant `workspaceid` header (apiMeta.workspaceId), no bearer token.
+// GET io.spire2grow.com/ies/v1/p/requisition/_search?page=&size=, paged.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

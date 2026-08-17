@@ -7,13 +7,7 @@ import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "./sheetCodec.js";
 import { writeAtomic } from "../util/registryFile.js";
 import { registryKey as entryKey } from "../util/slug.js";
 
-/**
- * Registry-mutation surface for the Companies tab (the registry source of
- * truth): the SPA sentinel's strategy writeback and the append path used by
- * registry-maintenance scripts/sessions. Every write also mirrors into
- * data/registry-cache.json so the local cache stays a faithful snapshot for
- * the offline fallback in sheetRegistry.ts.
- */
+// Registry-mutation surface for the Companies tab; every write also mirrors into data/registry-cache.json for the offline fallback in sheetRegistry.ts.
 
 export interface RegistryWriterDeps {
   readTab: (profileId: string, tab: string) => Promise<string[][]>;
@@ -35,14 +29,7 @@ function defaultDeps(): RegistryWriterDeps {
   };
 }
 
-/** Decode the tab's data rows, ignoring any that fail validation — callers of
- *  this module only need the identity/lookup surface (keys, names, cells),
- *  not a full quarantine report (that lives in sheetRegistry.ts). A row that
- *  fails to decode simply can't collide with a new addition by key.
- *  `allValid` reports whether ANY row was dropped — cache mirroring must skip
- *  partial decodes (same rule as sheetRegistry.ts: the offline fallback
- *  prunes from the cache, so a partial snapshot would delete quarantined
- *  companies on a later offline run). */
+/** Decodes valid rows, dropping any that fail validation; `allValid` gates cache mirroring so a partial snapshot can't later prune quarantined companies. */
 function decodeValidRows(rows: string[][]): { entries: RegistryEntry[]; allValid: boolean } {
   const entries: RegistryEntry[] = [];
   let allValid = true;
@@ -62,9 +49,7 @@ function mirrorToCache(cachePath: string, entries: RegistryEntry[], allValid: bo
   writeAtomic(cachePath, entries);
 }
 
-/** Locate the sheet row (1-based, header-inclusive) and decoded entry for a
- *  registry key. Tracks the RAW row index separately from the valid-entries
- *  array so rows that fail validation above the match can't misalign it. */
+/** Locates the sheet row (1-based) and decoded entry for a registry key; tracks the raw row index separately so invalid rows above the match can't misalign it. */
 function locateEntryRow(
   rows: string[][],
   key: string,
@@ -86,11 +71,7 @@ export interface AppendResult {
   skippedDuplicates: number;
 }
 
-/**
- * Append new registry entries to the Companies tab, skipping any whose
- * (source, slug) key already exists. Mirrors the appended entries into the
- * local cache so an immediately-following offline run still sees them.
- */
+/** Appends new entries to the Companies tab, skipping existing (source, slug) keys, and mirrors them into the local cache. */
 export async function appendToRegistry(
   newEntries: RegistryEntry[],
   profileId: string,
@@ -116,12 +97,7 @@ export async function appendToRegistry(
   return { written: toAdd.length, skippedDuplicates };
 }
 
-/**
- * Patch arbitrary fields of one registry entry in place on the Companies tab
- * (full-row rewrite at the located row, other rows untouched), mirroring the
- * cache. Used by updateRegistryStrategy and registry-maintenance sessions.
- * Returns false when no row matches the key.
- */
+/** Patches fields of one registry entry via full-row rewrite at the located row, mirroring the cache. Returns false when no row matches. */
 export async function updateRegistryEntry(
   key: { source: string; source_slug?: string | null | undefined; name: string },
   patch: Partial<RegistryEntry>,
@@ -148,12 +124,7 @@ export async function updateRegistryEntry(
   return true;
 }
 
-/**
- * Patch one entry's parsing_strategy cell in place (other columns untouched).
- * Used by the SPA sentinel to make its llm-scrape -> playwright-llm-scrape
- * recommendation stick — a DB-only flip would be reverted by the next
- * syncRegistryFromSheet. Returns false when no row matches the key.
- */
+/** Patches parsing_strategy on the sheet (not just the DB) so the change survives the next syncRegistryFromSheet. Returns false when no row matches. */
 export async function updateRegistryStrategy(
   source: string,
   sourceSlug: string,

@@ -1,13 +1,4 @@
-/**
- * The relevance-gate prompt. Reason-first, decomposed sub-scores, granular rubric,
- * an anti-hedge instruction, and worked examples drawn from the candidate's own
- * reviewed history (analyst roles = good; data-science / ML / engineering = not).
- *
- * Placeholders are filled by render(): resume, hardDealBreakers, softDealBreakers,
- * jobTitle, companyName, jdText. The model returns JSON validated by GateResultSchema
- * (analysis and the four sub-scores are optional; matchScore, the dealBreaker fields,
- * and reason are required).
- */
+// Relevance-gate prompt. Placeholders filled by render(); output validated by GateResultSchema.
 export const GATE_PROMPT = `You are screening job postings for ONE specific candidate, who is a DATA / BUSINESS ANALYST (~4-5 years). Their work is SQL, BI dashboards (Power BI / Tableau / Looker), reporting, stakeholder analytics, and business insight — NOT building machine-learning models, NOT data engineering / pipelines, NOT software development. Score so the candidate sees real analyst matches first and isn't buried in noise — but missing a genuine analyst role is worse than showing a borderline one.
 
 # Candidate's resume

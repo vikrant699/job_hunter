@@ -26,8 +26,7 @@ test("parseJioFunctions extracts the job-function links, absolutized, with names
   assert.match(at(fns, 0).url, /^https:\/\/careers\.jio\.com\/frmfuncwisejob\.aspx\?func=AAA=&desc=BBB=&flag=/);
 });
 
-// Job rows: an <a id="…hylUser_N"> whose text is "Title ( jobcode )" and href is
-// the JD page, plus a sibling <span id="…Label2_N"> location.
+// Job rows: an <a id="…hylUser_N"> with text "Title ( jobcode )", plus a sibling <span id="…Label2_N"> location.
 const ROWS_HTML = `<html><body><table>
   <tr>
     <td><a id="MainContent_lstJoblist_hylUser_0" href="frmjobdescription.aspx?JBTITLE=T1&amp;jbID=J1&amp;funcCode=F1">Frontend Engineer ( 86701445 )</a></td>

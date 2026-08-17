@@ -1,20 +1,7 @@
-// src/ats/juspay.ts — Juspay's own recruiting portal (joinus.juspay.in).
-//
-// juspay.in/careers 301s to juspay.io/careers (a static Astro shell whose
-// visible copy is filler); the real listing is a client-side fetch to:
-//
-//   GET https://joinus.juspay.in/api/careerJobOpening?limit=1000
-//     -> { allJobs: [{ job_id, job_title, job_location, category, job_type,
-//          experience_year, is_global, opening_status,
-//          job_description_career, job_description_template }],
-//          summary: { count, totalCount } }
-//
-// Verified live (2026-07-18, plain curl, no auth/headers): a single
-// unfiltered call returns the full set (75 jobs, 70 India). `totalCount`
-// merely echoes the limit param (bogus), so completeness relies on the
-// generous fixed limit — Juspay's whole board is ~75 postings, far under
-// 1000. JD is inline in job_description_career (markdown-ish text); no
-// per-job detail endpoint exists.
+// src/ats/juspay.ts — Juspay's own recruiting portal (joinus.juspay.in); juspay.in/careers redirects to a
+// static filler page, the real listing is a client-side fetch.
+// GET .../api/careerJobOpening?limit=1000 -> { allJobs: [...] }; totalCount just echoes the limit param
+// (bogus), so completeness relies on the generous fixed limit. JD inline in job_description_career; no per-job endpoint.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { makeJsonListAdapter } from "./jsonList.js";

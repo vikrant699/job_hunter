@@ -77,9 +77,7 @@ test("envBool is case-insensitive and trims surrounding whitespace", () => {
   withBool("False", () => assert.equal(envBool(BOOL_VAR, true), false));
 });
 
-// Anything that is not exactly true/false falls back. For LOCAL (fallback true)
-// that means a typo like LOCAL=1 keeps the run on the local model rather than
-// silently switching to the paid provider.
+// Anything not exactly true/false falls back, so a typo like LOCAL=1 keeps the run on the default rather than silently switching providers.
 test("envBool returns the fallback for values that are not true/false", () => {
   for (const raw of ["1", "0", "yes", "no", "on", "off", "not-a-bool"]) {
     withBool(raw, () => {

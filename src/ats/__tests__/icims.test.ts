@@ -1,6 +1,4 @@
-// src/ats/__tests__/icims.test.ts — pure-function coverage. The browser/WAF
-// layer (Edge channel + page.request) is live-verified, not unit-tested, the
-// same way the other browser-backed adapters split their tests.
+// Pure-function coverage; the browser/WAF layer (Edge channel + page.request) is live-verified, not unit-tested.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -21,8 +19,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup: one US dealer row (unclassed value <span >) and one
-// India GCC row (IN-TN-Chennai), plus a franchisee-subdomain href.
+// One US dealer row, one India GCC row (IN-TN-Chennai), plus a franchisee-subdomain href.
 const LIST_HTML = `<html><body><ul>
   <li class="iCIMS_JobCardItem"><div class="row">
     <div class="col-xs-6 header left"><span class="sr-only field-label">Job Locations</span><span > US-AZ-Tucson</span></div>
@@ -34,7 +31,7 @@ const LIST_HTML = `<html><body><ul>
   </div></li>
 </ul></body></html>`;
 
-// Real iCIMS pages split the JD across several Expandable_Text sections.
+// Real pages split the JD across several Expandable_Text sections.
 const JD_HTML = `<html><body>
   <div class="iCIMS_JobHeader"><h1>DevOps Engineer</h1></div>
   <div class="iCIMS_JobContent">
@@ -86,7 +83,7 @@ test("parseIcimsJd concatenates all expandable sections (not just the first)", (
   const jd = parseIcimsJd(JD_HTML);
   assert.match(jd, /Overview/);
   assert.match(jd, /Build pipelines for the Chennai GCC\./);
-  // The second section must be present — the bug was stopping at the first.
+  // The second section must be present - the bug was stopping at the first.
   assert.match(jd, /Responsibilities/);
   assert.match(jd, /Own CI\/CD and observability\./);
 });

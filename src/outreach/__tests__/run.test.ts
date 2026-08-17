@@ -92,9 +92,8 @@ function harness(opts: {
 }
 
 test("istDate converts a UTC instant to the IST calendar date (YYYY-MM-DD)", () => {
-  // 2026-07-06T19:00:00Z is 2026-07-07T00:30 IST (UTC+5:30) â€” crosses midnight.
+  // 19:00Z crosses midnight into IST (UTC+5:30); 18:00Z stays the same day.
   assert.equal(istDate(new Date("2026-07-06T19:00:00.000Z")), "2026-07-07");
-  // 2026-07-06T18:00:00Z is 2026-07-06T23:30 IST â€” still the same day.
   assert.equal(istDate(new Date("2026-07-06T18:00:00.000Z")), "2026-07-06");
 });
 
@@ -129,8 +128,7 @@ test("runOutreach filters postings to configured severities (default excludes an
   const result = await runOutreach({ profileId: "default", sinceIso: "2026-01-01T00:00:00Z", runId: null, deps });
   assert.equal(result.draftsCreated, 1);
   assert.equal(drafts.length, 1);
-  // Multipart MIME (resume attached): the first base64 block after the text/plain
-  // part's headers is the body; decode it and confirm the surviving posting's title.
+  // Decode the multipart MIME's text/plain body to confirm the surviving posting's title.
   const parts = at(drafts, 0).mime.split(/--job-hunter-\S+\r\n/);
   const textPart = parts.find((p) => p.includes("text/plain"));
   const b64 = textPart?.split("\r\n\r\n")[1]?.trim().split("\r\n").join("") ?? "";

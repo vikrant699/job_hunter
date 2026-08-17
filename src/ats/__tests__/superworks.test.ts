@@ -26,14 +26,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// ---- fixtures --------------------------------------------------------
-// Real superworks.com boards are Next.js apps: the job list is NOT plain
-// DOM markup you can cheerio-select — it's embedded as an escaped React
-// Server Components ("Flight") payload inside
-//   <script>self.__next_f.push([1,"<chunk>"])</script>
-// tags. Trimmed shapes below mirror the live payload captured from
-// https://refrens.superworks.com/job/listing and a job detail page on
-// 2026-07-12 (field names/structure verified live; ids shortened).
+// Real superworks.com boards are Next.js apps: the job list isn't plain DOM markup but an escaped React Server Components ("Flight") payload inside a <script>self.__next_f.push(...)</script> tag.
 
 function pushScript(chunk: string): string {
   return `<script>self.__next_f.push([1,${JSON.stringify(chunk)}])</script>`;
@@ -57,7 +50,7 @@ const LIST_INITIAL_DATA = {
       department: "64b5187d5a0713ba4d0c4ed3",
     },
     {
-      // no locationInfo at all — must tolerate a missing location.
+      // no locationInfo at all - must tolerate a missing location.
       _id: "68ecc399fb4bc3d67a722ab7",
       name: "Founder's office intern",
       locationInfo: [],
@@ -73,8 +66,7 @@ const LIST_HTML = `<html><body>${pushScript(
   )}}]]`,
 )}</body></html>`;
 
-// Detail page: the rich JD HTML is streamed as a separate "Text" record
-// referenced by "$16" (Flight protocol: `<id>:T<hex-byte-length>,<raw-bytes>`).
+// The JD HTML is streamed as a separate "Text" record referenced by "$16" (Flight protocol: `<id>:T<hex-byte-length>,<raw-bytes>`).
 const JD_BODY =
   "<p>Customer Support Executive<br><br><strong>About the Role</strong></p>\n" +
   "<p>We are looking for a Customer Support Executive who is passionate about helping users and solving problems. " +
@@ -89,11 +81,7 @@ function textRecord(id: string, body: string): string {
   return `${id}:T${byteLen},${body}`;
 }
 
-// Real pages always terminate one push-call's chunk text with "\n" (Next.js's
-// RSC streaming line convention) before the next chunk's id label begins —
-// verified live: "...JobDetailsSection\"]\n16:T94c,<p" on the captured
-// refrens detail page. The trailing \n here mirrors that so the (?:^|\n)
-// chunk-boundary anchor in resolveTextRecord matches like it does live.
+// Real chunks terminate with "\n" before the next chunk's id label begins; mirrored here so the (?:^|\n) chunk-boundary anchor in resolveTextRecord matches.
 const DETAIL_INITIAL_DATA_CHUNK =
   '14:["$","$L15",null,{"initialData":{"jobInfo":{"_id":"6a3d21dedb596783b0df9e72","name":"Customer Support Executive",' +
   '"jobDescription":{"description":"$16","companyPerks":"<p>Great place to work</p>"}}}}]\n';
@@ -101,8 +89,6 @@ const DETAIL_INITIAL_DATA_CHUNK =
 const DETAIL_HTML = `<html><body>${pushScript(DETAIL_INITIAL_DATA_CHUNK)}${pushScript(
   textRecord("16", JD_BODY),
 )}</body></html>`;
-
-// ---- tests -------------------------------------------------------------
 
 test("superworksListUrl derives the tenant origin and listing URL", () => {
   assert.equal(superworksListUrl(company), "https://refrens.superworks.com/job/listing");
@@ -159,14 +145,7 @@ test("parseSuperworksJd returns '' when jobDescription/description is absent", (
   assert.equal(parseSuperworksJd("<html><body>Not found</body></html>"), "");
 });
 
-// --- dead subdomain vs genuinely empty board -----------------------------------
-
-// Trimmed from GET https://zzz-no-such-tenant-9x.superworks.com/job/listing
-// (HTTP 200, no redirect, 13,353 bytes, captured 2026-08-03). A subdomain the
-// vendor does not host serves the same Next.js shell as a real tenant, titled
-// with the vendor's generic default, and its page record resolves to an RSC error
-// record ("7:E{...}") instead of page data. No "initialData" appears anywhere, so
-// it used to parse as a board with zero openings.
+// A subdomain the vendor does not host serves the same Next.js shell as a real tenant, with an RSC error record ("7:E{...}") instead of page data - no "initialData" anywhere, so it used to parse as a board with zero openings.
 const DEAD_TENANT_HTML = `<html><head><title>Jobs &amp; Careers | Recruit Superworks</title></head><body>${pushScript(
   '0:{"P":null,"b":"FNeXjdXzPJK76i66tsPLZ","c":["","job","listing"],"i":false}\n',
 )}${pushScript(
@@ -175,10 +154,7 @@ const DEAD_TENANT_HTML = `<html><head><title>Jobs &amp; Careers | Recruit Superw
     '7:E{"digest":"1659083992"}\n',
 )}</body></html>`;
 
-// A LIVE tenant whose board is empty: the tenant-identity block still resolves
-// from the subdomain, and jobList is present but has nothing in it. Mirrors the
-// shape of a refrens job-detail page fetched with a nonexistent job id, whose
-// initialData carried companyInfo and no jobList at all (probed 2026-08-03).
+// A LIVE tenant whose board is empty: the tenant-identity block still resolves from the subdomain, and jobList is present but has nothing in it.
 const EMPTY_BOARD_HTML = `<html><body>${pushScript(
   `7:["$","$L13",null,{"initialData":${JSON.stringify({
     companyInfo: { companyName: "Refrens Internet Pvt Ltd." },
@@ -220,17 +196,14 @@ test("assertSuperworksTenantExists throws for a subdomain the vendor does not ho
 });
 
 test("the dead-subdomain error is charged to the company, not written off as infrastructure", () => {
-  // A subdomain Superworks does not host is a per-company board defect and MUST
-  // count toward the row's consecutive_failures. If any of these flipped true the
-  // scheduler would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler would retry the board forever and never quarantine it.
   const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens", superworksListUrl(company)));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A block page carries no initialData either, so it looked exactly like a
-// subdomain the vendor does not host.
+// A block page carries no initialData either, so it looked exactly like a subdomain the vendor does not host.
 test("a WAF challenge page is an edge refusal, NOT a dead subdomain", () => {
   const err = thrownBy(() =>
     assertSuperworksTenantExists(CHALLENGE_PAGE_HTML, "refrens", superworksListUrl(company)),
@@ -254,8 +227,6 @@ test("superworksAdapter.listPostings rejects a subdomain the vendor does not hos
 });
 
 test("superworksAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
-  // The distinction the check exists for: the tenant resolves, nothing is open,
-  // no error.
   stubFetch(t, fetchSequence(() => htmlResponse(EMPTY_BOARD_HTML)));
   assert.deepEqual(await superworksAdapter.listPostings(company), []);
 });
@@ -269,8 +240,7 @@ test("superworksAdapter.listPostings still lists a populated board unchanged", a
 });
 
 test("superworksAdapter.listPostings resolves the listing URL from a tenant_url override", async (t) => {
-  // insidefpv's row: tenant_url is the full listing URL, so the origin must come
-  // from it rather than from the slug.
+  // tenant_url is the full listing URL here, so the origin must come from it rather than the slug.
   const insidefpv: AdapterCompany = {
     provider: "superworks",
     slug: "insidefpv",

@@ -1,4 +1,3 @@
-// src/ats/bamboohr.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeBambooHr, buildBambooHrLocation, bambooHrListUrl, bambooHrDetailUrl, bambooHrJobUrl } from "../bamboohr.js";
@@ -26,9 +25,7 @@ const jobLocationPopulated: BambooHrJob = {
   locationType: "2",
 };
 
-// `location` is entirely null; the real data lives in `atsLocation`, and
-// there city/state are swapped (a pincode sits in `province`, a state name
-// sits in `city`) — exactly the odd shape the integrator flagged.
+// location is null; real data lives in atsLocation, where city/state are swapped (a pincode sits in province, a state name in city).
 const jobAtsLocationPopulated: BambooHrJob = {
   id: "144",
   jobOpeningName: "Program Officer",

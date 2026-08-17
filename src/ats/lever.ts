@@ -16,9 +16,8 @@ const LeverPostingSchema = z.object({
   createdAt: z.number().nullable().optional(),
   descriptionPlain: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  // Lever splits the body across these: lists[] holds the responsibilities /
-  // requirements bullets (where skills like SQL live), additional(Plain) is the
-  // closing section. The adapter must include them or it only sees the intro.
+  // lists[] holds responsibilities/requirements bullets (skills live there); additional(Plain) is the
+  // closing section — must include both or the JD is intro-only.
   lists: z
     .array(z.object({ text: z.string().nullable().optional(), content: z.string().nullable().optional() }))
     .nullable()
@@ -71,9 +70,7 @@ function normalize(company: AdapterCompany, j: LeverPosting): NormalizedPosting 
     workplace.toLowerCase() === "remote" ||
     (location ? REMOTE_RE.test(location) : false);
 
-  // Assemble the WHOLE posting: intro + every list section + closing. Lever
-  // keeps the responsibilities/requirements (and thus the real skill signal)
-  // in lists[]/additionalPlain, not descriptionPlain — see schema note above.
+  // Assemble the WHOLE posting: intro + every list section + closing (see schema note above).
   const intro = j.descriptionPlain ?? (j.description ? htmlToText(j.description) : "");
   const listText = (j.lists ?? [])
     .map((l) => `${l.text ?? ""}\n${l.content ? htmlToText(l.content) : ""}`.trim())

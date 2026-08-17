@@ -1,26 +1,5 @@
-// src/ats/sonyresearch.ts — Sony Research India careers
-// (sonyresearchindia.com), a single static WordPress/Elementor page whose
-// job-openings section renders each opening as an <h2> title, a text-editor
-// block with "Location:"/"Duration:" lines, and an "Apply Now" button linking
-// to a LinkedIn job posting (linkedin.com/jobs/view/<id>/) — LinkedIn IS the
-// application channel here, there is no separate ATS.
-//
-// Confirmed live 2026-07-12:
-//   GET https://www.sonyresearchindia.com/wp-json/wp/v2/pages?slug=careers
-// -> array with one page; content.rendered (~140KB Elementor HTML) has 3
-// linkedin.com/jobs/view links today (Multimodal AI Intern, Machine Learning
-// Consultant, LLM Engineer). The site's NinjaFirewall WAF 403s the plain bot
-// UA, so (like Jibe) this fetch goes out with a browser UA.
-//
-// Each opening's title is the nearest PRECEDING <h2> heading before its Apply
-// link. Elementor also renders a "Thank you... no open positions" placeholder
-// <h2> per category — but it always sits FARTHER from the Apply link than the
-// real title heading, so "nearest preceding" resolves to the right one.
-//
-// jdText is the htmlToText of the whole span from that <h2> through the
-// closing </a> of the Apply link — this is genuinely all the copy Sony
-// publishes per opening (title + Location + Duration); nothing more to fetch.
-// fetchJd never reaches out to LinkedIn — it re-derives the same page text.
+// src/ats/sonyresearch.ts — Sony Research India careers (sonyresearchindia.com), a static WordPress/Elementor page whose "Apply Now" buttons link straight to LinkedIn job postings - LinkedIn is the application channel here, there's no separate ATS.
+// GET wp-json/wp/v2/pages?slug=careers; the NinjaFirewall WAF 403s the plain bot UA, so this fetch uses a browser UA. Each opening's title is the nearest PRECEDING <h2> (a "no open positions" placeholder heading always sits farther from the Apply link, so this resolves correctly); jdText is the full text from that heading through the Apply link's closing tag, which is all the copy Sony publishes - fetchJd never calls LinkedIn, it re-derives the same page text.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -30,9 +9,7 @@ import { REMOTE_RE } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 
 const CAREERS_API = "https://www.sonyresearchindia.com/wp-json/wp/v2/pages?slug=careers";
-// Every opening seen live names Bengaluru explicitly in its own "Location:"
-// line; this is only the fallback for the (so far hypothetical) case a
-// future opening omits it.
+// Fallback only, for an opening whose own "Location:" line is missing.
 export const SONYRESEARCH_DEFAULT_LOCATION = "Bengaluru, India";
 
 const WpPageSchema = z.object({
@@ -59,13 +36,7 @@ function cleanBlockText(text: string): string {
     .join("\n");
 }
 
-/**
- * Pull every LinkedIn "Apply Now" opening out of the careers page body.
- * Associates each link with the nearest PRECEDING <h2> heading, and takes the
- * text from that heading through the link's closing </a> as the opening's
- * whole published blurb. Returns [] when the page has no such links at all
- * (genuinely zero openings, not an error).
- */
+/** Associates each LinkedIn Apply link with its nearest preceding <h2>, taking the text through the link's closing </a> as the opening's whole published blurb. */
 export function parseSonyResearchOpenings(contentHtml: string): SonyResearchOpening[] {
   const headings: { index: number; title: string }[] = [];
   H2_RE.lastIndex = 0;
@@ -88,8 +59,7 @@ export function parseSonyResearchOpenings(contentHtml: string): SonyResearchOpen
       if (h.index < linkIndex) heading = h;
       else break;
     }
-    // No heading precedes this link at all — can't name the opening; skip
-    // rather than emit a titleless posting.
+    // No heading precedes this link - can't name the opening; skip rather than emit a titleless posting.
     if (!heading || !heading.title) continue;
 
     const closeIdx = contentHtml.indexOf("</a>", linkIndex);
@@ -140,10 +110,7 @@ export const sonyresearchAdapter: AtsAdapter = {
     const openings = parseSonyResearchOpenings(html);
     return openings.map((o) => normalizeSonyResearchOpening(company, o));
   },
-  // jdText is already fully populated inline above. fetchJd exists only as a
-  // defensive fallback for a future opening whose in-page blurb is empty (or
-  // for a caller that invokes it anyway) — it re-derives the SAME page
-  // section text and never fetches LinkedIn.
+  // Defensive fallback only - jdText is already populated above; never fetches LinkedIn.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     if (posting.jdText) return posting.jdText;
     const html = await fetchSonyResearchCareersHtml();

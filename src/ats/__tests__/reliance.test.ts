@@ -1,4 +1,3 @@
-// src/ats/reliance.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -21,10 +20,7 @@ const company: AdapterCompany = {
   careersUrl: RELIANCE_BOARD_URL, tenantUrl: null, apiMeta: null,
 };
 
-// Fixture: page 1 of a 2-page board (real markup has a duplicated `href`
-// attribute on the anchor — the second one is the URL-encoded title, a
-// pre-existing bug on the live site — so the fixture reproduces that to
-// prove cheerio (and our parser) picks the first, real href).
+// Mirrors a live-site bug: the anchor has a duplicated `href` attribute (second one is the URL-encoded title); the parser must pick the first, real href.
 function listPageHtml(opts: {
   rows: { title: string; jbid: string; functionalArea: string; location: string; postedOn: string }[];
   currentPage: number;
@@ -104,11 +100,7 @@ const page2Rows = [
 const PAGE1_HTML = listPageHtml({ rows: page1Rows, currentPage: 1, totalPages: 2, viewstate: "VS-PAGE-1" });
 const PAGE2_HTML = listPageHtml({ rows: page2Rows, currentPage: 2, totalPages: 2, viewstate: "VS-PAGE-2" });
 
-// Reproduces the live site's actual quirk: the Facebook/LinkedIn share
-// buttons have unescaped, literal "<url>" placeholders inside their href
-// attribute values (invalid HTML), which would confuse a naive regex-based
-// tag stripper. Also includes the Apply/Back <input> buttons that sit inside
-// the same div on the real page — neither should leak into the JD text.
+// Mirrors the live site's share buttons with unescaped, literal "<url>" placeholders in href (invalid HTML), plus the Apply/Back buttons; none should leak into the JD text.
 const JD_HTML = `<!DOCTYPE html>
 <html><body>
 <div id="MainContent_divDesc">
@@ -236,8 +228,6 @@ test("parseRelianceJd drops the share-button noise (malformed <url> hrefs) and A
 test("parseRelianceJd returns empty string when the description div is absent", () => {
   assert.equal(parseRelianceJd("<html><body>nothing here</body></html>"), "");
 });
-
-// --- Adapter integration: exercise the real __VIEWSTATE paging loop end to end ---
 
 test("relianceAdapter.listPostings pages through both fixture pages via the __VIEWSTATE postback loop", async (t) => {
   let postCount = 0;

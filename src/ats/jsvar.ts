@@ -1,37 +1,8 @@
-// src/ats/jsvar.ts — generic adapter for careers pages that ship their job
-// list as a JS literal (or an escaped-JSON blob) baked into the page HTML,
-// rather than a JSON island or an API. Verified live on WazirX
-// (`const JOB_DATA = {...}` in a .js file), EaseMyTrip (`const ROLES = [...]`
-// inline), Ramco (`jobData = [...]` with backtick values), and Revolt
-// (`\"initialJobs\":[...]` inside a Next.js RSC flight string).
-//
-// Per-company config in apiMeta (all strings):
-//   listUrl        optional — defaults to tenantUrl/careersUrl.
-//   assetUrl       optional — a SEPARATE URL to fetch the literal from (e.g.
-//                  WazirX's /js/jobs.js), when it isn't inline in listUrl.
-//   startMarker    REQUIRED — literal text immediately before the value, e.g.
-//                  "const JOB_DATA =", "const ROLES =", "jobData =",
-//                  '\"initialJobs\":' (for the escaped-flight case).
-//   open           REQUIRED — "[" or "{": the value's opening bracket.
-//   unescape       optional ("true") — JSON-unescape (\" -> ", \\ -> \) the
-//                  whole source BEFORE locating the literal (for RSC-flight
-//                  blobs). With this set, give startMarker in its UNESCAPED
-//                  form, e.g. "\"initialJobs\":" written as '"initialJobs":'.
-//   container      optional — "array" (default) or "object": when "object",
-//                  the parsed value is a { id: job } map whose VALUES are the
-//                  jobs (WazirX) and whose KEY is used as the externalId.
-//   titleField / idField / locationField / jdFields / fixedLocation:
-//                  same dot-path mapping semantics as the nextdata adapter.
-//   urlTemplate    optional — {id}/{slug} placeholders; defaults to listUrl.
-//   slugField      optional — dot-path that feeds {slug} (e.g. ofbcareers.com
-//                  keeps the job path in "link-jobs-jobTitle"); falls back to
-//                  a literal "slug" field, then the externalId.
-//
-// Parsing: JS literals with single quotes / backticks / unquoted keys aren't
-// JSON, so the extracted text is evaluated in a locked-down `vm` context (no
-// globals, 1s timeout) — safe because the sandbox has nothing to reach and
-// the input is a data literal. Escaped-JSON blobs (unescape:true) go through
-// JSON.parse instead.
+// src/ats/jsvar.ts — generic adapter for careers pages that ship jobs as a JS literal or escaped-JSON
+// blob baked into HTML/a JS asset (verified on WazirX, EaseMyTrip, Ramco, Revolt). Per-company config
+// lives in apiMeta (see JsVarConfig).
+// JS literals (single quotes/backticks/unquoted keys) aren't valid JSON, so the extracted text runs in a
+// locked-down `vm` context (no globals, 1s timeout); escaped-JSON blobs (unescape:true) go through JSON.parse instead.
 import { createContext, runInContext } from "node:vm";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -82,17 +53,11 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
   };
 }
 
-/** Parse an extracted literal. JSON.parse for escaped-JSON blobs; a sandboxed
- *  vm eval for JS object/array literals (single quotes, backticks, bare keys).
- *
- *  The vm branch is the one boundary here whose input is JavaScript, not JSON: a
- *  scraped literal may legitimately hold `undefined`, array holes (`['a',,'c']`),
- *  `NaN`, or a Date — none of which JsonValue can represent, and all of which a
- *  real careers page has shipped. So that branch is normalised through JSON
- *  first, which is precisely what the same data would look like had it arrived
- *  over the wire (undefined/functions dropped, holes and NaN -> null, Date ->
- *  ISO string). Validating the raw eval result instead would reject literals
- *  this adapter parsed fine before — see the parseLiteral tests. */
+/** Parse an extracted literal: JSON.parse for escaped-JSON blobs, sandboxed vm eval for JS literals
+ *  (single quotes/backticks/bare keys). The vm branch's eval result may hold undefined/array
+ *  holes/NaN/Date (none of which JsonValue represents), so it's round-tripped through JSON first to
+ *  normalize it the way real wire JSON would (holes/NaN -> null, Date -> ISO string) rather than
+ *  rejecting literals that parsed fine before. */
 export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
   if (viaJson) return JsonValueSchema.parse(JSON.parse(literal));
   const sandbox = createContext({ __proto__: null });
@@ -103,9 +68,8 @@ export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
 
 export function jsVarPostings(company: AdapterCompany, sourceText: string): NormalizedPosting[] {
   const cfg = jsVarConfig(company);
-  // For escaped-JSON blobs, unescape the whole source first so the bracket
-  // scanner sees real `"` string delimiters (a scanner run over `\"`-escaped
-  // text miscounts brackets inside string values).
+  // For escaped-JSON blobs, unescape the whole source first so the bracket scanner sees real `"`
+  // delimiters (a scanner over `\"`-escaped text miscounts brackets inside string values).
   const haystack = cfg.unescape
     ? sourceText.replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\\//g, "/")
     : sourceText;

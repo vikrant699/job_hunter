@@ -1,25 +1,11 @@
-// src/ats/ralphlauren.ts — Ralph Lauren careers = Avature's new React SPA portal
-// (careers.ralphlauren.com) behind Cloudflare bot-management. A plain server-side
-// fetch gets HTTP 202 + empty body; only a real browser (with the cf cookie) gets
-// through — so we clear Cloudflare in the shared headless browser, then run the
-// board's own JSON API in-page (the ubs/bmw/reliancebrands pattern).
-//
-// Corporate/tech board list (one call, no pagination, returns ALL jobs):
-//   GET /en_US/CareersCorporate/SearchJobsCorporateData/
-//     -> { locations: { "<id>": { title, latlon:"lat,lon", jobs:[{id,title,url}] } }, totalCount }
-// Location comes only as lat/lon (titles are empty). Avature geocodes SOME jobs
-// (Bangalore = 12.97,77.59) but dumps others — including real India roles like the
-// commerce-platform FE developer — into an empty "," bucket with NO country field.
-// So we can't filter India from the list alone. We therefore:
-//   - emit geocoded-India jobs with a concrete location (fast path),
-//   - emit the ambiguous "," bucket with location=null so the pipeline's built-in
-//     JD-based location filter (checkLocationFromText) decides — title-deny drops
-//     most non-SWE roles BEFORE any JD fetch, so this stays cheap in practice,
-//   - skip geocoded-foreign jobs (confirmed not India).
+// src/ats/ralphlauren.ts — Ralph Lauren careers = Avature's React SPA portal
+// (careers.ralphlauren.com) behind Cloudflare bot-management; a plain fetch gets HTTP 202 + empty
+// body, so we clear Cloudflare in the shared headless browser and run the board's JSON API in-page.
+// GET /en_US/CareersCorporate/SearchJobsCorporateData/ returns every job in one call, grouped by
+// location, but location comes only as lat/lon and many India jobs land in an ungeocoded "," bucket
+// with no country field. We emit geocoded-India jobs with a concrete location, skip geocoded-foreign
+// ones, and emit the ambiguous bucket with location=null so the pipeline's JD-based filter decides.
 // There is no server-side location filter — every guessed param returns all jobs.
-//
-// JD: server-rendered HTML at JobDetailCorporate?jobId=N (also Cloudflare-gated);
-// the job content lives in the page's <article>.
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -81,19 +67,10 @@ export function normalizeRalphLauren(
   };
 }
 
-/**
- * The true location of an ungeocoded posting, read from the labelled fields in
- * the job-detail page's first `article--details` block (`City`, `State/Region`,
- * `Location` = country). Verified live 2026-07-25: an India role reads
- * "Bangalore / Karnataka / India", a Hong Kong one "Tsim Sha Tsui / Kowloon /
- * Hong Kong SAR".
- *
- * This is the only place a real location exists for the `","` bucket, and
- * `fetchJd` is the only pass that loads the detail page — so it resolves the
- * location there and the pipeline re-applies the strict check (see
- * `lateLocationCheck`). Without it a foreign role reaches the LLM gate as
- * "unknown-defer", since the flattened JD text has no `Location:` label line.
- */
+// The true location of an ungeocoded posting, read from the labelled City/State/Region/Location
+// fields in the job-detail page's first article--details block. This is the only place a real
+// location exists for the "," bucket, so fetchJd resolves it there and the pipeline re-applies the
+// strict check (lateLocationCheck) — otherwise a foreign role reaches the LLM gate as unknown-defer.
 export function ralphLaurenDetailLocation(html: string): string | null {
   if (!html.trim()) return null;
   const $ = cheerio.load(html);
@@ -121,8 +98,7 @@ export const ralphlaurenAdapter: AtsAdapter = {
       const latlon = (loc.latlon ?? "").trim();
       const ungeocoded = latlon === "" || latlon === ",";
       const city = ungeocoded ? null : indiaCityFromLatlon(latlon);
-      // Geocoded but not India → confirmed foreign, skip. Ungeocoded → keep with
-      // location=null so the pipeline's JD-based location filter decides.
+      // Geocoded but not India: confirmed foreign, skip. Ungeocoded: keep with location=null.
       if (!ungeocoded && !city) continue;
       for (const job of loc.jobs ?? []) {
         const p = normalizeRalphLauren(company, job, city);
@@ -134,13 +110,9 @@ export const ralphlaurenAdapter: AtsAdapter = {
     return out;
   },
 
-  // Also resolves `posting.location` for the ungeocoded bucket — see
-  // `ralphLaurenDetailLocation` and the AtsAdapter.fetchJd contract.
+  // Also resolves posting.location for the ungeocoded bucket — see ralphLaurenDetailLocation.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    // The JobDetail content is React-hydrated — an XHR returns an empty shell, so
-    // we navigate in the browser and read the rendered DOM. The JD lives in the
-    // `article--details` blocks (metadata + company/overview/duties/experience);
-    // the action/share/notification articles are skipped.
+    // React-hydrated content: an XHR returns an empty shell, so navigate and read the rendered DOM.
     return withBrowserPage(
       posting.jobUrl,
       async (page) => {
@@ -149,8 +121,7 @@ export const ralphlaurenAdapter: AtsAdapter = {
         } catch { /* fall through: parse whatever rendered */ }
         await page.waitForTimeout(1500);
         const html = await page.content();
-        // Backfill the location the list API couldn't give us, so the pipeline
-        // judges this posting on real metadata instead of deferring on text.
+        // Backfill the location the list API couldn't give us.
         if (!posting.location) {
           const resolved = ralphLaurenDetailLocation(html);
           if (resolved) posting.location = resolved;
@@ -163,8 +134,6 @@ export const ralphlaurenAdapter: AtsAdapter = {
           .filter(Boolean);
         return parts.join("\n\n");
       },
-      // No settle wait between goto and the selector-wait below (matches the
-      // original, which went straight from goto into waitForSelector).
       { navTimeoutMs: 45_000, settleMs: 0, blockHeavyAssets: false },
     );
   },

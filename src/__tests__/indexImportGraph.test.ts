@@ -4,32 +4,14 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/**
- * src/index.ts must be able to run the Drive sync BEFORE the SQLite file is open,
- * because the pull replaces that file: on Windows the rename then fails with
- * EPERM, and on Linux it succeeds while the open handle keeps reading the file
- * that was replaced - a stale run that pushes its stale state back.
- *
- * db/db.ts opens the connection at module load, so the rule is structural: nothing
- * in index.ts's STATIC import graph may reach it. The run's body therefore lives in
- * runOnce.ts, reached by dynamic import after the sync.
- *
- * A comment cannot enforce that - one innocuous `import { postings } from
- * "./db/index.js"` at the top of index.ts would undo it silently, and the symptom
- * would be a platform-dependent failure inside a multi-hour run. So it is a test.
- */
+// index.ts must run the Drive sync before db/db.ts opens the SQLite file (the pull replaces that file, and an open handle
+// means EPERM on Windows or a stale read on Linux). db.ts opens on module load, so nothing in index.ts's static import
+// graph may reach it; the run body lives in runOnce.ts, reached by dynamic import after the sync. A comment can't enforce
+// that, so this test does.
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/**
- * Static specifiers that actually execute the target module. `import type` is
- * erased before runtime and `await import(...)` is exactly the escape hatch
- * index.ts relies on, so both are excluded.
- *
- * `export ... from` counts: a re-export loads the target module just as an import
- * does, and src/db/index.ts is a pure barrel of them - so missing that form made
- * this guard pass while db.ts was in fact one hop away.
- */
+/** Static specifiers that actually execute the target module; `import type` and dynamic `import()` are excluded, but `export ... from` counts since a re-export loads the module too. */
 function staticImportsOf(file: string): string[] {
   const source = readFileSync(file, "utf-8");
   const specs: string[] = [];
@@ -85,8 +67,7 @@ test("index.ts does not open the database through its static imports", () => {
   );
 });
 
-// The other half of the contract: the module index.ts defers to must genuinely be
-// the DB-backed half, or the split has quietly stopped meaning anything.
+// The other half of the contract: index.ts's dynamic-import target must genuinely be the DB-backed half.
 test("runOnce.ts is the module that owns the database half of the run", () => {
   const reachable = reachableFrom(resolve(srcDir, "runOnce.ts"));
   assert.ok(
@@ -95,8 +76,7 @@ test("runOnce.ts is the module that owns the database half of the run", () => {
   );
 });
 
-// db/sync.ts is imported by index.ts *before* the sync, so it must stay clear of
-// db.ts too. It talks to db.ts through the one-bit openState.ts channel instead.
+// db/sync.ts is imported before the sync runs, so it must stay clear of db.ts too (it uses openState.ts instead).
 test("db/sync.ts does not itself open the database", () => {
   const reachable = reachableFrom(resolve(srcDir, "db", "sync.ts"));
   assert.ok(

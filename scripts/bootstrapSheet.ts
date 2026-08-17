@@ -1,17 +1,6 @@
 /**
- * One-time (idempotent) bootstrap of the outreach spreadsheet:
- *   - creates the bot-managed tabs (Raw Data, Drafts, Sent, Undrafted, Companies)
- *   - uploads config/recruiters-raw.csv into Raw Data (only when the tab is empty)
- *   - uploads data/registry-cache.json into Companies (only when the tab is
- *     empty AND a local cache already exists — a brand-new setup with no
- *     cache yet leaves the Companies tab for the user to seed by hand)
- *   - writes headers into empty Drafts/Sent/Undrafted tabs
- *   - adds the bot's extra columns (E1:G1) to the manual Recruiters List tab
- *
- * Safe to re-run: tabs that already contain data are left untouched.
- *
- *   npm run bootstrap-sheet            (uses the default profile's token)
- *   npm run bootstrap-sheet -- --profile <name>
+ * One-time (idempotent) bootstrap of the outreach spreadsheet: creates the bot-managed tabs, seeds Raw Data and Companies from local files when empty, writes headers into empty lifecycle tabs, and adds the bot's extra columns to Recruiters List. Safe to re-run - tabs with data are left untouched.
+ *   npm run bootstrap-sheet [-- --profile <name>]
  */
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
@@ -55,8 +44,7 @@ async function main(): Promise<void> {
   await ensureTabs(profileId, [t.rawData, t.drafts, t.sent, t.undrafted, t.companies]);
   console.log(`tabs before: ${before.join(" | ")}`);
 
-  // Raw Data: the cleaned recruiter contact dump (local-only, never committed —
-  // the live tab is the source once seeded, so a fresh clone skips this step).
+  // Raw Data: local-only, never committed - the live tab is the source once seeded.
   const csvPath = resolve(process.cwd(), "config/recruiters-raw.csv");
   if (existsSync(csvPath)) {
     const csvRows = parseCsv(readFileSync(csvPath, "utf-8").replace(/^﻿/, ""));
@@ -69,10 +57,7 @@ async function main(): Promise<void> {
     console.log(`${t.rawData}: no local csv at ${csvPath} — leaving as-is`);
   }
 
-  // Companies: seed from the local cache if one exists (e.g. a re-bootstrap
-  // against a fresh spreadsheet). On a brand-new setup with no cache yet,
-  // there is nothing to seed from — the tab starts empty and the user adds
-  // rows by hand (the Companies tab is curated directly).
+  // Companies: seed from the local cache if one exists; a brand-new setup with no cache starts empty for manual curation.
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
   if (existsSync(registryPath)) {
     const entries = z.array(RegistryEntrySchema).parse(JSON.parse(readFileSync(registryPath, "utf-8")));

@@ -7,8 +7,6 @@ import type { EncryptedBlob, SeedStore, TalentRecruitJob } from "../talentrecrui
 import type { AdapterCompany } from "../../types.js";
 import { asJson } from "./testHelpers.js";
 
-// --- fixtures ---
-
 const company: AdapterCompany = {
   provider: "talentrecruit", slug: "zepto", name: "Zepto",
   careersUrl: "https://zepto.talentrecruit.com/career-page",
@@ -17,12 +15,7 @@ const company: AdapterCompany = {
 
 const b64 = (u: Uint8Array): string => Buffer.from(u).toString("base64");
 
-/**
- * Encrypt exactly as the TalentRecruit frontend does: derive the receiver
- * public key from the backend seed, use an ephemeral sender keypair, and pack
- * the result into the {text, iv, key} envelope (note the misleading names —
- * key=nonce, iv=sender public key).
- */
+// Encrypts exactly as the TalentRecruit frontend does; note the misleading names (key=nonce, iv=sender public key).
 function encryptForSeed(plaintext: string, seed: readonly number[]): EncryptedBlob {
   const receiver = nacl.box.keyPair.fromSecretKey(seedBytes(seed));
   const sender = nacl.box.keyPair();
@@ -49,8 +42,6 @@ const sampleJob: TalentRecruitJob = {
   createdtime: "2026-06-22T10:52:28.000Z",
 };
 
-// --- crypto ---
-
 test("boxOpen + decryptToJson round-trip with the backend seed", () => {
   const blob = encryptForSeed(JSON.stringify({ hello: "world", n: 7 }), DEFAULT_SEED);
   const opened = boxOpen(blob, seedBytes(DEFAULT_SEED));
@@ -68,8 +59,6 @@ test("decryptToJson returns null with a wrong seed", () => {
 test("EncryptedBlobSchema rejects a malformed blob", () => {
   assert.throws(() => EncryptedBlobSchema.parse({ text: "x", iv: "y" }));
 });
-
-// --- seed extraction ---
 
 test("extractSeedFromBundle pulls the 32-byte seed", () => {
   assert.deepEqual(extractSeedFromBundle(bundleWithSeed(DEFAULT_SEED)), [...DEFAULT_SEED]);
@@ -94,8 +83,6 @@ test("bundleUrlFromResponses prefers the tenant-host main.<hash>.js", () => {
 test("bundleKey is the bundle filename", () => {
   assert.equal(bundleKey("https://zepto.talentrecruit.com/main.abc123.js?v=1"), "main.abc123.js");
 });
-
-// --- seed store + self-healing ---
 
 function memStore(init: Record<string, number[]> = {}): SeedStore {
   const m = new Map<string, number[]>(Object.entries(init));
@@ -130,8 +117,7 @@ test("decryptWithHealing: cached seed works, no re-extraction", async () => {
 
 test("decryptWithHealing: stale cached seed triggers a forced re-extraction that succeeds", async () => {
   let fetches = 0;
-  // Cache holds a WRONG seed; the live bundle carries the correct one. Flip a
-  // middle byte — byte 0/31 changes are partly erased by Curve25519 clamping.
+  // Cache holds a WRONG seed; flip a middle byte since byte 0/31 changes are partly erased by Curve25519 clamping.
   const staleSeed = DEFAULT_SEED.map((n, i) => (i === 10 ? (n ^ 0x55) : n));
   const store = memStore({ "main.x.js": staleSeed });
   const blob = encryptForSeed(JSON.stringify({ healed: true }), DEFAULT_SEED);
@@ -155,8 +141,6 @@ test("decryptWithHealing: throws loudly when every seed fails (scheme changed)",
     /encryption scheme likely changed/,
   );
 });
-
-// --- envelope + normalize ---
 
 test("parseJobListPage unwraps the nested envelope and reads the total", () => {
   const page = parseJobListPage(asJson(envelope([sampleJob], 7)));

@@ -36,8 +36,6 @@ const API_DISABLED_BODY = JSON.stringify({
   },
 });
 
-// The message is the whole point here: the raw body carries the fix ~250 chars in,
-// past the snippet limit, so the operator saw a bare 403 and no way forward.
 test("an API-disabled 403 explains the one-time console step and names the project", async () => {
   await assert.rejects(
     findDbFile("vikrant", {
@@ -55,8 +53,6 @@ test("an API-disabled 403 explains the one-time console step and names the proje
   );
 });
 
-// The scope genuinely missing is a DIFFERENT problem with a different fix, and must
-// not be dressed up as the console one.
 test("an insufficient-scope 403 is left as the plain error it is", async () => {
   const body = JSON.stringify({
     error: { code: 403, message: "Request had insufficient authentication scopes.", status: "PERMISSION_DENIED" },

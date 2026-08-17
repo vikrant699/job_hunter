@@ -1,13 +1,5 @@
-// src/ats/sensehq.ts — SenseHQ career sites (Next.js), e.g. Tiger Analytics,
-// Marico. The careers page embeds a `<script id="__NEXT_DATA__">` JSON island
-// with `props.pageProps.jobsData = { rows, count }` and `props.buildId`. Small
-// boards fit entirely in that first page; larger ones need the paginated
-// `_next/data/<buildId>/jobs.json` endpoint the client itself calls, which
-// uses the SAME jobsData shape (minus `props`/`buildId`) and is 0-indexed —
-// `page=0` returns rows [0, pageSize), matching the initial page's rows as
-// its own prefix. `count` can run stale, so pagination termination never
-// relies on it; only a short/empty page ends the loop. Descriptions come back
-// inline as `description_external` HTML — no per-job fetch needed.
+// src/ats/sensehq.ts — SenseHQ career sites (Next.js), e.g. Tiger Analytics, Marico.
+// Careers page embeds a __NEXT_DATA__ island with jobsData{rows,count}+buildId; larger boards paginate via _next/data/<buildId>/jobs.json (0-indexed). `count` can run stale, so only a short/empty page ends the loop.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -39,7 +31,7 @@ const SenseHqJobsDataSchema = z.object({
 
 const SenseHqPagePropsSchema = z.object({ jobsData: SenseHqJobsDataSchema });
 
-// Initial SSR page: `<script id="__NEXT_DATA__">` island — carries buildId.
+// Initial SSR page's __NEXT_DATA__ island — carries buildId.
 const SenseHqInitialDataSchema = z.object({
   buildId: z.string(),
   props: z.object({ pageProps: SenseHqPagePropsSchema }),
@@ -53,12 +45,7 @@ export interface SenseHqJobsData {
   count: number | null;
 }
 
-/**
- * Extract the `__NEXT_DATA__` JSON island from a SenseHQ page. Anchored on
- * the script's `id` attribute, which is stable across Next.js redeploys
- * (unlike `buildId`, which lives inside the parsed payload). Returns null
- * when the script is absent or its body isn't valid JSON.
- */
+/** Extract the __NEXT_DATA__ JSON island, keyed on the script's `id` attribute (stable across redeploys, unlike `buildId`). Null if absent or invalid JSON. */
 export function extractSenseHqNextData(html: string): JsonValue | null {
   const raw = matchGroup(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/, html);
   if (raw === null) return null;

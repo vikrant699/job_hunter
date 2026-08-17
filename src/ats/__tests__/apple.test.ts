@@ -1,4 +1,3 @@
-// src/ats/apple.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -35,9 +34,7 @@ const pipeResult: AppleSearchResult = {
   ],
 };
 
-// Real fixture: a "REQ" multi-location result — `id` carries a per-location
-// suffix ("-0321") that `positionId` doesn't, which is exactly why `id` (not
-// `positionId`) is used as externalId.
+// Real fixture: a "REQ" result; id carries a per-location suffix ("-0321") that positionId doesn't, which is why id is used as externalId.
 const reqResult: AppleSearchResult = {
   id: "200615971-0321",
   positionId: "200615971",

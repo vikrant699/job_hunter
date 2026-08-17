@@ -4,9 +4,8 @@ import assert from "node:assert/strict";
 import { buildDraftMime, toBase64Url } from "../mime.js";
 
 test("toBase64Url: standard base64url alphabet, no padding", () => {
-  // "any carnal pleasure." -> base64 "YW55IGNhcm5hbCBwbGVhc3VyZS4=" (has padding + no +/-)
-  // Use bytes that are guaranteed to produce +, /, and = in standard base64.
-  const buf = Buffer.from([0xfb, 0xff, 0xbf]); // base64: +/+/ variant depending on grouping
+  // Bytes chosen to guarantee +, /, and = in standard base64.
+  const buf = Buffer.from([0xfb, 0xff, 0xbf]);
   const std = buf.toString("base64");
   const url = toBase64Url(buf);
   assert.ok(!url.includes("+"));
@@ -35,7 +34,6 @@ test("buildDraftMime: plain-text single-part message has expected headers", () =
 test("buildDraftMime: uses CRLF line endings throughout", () => {
   const mime = buildDraftMime({ to: "a@example.com", subject: "Hi", bodyText: "line1\nline2" });
   assert.ok(!mime.includes("\r\r"));
-  // Every bare \n must be preceded by \r (i.e. no lone LF).
   const withoutCrlf = mime.split("\r\n").join("");
   assert.ok(!withoutCrlf.includes("\n"), "no lone LF should survive outside of CRLF pairs");
 });
@@ -71,8 +69,6 @@ test("buildDraftMime: CRLF/control chars in the subject cannot inject headers", 
 
 test("buildDraftMime strips CR/LF from the To header", () => {
   const mime = buildDraftMime({ to: "a@b.com\r\nBcc: evil@x.com", subject: "s", bodyText: "hi" });
-  // No attachment: the body is a base64 blob, so the header block (everything
-  // before the first blank line) is the right seam to inspect.
   const headerBlock = mime.split("\r\n\r\n")[0] ?? "";
   const headerLines = headerBlock.split("\r\n");
   assert.ok(!headerLines.some((l) => l.startsWith("Bcc:")), "injected Bcc header must not exist as its own line");
@@ -121,8 +117,6 @@ test("buildDraftMime: attachment content survives base64 round-trip and is wrapp
     bodyText: "body",
     attachment: { filename: "data.bin", mimeType: "application/octet-stream", content },
   });
-  // Extract the attachment's base64 block: everything between its Content-Disposition
-  // header block and the next boundary line.
   const parts = mime.split(/\r\n--[^\r\n]+\r\n/);
   const attachmentPart = parts.find((p) => p.includes("Content-Disposition: attachment"));
   assert.ok(attachmentPart);

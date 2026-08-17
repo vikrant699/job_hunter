@@ -15,9 +15,7 @@ const dbPath = resolve(process.cwd(), config.storage.dbPath);
 mkdirSync(dirname(dbPath), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
-// Tell sync.ts the file is now held open, so a Drive pull refuses to swap it out
-// from under us instead of failing with EPERM (Windows) or silently reading the
-// replaced file (Linux). See db/openState.ts.
+// Tell sync.ts the file is held open, so a Drive pull refuses to swap it instead of EPERM (Windows) / silently reading the replaced file (Linux).
 markDbOpened();
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
@@ -27,8 +25,7 @@ db.exec("PRAGMA busy_timeout = 5000");
 const schema = readFileSync(schemaPath, "utf-8");
 db.exec(schema);
 
-// Migrations: CREATE TABLE IF NOT EXISTS won't add columns to an existing
-// table, so newly introduced columns are ALTERed in idempotently here.
+// CREATE TABLE IF NOT EXISTS won't add columns to an existing table, so new columns are ALTERed in idempotently here.
 {
   const PragmaRowSchema = z.object({ name: z.string() });
   const cols = db
@@ -46,8 +43,7 @@ db.exec(schema);
     db.exec("ALTER TABLE runs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'");
   }
 
-  // postings.profile_id requires folding it into the PK — SQLite can't ALTER a
-  // PK, so rebuild the table once. Guarded by the column's absence (idempotent).
+  // postings.profile_id requires folding it into the PK; SQLite can't ALTER a PK, so rebuild the table once (guarded by column absence).
   const postingCols = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (!postingCols.some((c) => c.name === "profile_id")) {
     db.exec(`
@@ -88,13 +84,8 @@ db.exec(schema);
     logger.info("migration: postings rebuilt with profile_id in PK (existing rows -> 'default')");
   }
 
-  // postings.jd_text: the gate reads the JD in-memory during the run and nothing
-  // ever read the column back, so it was pure write-only bulk - 453 MB of a
-  // 609 MB database. Dropped 2026-08-07. Runs after the profile_id rebuild above
-  // so a pre-profile_id DB is migrated first, then loses the column here.
-  // DROP COLUMN only hides it; VACUUM is what returns the disk space, hence the
-  // one-time (and slow, ~30-60s on a 600 MB file) rewrite. Re-read table_info
-  // because the rebuild above may have just recreated the table.
+  // postings.jd_text was write-only (the gate reads JDs in-memory, nothing reads the column back); runs after the profile_id
+  // rebuild so a pre-profile_id DB migrates first. DROP COLUMN only hides it, so VACUUM reclaims the disk space.
   const postingColsAfter = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (postingColsAfter.some((c) => c.name === "jd_text")) {
     db.exec("ALTER TABLE postings DROP COLUMN jd_text");
@@ -103,23 +94,14 @@ db.exec(schema);
     logger.info("migration: VACUUM complete");
   }
 
-  // brave_quota was the Brave Search API's monthly-quota tracker; the Brave
-  // API was removed with the discovery pipeline (2026-07-15). Idempotent drop
-  // cleans up existing local DBs that still carry the table.
+  // brave_quota is a leftover from the removed discovery pipeline; idempotent drop cleans up old local DBs.
   db.exec("DROP TABLE IF EXISTS brave_quota");
 }
 
 logger.info({ path: dbPath }, "sqlite initialized");
 
-/**
- * Close the singleton connection. TERMINAL for the process: every module-scope
- * prepared statement in db/*.ts is bound to this handle, so anything touching the
- * DB afterwards throws.
- *
- * Exists for one caller - the post-run Drive push. Holding the handle open there
- * makes `PRAGMA wal_checkpoint(TRUNCATE)` return busy, which would silently
- * upload a .db missing whatever is still sitting in the -wal file.
- */
+/** Close the singleton connection; terminal for the process (every module-scope prepared statement is bound to this handle).
+ *  Exists for the post-run Drive push, since a still-open handle makes wal_checkpoint(TRUNCATE) return busy. */
 export function closeDb(): void {
   db.close();
   markDbClosed();

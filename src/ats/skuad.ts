@@ -1,17 +1,5 @@
-// src/ats/skuad.ts — Skuad careers (www.skuad.io/careers), a Webflow site
-// whose job list comes from a Google Apps Script web app (Sheet-backed; the
-// exec URL is baked into Skuad's own JS bundle):
-//
-//   GET https://script.google.com/macros/s/<DEPLOYMENT>/exec
-//     -> { job_roles: [], ..., data: [{ job_role, job_categories, job_type,
-//          location, date_posted, no_of_days, experience, department,
-//          apply_link, country_flag }] }
-//
-// Verified live (2026-07-18, plain curl, follows the googleusercontent echo
-// redirect, no auth). No pagination — the site slices client-side. There is
-// NO JD text anywhere on skuad.io: apply_link points to a third-party board
-// (allremote.jobs). jdText is synthesized from the structured fields so the
-// posting is still gate-able; the apply_link is kept as jobUrl.
+// src/ats/skuad.ts — Skuad careers (skuad.io/careers), a Webflow site whose job list comes from a Google Apps Script web app (Sheet-backed; exec URL baked into Skuad's JS bundle). No pagination, no auth - site slices client-side.
+// No JD text exists anywhere on skuad.io (apply_link points to a third-party board) - jdText is synthesized from the structured fields so postings stay gate-able.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { makeJsonListAdapter } from "./jsonList.js";

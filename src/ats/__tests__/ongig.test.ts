@@ -27,8 +27,7 @@ function ongigResult(overrides: Partial<OngigResult> = {}): OngigResult {
   };
 }
 
-// Uses the global Response.json (not the JsonValue-typed jsonResponse helper)
-// because `results` here is already OngigResult[]-typed, not a fresh literal.
+// Uses the global Response.json (not jsonResponse) because 'results' here is already OngigResult[]-typed, not a fresh literal.
 function pageResponse(results: OngigResult[], totalPages: number | null): Response {
   return Response.json({
     meta: { page: { current: 1, total_pages: totalPages, total_results: results.length } },

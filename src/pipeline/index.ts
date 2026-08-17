@@ -17,8 +17,7 @@ import { profile } from "../profile.js";
 import { describeError } from "../util/errorCause.js";
 import { processBucket, runDeferredTransportPass } from "./scheduler.js";
 
-/** A board whose fetch died on infrastructure, parked for the end-of-run pass.
- *  Carries its adapter so the pass can replay it without re-bucketing. */
+/** A board whose fetch died on infrastructure, parked for the end-of-run pass; carries its adapter so it can replay without re-bucketing. */
 export interface DeferredBoard {
   company: Company;
   adapter: AtsAdapter;
@@ -37,15 +36,11 @@ export interface RunContext {
   /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
   jdFetchFailed: number;
   errors: string[];
-  /** Boards that failed to fetch this run (errored, not merely zero-yield). Drives
-   *  the Discord "companies with issues" list; these are NOT counted as scanned. */
+  /** Boards that errored this run (not merely zero-yield); drives the Discord issue list and are not counted as scanned. */
   failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
   /** Inline transport retries performed (DNS/socket faults that backed off). */
   transportRetried: number;
-  /** Boards whose fetch died at the transport layer even after inline retries.
-   *  Retried once after every bucket finishes — by then a transient outage has
-   *  had the rest of the run to clear. Only a board that fails the deferred pass
-   *  too becomes a real failure. */
+  /** Boards still down after inline retries; retried once more after every bucket finishes, once a transient outage has had time to clear. */
   transportDeferred: DeferredBoard[];
   /** Deferred boards that fetched successfully on the second pass. */
   transportRecovered: number;
@@ -55,9 +50,7 @@ export interface RunContext {
   seenNotifyKeys: Set<string>;
   /** Which profile this run evaluates for — stamped on every posting/run row. */
   profileId: string;
-  /** bucketKey -> {total, scanned} for the live progress heartbeat. Seeded before
-   *  processing; `scanned` bumped per company in the scheduler. Drives the
-   *  per-strategy breakdown and the overall scanned/total counts. */
+  /** bucketKey -> {total, scanned} for the live progress heartbeat; `scanned` bumped per company in the scheduler. */
   bucketProgress: Map<string, { total: number; scanned: number }>;
 }
 
@@ -96,18 +89,14 @@ export interface ProductionTickOutcome {
 }
 
 export async function runProductionTick(): Promise<ProductionTickOutcome> {
-  // Pre-flight: a production tick is useless without the LLM backend. Fail fast
-  // with an actionable message instead of churning the whole company list into
-  // gate-errors against a dead Ollama (the 2026-06-17 failure mode).
+  // Fail fast if the LLM backend is down, rather than churning the whole company list into gate-errors.
   await assertLlmAvailable();
 
   const profileId = profile.id ?? "default";
   const runId = startRun("production", profileId);
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
-  // Pre-load every (company, title, location) we've already notified so a role
-  // re-listed with a fresh requisition id isn't pinged again across runs (the
-  // external_id dedup misses reposts; this catches them).
+  // Pre-load prior-notified keys so a repost with a fresh requisition id (which the external_id dedup misses) isn't pinged again.
   const priorNotifyKeys = new Set<string>();
   for (const r of selectNotifiedRoleKeys(profileId)) {
     priorNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
@@ -157,8 +146,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
   for (const c of companies) {
     const adapter = resolveAdapter(c);
     if (!adapter) {
-      // ats-api row whose provider has no registered adapter (or an unexpected
-      // strategy) - surface it as a failed board instead of vanishing silently.
+      // No registered adapter for this provider/strategy - surface as a failed board instead of vanishing silently.
       logger.error({ provider: c.provider, slug: c.slug, strategy: c.parsingStrategy }, "no adapter resolves for company - skipped");
       stats.errors.push(`${c.provider}/${c.slug}: no adapter`);
       stats.failedCompanies.push({ provider: c.provider, slug: c.slug, reason: "config" });
@@ -173,9 +161,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     else buckets.set(key, { adapter, companies: [c], key });
   }
 
-  // Seed per-bucket progress, then start the 15-min heartbeat. The interval reads
-  // the live `stats` object; it's unref()'d and cleared in finally so it never
-  // keeps the process alive or fires after the run returns.
+  // Heartbeat interval is unref()'d and cleared in finally so it never keeps the process alive or fires after the run returns.
   for (const b of buckets.values()) {
     stats.bucketProgress.set(b.key, { total: b.companies.length, scanned: 0 });
   }
@@ -201,13 +187,10 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
     );
-    // Boards the network or an edge refused mid-run get one more attempt now that
-    // every bucket is done and a transient fault has had time to clear.
+    // One more attempt for boards refused mid-run, now that a transient fault has had time to clear.
     await runDeferredTransportPass(stats);
   } catch (err) {
-    // Close out the run row with the abort reason so the partial run is
-    // recorded, then propagate to exit non-zero. Dormancy/summary are skipped -
-    // the data this run produced is suspect.
+    // Record the abort reason and propagate; dormancy/summary are skipped since this run's data is suspect.
     const reason = err instanceof LlmUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
     if (err instanceof LlmUnavailableError) {
       logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
@@ -228,9 +211,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
 
   closeRun(errorBlob);
 
-  // The single end-of-run Discord message is the status embed, posted by the
-  // caller via postRunStatus after the outreach stage runs — no separate
-  // per-tick summary embed here.
+  // No summary embed here; the caller posts the single end-of-run status embed via postRunStatus after outreach.
   logger.info(
     {
       companies: stats.companiesScanned,

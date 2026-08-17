@@ -1,9 +1,5 @@
-// src/blast/state.ts
-//
-// JSON-file state for the TEMPORARY Raw Data blast tool
-// (docs/superpowers/specs/2026-07-09-divya-blast-design.md). Deliberately NOT
-// the job_hunter SQLite DB: the whole blast lives in src/blast/ + one state
-// file so it can be deleted cleanly when the campaign ends.
+// JSON-file state for the TEMPORARY Raw Data blast tool. Deliberately not the job_hunter SQLite DB,
+// so the whole blast can be deleted cleanly when the campaign ends.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -41,8 +37,7 @@ export function statePathFor(profileId: string): string {
   return `data/blast-state-${profileId}.json`;
 }
 
-/** Missing file -> fresh empty state. Malformed file -> throw: silently
- *  restarting the campaign would re-draft every address in the tab. */
+/** Missing file -> fresh empty state; malformed file throws (silently restarting would re-draft everyone). */
 export function loadState(path: string): BlastState {
   if (!existsSync(path)) return emptyState();
   try {
@@ -52,15 +47,12 @@ export function loadState(path: string): BlastState {
   }
 }
 
-/** Write-then-rename so a crash mid-write can't truncate the campaign state.
- *  Delegates to src/util/fs.ts writeFileAtomic (PID-scoped temp + cleanup). */
+/** Write-then-rename so a crash mid-write can't truncate the campaign state. */
 export function saveState(path: string, state: BlastState): void {
   writeFileAtomic(path, JSON.stringify(state, null, 2));
 }
 
-/** All profiles' campaign states, for the shared Blast Log projection: every
- *  data/blast-state-<profile>.json, sorted by profile id. A run by one profile
- *  must never wipe another's rows from the shared tab. */
+/** All profiles' campaign states, sorted by profile id; a run by one profile must never wipe another's rows. */
 export function loadAllStates(dir = "data"): { profileId: string; state: BlastState }[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
@@ -74,8 +66,7 @@ export function knownEmails(state: BlastState): Set<string> {
   return new Set(state.records.map((r) => r.email));
 }
 
-/** Count of addresses ever drafted (still-drafted or later bounced) — the
- *  global rotation index base for subject/opener variants. */
+/** Count of addresses ever drafted (still-drafted or later bounced); the rotation index base. */
 export function draftedEverCount(state: BlastState): number {
   return state.records.filter((r) => r.status !== "skipped_invalid").length;
 }

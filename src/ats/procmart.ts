@@ -1,25 +1,8 @@
-// src/ats/procmart.ts — ProcMart careers (www.procmart.com). Each opening is
-// a generic WordPress PAGE (not a custom post type) at slug `job-opening-<N>`;
-// the careers landing page just links to them.
-//
-// The origin has a server-side bug (surfaced 2026-08-03, root-caused
-// 2026-08-17): ANY /wp-json/wp/v2/pages COLLECTION query whose `_fields`
-// includes `content` never answers (503 or a 20s+ stall — the Elementor render
-// of some page hangs PHP), while the same collection without content answers in
-// ~0.3s and SINGLE-page content fetches answer in ~0.5s each. The one-call
-// list-with-content this adapter used until then is exactly the broken query,
-// so the flow is now two-phase:
-//
-//   list:   GET /wp-json/wp/v2/pages?per_page=100&_fields=id,slug,link
-//           -> keep pages whose slug matches /^job-opening-\d+$/  (no content!)
-//   detail: GET /wp-json/wp/v2/pages/<id>?_fields=id,slug,link,content
-//           -> content.rendered is raw Elementor HTML; the real job title is
-//              the first <h2> text (page.title.rendered is always "Job
-//              Opening"), and the JD is the rest of that HTML.
-//
-// Verified live (2026-08-17, plain curl): 3 openings, all India (Gurugram/
-// Noida). New openings appear as new numbered pages, so the listing is
-// re-derived each run rather than assuming a contiguous id range.
+// src/ats/procmart.ts — ProcMart careers (www.procmart.com). Each opening is a WordPress PAGE at
+// slug `job-opening-<N>`. The origin hangs on any /wp-json/wp/v2/pages COLLECTION query whose
+// `_fields` includes `content` (Elementor render stalls PHP), so this is two-phase: list without
+// content, then fetch each page's content individually. page.title.rendered is always "Job Opening",
+// so the real title is the content's first <h2>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -41,7 +24,6 @@ export const ProcmartPageSchema = ProcmartListItemSchema.extend({
   content: z.object({ rendered: z.string().nullable().optional() }).nullable().optional(),
 });
 
-/** Title = first <h2> text in the Elementor content; null if none. */
 export function procmartTitle(html: string): string | null {
   const m = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
   if (!m?.[1]) return null;
@@ -54,8 +36,7 @@ export const procmartAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
-    // Deliberately WITHOUT the content field — see file header, that query hangs
-    // the origin. Content comes from one cheap per-page fetch per opening below.
+    // Deliberately without the content field — see file header, that query hangs the origin.
     const raw = await atsFetchJson(
       `${base}/wp-json/wp/v2/pages?per_page=100&_fields=id,slug,link`,
       { provider: "procmart" },

@@ -15,18 +15,11 @@ import { REMOTE_RE, paginate } from "./shared.js";
 //             ?onlyData=true&expand=all&finder=ById;Id=<id>,siteNumber=<CX_n>
 // base in tenant_url, siteNumber in api_meta.siteNumber. Two-phase.
 //
-// A stale siteNumber does NOT empty the board and so cannot be mistaken for one:
-// the pod echoes the value back in SiteNumber but does not filter on an
-// unrecognised one. Probed 2026-08-03 across all 16 live rows with CX_9999 —
-// identical results on 15, and on iabqiz the bogus site returned MORE than the
-// real one (36 requisitions vs 7), i.e. an unknown site drops the filter rather
-// than matching nothing. A stale siteNumber therefore OVER-collects (and breaks
-// every jobUrl), which is a separate concern; it never looks like an empty board.
-// A gone pod fails loudly too: HTTP 503 "DNS failure" under fa.ocs, ENOTFOUND
-// under fa.oraclecloud.com, a connect timeout under fa.us2/fa.em3. The one
-// well-formed empty shape — items[0] with requisitionList: [] and
-// TotalJobsCount: 0 — really is a board with nothing open. oracle.test.ts pins
-// all of this, since it is the reason this adapter carries no dead-tenant marker.
+// A stale siteNumber does not empty the board: an unrecognised site drops the
+// filter rather than matching nothing, so it OVER-collects (and breaks every
+// jobUrl) instead of looking empty. A gone pod fails loudly (503/ENOTFOUND/
+// timeout). Only items[0] with requisitionList: [] and TotalJobsCount: 0 is a
+// genuinely empty board — oracle.test.ts pins this distinction.
 const SecondaryLocSchema = z.object({ Name: z.string().nullable().optional() });
 const ReqSchema = z.object({
   Id: z.string(),
@@ -66,15 +59,12 @@ export const oracleAdapter: AtsAdapter = {
       provider: "oracle",
       company: company.slug,
       pageSize: PAGE,
-      // Oracle CE silently caps a page at 25 items regardless of `limit=` —
-      // a sub-PAGE page is normal, not the end. Pagination must run to
-      // TotalJobsCount / an empty page (verified: AmEx 291, Hexaware 197,
-      // BNY 1656 all returned 25/page).
+      // Oracle CE silently caps a page at 25 items regardless of `limit=` - a sub-PAGE page is
+      // normal, not the end; pagination must run to TotalJobsCount / an empty page.
       shortPageEndsPagination: false,
       fetchPage: async (offset) => {
-        // limit/offset live INSIDE the finder args (canonical Oracle CE form).
-        // Some pods (e.g. Akamai's fa-extu) ignore top-level &limit=&offset=
-        // entirely and would serve page 1 forever.
+        // limit/offset live inside the finder args - some pods ignore top-level &limit=&offset=
+        // entirely and would serve page 1 forever otherwise.
         const url =
           `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
           `?onlyData=true&expand=requisitionList.secondaryLocations` +
@@ -102,8 +92,7 @@ export const oracleAdapter: AtsAdapter = {
     const body = [d.ExternalDescriptionStr, d.ExternalResponsibilitiesStr, d.ExternalQualificationsStr]
       .filter((s): s is string => typeof s === "string" && s.length > 0)
       .join("\n\n");
-    // Some tenants (e.g. Tata Tele) leave every External*Str empty and put the
-    // JD in CorporateDescriptionStr instead.
+    // Some tenants leave every External*Str empty and put the JD in CorporateDescriptionStr instead.
     if (!body && typeof d.CorporateDescriptionStr === "string" && d.CorporateDescriptionStr.length > 0) {
       return htmlToText(d.CorporateDescriptionStr);
     }

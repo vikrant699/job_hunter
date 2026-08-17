@@ -6,16 +6,11 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { paginate, joinLocation } from "./shared.js";
 
-// SmartRecruiters public Posting API.
-//   list:   GET api.smartrecruiters.com/v1/companies/<slug>/postings (paginated)
-//   detail: GET api.smartrecruiters.com/v1/companies/<slug>/postings/<id>
-// Two-phase like Workday so fetchJd only runs for new in-region postings.
+// SmartRecruiters public Posting API: GET .../postings (paginated list) and .../postings/<id> (detail); two-phase like Workday so fetchJd only runs for new in-region postings.
 
 const PAGE_LIMIT = 100;
 
-/** SmartRecruiters company token for the API. Defaults to the registry slug;
- *  apiMeta.boardSlug overrides it when the registry slug isn't the SR company
- *  id (e.g. coding-ninjas -> "CodingNinjas", indegene -> "Indegene1"). */
+/** SR company token; defaults to the registry slug, overridden by apiMeta.boardSlug when the registry slug isn't the SR id (e.g. coding-ninjas -> "CodingNinjas"). */
 function srToken(company: AdapterCompany): string {
   return company.apiMeta?.boardSlug ?? company.slug;
 }
@@ -89,8 +84,6 @@ export const smartRecruitersAdapter: AtsAdapter = {
         const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "smartrecruiters", slug });
 
         const items = parsed.content.map((p) => normalize(company, p));
-        // total-based stop was added during the paginate() migration — this tenant
-        // previously relied on short-page detection only, `totalFound` went unused.
         const total = typeof parsed.totalFound === "number" ? parsed.totalFound : null;
         return { items, total };
       },
@@ -125,13 +118,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
   },
 };
 
-/**
- * The human-facing posting URL. SmartRecruiters exposes the canonical URL only on
- * the detail endpoint (postingUrl / applyUrl); the list endpoint carries just an
- * API self-link. When neither is available we synthesize a jobs.smartrecruiters.com
- * URL — the correct host (the old careers.smartrecruiters.com form did not resolve
- * for tenants with their own front-end, e.g. Bosch).
- */
+/** Canonical posting URL: detail endpoint's postingUrl/applyUrl wins; otherwise synthesize jobs.smartrecruiters.com (the old careers.smartrecruiters.com form didn't resolve for tenants with their own front-end, e.g. Bosch). */
 export function srPostingUrl(
   slug: string,
   id: string,
@@ -143,8 +130,7 @@ export function srPostingUrl(
 }
 
 function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
-  // Build "City, Region, Country" with country upper-cased — SR returns
-  // lower-case country codes (e.g. "in") which the location filter expects.
+  // SR returns lower-case country codes (e.g. "in"); upper-case to match the location filter.
   const loc = p.location;
   const location = joinLocation(loc?.city, loc?.region, loc?.country?.toUpperCase());
   const isRemote = loc?.remote === true;

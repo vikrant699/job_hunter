@@ -1,10 +1,7 @@
-// src/ats/leapscholar.ts — Leap Scholar's own careers API (TurboHire-backed, but
-// fronted by a bespoke Vercel endpoint rather than the shared TurboHire adapter).
-// Clean JSON list API: GET careers-api-eight.vercel.app/api/jobs returns
-// { Total: number, Jobs: Job[] } with the FULL job description inline as HTML.
-// No pagination — `?page=`/`?limit=` params are ignored and the full set is
-// always returned (verified live: Total=5, Jobs.length=5 regardless of query
-// params). `Location` is itself a JSON-encoded string of `[{Address, PlaceId}]`.
+// src/ats/leapscholar.ts — Leap Scholar's own careers API (TurboHire-backed, but fronted by a bespoke
+// Vercel endpoint rather than the shared TurboHire adapter).
+// GET careers-api-eight.vercel.app/api/jobs -> { Total, Jobs[] } with full JD inline; page/limit params
+// are ignored, always returns the whole set. Location is a JSON-encoded string of [{Address, PlaceId}].
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -51,9 +48,7 @@ function parseLeapscholarLocation(raw: string | null | undefined): string | null
   return addresses.length > 0 ? addresses.join("; ") : null;
 }
 
-/** Unwraps `{Total, Jobs}`, logging a warning if the reported total disagrees
- *  with the actual array length (the API has no pagination, so these should
- *  always match — a mismatch likely means the server started paginating). */
+/** Unwraps `{Total, Jobs}`, warning if Total disagrees with Jobs.length (no pagination, so a mismatch likely means the server started paginating). */
 export function leapscholarJobs(json: JsonValue): LeapscholarJob[] {
   const parsed = LeapscholarResponseSchema.parse(json);
   if (parsed.Total !== parsed.Jobs.length) {

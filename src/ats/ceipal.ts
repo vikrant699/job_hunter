@@ -1,37 +1,10 @@
 // src/ats/ceipal.ts — Ceipal ATS "CareerPortal" JSON API.
-//
-//   POST https://careerapi.ceipal.com/<api_key>/CareerPortalJobPostings/?page=<n>
-//   multipart/form-data: page, api_key, method=CareerPortalJobPostings, cp_id,
-//   from_career_portal=1
-//   Header `Referer: https://jobsapi.ceipal.com/` is REQUIRED — omitting it
-//   (or a plain JSON body) 400s with "not allowed from outside the Career
-//   Portal" / "Bot access is not allowed".
-//
-// api_key + cp_id are per-tenant, embedded as `data-ceipal-api-key` /
-// `data-ceipal-career-portal-id` attributes on the widget <script> tag the
-// company embeds on its own careers page (widget.js at jobsapi.ceipal.com) —
-// there's no per-tenant host/path to regex-match the way Keka's
-// `<slug>.keka.com/careers` is, so like Keka/Eightfold this adapter requires
-// apiMeta (api_key, cp_id) supplied out of band; it can't be auto-discovered
-// from a bare careers URL.
-//
-// Response: { count, num_pages, next, host, results: [...] }, 20/page.
-//
-// JD — TWO-PHASE, fetchJd IS required. The list endpoint TRUNCATES both
-// `requistion_description` and `public_job_desc` to a ~184-char teaser (cut
-// mid-word, uniform across jobs) — it is NOT the full JD. The complete
-// description lives behind a separate, unauthenticated GET on the candidate
-// portal that backs each job's detail page:
-//
-//   GET https://candidateportal.ceipal.com/api/jobs/description/<token>
-//   -> { status, data: { jobInfo: { descriptionData: { jobDescription } } } }
-//
-// where <token> is the last path segment of `campus_portal_job_details_url`
-// (…/job-details/<token>). Confirmed live (2026-07-09): full JD 2407 chars vs
-// the 184-char list teaser for Simplilearn job_id=48; no Referer/UA gating on
-// the detail call. So the list leaves jdText empty (forcing the pipeline to
-// call fetchJd), which fetches the full JD; the 184-char teaser is kept only
-// as a per-posting fallback if that detail fetch fails.
+// POST careerapi.ceipal.com/<api_key>/CareerPortalJobPostings/?page=<n>, multipart/form-data; Referer header is
+// REQUIRED or it 400s as bot access. api_key + cp_id are per-tenant widget-embed attributes with no host/path to
+// regex-match, so (like Keka/Eightfold) apiMeta must supply them out of band.
+// JD is two-phase: the list truncates description to a ~184-char teaser. Full JD is a separate unauthenticated GET
+// on candidateportal.ceipal.com/api/jobs/description/<token> (token = last segment of campus_portal_job_details_url);
+// jdText is left empty so the pipeline calls fetchJd, falling back to the teaser only if that call fails.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -88,7 +61,6 @@ export interface CeipalTokens {
   cpId: string;
 }
 
-/** Per-tenant tokens, supplied out of band in apiMeta (see module doc). */
 export function ceipalTokens(company: AdapterCompany): CeipalTokens {
   const apiKey = company.apiMeta?.api_key;
   const cpId = company.apiMeta?.cp_id;
@@ -114,25 +86,15 @@ export function parseCeipalDate(s: string | null | undefined): string | null {
   return Number.isNaN(ms) ? null : new Date(ms).toISOString();
 }
 
-/**
- * `multpile_job_location` (vendor's field name, and its typo) already arrives
- * pre-formatted as e.g. "(Bengaluru, KA, 560001)" — strip the parens. Falls
- * back to composing city/state/country when it's absent.
- */
+/** `multpile_job_location` (vendor's typo'd field) arrives pre-formatted, e.g. "(Bengaluru, KA, 560001)" - strip parens. */
 export function ceipalLocation(j: CeipalJob): string | null {
   const bracketed = j.multpile_job_location?.trim();
   if (bracketed) return bracketed.replace(/^\(/, "").replace(/\)$/, "");
   return joinLocation(j.city, j.state, j.country);
 }
 
-/**
- * The list's ~184-char JD teaser as plain text. Prefers `requistion_description`
- * (HTML, note the vendor's spelling) but falls back to `public_job_desc` when
- * it's absent OR empty — the API returns `requistion_description: ""` for some
- * jobs whose `public_job_desc` has content, so a plain `??` (which only skips
- * null/undefined) would wrongly yield the empty string. Used only as a fallback
- * in fetchJd; the real JD comes from the detail endpoint.
- */
+// Falls back to public_job_desc when requistion_description is absent OR empty (some jobs return "" for it with
+// content in the other field, so a plain `??` would wrongly yield the empty string).
 export function ceipalTeaser(j: CeipalJob): string {
   const req = j.requistion_description?.trim();
   const raw = req || j.public_job_desc || "";
@@ -141,28 +103,18 @@ export function ceipalTeaser(j: CeipalJob): string {
 
 const DETAIL_TOKEN_RE = /\/job-details\/([^/?#]+)/;
 
-/**
- * The candidate-portal token that keys the full-JD endpoint — the last path
- * segment of a `…/job-details/<token>` URL. Null when the posting's jobUrl is
- * the constructed careers fallback (no detail URL was present in the listing).
- */
+/** Null when jobUrl is the constructed careers fallback (no detail URL in the listing). */
 export function ceipalDetailToken(jobUrl: string): string | null {
   const m = DETAIL_TOKEN_RE.exec(jobUrl);
   return m ? (m[1] ?? null) : null;
 }
 
-/** Full-JD endpoint URL for a candidate-portal job-details token. */
 export function ceipalDescriptionUrl(token: string): string {
   return `https://candidateportal.ceipal.com/api/jobs/description/${encodeURIComponent(token)}`;
 }
 
-/**
- * Carries the list teaser to fetchJd as a fallback. The posting must arrive at
- * the gate with the FULL JD, but the pipeline only calls fetchJd when jdText is
- * empty — so normalizeCeipal leaves jdText empty and stashes the teaser here,
- * keyed by the (identity-stable, un-cloned) posting object the pipeline passes
- * straight back into fetchJd.
- */
+// The pipeline only calls fetchJd when jdText is empty, so the teaser is stashed here keyed by the posting object
+// it passes back into fetchJd.
 const teaserByPosting = new WeakMap<NormalizedPosting, string>();
 
 export function normalizeCeipal(company: AdapterCompany, j: CeipalJob): NormalizedPosting {
@@ -178,9 +130,7 @@ export function normalizeCeipal(company: AdapterCompany, j: CeipalJob): Normaliz
     jobUrl: j.campus_portal_job_details_url ?? `${company.careersUrl}?job=${j.job_id}`,
     location,
     isRemote: remoteFlag || (location ? REMOTE_RE.test(location) : false),
-    // Left empty on purpose so the pipeline calls fetchJd for the full JD; the
-    // list only carries a ~184-char teaser (kept as a fallback via the WeakMap).
-    jdText: "",
+    jdText: "", // full JD comes from fetchJd; teaser kept as a fallback via the WeakMap
     postedAt: parseCeipalDate(j.created),
   };
   teaserByPosting.set(posting, ceipalTeaser(j));
@@ -217,10 +167,6 @@ export const ceipalAdapter: AtsAdapter = {
     });
   },
 
-  // The list JD is a ~184-char teaser; fetch the full description from the
-  // candidate-portal detail endpoint, falling back to the teaser only if that
-  // call fails or yields nothing (never silently ship the truncated stub as if
-  // it were complete).
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const teaser = teaserByPosting.get(posting) ?? "";
     const token = ceipalDetailToken(posting.jobUrl);

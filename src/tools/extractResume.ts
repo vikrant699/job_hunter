@@ -1,5 +1,4 @@
-// NOTE: imported by src/profile.ts at startup (ensureResumeText) - this is
-// runtime code with a CLI entry, not a dev tool.
+// Imported by src/profile.ts at startup (ensureResumeText) - runtime code with a CLI entry, not a dev tool.
 import { readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -10,8 +9,7 @@ function paths(baseDir: string): { pdf: string; txt: string } {
   return { pdf: resolve(baseDir, "resume.pdf"), txt: resolve(baseDir, "resume.txt") };
 }
 
-/** Collapse PDF-extraction whitespace noise: normalize newlines, squeeze runs of
- *  spaces/tabs, trim each line, drop consecutive blank lines, trim ends. Idempotent. */
+/** Collapses PDF-extraction whitespace noise: normalized newlines, squeezed spaces/tabs, no blank-line runs. Idempotent. */
 export function normalizeResumeText(raw: string): string {
   const lines = raw.replace(/\r\n?/g, "\n").split("\n").map((l) => l.replace(/[ \t]+/g, " ").trim());
   const out: string[] = [];
@@ -22,9 +20,7 @@ export function normalizeResumeText(raw: string): string {
   return out.join("\n").trim() + "\n";
 }
 
-/** Extract config/resume.pdf -> normalized text, write config/resume.txt, return it.
- *  Throws if config/resume.pdf is absent. (unpdf imported lazily so it is not loaded
- *  on the hot path when config/resume.txt is already cached.) */
+/** Extracts config/resume.pdf -> normalized text, writes config/resume.txt, returns it; unpdf is imported lazily to skip the load when resume.txt is already cached. */
 export async function extractResume(baseDir: string = defaultDir): Promise<string> {
   const { pdf: pdfPath, txt: txtPath } = paths(baseDir);
   if (!existsSync(pdfPath)) {
@@ -40,9 +36,7 @@ export async function extractResume(baseDir: string = defaultDir): Promise<strin
   return normalized;
 }
 
-/** True when resume.txt must be (re)generated: it is missing, or resume.pdf
- *  has been modified after it was written. A txt with no pdf beside it is NOT
- *  stale - the cached text stands alone. */
+/** True when resume.txt is missing or older than resume.pdf; a txt with no pdf beside it is NOT stale. */
 export function isResumeTextStale(baseDir: string = defaultDir): boolean {
   const { pdf: pdfPath, txt: txtPath } = paths(baseDir);
   if (!existsSync(txtPath)) return true;
@@ -50,17 +44,13 @@ export function isResumeTextStale(baseDir: string = defaultDir): boolean {
   return statSync(pdfPath).mtimeMs > statSync(txtPath).mtimeMs;
 }
 
-/** The candidate resume text the relevance gate judges against: the cached
- *  resume.txt when it is current, regenerated from resume.pdf when the PDF is
- *  newer (so dropping in an updated resume takes effect on the next run).
- *  Throws if neither exists - the bot must stop, there is nothing to match on. */
+/** The candidate resume text the relevance gate judges against: cached resume.txt when current, else regenerated from resume.pdf. Throws if neither exists. */
 export async function ensureResumeText(baseDir: string = defaultDir): Promise<string> {
   if (!isResumeTextStale(baseDir)) return readFileSync(paths(baseDir).txt, "utf-8");
   return extractResume(baseDir);
 }
 
-/** CLI dir selection: `--profile <name>` targets config/profiles/<name>/,
- *  otherwise the default config/ dir. */
+/** CLI dir selection: `--profile <name>` targets config/profiles/<name>/, otherwise the default config/ dir. */
 export function resolveCliBaseDir(argv: readonly string[]): string {
   const i = argv.indexOf("--profile");
   const name = i >= 0 ? argv[i + 1] : undefined;
@@ -68,8 +58,7 @@ export function resolveCliBaseDir(argv: readonly string[]): string {
   return defaultDir;
 }
 
-// `npm run extract-resume [-- --profile <name>]` forces a fresh extraction
-// (e.g. after the PDF changes).
+// `npm run extract-resume [-- --profile <name>]` forces a fresh extraction (e.g. after the PDF changes).
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const dir = resolveCliBaseDir(process.argv);
   extractResume(dir)

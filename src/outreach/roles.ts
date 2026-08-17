@@ -2,9 +2,7 @@ import { z } from "zod";
 import { SeveritySchema } from "../schemas.js";
 import { logger } from "../logger.js";
 
-/** Shape of one bundled role inside an outreach row's `roles_json` column.
- *  Single source of truth — imported by both sheetSync.ts (sheet projection)
- *  and verify.ts (per-role undrafted rows on draft_discarded). */
+/** Shape of one bundled role in an outreach row's `roles_json` column; shared by sheetSync.ts and verify.ts. */
 export const RoleEntrySchema = z.object({
   title: z.string(),
   jobUrl: z.string(),
@@ -15,9 +13,7 @@ export type RoleEntry = z.infer<typeof RoleEntrySchema>;
 
 export const RolesJsonSchema = z.array(RoleEntrySchema);
 
-/** Parses an outreach row's `roles_json` column into its typed role list.
- *  Total: malformed JSON or a schema mismatch logs and returns [] so one
- *  corrupt row can't abort a whole sheet projection or verify pass. */
+/** Parses `roles_json`; malformed JSON or schema mismatch logs and returns [] rather than throwing. */
 export function parseRoles(rolesJson: string): RoleEntry[] {
   try {
     return RolesJsonSchema.parse(JSON.parse(rolesJson));

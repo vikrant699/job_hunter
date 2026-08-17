@@ -1,30 +1,9 @@
-// src/ats/metacareers.ts — Meta careers site (metacareers.com), backed by the
-// Comet/Relay GraphQL API the SPA itself calls (POST /graphql). A single
-// global tenant (not multi-tenant like Workday) — company.careersUrl/slug are
-// used only for normalization, not to build the request.
-//
-// Anonymous (logged-out) requests need only an `lsd` token (no `fb_dtsg` —
-// confirmed live: the site's own outgoing POST bodies carry no fb_dtsg field
-// at all when isLoggedIn:false) plus a persisted-query `doc_id`. Both the
-// `lsd` token and the `doc_id` rotate with Meta's client build, so neither is
-// hardcoded here: we load the plain careers page in a real browser, let its
-// own JS fire its own GraphQL queries, and read the doc_id/lsd straight off
-// those live requests (`discoverSearchContext`). If Meta renames or removes
-// either query this throws a descriptive error instead of silently returning
-// nothing — see the two "could not capture" errors below.
-//
-// The office-picker ("India") is not itself a valid `offices` filter value —
-// live testing showed offices:["India"] returns zero results. The real filter
-// values are city-slugs (e.g. "bangalore", "gurgaon"). Rather than hardcode
-// that list we read it off the CareersJobSearchLocationFilterV3Query response
-// (also captured from the natural page load) and select every entry whose
-// `country` is "India".
-//
-// Job detail pages (/jobs/<id>/) are WAF-gated the same as the GraphQL
-// endpoint (plain `fetch()` gets a generic 400 error page) but the full JD
-// ships inline as a schema.org JobPosting <script type="application/ld+json">
-// block in the server-rendered HTML — present already at `domcontentloaded`,
-// no JS hydration wait needed.
+// src/ats/metacareers.ts — Meta careers site (metacareers.com), backed by the Comet/Relay GraphQL
+// API (POST /graphql). Global single tenant. The `lsd` token and persisted-query `doc_id` rotate
+// with Meta's build, so we load the careers page in a real browser and read them off its own live
+// GraphQL requests rather than hardcoding either. `offices` filter values are India city-slugs, read
+// from the CareersJobSearchLocationFilterV3Query response (not the "India" picker label, which
+// itself returns zero results). Job detail pages ship the full JD inline as JSON-LD.
 import { z } from "zod";
 import type { Request as PwRequest } from "playwright";
 import type { AtsAdapter } from "./types.js";
@@ -46,16 +25,12 @@ const RESULTS_QUERY_NAME = "CareersJobSearchResultsV2DataQuery";
 const NAV_TIMEOUT_MS = 30_000;
 const SETTLE_MS = 4_000; // let the page's own queries land after networkidle
 
-/** Some FB GraphQL endpoints prefix the JSON body with this to block naive
- *  `<script>` inclusion. Not observed live for this endpoint, but stripped
- *  defensively since the behavior is documented Meta-wide. */
+// Some FB GraphQL endpoints prefix the JSON body with this to block naive <script> inclusion.
 export function stripForLoopPrefix(text: string): string {
   const PREFIX = "for (;;);";
   return text.startsWith(PREFIX) ? text.slice(PREFIX.length) : text;
 }
 
-/** `JSON.parse` narrowed to `unknown` (not `any`) so callers must go through
- *  zod before touching any field — matches the JsonValue pattern elsewhere. */
 function parseJsonUnknown(text: string): JsonValue {
   return JsonValueSchema.parse(JSON.parse(text));
 }
@@ -80,8 +55,6 @@ export function parsePostData(postData: string | null): Omit<GraphqlCall, "body"
     lsd: lsdM ? decodeURIComponent(lsdM) : null,
   };
 }
-
-// ---- GraphQL response shapes ----
 
 export const LocationEntrySchema = z.object({
   id: z.string(),
@@ -112,8 +85,6 @@ export const SearchResultsResponseSchema = z.object({
     }),
   }),
 });
-
-// ---- search-input variables (typed so page.evaluate's arg isn't `any`) ----
 
 interface MetaSearchInput {
   q: null;
@@ -155,16 +126,8 @@ export function indiaSearchVariables(offices: string[]): MetaSearchVariables {
   };
 }
 
-/**
- * Load the bare careers page in a real browser, capture the doc_id + lsd
- * token the page's OWN JS uses for the location-filter and job-search
- * GraphQL queries (self-healing against Meta's routine doc_id/lsd rotation),
- * read the India office ids off the (variable-less, always-full) location
- * response, then replay the job-search query in-page with those office ids.
- * Throws a descriptive error — never returns an empty list — if either query
- * can't be found, so a Meta-side rename surfaces loudly instead of looking
- * like "no India jobs".
- */
+// Capture doc_id/lsd off the page's own live GraphQL requests, read India office ids off the
+// location-filter response, then replay the job-search query in-page with those office ids.
 export async function fetchIndiaJobs(): Promise<MetaJob[]> {
   const release = await acquirePageSlot();
   try {
@@ -279,17 +242,11 @@ export function normalizeMetaJob(company: AdapterCompany, j: MetaJob): Normalize
     jobUrl: `${JOBS_URL}${j.id}/`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    // The search result carries no JD — fetchJd fills this in. No date field
-    // exists on the search result either (only the detail page's JSON-LD has
-    // datePosted, and the AtsAdapter contract has no hook to backfill
-    // postedAt from fetchJd), so postedAt stays null for every metacareers
-    // posting — a known, documented limitation rather than an oversight.
+    // The search result carries no JD or date field; fetchJd fills the JD, postedAt stays null.
     jdText: "",
     postedAt: null,
   };
 }
-
-// ---- job-detail JSON-LD (JD) extraction ----
 
 const JobPostingLdSchema = z.object({
   "@type": z.string().optional(),
@@ -298,10 +255,6 @@ const JobPostingLdSchema = z.object({
   qualifications: z.string().nullable().optional(),
 });
 
-/** Pull the `JobPosting` schema.org block out of a metacareers job-detail
- *  page's server-rendered HTML and flatten it into plain-text JD. Returns ""
- *  (not a throw) on any parse/shape failure — matches how other adapters
- *  degrade a single bad JD without failing the whole company's fetch. */
 export function extractMetaJd(html: string): string {
   const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
   let m: RegExpExecArray | null;

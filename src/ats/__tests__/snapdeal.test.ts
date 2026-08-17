@@ -17,13 +17,7 @@ const company: AdapterCompany = {
   careersUrl: SNAPDEAL_CAREERS_URL, tenantUrl: null, apiMeta: null,
 };
 
-// Excerpt of the real blog.snapdeal.com/index.php/wp-json/wp/v2/pages/632
-// content.rendered body (captured 2026-07-12) — intro copy, an ordinary
-// opening, two openings whose "Title/Role:" line is split across nested
-// <strong> tags (mirrors the live "Fullstack" and "Account Manager – Cross
-// Border Trade" entries), one with a literal non-breaking space after the
-// colon (mirrors the live "Openstack Engineer" entry), and the closing
-// boilerplate paragraphs (blank, email-us, culture blurb).
+// Excerpt of the real WP content.rendered body: openings whose "Title/Role:" line splits across nested <strong> tags or has a non-breaking space after the colon, mirroring live quirks.
 const CONTENT_FIXTURE = `<p>Are you keen on being a part of a team dedicated to creating life-changing experiences for buyers and sellers across India?</p>
 <p>Check out the open positions for our Gurugram office below. Share your CV with us ta@snapdeal.com with the job title in the subject line.</p>
 <p>&nbsp;</p>
@@ -106,8 +100,6 @@ test("normalizeSnapdealOpening maps to the constant careers URL and Gurugram loc
   assert.equal(p.jdText, opening.jdText);
   assert.equal(p.postedAt, null);
 });
-
-// --- fetchSnapdealCareersHtml: page-id resolution (404 fallback + throw) ---
 
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {

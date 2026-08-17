@@ -13,9 +13,7 @@ const company: AdapterCompany = {
   careersUrl: "https://73strings.teamtailor.com/jobs", tenantUrl: null, apiMeta: null,
 };
 
-// Layout variant A ("company-links" list, live-captured from 73strings and
-// veoneerin 2026-07-11): <li class="w-full"> with a bare title anchor and a
-// sibling meta div of dept · location · workplace spans.
+// Layout variant A ("company-links" list): bare title anchor with a sibling meta div of dept/location/workplace spans.
 const listHtmlA = `<html><body>
     <ul id="jobs_list_container" class="company-links">
         <li class="w-full">
@@ -63,10 +61,7 @@ const listHtmlA = `<html><body>
     </ul>
 </body></html>`;
 
-// Layout variant B ("block-grid" cards, live-captured from corporater and
-// storytel 2026-07-11): title lives in a span[title] INSIDE the anchor, the
-// meta div is also inside the anchor, and the job link may point at a custom
-// domain (jobs.storytel.com) instead of the teamtailor.com host.
+// Layout variant B ("block-grid" cards): title lives in a span[title] inside the anchor, and the job link may point at a custom domain instead of teamtailor.com.
 const listHtmlB = `<html><body>
     <ul class="block-grid" id="jobs_list_container">
         <li class="group border rounded block-grid-item">
@@ -92,8 +87,7 @@ const listHtmlB = `<html><body>
     </ul>
 </body></html>`;
 
-// Job detail page: JSON-LD JobPosting island whose description is
-// entity-encoded HTML (live shape from 73strings job 7093222).
+// Job detail page: JSON-LD JobPosting island whose description is entity-encoded HTML.
 const detailHtml = `<html><head>
 <script type="application/ld+json">{"@context":"http://schema.org","@type":"JobPosting","title":"Senior Software Engineer - Backend","datePosted":"2026-01-22T12:38:59+05:30","description":"&lt;p&gt;&lt;strong&gt;OVERVIEW:&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;73 Strings is an innovative platform &amp;amp; valuation suite.&lt;/p&gt;","hiringOrganization":{"@type":"Organization","name":"73 Strings"},"jobLocation":[{"@type":"Place","address":{"addressLocality":"Bengaluru","addressCountry":"IN","@type":"PostalAddress"}}]}</script>
 </head><body><main>

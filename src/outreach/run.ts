@@ -77,11 +77,8 @@ interface CompanyGroup {
   postings: OutreachNotifiedPosting[];
 }
 
-/** Groups by NORMALIZED company name, not the raw display string: the registry
- *  carries near-duplicate entries under different providers ("Wipro" vs "Wipro
- *  Limited", "Zoho" vs "Zoho Corporation") whose postings must land in ONE
- *  group, or the same recruiter would get two drafts in a single run. The
- *  display name shown in the email is the first spelling seen. */
+/** Groups by normalized company name so near-duplicate registry entries ("Wipro" vs "Wipro Limited")
+ *  don't produce two drafts to the same recruiter; display name is the first spelling seen. */
 export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
   const byKey = new Map<string, CompanyGroup>();
   const order: CompanyGroup[] = [];
@@ -98,10 +95,7 @@ export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGrou
   return order;
 }
 
-/** Reason to record on the undrafted row for a company with zero eligible
- *  contacts: 'no_contact' when no candidate matched the company at all, else
- *  the strongest ineligible reason found ('cooldown' beats 'bounced_contact'
- *  when both are present in the matched pool). */
+/** 'no_contact' if nothing matched; else the strongest ineligible reason ('cooldown' beats 'bounced_contact'). */
 function undraftedReasonFor(ineligible: Array<{ reason: IneligibleReason }>): UndraftedReason {
   if (ineligible.length === 0) return "no_contact";
   return ineligible.some((i) => i.reason === "cooldown") ? "cooldown" : "bounced_contact";
@@ -111,10 +105,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   const deps: RunOutreachDeps = { ...defaultDeps(), ...options.deps };
   const { profileId, sinceIso, runId } = options;
 
-  // profileId selects the Gmail TOKEN, but the sender identity (name, pitch,
-  // resume) comes from the process-wide loaded profile module. If they diverge
-  // (e.g. a script passing profileId "vikrant" without --profile vikrant), the
-  // drafts would carry the wrong person's name and resume on the wrong mailbox.
+  // profileId selects the Gmail token; sender identity comes from the loaded profile module - must match.
   const loadedProfileId = profile.id ?? "default";
   if (profileId !== loadedProfileId) {
     throw new Error(
@@ -157,10 +148,8 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   let draftsCreated = 0;
   let undraftedCount = 0;
   let companiesMatched = 0;
-  // Belt-and-braces against duplicate drafts within one run: normalized
-  // grouping merges same-company groups, but two DIFFERENT companies can still
-  // resolve to the same recruiter (alt-name matches on agency contacts). The
-  // in-DB cooldown only reflects committed pre-run state, so track in-run too.
+  // Tracks in-run duplicates: two different companies can resolve to the same recruiter
+  // (alt-name matches), and the in-DB cooldown only reflects pre-run state.
   const draftedThisRun = new Set<string>();
 
   for (const group of groupByCompany(eligiblePostings)) {
@@ -239,8 +228,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         );
         continue;
       }
-      // The Gmail draft now exists — record that BEFORE the DB write so a
-      // failed insert can't lead to a second draft to the same person.
+      // Record before the DB write so a failed insert can't lead to a second draft to the same person.
       draftedThisRun.add(recruiter.email);
 
       try {
@@ -263,9 +251,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         });
         draftsCreated++;
       } catch (err) {
-        // The draft EXISTS in Gmail but has no DB row: it won't appear on the
-        // Drafts tab and records no cooldown. Log loudly with the draft id so
-        // a human can reconcile (delete the draft or re-run once fixed).
+        // Draft exists in Gmail but has no DB row (no cooldown, absent from Drafts tab); log loudly to reconcile.
         logger.error(
           {
             err: String(err), company: group.companyName, recruiter: recruiter.email,

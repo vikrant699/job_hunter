@@ -1,4 +1,3 @@
-// src/ats/tatacareers.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -25,8 +24,7 @@ const companyNoMeta: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Real shape captured live from POST /bin/tata/jobPostingsFilterServlet?
-// (searchTerm=Developer, no company filter) — Tata Consultancy Services item.
+// Real shape captured live from POST /bin/tata/jobPostingsFilterServlet (searchTerm=Developer) - Tata Consultancy Services item.
 const tcsJob: TataJob = {
   jobId: "411340",
   jobTitle: "DEVELOPER",
@@ -37,9 +35,7 @@ const tcsJob: TataJob = {
   publishedDate: "May 11, 2026",
 };
 
-// Real shape captured live (companies=["Tejas Networks"]) — a "Flexible"
-// location value, which the site's own location filter also uses to mean
-// remote-friendly.
+// Real shape captured live; "Flexible" is the site's own location filter value for remote-friendly.
 const flexibleJob: TataJob = {
   jobId: "290",
   jobTitle: "Senior Specialist",

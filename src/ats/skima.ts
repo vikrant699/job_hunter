@@ -1,21 +1,5 @@
-// src/ats/skima.ts — Skima AI careers sites (skima.ai), a shared careers-page
-// vendor. Tenants live on their own custom domains (e.g. careers.nykaa.com,
-// canonical <domain>.skima.ai) rendered server-side by an Astro frontend —
-// plain HTML, no JS or auth needed (verified live on Nykaa).
-//
-//   list: GET <careersUrl>?page=N (1-based; page 1 is the bare URL).
-//         Each job card holds a title anchor `<a href="/<uuid>">Title</a>`
-//         (the same uuid also appears on a text-less Apply-button anchor —
-//         we keep the anchor variant that carries text) plus a row of
-//         `<span class="break-all text-sm">` chips: location, work mode
-//         ("In Office"/"Remote"/...), job type — in that order.
-//         Pages are disjoint (verified live); the chrome reports the total
-//         as "Showing X of <total> - Jobs". We page until the running total
-//         reaches that count, AND independently stop on the first
-//         zero-item page (backstop in case the counter is missing).
-//
-//   jd:   GET the job detail page (same /<uuid> path); the JD body is
-//         `div.job-description-panel`.
+// src/ats/skima.ts — Skima AI careers sites (skima.ai), a shared careers-page vendor on custom domains (e.g. careers.nykaa.com), server-rendered by an Astro frontend - plain HTML, no JS or auth needed.
+// List: GET <careersUrl>?page=N (1-based); each job card has a title anchor `<a href="/<uuid>">Title</a>` (a paired Apply-button anchor for the same uuid is text-less - keep the one with text) plus location/work-mode/type chips. Pages are disjoint; page until the "Showing X of N" total is reached, with a zero-item page as backstop. JD: div.job-description-panel on the same /<uuid> path.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -24,9 +8,7 @@ import { atsFetchText } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-// The board's own "Showing 10 of N" chrome is the only live evidence of a
-// fixed page size; pagination doesn't actually rely on it (see
-// shortPageEndsPagination below) so this value is informational only.
+// Informational only - pagination doesn't rely on a fixed page size (see shortPageEndsPagination below).
 const NOMINAL_PAGE_SIZE = 10;
 
 const UUID_PATH_RE = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i;
@@ -54,12 +36,7 @@ export function skimaPageUrl(baseUrl: string, page: number): string {
   return u.toString();
 }
 
-/**
- * Parse one listing page: for every UUID-path anchor that carries visible
- * text (the title link — the Apply button anchor for the same uuid is
- * text-less), emit one item. Location/work-mode chips are the
- * `span.break-all` texts inside the same card (closest `.w-full` wrapper).
- */
+/** Parse one listing page: emit one item per UUID-path anchor that carries visible text (the Apply-button anchor for the same uuid is text-less); chips are `span.break-all` texts in the closest `.w-full` wrapper. */
 export function parseSkimaListingHtml(html: string, baseUrl: string): SkimaListingPage {
   const $ = cheerio.load(html);
   const origin = new URL(baseUrl).origin;
@@ -117,7 +94,6 @@ export function normalizeSkimaItem(company: AdapterCompany, item: SkimaListItem)
   };
 }
 
-/** Extract the JD plain text from a job detail page. */
 export function extractSkimaJd(html: string): string {
   const $ = cheerio.load(html);
   const panel = $("div.job-description-panel").first();
@@ -136,10 +112,7 @@ export const skimaAdapter: AtsAdapter = {
       provider: "skima",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // Termination is zero-item-page or reaching the running total, NOT a
-      // short page - pages are disjoint and the "total" chrome (see below)
-      // is the primary stop signal (guarded by the zero-item-page backstop
-      // if the counter is missing or lies).
+      // Pages are disjoint, so termination is the "total" chrome or a zero-item page - not a short page.
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,

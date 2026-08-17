@@ -1,10 +1,6 @@
-// src/ats/jibe.ts — Jibe (iCIMS CX) career sites, e.g. careers.se.com.
-// Clean JSON search API: GET <host>/api/jobs?page=N[&location=...] returns
-// { jobs: [{ data: {...} }], totalCount } in server-fixed pages (10 on the
-// tenants seen so far — page-size params are ignored, so the loop infers the
-// size from page 1), with the FULL job description inline (no per-job fetch
-// needed). The WAF in front of these
-// sites 403s non-browser user agents, so requests go out with the browser UA.
+// src/ats/jibe.ts — Jibe (iCIMS CX) career sites. GET <host>/api/jobs?page=N returns
+// { jobs: [{data}], totalCount } with the full JD inline (no per-job fetch).
+// Page size is server-fixed (10 seen so far, ignores any size param — inferred from page 1); the WAF 403s non-browser UAs, so BROWSER_UA is used.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -70,19 +66,10 @@ export const jibeAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "jibe",
       company: company.slug,
-      // Page-size params are ignored by this API, so a declared 10 was an
-      // assumption about the engine, not something the tenant told us. It also
-      // could not be rescued by `totalCount`: paginate checks the short-page
-      // rule BEFORE the total, so a tenant serving fewer than 10 stopped at
-      // page 1 with the real total sitting unread. Latch the first page's own
-      // size instead.
+      // Page-size params are ignored; short-page checks run before totalCount, so infer size from page 1.
       pageSize: "infer",
-      // `totalCount` is optional on this API. When it is absent and every page
-      // is full, the exact-page-repeat stall guard is the only terminator left
-      // for a board that ignores `page` — and it needs a stable per-item key
-      // to recognise the repeat. Cross-page duplicates are dropped as a side
-      // effect, which matches the (provider, external_id) identity used
-      // downstream.
+      // totalCount is optional; when absent with full pages, the exact-page-repeat stall guard is the only
+      // terminator for a board that ignores `page`, and it needs this stable key.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         const json = await atsFetchJson(jibeApiUrl(company, page + 1), {

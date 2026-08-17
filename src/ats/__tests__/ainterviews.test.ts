@@ -1,4 +1,3 @@
-// src/ats/ainterviews.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ainterviewsAdapter, ainterviewsListUrl, normalizeAinterviews, AinterviewsJobSchema } from "../ainterviews.js";

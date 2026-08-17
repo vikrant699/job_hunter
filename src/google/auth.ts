@@ -21,12 +21,7 @@ const RefreshResponseSchema = z.object({
 /** Refresh this many ms before actual expiry so a call never races an expired token. */
 const EXPIRY_GUARD_MS = 60_000;
 
-/**
- * Thrown when a profile's Google refresh token is missing, revoked, or expired
- * (the consent screen is in Testing mode, so this happens ~weekly). The message
- * always embeds the exact fix command so a human hitting this in a log doesn't
- * have to go spelunking for the right invocation.
- */
+// Thrown when a profile's refresh token is missing, revoked, or expired; message embeds the fix command.
 export class GoogleAuthExpiredError extends Error {
   constructor(profileId: string, reason: string) {
     super(
@@ -123,9 +118,7 @@ async function refresh(profileId: string, token: TokenFile, deps: GoogleAuthDeps
   return updated;
 }
 
-// In-memory cache so repeated calls within a run don't re-read the token file.
-// Keyed by profileId; cleared only via __resetTokenCacheForTests (tests) — a
-// live process is expected to hold one cache for its lifetime.
+// Keyed by profileId; cleared only via __resetTokenCacheForTests, otherwise held for the process lifetime.
 const tokenCache = new Map<string, TokenFile>();
 
 /** Test-only: clear the in-memory token cache between test cases. */
@@ -133,12 +126,7 @@ export function __resetTokenCacheForTests(): void {
   tokenCache.clear();
 }
 
-/**
- * Returns a valid access token for the given profile, refreshing it first if
- * it is at or near expiry. Reads+caches the token file in memory so repeated
- * calls within a process don't re-read disk. Throws GoogleAuthExpiredError if
- * the token file is missing/invalid or the refresh token has been revoked.
- */
+/** Returns a valid access token, refreshing first if at or near expiry; throws GoogleAuthExpiredError otherwise. */
 export async function getAccessToken(profileId: string, deps: GoogleAuthDeps = defaultDeps(profileId)): Promise<string> {
   let token = tokenCache.get(profileId);
   if (!token) {
@@ -152,14 +140,7 @@ export async function getAccessToken(profileId: string, deps: GoogleAuthDeps = d
   return token.access_token;
 }
 
-/**
- * Force one refresh round-trip regardless of expiry, to validate the
- * refresh_token itself rather than trusting a cached/unexpired access token.
- * Mirrors assertOllamaAvailable's fail-fast role: call this before a
- * production tick so a revoked/expired refresh token surfaces immediately
- * with an actionable fix command, instead of failing deep inside a batch of
- * draft creation calls.
- */
+/** Forces one refresh round-trip to validate refresh_token itself (not a cached access token); call before a production tick so a revoked token surfaces immediately, not mid-batch. */
 export async function assertGoogleTokenValid(profileId: string, deps: GoogleAuthDeps = defaultDeps(profileId)): Promise<void> {
   const token = tokenCache.get(profileId) ?? readTokenFile(profileId, deps);
   const refreshed = await refresh(profileId, token, deps);

@@ -1,12 +1,6 @@
-// src/ats/happyeasygo.ts — HappyEasyGo (single-company, static-JWT-free JSON API).
-// GET https://www.happyeasygo.com/heg_api/join/getDepartmentJobList.do returns
-// { code: 0, succ: true, data: [<department>], token, noteInfo }. Each department
-// is mostly-null at the top level; the actual open positions live nested in its
-// `joinUsMessages` array (fields: id, position, workPlace, jobDescription,
-// workRequirements, createTime, ...). We flatten every department's
-// joinUsMessages into one posting list. HappyEasyGo is Gurugram-based and every
-// live position observed carries workPlace "Gurugram" — we still fall back to a
-// constant "Gurugram, India" for the rare null case rather than dropping location.
+// src/ats/happyeasygo.ts — HappyEasyGo single-company JSON API.
+// GET .../heg_api/join/getDepartmentJobList.do returns departments whose real postings are nested in
+// joinUsMessages[]; flattened into one list. workPlace falls back to "Gurugram, India" when null.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -17,8 +11,7 @@ import { BROWSER_UA } from "../util/userAgent.js";
 
 const LIST_URL = "https://www.happyeasygo.com/heg_api/join/getDepartmentJobList.do";
 const CAREERS_URL = "https://www.happyeasygo.com/Careers/";
-// Company HQ; used only when a position's workPlace is null (none observed live,
-// but the field is nullable in the API so we don't want a blank location).
+// Company HQ; used only when a position's workPlace is null (none observed live, but the field is nullable).
 const DEFAULT_LOCATION = "Gurugram, India";
 
 const PositionSchema = z.object({
@@ -45,13 +38,8 @@ const ListSchema = z.object({
   data: z.array(DepartmentSchema),
 });
 
-/**
- * Flatten one department's joinUsMessages into normalized postings.
- * `deptIndex` feeds the externalId fallback when a position is missing its own
- * `id` (departmentId + its index within the department, which is stable across
- * fetches since positions are only appended, never reordered, in the observed
- * payload).
- */
+/** Flatten one department's joinUsMessages into postings; deptIndex feeds the externalId fallback
+ *  (departmentId+index) when a position has no own id, stable since positions are only appended. */
 export function flattenDepartment(company: AdapterCompany, dept: HappyEasyGoDepartment): NormalizedPosting[] {
   const positions = dept.joinUsMessages ?? [];
   return positions.map((p, i) => normalizeHappyEasyGo(company, p, dept, i));
@@ -77,8 +65,7 @@ export function normalizeHappyEasyGo(
     location,
     isRemote: REMOTE_RE.test(location),
     jdText: htmlToText(jdParts.join("\n\n")),
-    // createTime is already a millisecond epoch (13-digit, e.g. 1547475963000),
-    // unlike Workday's seconds-based fields that `unixToIso` targets.
+    // createTime is a millisecond epoch (13-digit), unlike Workday's seconds-based fields `unixToIso` targets.
     postedAt: epochMsToIso(p.createTime),
   };
 }

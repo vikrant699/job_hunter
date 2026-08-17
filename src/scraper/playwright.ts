@@ -11,26 +11,19 @@ export interface RenderedPage extends FetchedHtml {
   bodyText: string;
 }
 
-// Headless-Chromium fetcher for SPA careers pages. One shared Browser
-// instance; per-call Context so cookies don't leak; heavy assets aborted
-// at the route level; concurrent pages capped to control RAM.
+// Headless-Chromium fetcher for SPA careers pages: one shared Browser, per-call Context, heavy assets aborted, concurrent pages capped.
 
 const NAV_TIMEOUT_MS = 30_000;
-// Settle after primary load: short under networkidle (JS hydrated during goto),
-// longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
+// Short settle under networkidle (already hydrated); longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
 const POST_LOAD_WAIT_NETWORKIDLE_MS = 1_500;
 const POST_LOAD_WAIT_FALLBACK_MS = 6_000;
 // envInt refuses 0 and non-numeric values — a 0 concurrency cap would deadlock the semaphore.
 const MAX_CONCURRENT_PAGES = envInt("PLAYWRIGHT_MAX_PAGES", 5);
 
-// ---- listing expansion (infinite scroll / "Load more") ----
 const EXPAND_MAX_ROUNDS = 8;
 const EXPAND_WAIT_MS = 1200;
-/** Button/CTA text that loads more rows in place. Deliberately excludes
- *  "Next"/"Learn more"/"Read more" — those navigate away or are marketing. */
+/** Button/CTA text that loads more rows in place; excludes "Next"/"Learn more"/"Read more" which navigate away or are marketing. */
 export const LOAD_MORE_TEXT_RE = /^(load|show|view|see)\s+more\b|^more\s+(jobs|positions|openings|results)\b/i;
-
-// ---- shared browser lifecycle ----
 
 let sharedBrowser: Browser | null = null;
 let bootPromise: Promise<Browser> | null = null;
@@ -56,8 +49,7 @@ export async function getBrowser(): Promise<Browser> {
     process.once("SIGTERM", () => { void teardown().finally(() => process.exit(0)); });
     return b;
   })();
-  // A failed launch must not poison future calls: clear the cached promise so
-  // the next getBrowser() retries instead of re-returning the same rejection.
+  // A failed launch must not poison future calls - clear the cache so the next call retries.
   bootPromise.catch(() => { bootPromise = null; });
   return bootPromise;
 }
@@ -71,22 +63,12 @@ export async function closePlaywrightBrowser(): Promise<void> {
   }
 }
 
-// ---- concurrency gate ----
-
 export const acquirePageSlot = makeSemaphore(() => MAX_CONCURRENT_PAGES);
-
-// ---- resource blocking ----
 
 const HEAVY_EXTENSIONS = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|m4v|mov|mp3|m4a)(?:\?|$)/i;
 const ANALYTICS_HOSTS = /\b(?:google-analytics|googletagmanager|doubleclick|gtag|segment|mixpanel|hotjar|intercom|fullstory|amplitude|optimizely|appsflyer|chartbeat|newrelic)\.(?:com|io|net)/i;
 
-// ---- public API ----
-
-/**
- * Render a URL in a browser tab and return DOM HTML + body innerText. Shape
- * is compatible with cheerio.fetchHtml so the llm-scrape pipeline swaps
- * fetchers transparently.
- */
+/** Renders a URL and returns DOM HTML + body innerText; shape-compatible with cheerio.fetchHtml so fetchers swap transparently. */
 export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
   const release = await acquirePageSlot();
   const t0 = Date.now();
@@ -111,8 +93,7 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       const page = await ctx.newPage();
       page.setDefaultNavigationTimeout(NAV_TIMEOUT_MS);
       page.setDefaultTimeout(NAV_TIMEOUT_MS);
-      // networkidle works for most SPAs. iCIMS/Eightfold etc. never settle
-      // (analytics keep reconnecting) so we fall back to `load` + longer wait.
+      // networkidle works for most SPAs; iCIMS/Eightfold etc never settle (analytics keep reconnecting) so fall back to `load`.
       let waitedNetworkIdle = true;
       try {
         await page.goto(url, { waitUntil: "networkidle" });
@@ -130,9 +111,7 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
         await page.waitForTimeout(settleMs);
       }
 
-      // Expand the listing: scroll to the bottom and click one in-place
-      // "Load more"-style control per round, until the page stops growing.
-      // Bounded so a pathological page can't hold the slot hostage.
+      // Scroll + click one "Load more"-style control per round until the page stops growing (bounded round count).
       try {
         let prevAnchors = await page.locator("a[href]").count();
         for (let round = 0; round < EXPAND_MAX_ROUNDS; round++) {
@@ -155,9 +134,7 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
       const html = await page.content();
       const finalUrl = page.url();
 
-      // Walk iframes — page.content() returns only the parent frame. We
-      // include subframe URLs (so ATS-redirect detection sees the embed host)
-      // and same-origin HTML (so cheerio sees the embedded <a> tags).
+      // page.content() only returns the parent frame - walk iframes so ATS-redirect detection sees the embed host and cheerio sees embedded <a> tags.
       const subframes = page.frames().filter((f) => f !== page.mainFrame());
       const extras: string[] = [];
       for (const f of subframes) {
@@ -168,14 +145,12 @@ export async function fetchHtmlPlaywright(url: string): Promise<RenderedPage> {
           const fHtml = await f.content();
           if (fHtml && fHtml.length > 0) extras.push(fHtml);
         } catch {
-          // Cross-origin frame — content() blocked, but the URL above is still
-          // useful evidence for the ATS-redirect detector.
+          // Cross-origin frame - content() blocked, but the URL above is still useful.
         }
       }
       const combined = extras.length > 0 ? `${html}\n<!-- subframes -->\n${extras.join("\n")}` : html;
 
       // body.innerText recovers Eightfold/iCIMS where jobs render outside <a>.
-      // Pass the eval as a string so it runs in the browser context.
       let bodyText = "";
       try {
         const evalResult = await page.evaluate("document.body && document.body.innerText || ''");

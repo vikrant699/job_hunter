@@ -1,27 +1,8 @@
 // src/ats/apple.ts — Apple Careers (jobs.apple.com) public search API.
-//
-// List: POST <origin>/api/v1/search
-//   body { query, filters: { locations: [postLocationFacetId] }, page, locale,
-//          sort, format: { longDate, mediumDate } }
-//   -> { res: { searchResults: [...], totalRecords } }
-//   Page size is server-fixed at 20. The `sort`/`format` keys are load-bearing:
-//   omitting either makes the endpoint silently return zero results (captured
-//   from the real jobs.apple.com/en-in SPA via a Playwright network capture —
-//   the URL's `?location=india-IND` query param is NOT read server-side, it
-//   just seeds the client-side location-picker's initial (and here, wrong —
-//   it resolves to "Indianapolis") suggestion).
-//   `locations` filter values are opaque facet ids, not country codes; India's
-//   is "postLocation-INDC" (confirmed via the same capture).
-//   Multi-location postings (isMultiLocation) are listed once per city, each
-//   with a distinct `id` (e.g. "200615971-0321") sharing one `positionId` —
-//   `id` is what's unique across the result set, so it's used as externalId.
-//
-// JD: GET <origin>/api/v1/jobDetails/<jobNumber>?locale=<locale>
-//   -> { res: { jobSummary, description, minimumQualifications,
-//               preferredQualifications, ... } } — jobNumber is the numeric
-//   `positionId`, recovered from the details URL built in normalizeApple.
-//
-// Single fixed India-filtered company; no per-tenant config needed.
+// List: POST /api/v1/search, page size fixed at 20; `sort`/`format` body keys are load-bearing (omit either and it silently returns zero results).
+// `locations` filter takes an opaque facet id, not a country code (India = "postLocation-INDC").
+// Multi-location postings list once per city with a distinct `id` sharing one `positionId`; `id` is used as externalId.
+// JD: GET /api/v1/jobDetails/<jobNumber>?locale=<locale>, jobNumber is the numeric positionId.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -68,8 +49,7 @@ const AppleJobDetailsResponseSchema = z.object({
   }),
 });
 
-/** Build the exact body Apple's SPA sends once its location filter is set to
- *  the India facet — every key here is required (see module header). */
+/** Every key here is required - see module header. */
 export function appleSearchBody(page: number): JsonValue {
   return {
     query: "",
@@ -98,13 +78,10 @@ export function normalizeApple(company: AdapterCompany, r: AppleSearchResult): N
   };
 }
 
-/** Recover the numeric jobNumber jobDetails expects from a details URL built
- *  by normalizeApple (".../details/<jobNumber>/<slug>"). */
 export function appleJobNumberFromUrl(jobUrl: string): string | null {
   return matchGroup(/\/details\/(\d+)/, jobUrl);
 }
 
-/** Join the JD sub-fields Apple splits across the jobDetails response. */
 export function appleJdText(d: {
   jobSummary?: string | null | undefined;
   description?: string | null | undefined;

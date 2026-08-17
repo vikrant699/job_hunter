@@ -143,9 +143,7 @@ test("runVerify: draft gone + no sent message -> discarded + one undrafted row p
   assert.equal(undrafted.length, 2);
   for (const row of undrafted) {
     assert.equal(row.reason, "draft_discarded");
-    // runId/runDate trace back to the row's ORIGINAL drafting run (42), not the
-    // verify pass's own run (99) — keeps the sheet row attributable to the run
-    // whose posting match produced it.
+    // runId/runDate trace back to the original drafting run (42), not the verify pass's own run (99).
     assert.equal(row.runDate, "2026-06-30");
     assert.equal(row.runId, 42);
   }
@@ -272,8 +270,6 @@ test("runVerify: a non-auth error on one row is logged and does not stop the pas
 });
 
 test("runVerify: only rows for the given profileId are checked (selectOutreachByStatus scoped upstream)", async () => {
-  // selectOutreachByStatus is called with profileId in the real deps; here we
-  // just confirm runVerify passes it through.
   let passedProfileId: string | null = null;
   const { deps } = harness({});
   deps.selectOutreachByStatus = (_status: OutreachStatus, profileId?: string) => {

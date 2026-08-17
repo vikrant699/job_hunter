@@ -1,33 +1,14 @@
-// src/ats/talentzq.ts — TalentzQ career boards (e.g. pratilipi.talentzq.io),
-// a Blazor WebAssembly SPA fronting a per-tenant JSON API:
-//
-//   list:   GET https://<subdomain>.talentzq.io/api/<tenantId>/jd
-//           -> the HTTP body is itself a JSON STRING containing the array's
-//              JSON text (double-encoded) -> [ { Id, Title, Jdcode, Status,
-//              Published, JobLocation: [[city, state, country], ...],
-//              Jobtype, Experience, Skills, Datecreated, ... }, ... ]
-//           One call returns the whole board (verified live: 23 records for
-//           tenant 1009) — no pagination.
-//   detail: GET https://<subdomain>.talentzq.io/api/<tenantId>/jd/<Jdcode>
-//           -> singly-encoded JSON string containing the JD's HTML body.
-//   public job page: https://<subdomain>.talentzq.io/JobView/<Jdcode>
-//           (captured via the site's own click-through, since the listing
-//           DOM uses JS click handlers rather than <a href>).
-//
-// The captured contract shows every request carrying a `?v=<token>` query
-// param. Investigated live 2026-08-01 before writing this adapter:
-//   - Omitting `v` entirely, and passing a deliberately wrong `v`, both
-//     return identical 200 data from both the list and detail endpoints.
-//   - A playwright capture of the real SPA shows the SAME `v` value reused
-//     across totally unrelated endpoints (the company logo/banner image
-//     requests) in the same page load.
-// So `v` is a generic per-tenant cache-busting stamp, not a session/job
-// token — the server never validates it. This adapter omits it.
-//
-// Only `Published === true` records are live postings — the rest are drafts/
-// expired reqs the API still returns (verified: of 23 records for tenant
-// 1009, exactly the 4 with Published:true matched what the public /careers
-// page actually rendered).
+// src/ats/talentzq.ts — TalentzQ career boards (e.g. pratilipi.talentzq.io), a Blazor
+// WebAssembly SPA fronting a per-tenant JSON API. list: GET
+// <subdomain>.talentzq.io/api/<tenantId>/jd — the HTTP body is a JSON STRING containing
+// the array's JSON text (double-encoded); one call returns the whole board, no pagination.
+// detail: GET .../api/<tenantId>/jd/<Jdcode> — singly-encoded JSON string of the JD HTML.
+// public job page: .../JobView/<Jdcode> (captured via the site's click-through since the
+// listing DOM uses JS handlers, not <a href>).
+// Every request carries a `?v=<token>` query param; verified live that omitting it, or
+// passing garbage, returns identical 200 data, and the same value is reused across
+// unrelated (image) requests in a real page load — it's a cache-busting stamp, not a
+// session token, so this adapter omits it. Only Published===true records are live postings.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -64,16 +45,14 @@ export const TalentzqJobSchema = z.object({
 });
 export type TalentzqJob = z.infer<typeof TalentzqJobSchema>;
 
-/** Unwrap the double-JSON-encoded list body (a JSON string whose parsed
- *  value is itself the array's JSON text). Never throws — anything that
- *  isn't a string, isn't valid JSON, or doesn't parse to an array yields []. */
+// Unwraps the double-JSON-encoded list body. Never throws — anything that isn't a valid
+// JSON string parsing to an array yields [].
 export function talentzqJobsFrom(raw: JsonValue): JsonValue[] {
   if (typeof raw !== "string") return [];
   const parsed = tryParseJson(raw);
   return Array.isArray(parsed) ? parsed : [];
 }
 
-/** Only Published:true records are live postings — see module doc. */
 export function talentzqShouldKeep(j: TalentzqJob): boolean {
   return j.Published === true;
 }
@@ -94,14 +73,12 @@ export function normalizeTalentzq(company: AdapterCompany, origin: string, j: Ta
     jobUrl: talentzqJobViewUrl(origin, j.Jdcode),
     location,
     isRemote: location !== null && REMOTE_RE.test(location),
-    // The list response carries no JD body; fetchJd fills this in.
     jdText: "",
     postedAt: dateToIso(j.Datecreated),
   };
 }
 
-/** Strip HTML from the (singly-encoded) detail response; "" on anything
- *  that isn't a string, so a malformed detail degrades instead of failing. */
+// Strips HTML from the (singly-encoded) detail response; "" on anything not a string.
 export function talentzqJdText(raw: JsonValue): string {
   return htmlToText(typeof raw === "string" ? raw : "");
 }

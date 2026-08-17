@@ -1,48 +1,9 @@
-// src/ats/moglix.ts — Moglix's careers board (moglix.flexiele.com), a
-// "FlexiEle" (FE ERP) tenant. Single-tenant, hand-traced hardcoded API — not a
-// multi-company ATS platform.
-//
-// The board is a Vite-built React SPA (index-DfTT2Ztx.js + lazy route chunks).
-// Its `careers` route (careers-DpFlX4v4.js) renders a generic "grid" component
-// (GRD0000837-CIWG9arB.js) whose data source is server-configured metadata, so
-// the endpoint URL never appears as a literal string in the client bundle —
-// only network capture (Playwright, 2026-07) revealed it:
-//
-//   POST https://moglix-api.flexiele.com/api-pub/rec/careers/list
-//   body (before encryption): {"formCode":"FRM0001379","gridCode":"GRD0000837",
-//                              "sorted":[],"requiresCounts":true,"skip":N,"take":M}
-//   -> {"<8-hex-char-random-key>":"<ciphertext>"}
-//
-// Encryption (traced in index-DfTT2Ztx.js's axios interceptors, confirmed live
-// against captured traffic):
-//   - CryptoJS.AES.encrypt(JSON.stringify(body), passphrase).toString() — the
-//     passphrase form (not a WordArray key) triggers CryptoJS's OpenSSL-
-//     compatible "Salted__" KDF: MD5-based EVP_BytesToKey derives a 256-bit
-//     key + 128-bit IV from (passphrase, an 8-byte random salt); AES-256-CBC,
-//     PKCS7 padding; wire format is base64("Salted__" + salt + ciphertext).
-//     node:crypto has no built-in EVP_BytesToKey, so `moglixEncrypt`/
-//     `moglixDecrypt` below replicate it directly (MD5(prev + passphrase +
-//     salt), repeated until enough key+IV bytes are produced).
-//   - The passphrase is `environment.reqEncKey`, a literal in the bundle
-//     (`environment$1.reqEncKey`, spread into the prod `environment` object
-//     unchanged): "2e35f242a46d67eeb74aabc37d5e5d05". If FlexiEle ever rotates
-//     it, grep a fresh index-*.js bundle for `reqEncKey:"` — same interceptor
-//     shape (`Crypto.AES.encrypt(d,o)` / `Crypto.AES.decrypt(i,o)` with
-//     `o=FE.reqEncKey`).
-//   - Every request AND response body is wrapped in a single-key envelope
-//     `{[randomHexKey]: ciphertext}` where `randomHexKey` is 4 random bytes
-//     hex-encoded (CryptoJS's `WordArray.random(4).toString()`), also echoed
-//     as the `fe-req-encrypted` request header. The response's envelope key
-//     is server-generated and unrelated to the request's; `unwrapEnvelope`
-//     just takes "the sole value" rather than matching key names.
-//   - No cookies/session/CSRF token needed — confirmed with a bare
-//     `fetch`+bot UA (job-hunter-bot/0.1), no browser required.
-//
-// Pagination: the real client's own request already asks for
-// `take:50000` in one shot (moglix has ~150 openings total, confirmed live
-// 2026-07), so `listPostings` mirrors that — a single POST, no loop. The `jd`
-// field is inline on every list row (confirmed non-empty on 144/145 rows
-// live), so `fetchJd` is not needed.
+// src/ats/moglix.ts — Moglix's careers board (moglix.flexiele.com), a "FlexiEle" tenant with a
+// hardcoded single-tenant API: POST https://moglix-api.flexiele.com/api-pub/rec/careers/list.
+// Request and response bodies are AES-256-CBC encrypted with a static passphrase baked into the
+// bundle (CryptoJS's OpenSSL-compatible "Salted__" KDF), wrapped in a single-random-hex-key envelope
+// echoed as the `fe-req-encrypted` header. `take:50000` fetches the whole board in one POST; the JD
+// is inline on every row, so no fetchJd. See moglixEncrypt/moglixDecrypt for the KDF replication.
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -57,22 +18,14 @@ const API_URL = "https://moglix-api.flexiele.com/api-pub/rec/careers/list";
 const CAREERS_URL = "https://moglix.flexiele.com/careers/moglix/jobs";
 const REQ_ENC_HEADER = "fe-req-encrypted";
 
-// See module header for provenance; re-derive by grepping a fresh bundle for
-// `reqEncKey:"` if this ever 403s/decrypt-fails.
+// Re-derive by grepping a fresh bundle for `reqEncKey:"` if this ever 403s/decrypt-fails.
 const ENC_PASSPHRASE = "2e35f242a46d67eeb74aabc37d5e5d05";
 
 const EMPTY_SORT: readonly string[] = [];
 const GRID_REQUEST = { formCode: "FRM0001379", gridCode: "GRD0000837", sorted: EMPTY_SORT };
-const TAKE = 50000; // generous ceiling; the real client requests the same in one shot.
+const TAKE = 50000; // the real client requests the same in one shot
 
-// ---- CryptoJS-compatible OpenSSL "Salted__" AES-256-CBC passphrase codec ----
-
-/**
- * CryptoJS's EvpKDF (MD5-based, matches OpenSSL's EVP_BytesToKey): derive
- * `keyLen + ivLen` bytes from (passphrase, salt) via repeated
- * MD5(prevBlock + passphrase + salt). Exported nowhere — only `moglixEncrypt`/
- * `moglixDecrypt` need it.
- */
+// CryptoJS's EvpKDF (MD5-based EVP_BytesToKey): derive keyLen+ivLen bytes via repeated MD5(prev+passphrase+salt).
 function evpBytesToKey(passphrase: string, salt: Buffer, keyLen: number, ivLen: number): { key: Buffer; iv: Buffer } {
   let data = Buffer.alloc(0);
   let prev = Buffer.alloc(0);
@@ -86,11 +39,8 @@ function evpBytesToKey(passphrase: string, salt: Buffer, keyLen: number, ivLen: 
   return { key: data.subarray(0, keyLen), iv: data.subarray(keyLen, keyLen + ivLen) };
 }
 
-/**
- * Encrypt the way the SPA's `CryptoJS.AES.encrypt(plaintext, passphrase)`
- * does: fresh random 8-byte salt, MD5 EVP_BytesToKey -> 32-byte key + 16-byte
- * IV, AES-256-CBC/PKCS7, wire format base64("Salted__" + salt + ciphertext).
- */
+// Matches CryptoJS.AES.encrypt(plaintext, passphrase): random 8-byte salt, EVP_BytesToKey -> 32-byte
+// key + 16-byte IV, AES-256-CBC/PKCS7, wire format base64("Salted__" + salt + ciphertext).
 export function moglixEncrypt(plaintext: string, passphrase: string): string {
   const salt = randomBytes(8);
   const { key, iv } = evpBytesToKey(passphrase, salt, 32, 16);
@@ -99,7 +49,7 @@ export function moglixEncrypt(plaintext: string, passphrase: string): string {
   return Buffer.concat([Buffer.from("Salted__", "utf8"), salt, ciphertext]).toString("base64");
 }
 
-/** Inverse of `moglixEncrypt` — same scheme as the SPA's `CryptoJS.AES.decrypt`. */
+// Inverse of moglixEncrypt.
 export function moglixDecrypt(blob: string, passphrase: string): string {
   const buf = Buffer.from(blob, "base64");
   const magic = buf.subarray(0, 8).toString("utf8");
@@ -116,13 +66,8 @@ function randomHexKey(): string {
   return randomBytes(4).toString("hex");
 }
 
-/**
- * Unwrap the SPA's single-dynamic-key envelope `{[randomHexKey]: value}` —
- * used for both the encrypted request body and the encrypted response body.
- * The request's key name and the response's key name are unrelated (each
- * side generates its own), so this just requires exactly one entry rather
- * than checking a specific key.
- */
+// Request and response envelope keys are unrelated (each side generates its own), so this just
+// requires exactly one entry rather than matching a specific key.
 const EnvelopeSchema = z.record(z.string(), z.string());
 
 export function unwrapEnvelope(json: JsonValue): string {
@@ -168,7 +113,7 @@ export function parseListResponse(envelopeJson: JsonValue, passphrase: string): 
   return parsed.data.rows;
 }
 
-/** Moglix's `date_posted` is "DD-MM-YYYY" (confirmed live). Null on malformed input. */
+// Moglix's date_posted is "DD-MM-YYYY". Null on malformed input.
 export function parseDdMmYyyy(s: string | null | undefined): string | null {
   if (!s) return null;
   const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
@@ -196,12 +141,7 @@ export function normalizeMoglix(company: AdapterCompany, j: MoglixJob): Normaliz
   };
 }
 
-/**
- * POST the encrypted `careers/list` request via atsFetchJson, which accepts
- * the bespoke `fe-req-encrypted` header (the envelope's dynamic key name)
- * alongside its usual timeout/UA/error handling. No WAF gate observed live —
- * the default bot UA works fine, no cookies/session needed.
- */
+// No WAF gate observed live — the default bot UA works fine, no cookies/session needed.
 async function fetchEncryptedList(): Promise<JsonValue> {
   const hexKey = randomHexKey();
   const requestBody = { ...GRID_REQUEST, requiresCounts: true, skip: 0, take: TAKE };

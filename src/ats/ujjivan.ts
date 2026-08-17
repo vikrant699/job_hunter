@@ -1,21 +1,11 @@
-// src/ats/ujjivan.ts — Ujjivan Small Finance Bank careers, a first-party JSON
-// API on the bank's own site (no auth):
-//   GET https://www.ujjivansfb.bank.in/api/jobs
-//     -> { success, count, data: [{ job_id, job_title, department,
-//          business_unit, location: [string], location_city: [string],
-//          location_country, description|job_description (HTML) }] }
-// One GET returns all ~226 postings. Many are multi-branch banking roles with
-// a large location[] array (branch list).
-//
-// JD: the list API USED to inline description/job_description, but the bank's
-// 2026 site redesign dropped both fields from the list payload (every posting
-// stored as no-jd for weeks). The JD now lives on a detail endpoint that is
-// only discoverable in the site's JS bundle:
-//   POST https://www.ujjivansfb.bank.in/api/jobs/job-details  {"job_id": id}
-//     -> { data: { data: { job_decription: "<html>" } } }
-// — yes, `job_decription`, the bank misspelled their own field (verified live
-// 2026-08-13, 41k-char JDs). We read the correctly-spelled variants too in
-// case they ever fix it.
+// src/ats/ujjivan.ts — Ujjivan Small Finance Bank careers, a first-party JSON API (no
+// auth): GET www.ujjivansfb.bank.in/api/jobs -> { data: [...] }. One GET returns all ~226
+// postings; many are multi-branch roles with a large location[] array.
+// JD: the list API used to inline description/job_description, but the bank's 2026 site
+// redesign dropped both fields from the list payload. The JD now lives on a detail
+// endpoint only discoverable in the site's JS bundle: POST .../api/jobs/job-details
+// {"job_id": id} -> { data: { data: { job_decription: "<html>" } } } — yes, the bank
+// misspelled their own field; correctly-spelled variants are read too in case they fix it.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/userAgent.js";
@@ -64,8 +54,7 @@ export function normalizeUjjivan(company: AdapterCompany, j: UjjivanJob): Normal
 export const UjjivanDetailSchema = z.object({
   data: z.object({
     data: z.object({
-      /** The bank's own (misspelled) field name; correct spellings accepted
-       *  defensively in case they ever fix it. */
+      // The bank's own (misspelled) field name; correct spellings accepted defensively.
       job_decription: z.string().nullable().optional(),
       job_description: z.string().nullable().optional(),
       description: z.string().nullable().optional(),

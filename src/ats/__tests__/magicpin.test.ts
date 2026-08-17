@@ -1,4 +1,3 @@
-// src/ats/magicpin.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { flattenMagicpinJobs, normalizeMagicpin, magicpinJdFromDetail } from "../magicpin.js";
@@ -14,8 +13,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real shape of GET https://sales.magicpin.in/magickiosk/career/jobs
-// (captured live, 2026-07-11).
+// Real shape of GET https://sales.magicpin.in/magickiosk/career/jobs.
 const LIST_FIXTURE = [
   {
     _id: "tech",
@@ -89,8 +87,7 @@ test("normalizeMagicpin treats a missing location as null", () => {
   assert.equal(p.isRemote, false);
 });
 
-// Real shape of GET https://sales.magicpin.in/magickiosk/career/jobs/<id>
-// (captured live, 2026-07-11).
+// Real shape of GET https://sales.magicpin.in/magickiosk/career/jobs/<id>.
 test("magicpinJdFromDetail strips HTML from requirements and appends plain-text responsibilities", () => {
   const detail = {
     _id: "65e9a66a130b3ee7c4396aff",

@@ -1,18 +1,11 @@
-// src/ats/turbohire.ts — TurboHire career boards (Flipkart group, Ola,
-// Tata Motors PV, Britannia).
-//
-// Anon-token handshake, both hosted on thapi.azurewebsites.net (WAF-blocks
+// src/ats/turbohire.ts — TurboHire career boards (Flipkart group, Ola, Tata Motors PV,
+// Britannia). Anon-token handshake, both hosted on thapi.azurewebsites.net (WAF-blocks
 // plain Node fetch — browser-backed like Darwinbox):
 //   1. GET  /api/token/noauth                         -> { access_token, ... }
 //   2. POST /api/careerpagev2/filteredjobs?orgId=<id> -> { Total, Result: Job[] }
-//      body { pageNumber, pageSize, searchText: "" }, header
-//      Authorization: Bearer <access_token>.
-// Confirmed live against Flipkart's tenant: the endpoint ignores
-// pageNumber/pageSize and returns every matching job (up to `Total`) on the
-// very first call, but we still paginate defensively (see mergeTurboHirePages)
-// in case a larger tenant's endpoint behaves differently.
-//
-// The full JD is inline (`JobDescV2`, HTML) — no per-job fetchJd needed.
+// The endpoint ignores pageNumber/pageSize and returns every matching job on the first
+// call (confirmed live against Flipkart), but we still paginate defensively in case a
+// larger tenant behaves differently. Full JD is inline (JobDescV2, HTML) — no fetchJd needed.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -46,17 +39,17 @@ const TurboHireListSchema = z.object({
   Result: z.array(TurboHireJobSchema),
 });
 
-/** `https://<accountName>.turbohire.co` from the careers/tenant URL. */
+// `https://<accountName>.turbohire.co` from the careers/tenant URL.
 export function turboHireAccountOrigin(company: AdapterCompany): string {
   return tenantOrigin(company);
 }
 
-/** The public careerpage URL for a given org — also what the browser navigates to. */
+// The public careerpage URL for a given org — also what the browser navigates to.
 export function turboHireCareerPageUrl(company: AdapterCompany, orgId: string): string {
   return `${turboHireAccountOrigin(company)}/careerpage/${orgId}`;
 }
 
-/** The token-gated jobs-search endpoint (shared thapi host, orgId in the query string). */
+// The token-gated jobs-search endpoint (shared thapi host, orgId in the query string).
 export function turboHireFilteredJobsUrl(orgId: string): string {
   return `https://thapi.azurewebsites.net/api/careerpagev2/filteredjobs?orgId=${encodeURIComponent(orgId)}`;
 }
@@ -67,12 +60,8 @@ function requireOrgId(company: AdapterCompany): string {
   return orgId;
 }
 
-/**
- * `Location` arrives as a JSON-ENCODED STRING (not a parsed object) of
- * `[{Address, PlaceId}]`. Extract and join every non-empty Address; null on
- * missing/malformed input rather than throwing — a location parse failure
- * shouldn't sink the whole posting.
- */
+// `Location` arrives as a JSON-ENCODED STRING of `[{Address, PlaceId}]`; extract and join
+// every non-empty Address. Null on missing/malformed input rather than throwing.
 const TurboHireLocationEntrySchema = z.object({ Address: z.string().nullable().optional() });
 const TurboHireLocationArraySchema = z.array(TurboHireLocationEntrySchema);
 
@@ -88,13 +77,9 @@ export function parseTurboHireLocation(raw: string | null | undefined): string |
   return addresses.length > 0 ? addresses.join("; ") : null;
 }
 
-/**
- * TurboHire's PublishedDate carries a trailing "Z"; UpdatedDate doesn't, even
- * though it's the same backend-UTC timestamp format — parsing it bare would
- * have `Date.parse` interpret it in the machine's LOCAL timezone (silently
- * wrong, and non-deterministic across environments). Append "Z" whenever no
- * zone designator is already present.
- */
+// PublishedDate carries a trailing "Z"; UpdatedDate doesn't despite being the same
+// backend-UTC format — append "Z" when no zone designator is present, else Date.parse
+// would read it in the machine's local timezone.
 function parseTurboHireDate(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const withZone = /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`;
@@ -121,21 +106,10 @@ export function normalizeTurboHire(company: AdapterCompany, j: TurboHireJob): No
   };
 }
 
-/**
- * Accumulate already-fetched filteredjobs list pages (page 2+) into `out`,
- * mutating it in place. Stops early on an empty page or once `total` is
- * reached. Throws — rather than warning and truncating — on a schema
- * mismatch, since a silent `break` here would return a partial list that
- * looks complete (page 1 already throws loudly on the same mismatch, so a
- * mid-stream one must too).
- *
- * Jobs already in `out` are skipped by `JobId`: this endpoint ignores
- * pageNumber/pageSize and answers with the whole board (Total ===
- * Result.length on all 10 live tenants, 2026-07-25), so a tenant that ever
- * reported a larger Total while still ignoring pageNumber would serve page 1
- * again for every "next page" — and stacking those would inflate the board
- * with duplicates instead of paginating.
- */
+// Accumulates already-fetched filteredjobs pages (page 2+) into `out`. Stops early on an
+// empty page or once `total` is reached; throws (not warn+truncate) on schema mismatch,
+// since page 1 already throws on the same mismatch and a mid-stream break would look complete.
+// Dedupes by JobId since this endpoint ignores pageNumber/pageSize and could re-serve page 1.
 export function mergeTurboHirePages(
   company: AdapterCompany,
   out: NormalizedPosting[],
@@ -166,12 +140,10 @@ export const turbohireAdapter: AtsAdapter = {
     const careersUrl = turboHireCareerPageUrl(company, orgId);
     const out: NormalizedPosting[] = [];
 
-    // One browser session: get the anon token, then page 1. Page 1 reveals
-    // `Total` for the deciding-whether-to-paginate-further check below.
-    // blockHeavyAssets:false — confirmed live on the Ola tenant: this app
-    // treats ANY aborted request (even an unrelated stylesheet) as fatal and
-    // reloads the main frame in a loop, which can tear down our evaluate
-    // mid-flight. It's a one-shot handshake, not a scrape, so leave assets on.
+    // One browser session: get the anon token, then page 1 (reveals Total).
+    // blockHeavyAssets:false — confirmed live on Ola: this app treats ANY aborted request
+    // (even an unrelated stylesheet) as fatal and reloads the main frame, tearing down our
+    // evaluate mid-flight. It's a one-shot handshake, not a scrape, so leave assets on.
     const first = await browserFetchJsonSteps(careersUrl, (soFar) => {
       if (soFar.length === 0) return { url: TURBOHIRE_TOKEN_URL };
       if (soFar.length === 1) {
@@ -187,16 +159,13 @@ export const turbohireAdapter: AtsAdapter = {
       return null;
     }, { blockHeavyAssets: false });
 
-    // Validation-only: the token itself was already consumed inside the
-    // browserFetchJsonSteps callback above to build the list request.
+    // Validation-only: the token was already consumed inside the callback above.
     parseOrThrow(TurboHireTokenSchema, first[0] ?? null, { provider: "turbohire", slug: company.slug, what: "token" });
     const parsed0 = parseOrThrow(TurboHireListSchema, first[1] ?? null, { provider: "turbohire", slug: company.slug });
     for (const j of parsed0.Result) out.push(normalizeTurboHire(company, j));
     const total = parsed0.Total ?? out.length;
 
-    // If more pages are needed, fetch them ALL in one more browser session
-    // (one navigation → re-derive the token → N in-page XHR fetches), instead
-    // of one navigation per page.
+    // If more pages are needed, fetch them ALL in one more browser session instead of one navigation per page.
     if (out.length < total) {
       const pageSize = parsed0.Result.length || 1;
       const pagesNeeded = Math.min(Math.ceil(total / pageSize), MAX_PAGES);

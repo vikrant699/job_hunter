@@ -1,4 +1,3 @@
-// src/ats/onecard.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeOnecard, onecardJdText, onecardListUrl, OnecardJobSchema } from "../onecard.js";
@@ -14,11 +13,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Shape reverse-engineered from the inline <script> on fplabs.tech/careers
-// that renders the job cards (Strapi-v4-style { id, attributes: {...} }).
-// No live job was up at capture time (data: [] — see module header), so this
-// fixture is built from the exact template field references, not a captured
-// real record.
+// Reverse-engineered from fplabs.tech's inline job-card script (Strapi-v4-style); not a captured real record since no job was live at capture time.
 const job: OnecardJob = {
   id: 7,
   attributes: {

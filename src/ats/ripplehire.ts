@@ -1,28 +1,9 @@
-// src/ats/ripplehire.ts — RippleHire candidate career boards, e.g.
-// <tenant>.ripplehire.com (UST/usource, Tata Steel/tatasteel).
-//
-// Token discovery: GET /candidate/careers 302s to
-// /candidate/?token=<TOKEN>&source=CAREERSITE. That token is a permanent
-// per-tenant short-link code (not a session secret) — stable across fresh,
-// cookie-less requests — so we discover it once (or read it from
-// apiMeta.token when already cached) and reuse it for every call.
-//
-//   list: POST https://<tenant>.ripplehire.com/candidate/candidatejobsearch
-//         Content-Type: application/x-www-form-urlencoded
-//         body: careerSiteUrlParams={"page":N,"search":"*:*","token":"<TOKEN>",
-//                                     "source":"CAREERSITE","pagesize":100}
-//               &lang=en
-//         -> { startJobIndex, maxJobSize, totalJobCount,
-//              jobVoList: [ { jobSeq, jobTitle, locations, jobPostingDate, ... } ] }
-//         NOTE: the server replies with XML unless the request sends
-//         Accept: application/json — atsFetchFormJson always does.
-//
-//   jd:   GET https://<tenant>.ripplehire.com/candidate/candidatejobdetail
-//              ?token=<TOKEN>&jobSeq=<id>&source=CAREERSITE&lang=en
-//         -> { jobVO: { jobDesc: "<html>", ... } }
-//
-// externalId = jobSeq (falls back to jobId; both are the same value on every
-// tenant observed so far, but jobSeq is what the detail endpoint expects).
+// src/ats/ripplehire.ts — RippleHire candidate career boards (<tenant>.ripplehire.com). Token
+// discovery: GET /candidate/careers 302s to /candidate/?token=<TOKEN>&source=CAREERSITE, a permanent
+// per-tenant short-link code (not a session secret), discovered once and reused. List endpoint
+// replies with XML unless the request sends Accept: application/json (atsFetchFormJson always does).
+// externalId is jobSeq (falls back to jobId — same value on every tenant seen, but jobSeq is what
+// the detail endpoint expects).
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -32,10 +13,7 @@ import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./ht
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 100; // requested page size; the server honors it (confirmed on UST's 1355-job board)
-// Safety cap: 500,000 jobs (PAGE 100 x MAX_PAGES 5000). Largest known tenant
-// (UST/usource) is ~1355 jobs -> ~14 pages, so this is generous headroom, not
-// a real ceiling. listPostings warns if hit.
+const PAGE = 100; // requested page size; the server honors it
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 export const RipplehireJobSchema = z.object({
@@ -64,7 +42,6 @@ export const RipplehireJdSchema = z.object({
     .optional(),
 });
 
-/** Extract the `token` query param from a URL string. Null if absent or unparseable. */
 export function extractRipplehireToken(url: string): string | null {
   try {
     return new URL(url).searchParams.get("token");
@@ -73,11 +50,6 @@ export function extractRipplehireToken(url: string): string | null {
   }
 }
 
-/**
- * Discover the tenant's static candidate-portal token by following the
- * /candidate/careers -> /candidate/?token=...&source=CAREERSITE redirect.
- * Null on any failure (network error, or no token in the resolved URL).
- */
 export async function discoverRipplehireToken(base: string): Promise<string | null> {
   try {
     const { finalUrl } = await atsFetchHtml(`${base}/candidate/careers`, { provider: "ripplehire" });
@@ -87,7 +59,6 @@ export async function discoverRipplehireToken(base: string): Promise<string | nu
   }
 }
 
-/** Resolve the token to use for a company: prefer the cached apiMeta value, else discover it fresh. */
 export async function resolveRipplehireToken(company: AdapterCompany, base: string): Promise<string> {
   const cached = company.apiMeta?.token;
   if (cached) return cached;
@@ -100,7 +71,6 @@ export function ripplehireListUrl(base: string): string {
   return `${base}/candidate/candidatejobsearch`;
 }
 
-/** Form body for the paged search endpoint (application/x-www-form-urlencoded). */
 export function ripplehireListBody(token: string, page: number, pagesize = PAGE): Record<string, string> {
   return {
     careerSiteUrlParams: JSON.stringify({ page, search: "*:*", token, source: "CAREERSITE", pagesize }),
@@ -115,15 +85,12 @@ export function ripplehireJdUrl(base: string, token: string, jobSeq: string): st
   );
 }
 
-/** Token-bearing candidate board link. RippleHire exposes no per-job public
- *  deep link in the API response, so every posting on a tenant links here —
- *  the confirmed-working board a candidate lands on and can search/browse. */
+// RippleHire exposes no per-job public deep link, so every posting on a tenant links to the board.
 export function ripplehireBoardUrl(base: string, token: string): string {
   return `${base}/candidate/?token=${encodeURIComponent(token)}&source=CAREERSITE`;
 }
 
-/** Map one API job to a NormalizedPosting. Null when the job has neither
- *  jobSeq nor jobId (no stable id / JD key), so the caller can skip it. */
+// Null when the job has neither jobSeq nor jobId (no stable id / JD key), so the caller can skip it.
 export function normalizeRipplehire(
   company: AdapterCompany,
   token: string,
@@ -146,7 +113,6 @@ export function normalizeRipplehire(
   };
 }
 
-/** Extract the JD body HTML from a job-detail response and strip to plain text. */
 export function parseRipplehireJd(raw: JsonValue): string {
   const parsed = RipplehireJdSchema.safeParse(raw);
   if (!parsed.success) return "";
@@ -159,10 +125,8 @@ export const ripplehireAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
     const token = await resolveRipplehireToken(company, base);
-    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
-    // closure defeats TS's narrowing (it can't see paginate() invoking the
-    // closure, so it treats `total` as permanently its initial `null`); a
-    // property write is narrowed correctly at each read below.
+    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside
+    // the fetchPage closure defeats TS's narrowing).
     const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({

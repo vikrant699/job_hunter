@@ -1,19 +1,7 @@
-// src/ats/recruitee.ts — Recruitee hosted career sites (<tenant>.recruitee.com).
-//
-// A plain GET of the tenant's public offers API returns the full board with
-// the complete JD inline, no auth and no pagination:
-//
-//   GET https://<tenant>.recruitee.com/api/offers/
-//     -> { offers: [ { id, title, status, description (HTML),
-//                       requirements (HTML), location, remote, tags,
-//                       department, careers_url, careers_apply_url,
-//                       published_at, ... } ] }
-//
-// `?limit=` is ignored — the endpoint always returns the full list. Both
-// `description` and `requirements` carry full HTML and are concatenated for
-// jdText, so no fetchJd is needed. The endpoint has only ever been observed
-// returning status:"published" offers, but we filter defensively anyway
-// (verified live 2026-07-10 against flextrade + fullcreative tenants).
+// src/ats/recruitee.ts — Recruitee hosted career sites (<tenant>.recruitee.com). A plain GET of
+// https://<tenant>.recruitee.com/api/offers/ returns the full board with description + requirements
+// (both full HTML) inline, no auth/pagination, so no fetchJd needed; filtered defensively to
+// status:"published" even though nothing else has been observed.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -41,13 +29,10 @@ export type RecruiteeOffer = z.infer<typeof RecruiteeOfferSchema>;
 
 const ListResponseSchema = z.object({ offers: z.array(RecruiteeOfferSchema) });
 
-/** Tenant host origin, e.g. "https://flextrade.recruitee.com". Prefers an
- *  explicit tenant_url host when set, else builds it from the slug. */
 export function recruiteeBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.recruitee.com`);
 }
 
-/** Concatenate description + requirements (both full HTML) into plain-text JD. */
 function buildJdText(o: RecruiteeOffer): string {
   return [htmlToText(o.description), htmlToText(o.requirements)].filter(Boolean).join("\n\n");
 }
@@ -67,16 +52,11 @@ export function normalizeRecruitee(company: AdapterCompany, o: RecruiteeOffer): 
   };
 }
 
-/** Zod-validate the raw `/api/offers/` body. Throws with an actionable
- *  message (rather than letting a zod error bubble raw) on a schema
- *  mismatch — mirrors zohorecruit's parseJobsIsland. */
 export function parseRecruiteeOffers(raw: JsonValue, slug: string): RecruiteeOffer[] {
   const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "recruitee", slug });
   return parsed.offers;
 }
 
-/** Full JSON -> postings pipeline, exposed so tests cover filtering + mapping
- *  without HTTP (validate -> keep only status:"published" -> normalize). */
 export function postingsFromRecruiteeJson(company: AdapterCompany, raw: JsonValue): NormalizedPosting[] {
   return parseRecruiteeOffers(raw, company.slug)
     .filter((o) => o.status === "published")

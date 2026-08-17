@@ -208,8 +208,7 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     const summary = await runBlast({ profileId: "divya", limit: 1, force: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 1);
     assert.equal(summary.lastBatchBounceRatePct, 50);
-    // The Blast Log projection must carry the sweep's bounce over to the sheet,
-    // with the profile in column A.
+    // Blast Log must carry the sweep's bounce over, with the profile in column A.
     const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[1] === "old1@x.com");
     assert.equal(bouncedRow?.[0], "divya");
     assert.equal(bouncedRow[4], "bounced");
@@ -234,8 +233,7 @@ test("verify-only: sweeps and projects the log but never reads template/content 
 });
 
 test("variant rotation continues across batches (index base = drafted-ever count)", async () => {
-  // Company names must pass companyForMention's >=3-char gate, otherwise every
-  // variant would carry a "-fallback" suffix and hide the rotation being tested.
+  // Company names must pass companyForMention's >=3-char gate or every variant gets a "-fallback" suffix.
   const h = makeHarness([
     HEADER,
     ["Alpha Co", "a@a.com", "", ""], ["Beta Co", "b@b.com", "", ""], ["Gamma Co", "c@c.com", "", ""], ["Delta Co", "d@d.com", "", ""],

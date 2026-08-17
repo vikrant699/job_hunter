@@ -10,8 +10,7 @@ export interface Company {
   status: CompanyStatus;
   denyReason: string | null;
   discoveredVia: string | null;
-  /** Adapter-specific URL. For Workday: full tenant URL e.g.
-   *  "https://apple.wd1.myworkdayjobs.com/External". Null otherwise. */
+  /** Adapter-specific URL, e.g. full Workday tenant URL. Null otherwise. */
   tenantUrl: string | null;
   /** Adapter-specific tokens (Keka orgGuid, Eightfold domain, Oracle siteNumber). Null otherwise. */
   apiMeta: Record<string, string> | null;
@@ -34,43 +33,30 @@ export type AdapterCompany = Pick<Company, "provider" | "slug" | "name" | "caree
 // Runtime validator for this shape lives in schemas.ts (UserProfileSchema); compile-enforced by the satisfies clause in schemas.ts.
 /** Everything personal about who you are and what roles you want. */
 export interface UserProfile {
-  /** Stable per-profile id — stamped onto every posting/run row. Defaults to
-   *  "default"; set by the loader from --profile, NOT hand-edited here. */
+  /** Stable per-profile id, stamped onto every posting/run row. Set by the loader from --profile. */
   id?: string | undefined;
-  /** Per-profile relevance-gate prompt template (same {{placeholders}} as the
-   *  default in src/llm/prompts/gate.ts: resume, hardDealBreakers,
-   *  softDealBreakers, jobTitle, companyName, jdText). Lets a profile screen for
-   *  a different role family (e.g. frontend engineer vs data analyst). Falls
-   *  back to the global default when unset. */
+  /** Per-profile relevance-gate prompt template; lets a profile screen for a different role family. Falls back to the global default. */
   gatePrompt?: string | undefined;
-  /** Full resume text the relevance gate judges against. NOT set in this module:
-   *  it is loaded at startup from config/resume.txt (generated once from
-   *  config/resume.pdf). The bot stops if no resume PDF/text is present. */
+  /** Loaded at startup from config/resume.txt (generated from config/resume.pdf); the bot stops if absent. */
   resumeText?: string | undefined;
-  /** Free-text pitch inserted into the outreach email template
-   *  ({{profile_pitch}}). Omit for no pitch paragraph. */
+  /** Free-text pitch inserted into the outreach email template ({{profile_pitch}}). */
   profilePitch?: string | undefined;
-  /** Display name used in outreach email subjects/signatures. Falls back to
-   *  the profile id ({@link UserProfile.id}) when unset. */
+  /** Display name for outreach email subjects/signatures. Falls back to the profile id when unset. */
   senderName?: string | undefined;
-  /** Links appended to the outreach email signature (portfolio, LinkedIn,
-   *  GitHub, etc). Joined with " | " on one line; omit for none. */
+  /** Links appended to the outreach email signature, joined with " | ". */
   senderLinks?: string[] | undefined;
   hardDealBreakers: string[];
   softDealBreakers: string[];
   filters: {
     /** Your current years of experience (can be fractional, e.g. 4.5). */
     candidateYoe: number;
-    /** Postings whose minimum-required YOE is >= this get SILENTLY dropped.
-     *  Set higher than your YOE — 1.0 to 1.5 above is a sensible default. */
+    /** Postings whose minimum-required YOE is >= this get silently dropped. Set 1.0-1.5 above your YOE. */
     hardYoeCap: number;
     /** When the JD doesn't state a YOE, do we accept (true) or yellow-flag (false)? */
     yoeAcceptUnspecified: boolean;
     /** Match score above which a posting goes green (vs yellow). 0..1 scale. */
     matchThreshold: number;
-    /** Per-profile override of the silent-drop floor: postings scoring below this
-     *  are silently dropped as noise. Defaults to the global SILENT_SCORE_FLOOR
-     *  (0.65) when unset. Must be below matchThreshold so a yellow band exists. */
+    /** Override of the silent-drop floor (defaults to SILENT_SCORE_FLOOR); must stay below matchThreshold so a yellow band exists. */
     silentFloor?: number | undefined;
   };
   location: {
@@ -82,19 +68,12 @@ export interface UserProfile {
     remoteAcceptStrings: string[];
     /** Phrases that mean "out of region only" — reject even if a target city appears. */
     rejectIfPresent: string[];
-    /** Distinctive out-of-region place names (foreign cities/states/countries),
-     *  matched as whole words against a posting's TITLE. Catches scraped postings
-     *  that carry the location in the title (e.g. "Data Scientist — Sydney, NSW")
-     *  while a foreign HQ named only in the JD body still won't reject. */
+    /** Foreign place names matched as whole words against a posting's title only (a foreign HQ named only in the JD body won't reject). */
     rejectRegions?: string[] | undefined;
   };
   /** Cheap regex pre-filter on job titles. A match means "skip before LLM call". */
   titleDenyPatterns: readonly RegExp[];
-  /** Title patterns that must NEVER be silently dropped. When a posting's title
-   *  matches one of these and its score is below the silent floor — but it is NOT
-   *  a hard deal-breaker and NOT over the hard YOE cap — it is floored to yellow so
-   *  it always surfaces for review. For a rare sub-specialty worth eyeballing even
-   *  at a borderline score (e.g. React Native for a frontend engineer). */
+  /** Title matches here are floored to yellow instead of silently dropped (unless a hard deal-breaker or over the YOE cap). */
   neverSilenceTitlePatterns?: readonly RegExp[] | undefined;
   servicesDenylist: {
     /** Slug fragments — if the company slug contains any of these, deny. */

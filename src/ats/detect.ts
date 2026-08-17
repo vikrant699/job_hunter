@@ -1,18 +1,8 @@
 import { ProviderSchema } from "../schemas.js";
 import type { Provider } from "../schemas.js";
 
-/**
- * Universal ATS detection + pattern extraction.
- *
- * "Supported" providers have an AtsAdapter and can be promoted to ats-api.
- * "Detect-only" providers (iCIMS / Eightfold / etc.) are recognized for
- * reporting but need an adapter before they can be promoted.
- */
-
-/** Providers the detector can recognize in page HTML. A recognized provider
- *  "hasAdapter" exactly when it is a ProviderSchema enum value - detect-only
- *  vendors (personio, successfactors-ui5) are recognized for logging but cannot
- *  be promoted to ats-api. */
+// Universal ATS detection + pattern extraction. "Supported" providers have an AtsAdapter and can be promoted to
+// ats-api; "detect-only" providers are recognized for reporting but need an adapter first.
 export type DetectableProvider =
   | Provider
   | "icims" | "personio" | "jobvite" | "consider" | "talentzq" | "successfactors-ui5";
@@ -20,9 +10,7 @@ export type DetectableProvider =
 interface PatternDef {
   provider: DetectableProvider;
   re: RegExp;
-  // careersUrl is passed through so a pattern can fall back to the careers
-  // page's own host when its match carries no host of its own (see
-  // "consider" below); most patterns ignore the second argument.
+  // careersUrl lets a pattern fall back to the careers page's own host when its match carries none (see "consider").
   parse(match: string, careersUrl: string): { url: string; slug: string } | null;
 }
 
@@ -244,18 +232,9 @@ const PATTERNS: PatternDef[] = [
       return { url: `https://${u.host}/career-page`, slug };
     },
   },
-  // No turbohire URL pattern: custom accountName + orgId (careerpage UUID) needed,
-  // browser-backed. No zappyhire pattern: backend host baked per-tenant in the JS
-  // bundle. Both rely on registry seeding.
-  // No eightfoldpcs URL pattern: each tenant runs the PCSX API on its OWN
-  // careers domain (careers.qualcomm.com, apply.careers.microsoft.com) with no
-  // shared host signature — relies on registry seeding, like jibe/successfactors.
-  // No ceipal URL pattern: its widget carries per-tenant api_key/cp_id in embed
-  // attributes on the company's own site, with no shared per-tenant host/path.
-  // No jibe URL pattern: iCIMS-CX on custom domains, no shared host signature.
-  // No zwayam URL pattern: tenants on fully custom domains (careers.cyient.com)
-  // + companyId needs bundle discovery, like keka (all rely on registry seeding /
-  // careers-page HTML detection).
+  // No pattern for turbohire/zappyhire/eightfoldpcs/ceipal/jibe/zwayam: each needs per-tenant config (accountName,
+  // backend host, own careers domain, embed attributes, or bundle discovery) with no shared host signature to
+  // regex-match - all rely on registry seeding instead.
   {
     provider: "ripplehire",
     re: /https?:\/\/[a-z0-9-]+\.ripplehire\.com\b/gi,
@@ -301,19 +280,10 @@ const PATTERNS: PatternDef[] = [
     },
   },
   {
-    // Deliberately NOT "successfactors" — that name is a ProviderSchema member,
-    // which would make hasAdapter compute to true and falsely advertise an
-    // adapter for this shape. career<N>.successfactors.(com|eu)/career?company=
-    // <slug> is the shared-host SAPUI5 portal (e.g.
-    // career10.successfactors.com/career?company=bioconlimi for Biocon) —
-    // a DIFFERENT engine from the one src/ats/successfactors.ts talks to. That
-    // adapter only handles the LEGACY Jobs2Web engine on each tenant's own
-    // CUSTOM domain (e.g. jobs.heromotocorp.com via GET <origin>/search/?q=...),
-    // which shares no host signature across tenants and so has no pattern here
-    // — it's found via registry seeding instead, like jibe. This SAPUI5 shape
-    // was previously unmatched entirely (boards on it silently stayed on
-    // llm-scrape); it's detect-only ("successfactors-ui5", hasAdapter:false)
-    // until an adapter for it exists.
+    // Deliberately not "successfactors": that's a ProviderSchema member and would falsely advertise an adapter.
+    // This is the shared-host SAPUI5 portal (career<N>.successfactors.com/career?company=<slug>), a DIFFERENT
+    // engine from src/ats/successfactors.ts (which only handles the legacy Jobs2Web engine on each tenant's own
+    // custom domain). Detect-only until an adapter for this shape exists.
     provider: "successfactors-ui5",
     re: /https?:\/\/career\d*\.successfactors\.(?:com|eu)\/career\?company=([A-Za-z0-9_-]+)/gi,
     parse(m) {
@@ -323,12 +293,8 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "consider",
-    // Consider.co's "search jobs" widget (seen on VC portfolio career pages,
-    // e.g. careers.peakxv.com) calls fetch("/api-boards/search-jobs") — usually
-    // a same-origin RELATIVE path on the customer's own domain rather than an
-    // absolute consider.co URL. Fall back to the careers page's own host when
-    // the match carries none of its own. No adapter yet (see
-    // DetectableProvider) — hasAdapter is false until one is built.
+    // Consider.co's widget usually calls a same-origin RELATIVE path rather than an absolute consider.co URL, so
+    // this falls back to the careers page's own host when the match carries none. No adapter yet.
     re: /(?:https?:\/\/[a-z0-9.-]+)?\/api-boards\/search-jobs\b/gi,
     parse(m, careersUrl) {
       const abs = /^https?:\/\/([a-z0-9.-]+)\//i.exec(m)?.[1];
@@ -340,8 +306,7 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "talentzq",
-    // <tenant>.talentzq.io shared host (e.g. pratilipi.talentzq.io/api/1009/jd).
-    // No adapter yet — hasAdapter is false until one is built.
+    // <tenant>.talentzq.io shared host (e.g. pratilipi.talentzq.io/api/1009/jd). No adapter yet.
     re: /https?:\/\/([a-z0-9-]+)\.talentzq\.io\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -519,9 +484,7 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "zohorecruit",
-    // <tenant>.zohorecruit.com|.in hosted career site. The segment after
-    // /jobs/ is the tenant's career-site page name — usually "Careers" but
-    // tenant-chosen (e.g. "Job-openings") — so preserve it when present.
+    // Segment after /jobs/ is the tenant's career-site page name (usually "Careers", but tenant-chosen) - preserve it.
     re: /https?:\/\/[a-z0-9-]+\.zohorecruit\.(?:com|in)\b[^\s"'<>]*/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -548,9 +511,7 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "skima",
-    // Tenants sit on custom domains whose pages carry a canonical/asset link
-    // to "<custom-domain>.skima.ai" (e.g. careers.nykaa.com.skima.ai). The
-    // tenant board is the custom domain itself — strip the vendor suffix.
+    // Tenants sit on custom domains whose pages link to "<custom-domain>.skima.ai" - strip the vendor suffix.
     re: /https?:\/\/[a-z0-9.-]+\.skima\.ai\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -571,10 +532,7 @@ export interface AtsCandidate {
   hasAdapter: boolean;
 }
 
-/**
- * HTML often double-escapes ATS URLs ("https:\/\/..." in inline JSON,
- * "&amp;" in attributes). Normalize before regex matching so we don't miss them.
- */
+/** HTML often double-escapes ATS URLs ("https:\/\/..." in inline JSON, "&amp;" in attributes) - normalize first. */
 function normalize(html: string): string {
   return html
     .replace(/\\\//g, "/")

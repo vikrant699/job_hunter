@@ -126,18 +126,12 @@ const selectOutreachSentTabStmt = db.prepare(`
   ORDER BY sent_at DESC
 `);
 
-/** Every outreach row that has moved past 'draft' (sent, bounced, or
- *  verified), across ALL profiles, newest sent_at first. Feeds the Sent
- *  sheet-tab projection, which shows global state rather than one profile. */
+/** Every outreach row past 'draft', across all profiles, newest first; feeds the Sent sheet-tab projection. */
 export function selectOutreachSentTab(): OutreachRow[] {
   return queryAll(selectOutreachSentTabStmt, OutreachRowSchema).map(rowToOutreach);
 }
 
-// Patch semantics: COALESCE falls back to the existing column value whenever the
-// caller passes null for a field it isn't updating. This means a genuine "clear
-// this field back to null" is not expressible through this function — none of
-// the current callers need that, and status/id are always required so the row
-// is always addressable.
+// Patch semantics: COALESCE falls back to the existing value on null, so a genuine clear-to-null isn't expressible here.
 const updateOutreachStatusStmt = db.prepare(`
   UPDATE outreach SET
     status           = :status,
@@ -159,8 +153,7 @@ export interface UpdateOutreachStatusInput {
   failureDetail?: string | null;
 }
 
-/** Patch-updates an outreach row's status plus any provided fields. Fields left
- *  undefined/omitted are coalesced to their current DB value (unchanged). */
+/** Patch-updates an outreach row; omitted fields are coalesced to their current DB value. */
 export function updateOutreachStatus(input: UpdateOutreachStatusInput): void {
   updateOutreachStatusStmt.run({
     id: input.id,

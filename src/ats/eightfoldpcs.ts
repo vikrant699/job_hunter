@@ -1,18 +1,8 @@
-// src/ats/eightfoldpcs.ts — Eightfold "PCSX" career-site JSON API, used by
-// large enterprises on their OWN careers host (e.g. careers.qualcomm.com,
-// apply.careers.microsoft.com). Distinct from src/ats/eightfold.ts, which
-// targets the shared *.eightfold.ai tenant hosts and the /api/apply/v2/jobs
-// API — PCSX tenants live on custom domains with no shared host signature.
-//
-//   list:   GET <host>/api/pcsx/search?domain=&query=&location=&start=&num=&sort_by=relevance
-//             -> { data: { positions[], count } }
-//   detail: GET <host>/api/pcsx/position_details?position_id=&domain=&hl=en
-//             -> { data: { jobDescription, ... } }
-//
-// host lives in tenant_url, jobs domain in apiMeta.domain, optional
-// apiMeta.location narrows server-side. Page size is server-fixed at 10 —
-// the `num` param is accepted but ignored (verified live against Qualcomm),
-// same as Jibe. Two-phase: job_description is absent from the list response.
+// src/ats/eightfoldpcs.ts — Eightfold "PCSX" career-site JSON API for enterprises on their own careers host
+// (e.g. careers.qualcomm.com), distinct from eightfold.ts's shared *.eightfold.ai tenants.
+// list: GET <host>/api/pcsx/search?domain=&location=&start=&num=; detail: GET <host>/api/pcsx/position_details?position_id=&domain=.
+// host in tenant_url, domain in apiMeta.domain (apiMeta.location narrows server-side). Page size is server-fixed at
+// 10 (num= accepted but ignored, same as Jibe); two-phase, job_description is absent from the list response.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -22,7 +12,7 @@ import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 10; // server-fixed; the num= param is ignored
+const PAGE = 10; // server-fixed page size; num= is ignored
 
 const PositionSchema = z.object({
   id: z.union([z.number(), z.string()]),
@@ -76,9 +66,7 @@ export function eightfoldPcsDetailsUrl(company: AdapterCompany, positionId: stri
   return `${host}/api/pcsx/position_details?position_id=${encodeURIComponent(positionId)}&domain=${encodeURIComponent(domain)}&hl=en`;
 }
 
-/** Unwrap the `data.{positions,count}` envelope. `slug` defaults to the
- *  provider name for callers (tests) with no company context; the adapter
- *  itself passes the real company slug. */
+/** Unwrap the `data.{positions,count}` envelope; `slug` defaults for callers (tests) with no company context. */
 export function eightfoldPcsPageJobs(
   pageJson: JsonValue,
   slug = "eightfoldpcs",

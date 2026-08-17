@@ -1,27 +1,5 @@
-// src/ats/successfactors.ts — SAP SuccessFactors career sites on the LEGACY
-// Jobs2Web / classic Career Site Builder engine, mounted on each company's
-// CUSTOM domain (e.g. jobs.heromotocorp.com, careers.sunpharma.com). NOT the
-// gated SAPUI5 app at career4.successfactors.com.
-//
-// The engine serves clean, unauthenticated, server-rendered Bootstrap-3 HTML:
-//
-//   list: GET <origin>/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=<N>
-//         -> rows `<tr class="data-row">`, each with
-//              a.jobTitle-link  href="/job/<slug>/<reqId>/"  (the title)
-//              .jobLocation     (city/region string)
-//              .jobDate         (posted date, tenant-formatted)
-//         Total count is inline as text "Results 1 to 25 of <TOTAL>".
-//         Page size is a TENANT setting, not an engine constant: 25 rows on
-//         jobs.heromotocorp.com, 10 on jobs.mahindracareers.com. Arbitrary
-//         startrow offsets are honored, so we advance by the row count the
-//         page actually returned and let paginate infer the size.
-//
-//   jd:   GET <origin>/job/<slug>/<reqId>/  -> full rich HTML in span.jobdescription
-//
-// Column ORDER varies per tenant (some put date before title), so every field is
-// selected by class WITHIN each row, never by column position. Each row renders
-// twice (a .hidden-phone desktop copy and a .visible-phone mobile copy); we take
-// the first match of each class per row, which is stable across both layouts.
+// src/ats/successfactors.ts — SAP SuccessFactors LEGACY Jobs2Web/Career Site Builder engine, on each company's custom domain (NOT the gated SAPUI5 app at career4.successfactors.com).
+// List: GET <origin>/search/?...&startrow=<N>, unauthenticated server-rendered HTML with tr.data-row rows; page size is a per-TENANT setting (10-25), so paginate() infers it from the first page. JD: GET <origin>/job/<slug>/<reqId>/, span.jobdescription.
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -32,37 +10,18 @@ import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shar
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 
-// Safety cap: 50,000-125,000 jobs, depending on the tenant's page size (10-25
-// rows x MAX_PAGES 5000). paginate stops earlier once it reaches the parsed
-// total; this only bites pathologically large boards. listPostings logs when hit.
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const MAX_PAGES = 5000; // runaway backstop only - paginate stops earlier once it reaches the parsed total
 
 /** Paged search URL at the given 0-based row offset. */
 export function successfactorsSearchUrl(origin: string, startrow: number): string {
   return `${origin}/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=${startrow}`;
 }
 
-// A custom domain that stops serving SuccessFactors — parked by the registrar,
-// re-pointed at a marketing page, or fronted by a block page that answers 200 —
-// has no rows to parse, so it used to report a healthy board with zero openings
-// indefinitely. Detection has to be a POSITIVE "the engine rendered" marker.
-//
-// It deliberately is NOT the results banner or the row containers. Probed
-// 2026-08-02 across all 19 live rows: the banner is on 12, tr.data-row on 12,
-// li.job-tile on 5 — and careers.tatapower.com and careers.mankindpharma.com
-// have NONE of the three, because they are live Jobs2Web boards currently
-// rendering the engine's own "There are currently no open positions" page. A
-// guard keyed on those would quarantine both today, and every tenant that ever
-// empties out. The same page shape is reproducible on a healthy tenant by
-// searching for a nonsense keyword.
-//
-// The engine's asset namespace survives all of that: every page it serves loads
-// /platform/css/j2w/… and /platform/js/j2w/…, j2w being the Jobs2Web lineage
-// named at the top of this file. Present on 19/19 live tenants, on both empty
-// boards, and on the no-results pages of careers.payu.in and jobs.sap.com.
+// Detecting "board is dead" (parked/re-pointed domain) needs a POSITIVE "the engine rendered" marker, not the results banner or row containers - some live but currently-empty boards have neither (reproducible on any healthy tenant by searching a nonsense keyword).
+// Every J2W page loads /platform/{css,js}/j2w/ assets, including on empty and no-results pages, so its absence (not zero rows) is what marks a dead tenant.
 const J2W_ENGINE_RE = /\/platform\/(?:css|js)\/j2w\//i;
 
-/** Whether this page came from the Jobs2Web engine at all — see J2W_ENGINE_RE. */
+/** Whether this page came from the Jobs2Web engine at all - see J2W_ENGINE_RE. */
 export function isSuccessfactorsEngine(html: string): boolean {
   return J2W_ENGINE_RE.test(html);
 }
@@ -75,22 +34,13 @@ export function parseSuccessfactorsTotal(html: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Location from one tile, across the three tenant variants seen live
- * (2026-08-13): (1) the standard labeled .section-field.location block;
- * (2) tenants that relabel a customfieldN as "Location"/"City" (cipla:
- * customfield2) or expose only "Country/Region" (renew-power: value "IN");
- * (3) tenants whose tiles carry NO fields at all (icici-direct) - fall back
- * to the city token SF itself bakes into the job slug
- * (/job/NAVI-MUMBAI-Sr_-Manager/id/ -> "NAVI MUMBAI").
- */
+/** Location for a tile: standard labeled block, else a tenant-relabeled customfield ("Location"/"City", or a bare "Country/Region"), else fall back to the city token baked into the job slug (e.g. "/job/NAVI-MUMBAI-.../id/"). */
 type TileSelection = ReturnType<cheerio.CheerioAPI>;
 export function tileLocation($: cheerio.CheerioAPI, $tile: TileSelection, jobSlug: string): string | null {
   const std = collapseWs($tile.find(".section-field.location div[id$='-value']").first().text());
   if (std !== "") return std;
 
-  // Boxed: assignments inside the .each() closure defeat TS narrowing on
-  // bare lets (same pattern as peoplestrong's total box).
+  // Boxed: assignments inside the .each() closure defeat TS narrowing on bare lets.
   const found: { labeled: string | null; country: string | null } = { labeled: null, country: null };
   $tile.find(".section-field").each((_, f) => {
     const $f = $(f);
@@ -103,18 +53,13 @@ export function tileLocation($: cheerio.CheerioAPI, $tile: TileSelection, jobSlu
   if (found.labeled !== null) return found.labeled;
   if (found.country !== null) return found.country;
 
-  // Slug fallback: leading UPPERCASE tokens before the title words are the
-  // city SF prepends to the slug. Take hyphen-joined leading caps tokens.
+  // Slug fallback: leading UPPERCASE tokens before the title words are the city SF prepends to the slug.
   const m = /^([A-Z][A-Z .]*(?:-[A-Z][A-Z .]*)*)-/.exec(jobSlug);
   const city = m?.[1]?.replace(/-/g, " ").trim() ?? "";
   return city !== "" && city.length >= 3 ? city : null;
 }
 
-/** reqId + slug from a "/job/<slug>/<reqId>/" href. The "/job/<slug>/<reqId>"
- *  pair may appear ANYWHERE in the path, not just at the root: multi-brand
- *  tenants prefix real postings with a subsidiary segment
- *  (e.g. "/TaroPharma/job/Hawthorne-Line-Mechanic/6196744/"). Null when the
- *  shape doesn't match. */
+/** reqId + slug from a "/job/<slug>/<reqId>/" href; the pair may appear anywhere in the path, not just at the root (multi-brand tenants prefix a subsidiary segment). Null when the shape doesn't match. */
 export function parseJobHref(href: string): { slug: string; reqId: string } | null {
   const path = href.split(/[?#]/)[0] ?? "";
   const m = path.match(/\/job\/([^/]+)\/([^/]+)\/?$/);
@@ -122,9 +67,8 @@ export function parseJobHref(href: string): { slug: string; reqId: string } | nu
   return { slug: m[1], reqId: m[2] };
 }
 
-/** Parse one /search/ page: its postings, the raw `<tr class="data-row">` count
- *  (the server's page size — used to advance the row offset regardless of how
- *  many rows survive filtering), and the reported total (if present). */
+// Column ORDER varies per tenant (some put date before title), so every field is selected by class within a row, never by position; each row renders twice (desktop/mobile copies) and the first match of each class is taken.
+/** Parse one /search/ page: its postings, the raw row count (used to advance the offset regardless of how many rows survive filtering), and the reported total (if present). */
 export function parseSuccessfactorsSearch(
   html: string,
   company: AdapterCompany,
@@ -172,10 +116,7 @@ export function parseSuccessfactorsSearch(
     });
   });
 
-  // Tile-view skin: some tenants (e.g. careers.trentlimited.com) render the
-  // same engine's results as <li class="job-tile" data-url="/job/<slug>/<reqId>/">
-  // cards instead of <tr class="data-row"> table rows. Same jobTitle-link
-  // anchor inside; location lives in a labeled .section-field.location block.
+  // Tile-view skin: some tenants render the same engine's results as <li class="job-tile"> cards instead of <tr class="data-row"> rows, with the same jobTitle-link anchor inside.
   if (rows.length === 0) {
     const tiles = $("li.job-tile");
     tiles.each((_, tile) => {
@@ -230,46 +171,28 @@ export const successfactorsAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const origin = tenantOrigin(company);
-    // Boxed in an object: bare `let`s mutated only inside the fetchPage closure
-    // defeat TS's narrowing (it can't see paginate() invoking the closure, so it
-    // treats them as permanently their initial `null`); property writes are
-    // narrowed correctly at each read below. `pageSize` is the tenant's own
-    // first-page row count, needed only for the cap math in the logs.
+    // Boxed in an object: bare `let`s mutated only inside the fetchPage closure defeat TS's narrowing; property writes narrow correctly at each read below.
     const state: { total: number | null; pageSize: number | null } = { total: null, pageSize: null };
-    // Tracks which externalIds have been seen, purely to detect an
-    // all-duplicate page below - the actual cross-page dedup of what
-    // ACCUMULATES into `postings` is delegated to paginate()'s dedupeBy.
-    // (paginate() has no way to report "how many of this page were new" back
-    // out, so this lightweight peek - populated the same way dedupeBy's own
-    // internal set is - is the only way to compute that signal.)
+    // Tracks seen externalIds purely to detect an all-duplicate page below; actual cross-page dedup of `postings` is delegated to paginate()'s dedupeBy.
     const seenIds = new Set<string>();
 
     const postings = await paginate<NormalizedPosting>({
       provider: "successfactors",
       company: company.slug,
-      // Tenant-set, not engine-set: a hardcoded 25 made the first page of every
-      // 10-row tenant look short and stopped mahindra-group at 10 of 608.
+      // Tenant-set, not engine-set - a hardcoded 25 falsely looks short on 10-row tenants and truncates them at page 1.
       pageSize: "infer",
       maxPages: MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, pageNum) => {
-        // Browser UA: some tenants 404 the bot UA outright (tataelectronics,
-        // ihcltata - verified 2026-08-14); the browser UA is accepted by all.
+        // Some tenants 404 the bot UA outright; browser UA is accepted by all.
         const html = await atsFetchText(successfactorsSearchUrl(origin, offset), {
           provider: "successfactors",
           userAgent: BROWSER_UA,
         });
         const page = parseSuccessfactorsSearch(html, company);
-        // Page 1 only, and only once it has produced no row containers at all.
-        // A page that rendered rows is a live board whatever its assets look
-        // like, and past the last page the engine keeps serving its own (j2w)
-        // markup anyway — so gating here costs nothing and removes any chance
-        // of failing a board that already yielded postings.
+        // Page 1 only, and only once it produced no row containers - a page that rendered rows is a live board regardless, and never gates a board that already yielded postings.
         if (pageNum === 0 && page.rowCount === 0 && !isSuccessfactorsEngine(html)) {
-          // A bot-blocker's challenge page carries none of the engine's assets
-          // either — the "200-served block page" this guard's own note named while
-          // still charging it to the row. Reclassified first, so an edge refusing
-          // us is retried and deferred instead of counting toward quarantine.
+          // A bot-blocker's challenge page carries none of the engine's assets either - reclassify first so an edge refusing us is retried/deferred instead of counted toward quarantine.
           assertNotEdgeChallenge("successfactors", successfactorsSearchUrl(origin, 0), html);
           throw new Error(
             `successfactors: tenant does not exist at ${successfactorsSearchUrl(origin, 0)} — the ` +
@@ -280,25 +203,17 @@ export const successfactorsAdapter: AtsAdapter = {
         }
         if (state.total === null) state.total = page.total;
         if (state.pageSize === null && page.rowCount > 0) state.pageSize = page.rowCount;
-        // Some tenants CLAMP an out-of-range startrow and re-serve the last
-        // page instead of an empty one (verified live on careers.acer.com,
-        // whose tile skin also omits the results banner, so `total` never
-        // stops the loop either). A page that adds no NEW reqIds is the end
-        // of the board — without this, paginate spins to MAX_PAGES.
+        // Some tenants clamp an out-of-range startrow and re-serve the last page instead of an empty one; a page adding no NEW reqIds is the end of the board (without this, paginate spins to MAX_PAGES).
         const allSeen = page.postings.length > 0 && page.postings.every((p) => seenIds.has(p.externalId));
         for (const p of page.postings) seenIds.add(p.externalId);
         if (allSeen) {
           return { items: [], total: page.total, rawCount: 0 };
         }
-        // Advance by the server's row count (whatever a full page is for this
-        // tenant), NOT the postings that survive dedupeBy — otherwise a repeat row
-        // shortens the page and paginate would stop before the real last page.
+        // Advance by the server's row count, not the postings that survive dedupeBy - a repeat row would otherwise shorten the page and stop before the real last one.
         return { items: page.postings, total: page.total, rawCount: page.rowCount };
       },
     });
 
-    // Warn on a genuine safety-cap truncation (board needs more pages than
-    // MAX_PAGES).
     const total = state.total;
     const pageSize = state.pageSize;
     if (total !== null && pageSize !== null && Math.ceil(total / pageSize) > MAX_PAGES) {
@@ -307,10 +222,7 @@ export const successfactorsAdapter: AtsAdapter = {
         "successfactors pagination capped — board larger than the safety limit",
       );
     } else if (total !== null && postings.length < total) {
-      // Collected fewer postings than the banner total without hitting the cap.
-      // NOT necessarily benign — a row whose href we couldn't parse is a REAL
-      // dropped posting (e.g. an unhandled brand-prefixed /job/ path), so surface
-      // it rather than swallowing it silently.
+      // Not necessarily benign - a row whose href we couldn't parse is a real dropped posting, so surface it rather than swallowing it silently.
       logger.info(
         { slug: company.slug, collected: postings.length, total },
         "successfactors collected fewer postings than the reported total — some rows were not parsed",

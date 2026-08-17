@@ -1,55 +1,9 @@
-// src/ats/htmlboard.ts — generic selector-driven adapter for bespoke careers
-// pages that fully server-render their job list as plain HTML (no JS, no
-// auth). One adapter, many single-company boards: the per-company CSS
-// selectors live in apiMeta (all values strings, per the apiMeta contract):
-//
-//   listUrl          optional — board URL; defaults to tenantUrl/careersUrl.
-//   itemSelector     REQUIRED — one match per job card/row/block.
-//   titleSelector    optional — title element inside the item (default: the
-//                    item's first <a>, else the item itself).
-//   linkSelector     optional — anchor inside the item for the job detail
-//                    link (default "a"); resolved against the list URL.
-//   locationSelector optional — location element inside the item.
-//   locationRegex    optional — regex with ONE capture group, run over the
-//                    item's (or detail page's) plain text when there is no
-//                    dedicated location element (e.g. "Location\\s*:?-?\\s*([^\\n|]+)").
-//   fixedLocation    optional — hardcoded location when the board states it
-//                    only once for all jobs (single-office companies).
-//   jdSelector       optional — JD element INSIDE the item (single-page
-//                    boards that inline the full JD under each job block).
-//   detailJdSelector optional — JD element on the linked detail page,
-//                    fetched lazily via fetchJd. If neither jd selector is
-//                    set, fetchJd falls back to the detail page's <main>/<body>.
-//   locationAttr     optional — read the location from this ATTRIBUTE of the
-//                    item element (e.g. "data-location") instead of a child's
-//                    text. Checked before locationSelector.
-//   pageParam        optional — query-param name for 1-based pagination
-//                    (e.g. "page"); page 1 is the bare listUrl. Paging stops
-//                    at the first page that adds no new items.
-//   titleRegex       optional — regex with ONE capture group applied to the
-//                    raw title text (e.g. "^Job Function:\\s*(.+)$"); on no
-//                    match the raw text is kept.
-//   excludeTitleRegex optional — items whose title matches are skipped
-//                    (section headings on hand-authored pages).
-//   idAttr           optional — item attribute holding a stable external id
-//                    (e.g. "id" on boards whose card id is the job path).
-//   itemUrlAttr      optional — item attribute holding the RELATIVE detail
-//                    path (e.g. Frappe boards store it in the card's id).
-//   noItemLinks      optional ("true") — ignore anchors inside items entirely:
-//                    boards whose only links are a SHARED apply form/mailto
-//                    would otherwise collapse every item into one externalId.
-//   boardSelector    optional — a positive "the board itself rendered" marker
-//                    (the list container, an empty-state block, a filter bar),
-//                    DISTINCT from itemSelector. When set and absent from a
-//                    page that yielded no items, listPostings throws instead of
-//                    reporting an empty board — see assertHtmlBoardRendered.
-//
-// externalId: the detail link's path when present (stable), else a slug of
-// the title — fine for the small static boards this adapter targets.
-// Pagination: deliberately none — every board converted onto this adapter
-// renders its whole list in one response (verified per tenant before
-// flipping). A board that grows a pager needs its own adapter or an upgrade
-// here, not silent truncation.
+// src/ats/htmlboard.ts — generic selector-driven adapter for bespoke, server-rendered HTML careers pages
+// (no JS/auth); per-company CSS selectors live in apiMeta (see HtmlBoardConfig for fields).
+// boardSelector (distinct from itemSelector) is positive proof the board rendered, so a zero-item page
+// without it fails loud instead of reporting an empty board (see assertHtmlBoardRendered); noItemLinks
+// exists for boards whose only links are a shared apply form/mailto. Pagination: none by default (every
+// converted board renders its whole list in one response); pageParam boards page until nothing new is added.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -85,10 +39,8 @@ export interface HtmlBoardConfig {
   fixedLocation: string | null;
   jdSelector: string | null;
   detailJdSelector: string | null;
-  /** Regex with ONE capture group run against the RAW detail-page source
-   *  before any selector — for JDs embedded in script payloads rather than
-   *  markup (shopify ships the JD as RSC data: `"descriptionHtml","<html>"`).
-   *  The captured group is JSON-string-unescaped before the HTML strip. */
+  /** Regex w/ ONE capture group over the raw detail-page source (before any selector), for JDs embedded
+   *  in script payloads (e.g. RSC data); captured group is JSON-unescaped before the HTML strip. */
   detailJdRegex: string | null;
   pageParam: string | null;
   titleRegex: RegExp | null;
@@ -131,10 +83,8 @@ function cleanText($el: { text(): string }): string {
   return collapseWs($el.text());
 }
 
-/** Stable id for a posting: the detail link's path+query when it actually
- *  points somewhere (not back at the list page itself — accordion boards use
- *  identical "#"/mailto anchors on every item, which would collapse all items
- *  into one id), else a slug of the title (deduped by caller). */
+/** Stable id: the detail link's path+query when it doesn't just point back at the list page (accordion
+ *  boards reuse identical "#"/mailto anchors on every item), else a slug of the title (deduped by caller). */
 export function htmlBoardExternalId(jobUrl: string | null, title: string, listUrl?: string): string {
   if (jobUrl && !jobUrl.startsWith("mailto:")) {
     try {
@@ -217,8 +167,7 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
     }
     if (!location && cfg.fixedLocation) location = cfg.fixedLocation;
 
-    // Join EVERY jdSelector match: single-page boards (agnikul, agrostar)
-    // spread the JD across sibling widget blocks inside one item.
+    // Join EVERY jdSelector match: single-page boards spread the JD across sibling widget blocks inside one item.
     const jdText = cfg.jdSelector
       ? htmlToText(
           $item
@@ -241,28 +190,10 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
   return items;
 }
 
-/**
- * Fail a page that produced no items and cannot show it is even a board.
- *
- * `$(itemSelector).each(...)` yields [] whether the board is genuinely empty or
- * the response is a parked domain, a redesign that moved the selectors, or a
- * WAF interstitial served at HTTP 200 — all of which used to report a healthy
- * board with zero openings forever. `boardSelector` is the operator's positive
- * evidence that the board rendered at all: the list container, the vendor's own
- * empty-state block, the filter bar — anything that outlives the last job but
- * dies with the page.
- *
- * Two deliberate limits. It is opt-in, so the rows that predate it behave
- * exactly as before rather than being failed by a marker nobody has verified.
- * And it is only consulted once the page has yielded nothing: a page with items
- * is a live board whatever else its markup does or does not contain.
- *
- * The one thing checked ahead of the opt-in is a bot-block page. That is not a
- * per-row marker anybody has to verify — it is proof the response is not this
- * board's at all — so a blocked request is neither charged to the company (it
- * throws infrastructure-shaped, to be retried and deferred) nor reported as a
- * board with zero openings, which is what the boardSelector-less rows used to do.
- */
+/** Fail a zero-item page that can't prove it's even the board (parked domain, redesign, WAF page at HTTP
+ *  200) rather than reporting a healthy empty board. boardSelector is opt-in positive evidence the board
+ *  rendered; only consulted once items come up empty. An edge-challenge page is checked first regardless
+ *  of boardSelector, since that's infrastructure-shaped, not company-shaped. */
 export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, itemCount: number, slug: string): void {
   if (itemCount > 0) return;
   assertNotEdgeChallenge("htmlboard", cfg.listUrl, html);
@@ -320,10 +251,8 @@ export const htmlboardAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const cfg = htmlBoardConfig(company);
 
-    // Boards with no pageParam deliberately render their whole list in one
-    // response (see file header) - fetched directly, never through
-    // paginate(), so a single-page board can never spuriously trip the
-    // cap-exit warn paginate() now logs when a loop exhausts maxPages.
+    // No pageParam: the whole list renders in one response, fetched directly (never through paginate())
+    // so it can't trip the maxPages cap-exit warning.
     if (!cfg.pageParam) {
       const html = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
       const items = parseHtmlBoardListing(html, cfg);
@@ -331,16 +260,10 @@ export const htmlboardAdapter: AtsAdapter = {
       return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
     }
 
-    // pageParam boards have no page-size/total metric to key termination off
-    // (arbitrary hand-authored HTML) - the original loop's stop signal was
-    // "this page added zero items not already seen on an earlier page",
-    // which needs the same cross-page identity-tracking a `dedupeBy` option
-    // would do internally. Since paginate() only exposes dedupeBy as a
-    // passive accumulation filter (not a termination signal), the seen-set
-    // is kept here directly: fetchPage returns ONLY the newly-seen items, so
-    // `count` (items.length, the paginate() default) is naturally 0 exactly
-    // when a page contributed nothing new - reproducing the original
-    // condition exactly without keeping two redundant sets.
+    // pageParam boards have no size/total metric, so termination is "this page added nothing new";
+    // paginate()'s dedupeBy is only a passive filter, not a termination signal, so the seen-set is
+    // tracked here directly and fetchPage returns only newly-seen items (making the default items.length
+    // count naturally 0 on a repeat).
     const seen = new Set<string>();
     const items = await paginate<HtmlBoardItem>({
       provider: "htmlboard",
@@ -351,9 +274,7 @@ export const htmlboardAdapter: AtsAdapter = {
       fetchPage: async (_offset, page) => {
         const html = await atsFetchText(pageUrl(cfg, page + 1), { provider: "htmlboard" });
         const parsed = parseHtmlBoardListing(html, cfg);
-        // Page 1 only. Past the last page a pager may legitimately serve a
-        // generic 200 that is not the board — the zero-new-items rule ends the
-        // loop there, and failing the company for it would be a false alarm.
+        // Page 1 only: past the last page a pager may legitimately serve a generic 200, and failing the company for that would be a false alarm.
         if (page === 0) assertHtmlBoardRendered(html, cfg, parsed.length, company.slug);
         const newItems = parsed.filter((item) => {
           if (seen.has(item.externalId)) return false;
@@ -373,8 +294,6 @@ export const htmlboardAdapter: AtsAdapter = {
     if (!posting.jobUrl || posting.jobUrl === cfg.listUrl) return posting.jdText;
     const html = await atsFetchText(posting.jobUrl, { provider: "htmlboard" });
     const jd = extractHtmlBoardJd(html, cfg);
-    // Apply the location regex against the detail text too, as a late assist
-    // for boards whose list omits location (caller merges via posting object).
     return jd;
   },
 };

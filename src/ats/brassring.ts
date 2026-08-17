@@ -1,22 +1,7 @@
-// src/ats/brassring.ts — IBM/Infinite BrassRing (Kenexa) "TGnewUI" boards on
-// the shared host sjobs.brassring.com, keyed by partnerId + siteId.
-//
-//   list: POST https://sjobs.brassring.com/TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs
-//         body  {"partnerId":"<pid>","siteId":"<sid>","pageNumber":"<N>"}  (N 1-based)
-//         header Content-Type: application/json (nothing else — the endpoint is
-//         stateless; no cookie/CSRF/token needed)
-//         -> { JobsCount, Jobs:{ Job:[ { Link, IsActive,
-//                Questions:[{QuestionName,Value}] } ] } }
-//         Page size is server-fixed at 50; walk pages until JobsCount is reached
-//         or a page comes back empty. The scalar fields live in the Questions
-//         array, which we flatten into a map. The full JD HTML is INLINE (in a
-//         tenant-configured formtext column), so there is no per-job fetch.
-//
-// Field columns are TENANT-template-specific: `reqid`, `jobtitle`,
-// `lastupdated`, `department` are stable BrassRing names, but the JD / city /
-// country live in `formtextN` columns that vary per site. They default to
-// ADM's (formtext3 / formtext8 / formtext10) and are overridable via apiMeta
-// (jdField / cityField / countryField). partnerId + siteId are required apiMeta.
+// src/ats/brassring.ts — IBM/Infinite BrassRing (Kenexa) "TGnewUI" boards, shared host sjobs.brassring.com,
+// keyed by partnerId + siteId. POST /TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs, stateless, page-fixed at 50.
+// Scalar fields live in a flattened Questions array; JD/city/country are tenant-template `formtextN` columns
+// (defaulted to ADM's formtext3/8/10, overridable via apiMeta.jdField/cityField/countryField). Full JD is inline.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -36,7 +21,6 @@ export interface BrassringConfig {
   jdField: string;
 }
 
-/** Required partnerId/siteId + the tenant's column mapping (ADM defaults). */
 export function brassringConfig(company: AdapterCompany): BrassringConfig {
   const partnerId = company.apiMeta?.partnerId;
   const siteId = company.apiMeta?.siteId;
@@ -51,7 +35,6 @@ export function brassringConfig(company: AdapterCompany): BrassringConfig {
   };
 }
 
-/** The POST body for a 1-based page. */
 export function brassringSearchBody(cfg: BrassringConfig, pageNumber: number): JsonValue {
   return { partnerId: cfg.partnerId, siteId: cfg.siteId, pageNumber: String(pageNumber) };
 }
@@ -75,8 +58,7 @@ const MONTHS: Readonly<Record<string, number>> = {
   jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
 } as const;
 
-/** Parse BrassRing's "13-Aug-2026" to a UTC-midnight ISO (timezone-stable),
- *  falling back to dateToIso for any other shape. */
+/** Parses "13-Aug-2026" to a UTC-midnight ISO; falls back to dateToIso for any other shape. */
 export function brassringDate(s: string | null | undefined): string | null {
   const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec((s ?? "").trim());
   if (!m) return dateToIso(s);
@@ -93,7 +75,6 @@ function flatten(questions: z.infer<typeof BrassringJobSchema>["Questions"]): Ma
   return map;
 }
 
-/** Parse one page into postings + the JobsCount total. */
 export function parseBrassringPage(
   raw: JsonValue,
   company: AdapterCompany,
@@ -135,9 +116,7 @@ export const brassringAdapter: AtsAdapter = {
       provider: "brassring",
       company: company.slug,
       pageSize: PAGE,
-      // Pages can carry fewer than 50 without being the last page's signal we
-      // trust; terminate on the JobsCount total or an empty page instead.
-      shortPageEndsPagination: false,
+      shortPageEndsPagination: false, // a short page isn't reliably the last one; terminate on JobsCount instead
       fetchPage: async (_offset, page) => {
         const raw = await atsFetchJson(ENDPOINT, {
           method: "POST",

@@ -1,10 +1,5 @@
-// src/ats/atlassian.ts — Atlassian's own careers endpoint (iCIMS-backed, but the
-// public JSON feed lives on their marketing site, not on iCIMS):
-//   GET https://www.atlassian.com/endpoint/careers/listings
-// returns a bare JSON ARRAY of every open role — no pagination, no auth
-// (verified live: 199 jobs, 18 India). The FULL JD is inline, split across
-// three HTML fields (`overview`, `responsibilities`, `qualifications`);
-// `applyUrl`/`portalJobPost.portalUrl` point at the per-role iCIMS portal page.
+// src/ats/atlassian.ts — Atlassian careers. GET /endpoint/careers/listings returns a bare JSON array, no pagination, no auth.
+// Full JD is split across overview/responsibilities/qualifications HTML fields; applyUrl points at the iCIMS portal page.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -36,7 +31,6 @@ export type AtlassianJob = z.infer<typeof AtlassianJobSchema>;
 
 const AtlassianListingsSchema = z.array(JsonValueSchema);
 
-/** Parse the bare listings array, skipping malformed entries. */
 export function parseAtlassianListings(json: JsonValue): AtlassianJob[] {
   const arr = AtlassianListingsSchema.parse(json);
   const jobs: AtlassianJob[] = [];
@@ -47,7 +41,6 @@ export function parseAtlassianListings(json: JsonValue): AtlassianJob[] {
   return jobs;
 }
 
-/** The full JD is split across three inline HTML fields — join what's present. */
 export function atlassianJdText(j: AtlassianJob): string {
   const parts = [j.overview, j.responsibilities, j.qualifications].filter((p): p is string => Boolean(p));
   return htmlToText(parts.join("\n"));

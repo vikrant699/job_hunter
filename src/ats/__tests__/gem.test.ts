@@ -1,4 +1,3 @@
-// src/ats/gem.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -18,8 +17,7 @@ const company: AdapterCompany = {
   careersUrl: "https://jobs.gem.com/promptql", tenantUrl: null, apiMeta: null,
 };
 
-// Shape mirrors the real jobs.gem.com/api/public/graphql JobBoardList response
-// for the promptql board (captured 2026-07-11).
+// Shape mirrors the real jobs.gem.com/api/public/graphql JobBoardList response for the promptql board.
 const listResponse = {
   data: {
     oatsExternalJobPostings: {
@@ -115,8 +113,7 @@ test("normalizeGem maps fields: joined locations, hybrid job not flagged remote,
   assert.equal(p.jobTitle, "AI Staff Software Engineer");
   assert.equal(p.jobUrl, "https://jobs.gem.com/promptql/am9icG9zdDqu29YsOTFpcE1k9t_ulIDY");
   assert.equal(p.location, "San Francisco; Remote - United States");
-  // One of the two locations IS remote, so the posting is remote-eligible even
-  // though the job-level locationType is "HYBRID".
+  // One of the two locations IS remote, so the posting is remote-eligible even though locationType is "HYBRID".
   assert.equal(p.isRemote, true);
   assert.equal(p.jdText, "");
   assert.equal(p.postedAt, new Date(1750725369 * 1000).toISOString());

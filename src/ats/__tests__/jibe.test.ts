@@ -1,4 +1,3 @@
-// src/ats/jibe.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { jibeApiUrl, jibePageJobs, normalizeJibe, jibeAdapter } from "../jibe.js";
@@ -67,8 +66,6 @@ test("normalizeJibe: remote location_type sets isRemote, unparseable date maps t
   assert.equal(p.postedAt, null);
 });
 
-// --- listPostings pagination -------------------------------------------------
-
 /** A minimal job with a unique slug, so cross-page identity is real. */
 function jobN(n: number): JibeJob {
   return { slug: String(n), title: `Role ${n}`, full_location: "Bangalore, India" };
@@ -98,10 +95,7 @@ function stubPages(pages: Record<string, string>, totalCount: number | null): st
 }
 
 test("jibeAdapter.listPostings collects the whole board when the tenant pages below the assumed 10", async () => {
-  // The page-size params are ignored, so 10 was an assumption about the
-  // engine. A tenant serving 4 a page had page 1 judged short and stopped
-  // there — and totalCount could not save it, because the short-page break
-  // happens before the total is ever compared.
+  // A tenant serving 4 a page would be judged short against an assumed 10; the short-page break fires before totalCount is even compared.
   const seen = stubPages({ "1": apiPage(4, 1, 10), "2": apiPage(4, 5, 10), "3": apiPage(2, 9, 10) }, 10);
   try {
     const items = await jibeAdapter.listPostings(company);
@@ -136,9 +130,7 @@ test("jibeAdapter.listPostings still ends on a genuinely short final page when t
 });
 
 test("jibeAdapter.listPostings stops on a board that ignores ?page and re-serves page 1", async () => {
-  // With totalCount absent AND every page full, neither the total nor the
-  // short-page rule can fire; the exact-page-repeat stall guard is the only
-  // terminator short of the runaway cap.
+  // With totalCount absent and every page full, only the exact-page-repeat stall guard can terminate this short of the runaway cap.
   const seen: string[] = [];
   globalThis.fetch = async (input) => {
     seen.push(new URL(String(input)).searchParams.get("page") ?? "");

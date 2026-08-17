@@ -1,16 +1,10 @@
-// Detects JD text that is technically non-empty but carries no information —
-// vendor placeholders an employer never replaced, or junk so short the gate
-// would be scoring noise. Found live (2026-08-13 sweep): Darwinbox's
-// "Please enter job description" (bigbasket, unacademy), RippleHire's
-// "Please update the Job Description" (axissecurities), and Zepto postings
-// whose whole JD is a row of dots. A junk JD is reclassified to the no-jd
-// drop stage instead of being sent to the LLM as if it were content.
+// Detects JD text that is non-empty but carries no information (vendor placeholders, dots-only junk) and routes it to the no-jd drop stage instead of the LLM.
 
 const PLACEHOLDER_RES: readonly RegExp[] = [
   /^please (enter|update) (the )?job description\.?$/i,
   /^(job )?description( goes)? here\.?$/i,
   /^(tbd|tba|na|n\/a)\.?$/i,
-  /^attached\.?$/i, // "JD attached [as a PDF we cannot see]" — navi
+  /^attached\.?$/i, // PDF-only JD, text not visible
   /^(lorem ipsum)\b/i,
   /^sample data\.?$/i,
 ];

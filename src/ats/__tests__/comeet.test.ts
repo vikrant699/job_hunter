@@ -16,7 +16,7 @@ const company: AdapterCompany = {
   careersUrl: "https://www.comeet.com/jobs/algosec/71.006", tenantUrl: null, apiMeta: null,
 };
 
-// Position shapes live-captured from comeet.com/jobs/algosec/71.006 (2026-07-11).
+// Position shapes captured from the live AlgoSec board.
 const positions = [
   {
     name: "Backend Developer, India",
@@ -62,8 +62,7 @@ const positions = [
   },
 ];
 
-// Board page embeds the whole array one-per-line, with the var declared (bare)
-// above it and POSITION_DATA = null alongside — mirrors the live page exactly.
+// Mirrors the live page: array embedded one-per-line, var declared bare above it, POSITION_DATA = null alongside.
 const boardHtml = `<html><head><script>
        var COMPANY_POSITIONS_DATA ;
        var POSITION_DATA ;

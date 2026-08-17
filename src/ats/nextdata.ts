@@ -1,21 +1,7 @@
-// src/ats/nextdata.ts — generic adapter for Next.js (pages-router) careers
-// pages that SSR-embed their full job list in the <script id="__NEXT_DATA__">
-// JSON island (verified live on Awign, Park+, Redcliffe Labs). Per-company
-// config in apiMeta (all strings):
-//
-//   listUrl        optional — page to fetch; defaults to tenantUrl/careersUrl.
-//   jobsPath       REQUIRED — dot-path from the parsed island's root to the
-//                  jobs ARRAY, e.g. "props.pageProps.data.getJobList.results"
-//                  or "props.initialState.career_details.data.data.leads".
-//   titleField     REQUIRED — dot-path within one job object to the title.
-//   idField        optional — dot-path to a stable id (default: titleField slug).
-//   locationField  optional — dot-path to a location string.
-//   jdFields       optional — comma-separated dot-paths whose string/string[]
-//                  values are concatenated as the JD text.
-//   urlTemplate    optional — job URL template with {id} / {slug} placeholders
-//                  ({slug} reads the job's "slug"/"attributes.slug" field);
-//                  defaults to the list page URL.
-//   fixedLocation  optional — fallback location when locationField is absent.
+// src/ats/nextdata.ts — generic adapter for Next.js (pages-router) careers pages that SSR-embed
+// their full job list in the <script id="__NEXT_DATA__"> JSON island. Per-company config in apiMeta:
+// listUrl (optional), jobsPath (required, dot-path to the jobs array), titleField (required),
+// idField/locationField/jdFields/urlTemplate/fixedLocation (all optional, see nextDataConfig).
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -53,9 +39,7 @@ export function nextDataConfig(company: AdapterCompany): NextDataConfig {
   };
 }
 
-/** Walk a tokenized dot-path into a nested JsonValue; null when any hop is
- *  missing, the current node isn't an object/array, or (for an array hop) the
- *  key isn't a valid numeric index. No Reflect.get — plain narrowed indexing. */
+// Walk a tokenized dot-path into a nested JsonValue; null when any hop is missing or malformed.
 export function dig(node: JsonValue, path: readonly string[]): JsonValue | null {
   let cur: JsonValue = node;
   for (const key of path) {
@@ -69,7 +53,6 @@ export function dig(node: JsonValue, path: readonly string[]): JsonValue | null 
   return cur;
 }
 
-/** dig() a dot-path and coerce the hit to a trimmed string (numbers stringified). */
 export function digString(value: JsonValue, path: string): string | null {
   const v = dig(value, path.split("."));
   if (typeof v === "string") return v.trim() || null;
@@ -77,8 +60,7 @@ export function digString(value: JsonValue, path: string): string | null {
   return null;
 }
 
-/** Extract and parse the __NEXT_DATA__ island from a page's HTML. Throws if
- *  the script tag is absent or its body isn't valid JSON. */
+// Throws if the script tag is absent or its body isn't valid JSON.
 export function parseNextDataIsland(html: string): JsonValue {
   const $ = cheerio.load(html);
   const raw = $("script#__NEXT_DATA__").first().text();
@@ -86,7 +68,6 @@ export function parseNextDataIsland(html: string): JsonValue {
   return JsonValueSchema.parse(JSON.parse(raw));
 }
 
-/** Concatenate the string/string[] values at `fields` dot-paths as JD text. */
 export function jdFromFields(job: JsonValue, fields: string[]): string {
   const parts: string[] = [];
   for (const f of fields) {
@@ -96,16 +77,13 @@ export function jdFromFields(job: JsonValue, fields: string[]): string {
       for (const item of v) if (typeof item === "string" && item.trim()) parts.push(item);
     }
   }
-  // Fields may carry HTML; normalize to text like other adapters do.
   return parts.length > 0 ? htmlToText(parts.join("\n")) : "";
 }
 
 export function nextDataPostings(company: AdapterCompany, island: JsonValue): NormalizedPosting[] {
   const cfg = nextDataConfig(company);
   const dug = dig(island, cfg.jobsPath.split("."));
-  // Some tenants group jobs as an OBJECT of department -> array (uni-cards'
-  // openPositionsByDepartment) rather than one flat array - flatten the
-  // values. A path resolving to neither shape is still a config error.
+  // Some tenants group jobs as an object of department -> array rather than one flat array.
   const arr = Array.isArray(dug)
     ? dug
     : dug !== null && typeof dug === "object"

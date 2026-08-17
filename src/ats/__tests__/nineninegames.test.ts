@@ -1,4 +1,3 @@
-// src/ats/nineninegames.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { nineNineGamesShouldKeep, nineNineGamesJobUrl, normalizeNineNineGamesJob } from "../nineninegames.js";
@@ -13,8 +12,6 @@ const company: AdapterCompany = {
   tenantUrl: null,
   apiMeta: null,
 };
-
-// --- nineNineGamesShouldKeep -------------------------------------------------
 
 const baseJob: NineNineGamesJob = {
   _id: "68eca9cfb775116422c36894",
@@ -38,8 +35,6 @@ test("nineNineGamesShouldKeep drops an unpublished job", () => {
   assert.equal(nineNineGamesShouldKeep({ ...baseJob, publish: false }), false);
 });
 
-// --- nineNineGamesJobUrl -----------------------------------------------------
-
 test("nineNineGamesJobUrl builds a careersUrl + #job-<id> fragment", () => {
   assert.equal(
     nineNineGamesJobUrl(company, "68eca9cfb775116422c36894"),
@@ -54,8 +49,6 @@ test("nineNineGamesJobUrl strips a trailing slash on careersUrl before appending
     "https://www.99games.in/careers#job-abc123",
   );
 });
-
-// --- normalizeNineNineGamesJob -----------------------------------------------
 
 test("normalizeNineNineGamesJob maps fields correctly", () => {
   const p = normalizeNineNineGamesJob(company, baseJob);

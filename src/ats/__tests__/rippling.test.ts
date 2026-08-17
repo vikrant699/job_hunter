@@ -15,8 +15,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// --- URL builders ----------------------------------------------------------
-
 test("ripplingListUrl builds the board list endpoint", () => {
   assert.equal(
     ripplingListUrl("centricity-research"),
@@ -38,11 +36,7 @@ test("ripplingDetailUrl builds the job-detail endpoint", () => {
   );
 });
 
-// --- normalizeRipplingJob: real-shaped list fixtures ------------------------
-
-// Live-captured shape from GET api.rippling.com/platform/api/ats/v1/board/
-// centricity-research/jobs — one entry per (job, location) pair, same uuid
-// duplicated across locations.
+// One entry per (job, location) pair; same uuid duplicated across locations.
 const REAL_LIST_JOBS: RipplingJob[] = [
   {
     uuid: "9bfc0d02-c747-4294-b620-45512a302418",
@@ -100,12 +94,7 @@ test("normalizeRipplingJob handles a null workLocation", () => {
   assert.equal(p.isRemote, false);
 });
 
-// --- buildRipplingJd: real-shaped detail fixture ----------------------------
-
-// Trimmed live-captured shape from GET api.rippling.com/platform/api/ats/v1/
-// board/centricity-research/jobs/9bfc0d02-c747-4294-b620-45512a302418 —
-// description.company is the "why join us" blurb, description.role is the
-// "about the role" body, both HTML.
+// description.company is the "why join us" blurb, description.role is the "about the role" body, both HTML.
 const REAL_DETAIL: RipplingDetail = {
   uuid: "9bfc0d02-c747-4294-b620-45512a302418",
   description: {

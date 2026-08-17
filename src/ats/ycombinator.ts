@@ -1,15 +1,9 @@
-// src/ats/ycombinator.ts — Y Combinator company job boards
-// (https://www.ycombinator.com/companies/<slug>/jobs). There is no public
-// API (no Algolia call fires client-side for a single company's board — the
-// Algolia bundles loaded on the page serve YC's own cross-company search).
-// Instead both the job list AND each job's full JD are server-rendered
-// straight into the page as an HTML-attribute-escaped JSON blob:
-//   <div ... data-page="{&quot;component&quot;:&quot;WaasShowJobsPage&quot;,
-//     &quot;props&quot;:{...,&quot;jobPostings&quot;:[...]}}">
-// The listing page's jobPostings[] is a teaser only (no description) —
-// fetchJd re-fetches the job's own page, whose data-page is component
-// "WaasShowJobPage" with props.job.description holding the full JD
-// (plain markdown text, not HTML).
+// src/ats/ycombinator.ts — Y Combinator company job boards. There is no public API (no
+// Algolia call fires client-side for a single company's board). Instead both the job list
+// AND each job's full JD are server-rendered into the page as an HTML-attribute-escaped
+// JSON blob (`data-page="{...}"`). The listing page's jobPostings[] is a teaser only (no
+// description) — fetchJd re-fetches the job's own page, whose data-page props.job.description
+// holds the full JD (plain markdown text, not HTML).
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -23,12 +17,9 @@ import type { JsonValue } from "../util/json.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
 
-/**
- * Pull the `data-page="{...}"` React-props JSON island out of a YC
- * companies/*.jobs* page. The attribute's content never contains a raw
- * (unescaped) double quote — YC entity-escapes them as `&quot;` — so the
- * first `"..."` run after `data-page=` is exactly the JSON payload.
- */
+// Pulls the data-page="{...}" React-props JSON island out of a YC jobs page. YC
+// entity-escapes double quotes inside the attribute, so the first "..." run after
+// `data-page=` is exactly the JSON payload.
 export function extractYcDataPage(html: string): JsonValue | null {
   const raw = matchGroup(/data-page="([^"]*)"/, html);
   if (raw === null) return null;
@@ -63,23 +54,22 @@ const YcJobDetailPageSchema = z.object({
   }),
 });
 
-/** The company's public jobs board. */
+// The company's public jobs board.
 export function ycJobsPageUrl(company: AdapterCompany): string {
   return `${YC_ORIGIN}/companies/${company.apiMeta?.boardSlug ?? company.slug}/jobs`;
 }
 
-/** Job listing `url` is already site-relative (e.g. "/companies/<slug>/jobs/<id>-title"). */
+// Job listing `url` is already site-relative.
 export function ycJobUrl(relativeOrAbsolute: string): string {
   return relativeOrAbsolute.startsWith("http") ? relativeOrAbsolute : `${YC_ORIGIN}${relativeOrAbsolute}`;
 }
 
-/** Extract jobPostings[] from a parsed jobs-list page's data-page payload. Throws on schema mismatch. */
 export function ycJobsFromListPage(pageData: JsonValue, slug: string): YcJobListing[] {
   const parsed = parseOrThrow(YcJobsListPageSchema, pageData, { provider: "ycombinator", slug, what: "jobPostings" });
   return parsed.props.jobPostings;
 }
 
-/** Extract props.job from a parsed job-detail page's data-page payload. Null (not throw) on mismatch — fetchJd falls back to an empty JD. */
+// Null (not throw) on mismatch — fetchJd falls back to an empty JD.
 export function ycJobFromDetailPage(pageData: JsonValue, slug: string, externalId: string): YcJobDetail | null {
   const parsed = YcJobDetailPageSchema.safeParse(pageData);
   if (!parsed.success) {
@@ -92,10 +82,8 @@ export function ycJobFromDetailPage(pageData: JsonValue, slug: string, externalI
   return parsed.data.props.job;
 }
 
-// YC renders createdAt/lastActive as date-fns-style relative strings ("about 1
-// month", "over 2 years", "28 days", "almost 3 years", "less than a minute").
-// Best-effort: pull the leading count + unit and ignore the qualifier word.
-// Returns null for anything without a parseable count.
+// YC renders createdAt/lastActive as date-fns-style relative strings ("about 1 month",
+// "over 2 years"). Best-effort: pull the leading count + unit, ignore the qualifier word.
 const UNIT_MS: Record<string, number> = {
   minute: 60_000,
   hour: 3_600_000,
@@ -149,8 +137,7 @@ export const ycombinatorAdapter: AtsAdapter = {
     const pageData = extractYcDataPage(html);
     if (!pageData) return "";
     const job = ycJobFromDetailPage(pageData, company.slug, posting.externalId);
-    // The description is already plain markdown text (not HTML) and was
-    // entity-decoded once above — nothing more to strip.
+    // description is already plain markdown text (not HTML) and was entity-decoded once above.
     return (job?.description ?? "").trim();
   },
 };

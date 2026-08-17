@@ -15,8 +15,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Escape a string the way Zoho serializes the hidden-input value attribute:
-// every HTML-special character becomes an entity (& first so it isn't double-hit).
+// Escapes a string the way Zoho serializes the hidden-input value attribute (& first so it isn't double-hit).
 function attrEscape(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -26,7 +25,6 @@ function attrEscape(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-// Trimmed real shape from https://acowale.zohorecruit.in/jobs/Careers.
 const fullJob = {
   Remote_Job: false,
   Posting_Title: "Frontend Developer",
@@ -53,8 +51,7 @@ const remoteJob = {
   Publish: true,
 };
 
-/** Wrap a jobs array in a realistic careers page: junk around the island plus
- *  the sibling hidden inputs (moduleMeta before, portal config after). */
+// Wraps a jobs array in a realistic careers page: junk around the island plus sibling hidden inputs (moduleMeta before, portal config after).
 function pageWith(jobs: ReadonlyArray<Record<string, boolean | string>>): string {
   const meta = attrEscape('[{"api_name":"Posting_Title","field_label":"Posting Title"}]');
   const cfg = attrEscape('{"source":"CareerSite","org_info":{"company_name":"Acowale"}}');
@@ -76,9 +73,6 @@ test("extractJobsIsland finds the id=\"jobs\" input among sibling islands", () =
 });
 
 test("extractJobsIsland skips raw id=\"jobs\" literals in earlier page content", () => {
-  // Raw (NOT JS-escaped) literals before the real island: one in a CSS
-  // selector inside a <style> block, one in a <div> attribute, and one inside
-  // an earlier <input> tag that has no value attribute.
   const decoys = [
     '<style>.board input[id="jobs"] { display: none; }</style>',
     "<div data-target='id=\"jobs\"' class=\"lyte-placeholder\">loading…</div>",
@@ -105,8 +99,7 @@ test("parseJobsIsland decodes, JSON-parses, and zod-validates the jobs array", (
   const job0 = at(jobs, 0);
   assert.equal(job0.Posting_Title, "Frontend Developer");
   assert.equal(job0.id, "196319000004222912");
-  // The JD survives both unescaping layers: attribute entities -> JSON string
-  // -> HTML (left intact here; normalize strips it).
+  // The JD survives both unescaping layers: attribute entities -> JSON string -> HTML (left intact here; normalize strips it).
   assert.ok(job0.Job_Description);
   assert.match(job0.Job_Description, /<p>Build UIs with React &amp; TypeScript\./);
   assert.equal(at(jobs, 1).Remote_Job, true);
@@ -186,12 +179,8 @@ test("zohoJobUrl tolerates trailing slashes and unslugifiable titles", () => {
   assert.equal(zohoJobUrl(c, weird), "https://spendflo.zohorecruit.com/jobs/Job-openings/9");
 });
 
-// --- extractZohoDetailJd -----------------------------------------------------
-
 test("extractZohoDetailJd decodes the hex-escaped detail blob into JD HTML", () => {
-  // Build the raw page bytes explicitly: Q is the blob's quote token (backslash
-  // + x22, four chars), IQ an inner escaped quote (backslash + Q, five chars) -
-  // exactly what the live detail pages serve (verified indiagold 2026-08-13).
+  // Build the raw page bytes explicitly: Q is the blob's quote token, IQ an inner escaped quote - exactly what live detail pages serve.
   const Q = "\\" + "x22";
   const IQ = "\\" + Q;
   const U = "\\" + "u2013"; // an en dash as a unicode escape

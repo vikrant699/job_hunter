@@ -3,14 +3,7 @@ import type { GateResult } from "../llm/gate.js";
 import type { ExtractResult } from "../llm/extract.js";
 import { SILENT_SCORE_FLOOR } from "../schemas.js";
 
-/**
- * Tri-state verdict.
- *   green  → strong match; send to Discord with green sidebar
- *   yellow → marginal match (soft deal-breaker, wrong YOE, low score); send to Discord
- *            with yellow sidebar so user can visually filter
- *   silent → hard reject (services / staffing / fresher / location / score below noise);
- *            do not notify at all
- */
+/** green = strong match; yellow = marginal (soft deal-breaker/wrong YOE/low score), still notified; silent = hard reject, never notified. */
 export type VerdictSeverity = "green" | "yellow" | "silent";
 
 export interface VerdictDetail {
@@ -18,14 +11,7 @@ export interface VerdictDetail {
   reason: string;
 }
 
-/**
- * Lower bound below which we treat the score as noise and silently drop.
- * Raised 0.4 -> 0.65 (user decision 2026-06-11) after the first full-volume run:
- * the 0.4-0.65 band was ~76% of yellow notifications and almost entirely noise.
- * Replayed against that run: costs 3 of 30 former greens (scored 0.6-0.65).
- * Borderline 0.65-matchThreshold is yellow; >= matchThreshold (0.8) is green.
- * Defined in schemas.ts (see there for why) and re-exported here for back-compat.
- */
+/** Below this score is treated as noise and silently dropped; borderline up to matchThreshold is yellow, above is green. Defined in schemas.ts, re-exported for back-compat. */
 export { SILENT_SCORE_FLOOR };
 
 export function classifyVerdict(
@@ -37,12 +23,10 @@ export function classifyVerdict(
     return { severity: "silent", reason: gate.dealBreakerHit ?? "hard-deal-breaker" };
   }
 
-  // Effective silent floor: per-profile override (e.g. vikrant 0.60) or the
-  // global SILENT_SCORE_FLOOR default.
+  // Per-profile override, else the global default.
   const silentFloor = profile.filters.silentFloor ?? SILENT_SCORE_FLOOR;
   if (gate.matchScore < silentFloor) {
-    // A priority-title role (e.g. React Native for a frontend dev) is floored to
-    // yellow instead of silenced — unless it's over the hard YOE cap (still silent).
+    // A priority-title role is floored to yellow instead of silenced, unless it's over the hard YOE cap.
     const overYoeCap =
       extract !== null && extract.yoeMin !== null && extract.yoeMin >= profile.filters.hardYoeCap;
     const priorityTitle =
@@ -53,8 +37,7 @@ export function classifyVerdict(
     return { severity: "silent", reason: `score-too-low (${gate.matchScore.toFixed(2)})` };
   }
 
-  // Hard YOE cap — silent. Backstop to the prompt's hard deal-breaker; runs
-  // even when the gate LLM missed the cue.
+  // Backstop to the prompt's hard deal-breaker in case the gate LLM missed the cue.
   if (
     extract &&
     extract.yoeMin !== null &&
@@ -70,8 +53,7 @@ export function classifyVerdict(
     return { severity: "yellow", reason: `soft: ${gate.dealBreakerHit ?? "soft-deal-breaker"}` };
   }
 
-  // When yoeAcceptUnspecified is false, force yellow on unknown-YOE postings
-  // so a high gate score can't auto-green a role whose seniority is unverified.
+  // Forces yellow on unknown-YOE postings so a high gate score can't auto-green unverified seniority.
   if (!profile.filters.yoeAcceptUnspecified) {
     const yoeUnknown = !extract || (extract.yoeMin === null && extract.yoeMax === null);
     if (yoeUnknown) {

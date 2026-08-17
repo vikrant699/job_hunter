@@ -1,13 +1,5 @@
-// src/google/mime.ts
-//
-// Pure RFC 5322 message builder for Gmail drafts. No I/O — everything here is
-// deterministic string building so it can be thoroughly unit tested without
-// touching the network.
-//
-// Body encoding choice: base64 (not quoted-printable). Quoted-printable's
-// line-length/escaping rules add complexity for no benefit here since the
-// body text is short and Gmail handles either transparently; base64 also
-// lets the body and attachment share one wrapping helper.
+// Pure RFC 5322 message builder for Gmail drafts; no I/O, deterministic string building only.
+// Uses base64 (not quoted-printable) so body and attachment share one wrapping helper.
 
 const CRLF = "\r\n";
 const BASE64_LINE_LENGTH = 76;
@@ -29,13 +21,8 @@ function isAscii(s: string): boolean {
   return /^[\x00-\x7f]*$/.test(s);
 }
 
-/**
- * RFC 2047 "B" (base64) encoded-word, used when the subject has non-ASCII chars.
- * Control characters (CR/LF above all) are stripped FIRST regardless of ASCII-ness:
- * subject text is built from scraped company names, and a CRLF smuggled through
- * an ASCII subject would otherwise inject arbitrary headers (e.g. a Bcc:) into
- * the raw RFC 5322 message.
- */
+// RFC 2047 "B" encoded-word for non-ASCII subjects; control chars stripped first regardless of
+// ASCII-ness so a CRLF in a scraped company name can't inject extra headers into the message.
 function encodeSubject(subject: string): string {
   const sanitized = subject.replace(/[\x00-\x1f\x7f]+/g, " ");
   if (isAscii(sanitized)) return sanitized;
@@ -55,8 +42,7 @@ function randomBoundary(): string {
   return `job-hunter-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
 
-/** Header-value sanitizer: control chars (CR/LF above all) become spaces so
- *  sheet-sourced values can never smuggle extra headers into the message. */
+/** Control chars become spaces so sheet-sourced values can't smuggle extra headers into the message. */
 function sanitizeHeaderValue(s: string): string {
   return s.replace(/[\x00-\x1f\x7f]+/g, " ").trim();
 }
@@ -66,20 +52,13 @@ function sanitizeFilename(s: string): string {
   return sanitizeHeaderValue(s).replace(/"/g, "");
 }
 
-/**
- * Standard base64url encoding (RFC 4648 §5): `+`→`-`, `/`→`_`, no padding.
- * Gmail's `drafts.create`/`messages.send` raw field requires this encoding.
- */
+/** Base64url encoding (RFC 4648 §5), required by Gmail's raw field. */
 export function toBase64Url(s: string | Buffer): string {
   const buf = Buffer.isBuffer(s) ? s : Buffer.from(s, "utf-8");
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/**
- * Build a complete RFC 5322 email message ready for base64url-encoding into
- * Gmail's `raw` field. Single-part text/plain when there is no attachment;
- * multipart/mixed (a text part + a base64 attachment part) otherwise.
- */
+/** Build an RFC 5322 message for Gmail's raw field; single-part text/plain, or multipart/mixed with an attachment. */
 export function buildDraftMime(input: BuildDraftMimeInput): string {
   const headers = [
     `To: ${sanitizeHeaderValue(input.to)}`,

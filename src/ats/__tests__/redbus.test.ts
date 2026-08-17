@@ -1,4 +1,3 @@
-// src/ats/redbus.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -17,8 +16,6 @@ const company: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Real shape captured live 2026-07-13 from
-// POST https://www.redbus.in/careers/api/getJobsList
 const job: RedbusJob = {
   job_id: "a69afe3782c364",
   job_title: "Business Analyst",
@@ -37,7 +34,6 @@ test("redbusHash reproduces the client bundle's sha512(salt + timestamp) signatu
     .update("Admindarwinbox@go-mmt.com9ee1f8acd90924a81180267e97609291" + ts)
     .digest("hex");
   assert.equal(redbusHash(ts), expected);
-  // Sanity-check against the exact hash captured live for this timestamp.
   assert.equal(
     redbusHash(ts),
     "69d24d1c2419801720885f6aa3515e8d53e7851fa284569bac5c90184a7a57f8a15dffcef429e78874dcb98e8a0d45028b709316095dc68e4531c9e4922d4efb",

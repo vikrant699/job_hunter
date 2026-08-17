@@ -29,9 +29,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// A 2-row search page. Each row renders twice (desktop .hidden-phone +
-// mobile .visible-phone), fields selected by class WITHIN the row. Row 1
-// mirrors Hero (title column first); row 2 exercises a remote location.
+// Each row renders twice (desktop .hidden-phone + mobile .visible-phone); row 2 exercises a remote location.
 const SEARCH_HTML = `
 <html><body>
   <span class="paginationLabel" aria-label="Results 1 – 25">Results 1 to 25 of 46</span>
@@ -108,8 +106,8 @@ test("parseJobHref matches brand-prefixed /job/ paths (multi-brand tenants)", ()
 test("parseSuccessfactorsSearch parses rows once each, mapping title/location/date/id", () => {
   const { postings, rowCount, total } = parseSuccessfactorsSearch(SEARCH_HTML, company);
   assert.equal(total, 46);
-  assert.equal(rowCount, 2); // one <tr.data-row> per job — drives offset advancement
-  assert.equal(postings.length, 2); // NOT 4 — the phone/desktop duplicates collapse
+  assert.equal(rowCount, 2); // drives pagination offset advancement
+  assert.equal(postings.length, 2); // desktop/mobile duplicates collapse, not 4
 
   const first = at(postings, 0);
   assert.equal(first.provider, "successfactors");
@@ -144,7 +142,6 @@ test("rowCount counts every data-row; brand-prefixed rows are kept, only non-job
   assert.equal(rowCount, 3);      // all rows counted for pagination offset
   assert.equal(postings.length, 2); // root-path AND brand-prefixed /job/ rows kept; ad row dropped
   assert.equal(at(postings, 0).externalId, "111");
-  // Brand-prefixed subsidiary posting must NOT be silently dropped.
   assert.equal(at(postings, 1).externalId, "12345");
   assert.equal(at(postings, 1).jobUrl, "https://jobs.heromotocorp.com/SomeBrand/job/foo-bar/12345/");
 });
@@ -197,13 +194,7 @@ test("parseSuccessfactorsSearch falls back to tile-view cards when no table rows
   assert.match(at(postings, 0).jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
 });
 
-// --- listPostings pagination (full flow, mocked fetch) ---------------------
-//
-// The engine's page size is per-TENANT, not per-engine: jobs.mahindracareers.com
-// serves 10 rows per /search/ page while jobs.heromotocorp.com serves 25. The
-// adapter used to declare a fixed 25 to paginate(), so a 10-row tenant's very
-// first page looked "short" and the board stopped at 10 of 608 postings.
-
+// Page size is per-tenant, not per-engine; a hardcoded 25 used to truncate 10-row tenants at page 1.
 const mahindra = mkAdapterCompany({
   provider: "successfactors",
   slug: "mahindra-group",
@@ -211,8 +202,7 @@ const mahindra = mkAdapterCompany({
   careersUrl: "https://jobs.mahindracareers.com/search/",
 });
 
-/** One /search/ page: `count` rows starting at `startrow`, plus the results
- *  banner unless `total` is null (tenants on the tile skin omit it). */
+/** One /search/ page: `count` rows at `startrow`; banner omitted when `total` is null (tile-skin tenants). */
 function searchPageHtml(startrow: number, count: number, total: number | null): string {
   const banner =
     total === null
@@ -250,8 +240,7 @@ function stubBoard(
 }
 
 test("listPostings: a 10-rows-per-page tenant is not truncated at page 1", async (t) => {
-  // The mahindra-group failure mode, scaled down: 34 jobs at 10 rows a page.
-  // Pre-fix this returned only the first 10.
+  // Pre-fix, this returned only the first 10 of 34.
   const startrows = stubBoard(t, { total: 34, perPage: 10 });
   const postings = await successfactorsAdapter.listPostings(mahindra);
 
@@ -270,8 +259,7 @@ test("listPostings: a 25-rows-per-page tenant still paginates exactly as before"
 });
 
 test("listPostings: a board with no results banner stops on its genuinely short final page", async (t) => {
-  // Tile-skin tenants omit "Results X to Y of N", so nothing but the short page
-  // can end the loop - it must still stop, and only after the last page.
+  // Tile-skin tenants omit the banner, so only the short final page can end the loop.
   const startrows = stubBoard(t, { total: 14, perPage: 10, banner: false });
   const postings = await successfactorsAdapter.listPostings(mahindra);
 
@@ -280,8 +268,7 @@ test("listPostings: a board with no results banner stops on its genuinely short 
 });
 
 test("listPostings: a tenant that clamps an out-of-range startrow terminates", async (t) => {
-  // careers.acer.com re-serves the last page instead of an empty one, and has
-  // no banner to bound the loop: the all-duplicate page must end it.
+  // Some tenants re-serve the last page instead of an empty one, with no banner to bound the loop.
   const startrows: number[] = [];
   stubFetch(t, (input) => {
     const startrow = startrowOf(String(input));
@@ -309,18 +296,7 @@ test("listPostings: a board that ignores startrow entirely stops after the repea
   assert.equal(calls, 2, "must not paginate to the phantom total");
 });
 
-// --- dead custom domain vs empty board ----------------------------------------
-//
-// These tenants sit on the company's OWN domain, so the failure to catch is the
-// domain quietly ceasing to serve SuccessFactors while still answering 200.
-// Shapes below come from live probes on 2026-08-02.
-
-// Trimmed from GET careers.tatapower.com/search/?…&startrow=0 (HTTP 200). A
-// LIVE Jobs2Web board with nothing open: no tr.data-row, no li.job-tile and no
-// "Results N to M of TOTAL" banner — the engine renders its own #noresults
-// block instead. careers.mankindpharma.com serves the same shape, and so does
-// any healthy tenant searched for a nonsense keyword. Failing this would
-// quarantine two live boards, so it is the case that matters most here.
+// A live Jobs2Web board with nothing open: no rows, no results banner, just the engine's own #noresults block.
 const EMPTY_ENGINE_HTML = `<!DOCTYPE html>
 <html lang="en-GB">
   <head>
@@ -345,10 +321,7 @@ const EMPTY_ENGINE_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-// What a lapsed careers subdomain serves once it stops pointing at Jobs2Web:
-// still HTTP 200, still plausible, but none of the engine's assets. Parses to
-// zero rows exactly like the page above, which is why size or row count cannot
-// tell them apart.
+// A lapsed subdomain: HTTP 200, plausible page, none of the engine's assets - parses to zero rows just like the page above.
 const PARKED_HTML = `<!DOCTYPE html>
 <html>
   <head><title>careers.example.com</title></head>
@@ -368,7 +341,6 @@ test("isSuccessfactorsEngine recognises the Jobs2Web asset namespace, empty boar
 });
 
 test("listPostings returns [] for a LIVE board rendering the engine's no-open-positions page", async (t) => {
-  // tata-power and mankind-pharma are both in exactly this state right now.
   stubFetch(t, () => Promise.resolve(htmlResponse(EMPTY_ENGINE_HTML)));
   assert.deepEqual(await successfactorsAdapter.listPostings(mahindra), []);
 });
@@ -382,9 +354,7 @@ test("listPostings rejects a custom domain that no longer serves the engine", as
 });
 
 test("the dead-domain error is charged to the company, not written off as infrastructure", async (t) => {
-  // A domain that stopped serving the board is a real per-company defect and
-  // MUST count toward consecutive_failures. If any of these flipped true the
-  // scheduler would retry it forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   stubFetch(t, () => Promise.resolve(htmlResponse(PARKED_HTML)));
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   const err = await successfactorsAdapter.listPostings(mahindra).then(() => null, (e: unknown) => e);
@@ -394,9 +364,6 @@ test("the dead-domain error is charged to the company, not written off as infras
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A block page in front of a healthy tenant carries none of the engine's assets
-// either, so the guard's own comment already named this case ("or a 200-served
-// block page") while charging it to the company.
 test("a WAF challenge page is an edge refusal, NOT a dead custom domain", async (t) => {
   stubFetch(t, () => Promise.resolve(htmlResponse(CHALLENGE_PAGE_HTML)));
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
@@ -407,8 +374,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead custom domain", async 
 });
 
 test("a board that produced rows is never failed for missing engine assets", async (t) => {
-  // searchPageHtml carries no /platform/js/j2w/ at all, so this also proves the
-  // check cannot fire on any page that parsed rows.
+  // Proves the check cannot fire on any page that parsed rows.
   const startrows = stubBoard(t, { total: 12, perPage: 10 });
   const postings = await successfactorsAdapter.listPostings(mahindra);
   assert.equal(postings.length, 12);
@@ -419,7 +385,6 @@ test("only page 1 is audited: a parked-looking page past the end just ends the c
   let calls = 0;
   stubFetch(t, () => {
     calls++;
-    // Page 1 is a real board; page 2 comes back as something else entirely.
     return Promise.resolve(htmlResponse(calls === 1 ? searchPageHtml(0, 10, null) : PARKED_HTML));
   });
   const postings = await successfactorsAdapter.listPostings(mahindra);

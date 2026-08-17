@@ -1,19 +1,8 @@
-// src/ats/gullak.ts — Gullak Money careers ("AutoHire", Gullak's in-house
-// recruiting SPA at candid.hub.gullak.money, which gullak.money/careers
-// redirects to):
-//
-//   GET https://autohire.internal.svc.uat.glkmny.tech/public/jobs
-//     -> { pipelines: [{ id, name, description, experience_required,
-//          jd_link, status }] }
-//
-// Verified live (2026-07-18, plain curl, no auth) — the "internal"/"uat"
-// hostname is publicly reachable (glkmny.tech is Gullak's own domain) but
-// FRAGILE by naming convention; schema failures here should be treated as
-// "endpoint rotated", not parse drift. Only status === "active" pipelines
-// are live postings. The full JD is an external Google Drive file per role
-// (jd_link) — not fetchable as text — so jdText uses the inline description
-// + experience fields. No location field exists; Gullak is a Bengaluru
-// fintech, so a fixed India location is stamped.
+// src/ats/gullak.ts — Gullak Money careers ("AutoHire" SPA). GET .../public/jobs -> { pipelines: [...] }, no auth.
+// The host ("internal"/"uat") is publicly reachable but fragile by naming convention, so a schema failure
+// here likely means the endpoint rotated. Only status === "active" pipelines are live; JD is an external
+// Google Drive link (unfetchable), so jdText uses description+experience; no location field, so a fixed
+// Bengaluru location is stamped.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

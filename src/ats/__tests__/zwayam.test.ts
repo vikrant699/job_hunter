@@ -24,9 +24,7 @@ const company: AdapterCompany = {
   apiMeta: { companyId: "MTU0ODY=", tenantGroupId: "G1" },
 };
 
-// Realistic hit shapes captured live from careers.cyient.com — some tenants
-// carry the full JD in shortDescription; others leave it near-empty (equal
-// to the title) and put the real body in mediumDescriptionWithoutHtml.
+// Some tenants carry the full JD in shortDescription; others leave it near the title and use mediumDescriptionWithoutHtml instead.
 const hitWithShortJd: ZwayamHit = {
   _id: 1134962,
   _source: {
@@ -124,24 +122,12 @@ test("normalizeZwayam: falls back to the numeric id in the job URL when jobUrl s
   assert.equal(p.jobUrl, "https://careers.cyient.com/cyient/jobview/42");
 });
 
-// --- dead tenant safety (no guard needed — pinning the vendor's behaviour) -----
-//
-// Zwayam needed no dead-tenant guard, and these tests exist so a future refactor
-// cannot quietly remove the safety it already has. Probed 2026-08-03 against
-// public.zwayam.com/jobs/search: the tenant selector is the `domain` field, NOT
-// companyId. A domain Zwayam does not host answers HTTP 200 with
-// {"code":200,...,"data":null,...} — `data.data` is absent, so parseOrThrow inside
-// zwayamPage already fails the row instead of reporting an empty board.
-//
-// companyId turns out to be near-decorative: a valid-looking but wrong value
-// (base64 of 999999) returned the DOMAIN's jobs, and outright garbage produced
-// code 500 with data:null, which also throws. So no combination of stale tokens
-// yields a silent [].
-//
-// The tenant/group endpoint is deliberately NOT used as an existence oracle: it
-// answers {"name":"","tenantGroupId":""} for careers.livspace.com, a healthy live
-// row, exactly as it does for a bogus host, so keying on it would have quarantined
-// Livspace.
+// Zwayam needs no dead-tenant guard: an unhosted domain answers 200 with data.data
+// absent, which parseOrThrow already fails instead of reading as an empty board.
+// The tenant selector is `domain`, not companyId - a wrong companyId still returns
+// the domain's own jobs, so no combination of stale tokens yields a silent [].
+// The tenant/group endpoint is deliberately not used as an existence oracle: it
+// answers blank for a healthy tenant (Livspace) same as for a bogus host.
 
 const liveCompany: AdapterCompany = {
   provider: "zwayam", slug: "cult", name: "Cult.fit",
@@ -150,14 +136,13 @@ const liveCompany: AdapterCompany = {
   apiMeta: { companyId: "MTU0NzA=", tenantGroupId: "G1" },
 };
 
-// Verbatim body for a domain Zwayam does not host (101 bytes, HTTP 200).
+// Shape returned for a domain Zwayam does not host (HTTP 200, data: null).
 const DEAD_DOMAIN_RESPONSE = {
   code: 200, type: null, message: null, exception: null,
   data: null, webserviceAPIResponseCode: null,
 };
 
-// Verbatim envelope for a LIVE tenant whose search matches nothing — cult.fit
-// with a nonsense keyword. data.data is present and empty, so it parses fine.
+// Shape for a live tenant whose search matches nothing: data.data present but empty.
 const EMPTY_BOARD_RESPONSE = {
   code: 200, type: null, message: null, exception: null,
   data: { data: [], facets: {}, totalCount: 0, hasMoreData: false },
@@ -165,17 +150,12 @@ const EMPTY_BOARD_RESPONSE = {
 };
 
 test("zwayamPage refuses to read a dead tenant's response as an empty board", () => {
-  // The whole reason this adapter needs no marker: the shape a dead domain
-  // returns cannot reach the empty-board path at all.
   assert.throws(() => zwayamPage(DEAD_DOMAIN_RESPONSE, "cult"), /zwayam page response failed schema for cult/);
-  // ... and code 500 with the same null payload, which garbage companyId produces.
   assert.throws(() => zwayamPage({ ...DEAD_DOMAIN_RESPONSE, code: 500, message: "Internal Server Error" }, "cult"));
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // A domain Zwayam no longer hosts is a per-company board defect and MUST count
-  // toward the row's consecutive_failures. If any of these flipped true the
-  // scheduler would retry the board forever and never quarantine it.
+  // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let err: unknown;
   try {
@@ -213,9 +193,6 @@ test("zwayamAdapter.listPostings still lists a populated board unchanged", async
 });
 
 test("zwayamAdapter.listPostings sends the tenant's own host as `domain` — the field the vendor keys on", async (t) => {
-  // The stale-token audit hypothesis was that companyId selects the tenant. It
-  // does not; `domain` does, which is why a dead one throws. Pinning the request
-  // shape keeps that true through a refactor.
   const seen: { domain: string | null; companyId: string | null; group: string | null } = {
     domain: null, companyId: null, group: null,
   };
@@ -247,17 +224,7 @@ test("zwayamAdapter.listPostings refuses to run at all without both api_meta tok
   );
 });
 
-// --- listPostings pagination -------------------------------------------------
-//
-// The served page size is a property of the TENANT, not of the engine: the same
-// endpoint, request and companyId-free body answer with a different row count
-// per domain. Probed live 2026-08-03 at offsets 0/9/10/18/20/27/90/99 —
-// careers.livspace.com returns 9 rows at every offset with totalCount 100 (and
-// the single remaining row at offset 99), careers.cult.fit returns 10 with
-// totalCount 132, careers.sonyindiasoftware.co.in has 9 postings in all. The 9
-// is a genuine page size, not a dropped row: `hits` comes straight off the
-// schema-parsed array, and a hit that failed the schema would fail the whole
-// page rather than shorten it.
+// Page size is a per-tenant property, not fixed by the engine - different domains serve different row counts at the same endpoint.
 
 const livspace: AdapterCompany = {
   provider: "zwayam", slug: "livspace", name: "Livspace",
@@ -296,8 +263,7 @@ function requestedOffset(init: RequestInit | undefined): number {
   return FilterCriSchema.parse(JSON.parse(raw)).paginationStartNo;
 }
 
-/** Serve a `perPage`-row window of a `total`-row board at whatever offset the
- *  adapter asks for. Returns the offsets requested, in order. */
+/** Serve a `perPage`-row window of a `total`-row board at the requested offset; returns offsets requested. */
 function stubBoard(t: TestContext, total: number, perPage: number): number[] {
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
@@ -310,9 +276,7 @@ function stubBoard(t: TestContext, total: number, perPage: number): number[] {
 }
 
 test("listPostings collects all 100 postings of a tenant that serves 9 rows a page (Livspace)", async (t) => {
-  // The hardcoded page size of 10 judged Livspace's OWN first page short, so
-  // pagination ended at 9 of 100 on every run — silently, and with totalCount
-  // 100 never compared, because paginate breaks on the short page first.
+  // A hardcoded page size of 10 judged Livspace's own 9-row first page short, silently truncating to 9 of 100.
   const offsets = stubBoard(t, 100, 9);
 
   const postings = await zwayamAdapter.listPostings(livspace);
@@ -333,9 +297,7 @@ test("listPostings is unchanged on a tenant that really does serve 10 rows a pag
 });
 
 test("listPostings terminates on a single-page board smaller than the page size (Sony India regression)", async (t) => {
-  // 9 postings, totalCount 9. Under an inferred size the first page can never
-  // be short against itself, so the reported total is what ends this board —
-  // still in one fetch, exactly as the wrong constant happened to manage.
+  // With an inferred page size the first page can't be short against itself, so the reported total ends it in one fetch.
   const offsets = stubBoard(t, 9, 9);
 
   const postings = await zwayamAdapter.listPostings(sony);
@@ -345,8 +307,7 @@ test("listPostings terminates on a single-page board smaller than the page size 
 });
 
 test("listPostings terminates on a full-page board that reports no total, via the empty next page", async (t) => {
-  // Guessing the page size low costs at most one extra fetch: with no total to
-  // compare against, the zero-row page is the terminator.
+  // Guessing the page size low costs at most one extra fetch; with no total, the empty page ends it.
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
     const start = requestedOffset(init);
@@ -361,11 +322,7 @@ test("listPostings terminates on a full-page board that reports no total, via th
 });
 
 test("listPostings stops on a board that ignores the offset and re-serves page 1", async (t) => {
-  // paginate's stall guard builds its page signature from dedupeBy, so without
-  // a per-item key it is inert — an offset-ignoring board would be walked all
-  // the way to totalCount, re-fetching the same 9 rows across 12 pages. The
-  // wrong constant used to mask that (a clamped 9-row page looked short); an
-  // inferred size cannot, so the key has to be there.
+  // The stall guard needs a dedupeBy key or an offset-ignoring board gets walked to totalCount, re-fetching the same page.
   let calls = 0;
   stubFetch(t, () => {
     calls++;
@@ -379,9 +336,7 @@ test("listPostings stops on a board that ignores the offset and re-serves page 1
 });
 
 test("listPostings keeps crawling an overlapping page but accumulates each posting once", async (t) => {
-  // Pages that overlap without repeating exactly are a live board reordering
-  // under the crawl, not a stall — it must not be mistaken for the end, and the
-  // duplicate must not be counted twice.
+  // Overlapping-but-not-identical pages mean the board reordered mid-crawl, not a stall.
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
     const start = requestedOffset(init);

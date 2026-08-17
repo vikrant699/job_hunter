@@ -10,8 +10,6 @@ const company: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed from the real https://lohum.com/api/Currentopening/getlist response
-// (verified live 2026-08-01).
 const RESPONSE = [
   {
     id: 141,

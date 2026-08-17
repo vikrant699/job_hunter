@@ -1,40 +1,15 @@
-// src/ats/webbtree.ts — Webbtree hosted career boards
-// (app.webbtree.com/company/<slug>/jobs, e.g. ideaForge).
-//
-// STEP 1 (list): a plain GET of the board returns SSR HTML with the full,
-// unpaginated job list as an Angular TransferState island:
-//
-//   <script id="serverApp-state" type="application/json">{...}</script>
-//
-// The island is a JSON object keyed by request URL, e.g.:
-//   { "https://appapi.webbtree.com/candidate/jobs/getjobs": { url, body: { status, message: Job[] } },
-//     "https://appapi.webbtree.com/candidate/company/getcompanyinfo?...&c_e=<token>": {...}, ... }
-//
-// It uses a CUSTOM entity scheme (not standard HTML entities): &q; -> ",
-// &a; -> &. Must decode in a single pass BEFORE JSON.parse (a naive
-// iterative/sequential replace would double-decode: an "&a;" that decodes to
-// "&" must not be re-scanned as the start of a new entity).
-//
-// The tenant's opaque `c_e` token also lives in this island — either as a
-// `c_e=` query param on the getcompanyinfo request URL, or (fallback) inside
-// a job's `jobdescriptionurl` path segment
-// (".../<slug>/<token>/job-board/career/jobdetail/<jobnumber>"). Needed for
-// step 2; cached in-memory per company slug (or supplied via
-// company.apiMeta.c_e, once registry seeding starts stashing it there).
-//
-// STEP 2 (JD, per job): POST to a SHARED endpoint (same host for every
-// tenant) with the token in both the body and a `customurl` header:
-//
-//   POST https://appapi.webbtree.com/candidate/jobs/getjobdetails
-//   body: { companynumber: "qwer23", jobnumber, candidatenumber: null,
-//           c_n: <slug>, c_e: <token> }
-//   header: customurl: /<slug>/<token>
-//   -> { status, message: { details: { jobdescription: "<html>", ... } } }
-//
-// "qwer23" is a hardcoded placeholder the backend ignores (verified live) —
-// not a real per-tenant company number. The island's `jobdescriptionurl`
-// field is a dead legacy route (an Angular SPA route, not a fetchable JD
-// endpoint) — never used for fetching, only as a human-facing job link.
+// src/ats/webbtree.ts — Webbtree hosted career boards (app.webbtree.com/company/<slug>/jobs).
+// STEP 1 (list): a plain GET of the board returns SSR HTML with the full, unpaginated job
+// list as an Angular TransferState island (<script id="serverApp-state" type="application/json">).
+// It uses a CUSTOM entity scheme (not standard HTML entities): &q; -> ", &a; -> &, decoded
+// in a single pass (a naive sequential replace would double-decode an "&a;"-derived "&").
+// The tenant's opaque `c_e` token also lives in this island (a `c_e=` query param, or
+// fallback the path segment in a job's jobdescriptionurl); needed for step 2, cached
+// in-memory per company slug (or supplied via apiMeta.c_e).
+// STEP 2 (JD, per job): POST to a SHARED endpoint (same host for every tenant) with the
+// token in both the body and a `customurl` header. "qwer23" (companynumber) is a hardcoded
+// placeholder the backend ignores — the real tenant identity travels via c_n/c_e. The
+// island's jobdescriptionurl is a dead legacy SPA route, never used for fetching.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -87,25 +62,18 @@ const WebbtreeJobDetailsResponseSchema = z.object({
     .optional(),
 });
 
-/**
- * Decode Webbtree's custom entity scheme in a single pass: &q; -> ", &a; ->
- * &. A combined regex + branching replacer (rather than two sequential
- * `.replace` calls) guarantees each occurrence is visited exactly once, so an
- * "&a;" that decodes to a literal "&" is never mistaken for the start of a
- * fresh entity in the same pass.
- */
+// Decodes Webbtree's custom entity scheme in a single pass so an "&a;"-derived "&" is never
+// mistaken for the start of a fresh entity.
 export function decodeWebbtreeEntities(s: string): string {
   return s.replace(/&q;|&a;/g, (m) => (m === "&q;" ? '"' : "&"));
 }
 
-/** Pull the raw (still entity-escaped) contents of the serverApp-state
- *  TransferState island. Null when absent (WAF page, wrong path, layout change). */
+// Pulls the raw (still entity-escaped) contents of the serverApp-state island. Null if absent.
 export function extractServerAppStateIsland(html: string): string | null {
   return matchGroup(/<script id="serverApp-state" type="application\/json">([\s\S]*?)<\/script>/, html);
 }
 
-/** Entity-decode + JSON-parse + zod-validate the island. Throws with an
- *  actionable message on garbage (each failure mode named separately). */
+// Entity-decode + JSON-parse + zod-validate the island. Throws with an actionable message on garbage.
 export function parseServerAppState(raw: string, slug: string): WebbtreeIsland {
   const parsed = tryParseJson(decodeWebbtreeEntities(raw));
   if (parsed === null) {
@@ -118,8 +86,7 @@ function findIslandEntry(island: WebbtreeIsland, urlSubstring: string): Webbtree
   return Object.values(island).find((entry) => typeof entry.url === "string" && entry.url.includes(urlSubstring));
 }
 
-/** Pull the job list out of the island's getjobs entry. Throws when that
- *  entry is missing or its body doesn't match the expected shape. */
+// Pulls the job list out of the island's getjobs entry. Throws when missing or malformed.
 export function webbtreeJobsFromIsland(island: WebbtreeIsland, slug: string): WebbtreeJob[] {
   const entry = findIslandEntry(island, "/candidate/jobs/getjobs");
   if (!entry) {
@@ -132,13 +99,8 @@ export function webbtreeJobsFromIsland(island: WebbtreeIsland, slug: string): We
 const CE_TOKEN_RE = /[?&]c_e=([A-Za-z0-9_-]+)/;
 const CE_TOKEN_FROM_JOB_URL_RE = /\/([A-Za-z0-9_-]+)\/job-board\/career\/jobdetail\//;
 
-/**
- * The tenant's opaque c_e token, tried in two places: any island entry's
- * request URL carrying a `c_e=` query param (getcompanyinfo, in practice),
- * falling back to the path segment embedded in a job's `jobdescriptionurl`.
- * Null when neither source has it (e.g. an empty board with no
- * getcompanyinfo call recorded).
- */
+// The tenant's opaque c_e token: any island entry's request URL with c_e=, falling back to
+// the path segment in a job's jobdescriptionurl. Null when neither source has it.
 export function extractCeToken(island: WebbtreeIsland, jobs: readonly WebbtreeJob[]): string | null {
   for (const entry of Object.values(island)) {
     const token = typeof entry.url === "string" ? matchGroup(CE_TOKEN_RE, entry.url) : null;
@@ -179,8 +141,7 @@ interface WebbtreeListParse {
   ceToken: string | null;
 }
 
-/** Full HTML -> {jobs, ceToken}. Exposed so listPostings and the token
- *  fallback path (resolveCeToken) share one parse. */
+// Full HTML -> {jobs, ceToken}. Exposed so listPostings and resolveCeToken share one parse.
 function parseWebbtreeListHtml(html: string, slug: string): WebbtreeListParse {
   const raw = extractServerAppStateIsland(html);
   if (raw === null) {
@@ -193,17 +154,15 @@ function parseWebbtreeListHtml(html: string, slug: string): WebbtreeListParse {
   return { jobs, ceToken: extractCeToken(island, jobs) };
 }
 
-/** Full HTML -> postings path, exposed so tests cover it without HTTP. */
+// Full HTML -> postings path, exposed so tests cover it without HTTP.
 export function postingsFromWebbtreeHtml(company: AdapterCompany, html: string): NormalizedPosting[] {
   const { jobs, ceToken } = parseWebbtreeListHtml(html, company.slug);
   if (ceToken) tokenCache.set(company.slug, ceToken);
   return jobs.map((j) => normalizeWebbtree(company, j));
 }
 
-// In-memory cache: listPostings always runs before fetchJd in the pipeline,
-// so this normally spares fetchJd a second full-page fetch just for the
-// token. Falls back to re-deriving from a fresh fetch if the cache (and
-// apiMeta) are both empty — e.g. fetchJd called standalone.
+// In-memory cache: listPostings always runs before fetchJd, sparing fetchJd a second full
+// page fetch just for the token. Falls back to re-deriving if the cache (and apiMeta) are empty.
 const tokenCache = new Map<string, string>();
 
 async function resolveCeToken(company: AdapterCompany): Promise<string> {

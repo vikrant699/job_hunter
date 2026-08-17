@@ -1,4 +1,3 @@
-// src/ats/peoplestrong.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { peoplestrongListUrl, peoplestrongJdUrl, peoplestrongJobUrl, normalizePeoplestrong, parsePeoplestrongJd, PeoplestrongListSchema } from "../peoplestrong.js";
@@ -14,7 +13,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Job with a null jobDetailUrl (RBL shape) — URL must be constructed.
+// Job with a null jobDetailUrl (RBL shape); URL must be constructed.
 const JOB_NO_URL: PeoplestrongJob = {
   jobCode: "RBL/RM-SB/1477632",
   jobTitle: "Relationship Manager – Signature Banking",

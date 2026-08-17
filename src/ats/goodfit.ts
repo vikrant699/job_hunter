@@ -1,22 +1,7 @@
-// src/ats/goodfit.ts — Goodfit job boards (Springworks' own ATS), one tenant per
-// path: https://app.goodfit.so/jobs/<slug>. Two server-rendered generations exist:
-//
-//   v2 (migrated tenants, e.g. springworks, infiniti-solutions): the v1 URL
-//      serves a shell that meta-refreshes to https://v2.app.goodfit.so/jobs/<slug>.
-//      The v2 page carries a JSON-LD ItemList (title + absolute job URL with
-//      ?id=<uuid>) AND an RSC flight-data island {\"jobs\":[...]} with locations,
-//      createdAt, seniority. Titles/urls come from the JSON-LD; locations/dates
-//      from the island. The DOM shows "Remote" for jobs with NO locations —
-//      that default is deliberately ignored (location stays null).
-//
-//   v1 (non-migrated tenants, e.g. giva): jobs render as
-//      <a href="/jobs/<slug>/<Title>?id=<shortid>"> cards with the title in a
-//      div.font-serif.font-medium and "Org ✦ City, State, Country" beneath.
-//
-//   jd: the per-job page is server-rendered on both generations. v2 keeps the
-//       body in div.prose; v1 in a font-serif div styled with [&>h1]:... rules.
-//       Fallback: whole-page text. Everything is a single page — no pagination
-//       has been observed on either generation (boards render all jobs at once).
+// src/ats/goodfit.ts — Goodfit job boards (Springworks' ATS), one tenant per path: https://app.goodfit.so/jobs/<slug>.
+// Two generations: v2 (JSON-LD ItemList for titles/urls + an RSC flight-data island for locations/createdAt; the
+// DOM's "Remote" default for jobs with no locations is deliberately ignored) and v1 (server-rendered anchor cards).
+// jd: v2 in div.prose, v1 in a font-serif container, else whole-page text. No pagination on either generation.
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -71,18 +56,9 @@ export interface GoodfitRscJob {
   createdAt: string | null;
 }
 
-/**
- * v2 RSC flight-data island: the page streams `self.__next_f.push([1,"...{\"jobs\":[...]}..."])`
- * — a JSON payload escaped inside a JS string literal (every quote doubled up
- * as `\"`). Unescape the whole source ONCE first (same recipe as jsvar.ts's
- * `unescape:true` RSC-flight config) so `extractBalanced`'s quote-tracking
- * sees real `"` delimiters instead of literal backslash-quote pairs, then
- * balanced-scan the "jobs" array directly — this also means a brace/bracket
- * character inside a job's own string fields (e.g. a title) can no longer
- * miscount the scan, since it's correctly recognized as being inside a
- * string. Per-job tolerant: an odd job shape is skipped, not fatal. Returns
- * id -> {locations, createdAt}.
- */
+/** v2 RSC flight-data island (`self.__next_f.push(...)`): JSON escaped inside a JS string, unescaped once
+ *  before balanced-scanning the "jobs" array so a brace/bracket inside a job's own string fields (e.g. a
+ *  title) can't miscount the scan. Per-job tolerant; returns id -> {locations, createdAt}. */
 export function extractGoodfitRscJobs(html: string): Map<string, GoodfitRscJob> {
   const map = new Map<string, GoodfitRscJob>();
   const unescaped = html.replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\\//g, "/");
@@ -164,12 +140,8 @@ function makePosting(
   };
 }
 
-/**
- * Parse one board page (either generation) into postings.
- * v2: JSON-LD titles/urls merged with RSC locations/createdAt.
- * v1: server-rendered anchor cards.
- * Throws on Next's 404 fallback (board slug gone); [] is a legitimately empty board.
- */
+/** Parse one board page (either generation) into postings; throws on Next's 404 fallback (board slug gone),
+ *  [] is a legitimately empty board. */
 export function parseGoodfitBoard(html: string, finalUrl: string, company: AdapterCompany): NormalizedPosting[] {
   if (html.includes("NEXT_HTTP_ERROR_FALLBACK;404")) {
     throw new Error(`goodfit board 404 for ${company.slug} (${finalUrl})`);
@@ -200,8 +172,7 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
     return out;
   }
 
-  // v1 fallback: anchor cards. Title in div.font-serif (v1) or span.font-medium (v2
-  // safety net); location after the ✦ separator (v1) or in the span.text-xs chip (v2).
+  // v1 fallback: anchor cards, title in div.font-serif or span.font-medium, location after the ✦ separator or in the span.text-xs chip.
   const $ = cheerio.load(html);
   $('a[href*="?id="]').each((_, el) => {
     const $a = $(el);
@@ -237,8 +208,7 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
   return out;
 }
 
-/** JD text from a detail page: div.prose (v2), else the [&>h1]-styled container (v1),
- *  else whole-page text minus scripts/styles. */
+/** JD text: div.prose (v2), else [&>h1]-styled container (v1), else whole-page text minus scripts/styles. */
 export function extractGoodfitJd(html: string): string {
   const $ = cheerio.load(html);
   $("script, style").remove();
@@ -247,9 +217,8 @@ export function extractGoodfitJd(html: string): string {
   return htmlToText(target ?? "");
 }
 
-/** Fetch a goodfit page, following embedded client-side redirects (v1 board shell
- *  -> v2 board; v1 job page -> /j/<shortid> interstitial -> v2 job page). Meta
- *  refresh targets can be relative, so each hop resolves against the previous URL. */
+/** Fetch a goodfit page, following embedded client-side redirects (v1 shell -> v2 board/job); meta refresh
+ *  targets can be relative, so each hop resolves against the previous URL. */
 async function fetchGoodfitPage(url: string): Promise<{ finalUrl: string; html: string }> {
   let page = await atsFetchHtml(url, { provider: "goodfit" });
   for (let hop = 0; hop < 3; hop++) {

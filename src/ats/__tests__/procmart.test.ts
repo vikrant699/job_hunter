@@ -1,10 +1,4 @@
-// The regression this file pins: procmart's WP REST collection endpoint hangs
-// the origin (503 / 20s+ stall, cf reached 5 and the row went broken between
-// 2026-08-03 and 2026-08-15) whenever `_fields` includes `content` — verified
-// live 2026-08-17: per_page=100 without content answers in ~0.3s, ANY collection
-// query with content never answers, and single-page content fetches answer in
-// ~0.5s. So the adapter must list WITHOUT content and fetch each job page's
-// content individually.
+// Regression this file pins: procmart's WP REST collection endpoint hangs whenever _fields includes content, so the adapter must list WITHOUT content and fetch each job page's content individually.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { procmartAdapter, procmartTitle } from "../procmart.js";
@@ -47,8 +41,7 @@ test("procmart lists without content, then fetches each job page's content indiv
 
   const postings = await procmartAdapter.listPostings(COMPANY);
 
-  // The collection query must NEVER ask for content — that is the exact query
-  // that hangs the origin and broke the row.
+  // The collection query must NEVER ask for content - that is the exact query that hangs the origin and broke the row.
   const listCalls = urls.filter((u) => u.includes("/wp-json/wp/v2/pages?"));
   assert.equal(listCalls.length, 1);
   assert.ok(!at(listCalls, 0).includes("content"), "collection query must not request the content field");

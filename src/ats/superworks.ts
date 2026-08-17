@@ -1,36 +1,5 @@
-// src/ats/superworks.ts — Superworks Recruit white-label career sites, one
-// tenant per subdomain: <slug>.superworks.com/job/listing.
-//
-// NOTE — this is NOT a plain server-rendered HTML board (unlike Trakstar):
-// the site is a Next.js App Router app. The job data is never present as
-// cheerio-selectable DOM (no <div class="job-card">-style markup) — it's
-// embedded inline in the raw HTTP response as an escaped React Server
-// Components ("Flight") payload, inside one or more
-//   <script>self.__next_f.push([1, "<escaped-chunk>"])</script>
-// tags. Concatenating and JSON-unescaping every chunk recovers a single
-// "Flight text" blob containing plain (if occasionally $-ref-laden) JSON:
-//
-//   list:   GET <origin>/job/listing -> Flight text contains one
-//           `"initialData":{ "companyInfo": { "companyName" }, "jobList": [
-//           { "_id", "name", "locationInfo": [{"name"}] }, ... ] }`
-//           object with EVERY posting (no pagination — a `?page=2` query
-//           param is silently ignored, verified live on refrens: same 17
-//           rows either way). The externalId is Mongo `_id`; job URLs are
-//           `<origin>/job/details/<_id>`. A subdomain Superworks does not host
-//           serves the same shell with NO initialData at all — see
-//           assertSuperworksTenantExists.
-//
-//   jd:     GET <origin>/job/details/<_id> -> Flight text contains
-//           `"jobDescription":{"description": ... }`. For any JD long
-//           enough, Flight streams the HTML body out-of-line as a "Text"
-//           record referenced by a `"$<id>"` placeholder; the record itself
-//           looks like `<id>:T<hex-byte-length>,<raw HTML bytes>` elsewhere
-//           in the same blob. Short strings may appear inline instead of a
-//           ref — both are handled.
-//
-// Because everything needed is in the plain (non-JS-executed) HTTP body, no
-// browser/XHR capture is required — a plain GET is sufficient for both list
-// and JD, same operational shape as Trakstar (one unpaginated page).
+// src/ats/superworks.ts — Superworks Recruit white-label career sites (<slug>.superworks.com/job/listing), a Next.js App Router app whose job data isn't in the DOM at all - it's an escaped React Server Components "Flight" payload inside <script>self.__next_f.push([1,"..."])</script> tags.
+// Concatenating + JSON-unescaping every chunk recovers one "Flight text" blob holding initialData.jobList (list, unpaginated - ?page= is ignored) and, per detail page, jobDescription.description (sometimes an out-of-line "$id:T<hexlen>,<bytes>" Text record). A subdomain Superworks doesn't host serves the same shell with no initialData - see assertSuperworksTenantExists. Everything needed is in the plain HTTP body, so no browser/XHR capture is required.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -41,17 +10,12 @@ import { tryParseJson } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
-/** The one (unpaginated — `?page=` is ignored server-side) listing page. */
+/** The one (unpaginated - `?page=` is ignored server-side) listing page. */
 export function superworksListUrl(company: AdapterCompany): string {
   return `${tenantOrigin(company)}/job/listing`;
 }
 
-/**
- * Unescape a JSON string body (the content between the outer quotes) back to
- * its literal text, via the standard `JSON.parse('"' + body + '"')` trick.
- * Zod-validated instead of cast, per the no-cast house rule. Returns null on
- * malformed input rather than throwing.
- */
+/** Unescape a JSON string body back to literal text via `JSON.parse('"'+body+'"')`, zod-validated instead of cast. Null on malformed input. */
 function unescapeJsonStringBody(body: string): string | null {
   const parsed = tryParseJson(`"${body}"`);
   if (parsed === null) return null;
@@ -59,12 +23,7 @@ function unescapeJsonStringBody(body: string): string | null {
   return result.success ? result.data : null;
 }
 
-/**
- * Concatenate + JSON-unescape every `self.__next_f.push([1, "<chunk>"])`
- * payload in a superworks HTML response into one "Flight text" blob. Chunks
- * that fail to unescape (shouldn't happen on well-formed pages) are skipped
- * rather than aborting the whole parse.
- */
+/** Concatenate + unescape every `self.__next_f.push([1,"<chunk>"])` payload into one "Flight text" blob; chunks that fail to unescape are skipped rather than aborting the whole parse. */
 function extractFlightText(html: string): string {
   const re = /self\.__next_f\.push\(\[1,"((?:\\.|[^"\\])*)"\]\)/g;
   const parts: string[] = [];
@@ -88,10 +47,7 @@ const InitialDataSchema = z.object({
   jobList: z.array(JobListItemSchema),
 });
 
-// The tenant-identity block Superworks resolves from the SUBDOMAIN, and the
-// first key inside initialData on every page a real tenant serves — including
-// job-detail pages, which carry no jobList at all. Its presence therefore says
-// "this subdomain is a Superworks tenant" independently of how many jobs are open.
+// Resolved from the subdomain and present on every page a real tenant serves, including job-detail pages with no jobList - its presence says "this is a Superworks tenant" independently of how many jobs are open.
 const TenantIdentitySchema = z.object({
   companyInfo: z.object({ companyName: z.string() }),
 });
@@ -103,10 +59,7 @@ function extractInitialData(html: string): JsonValue | null {
   return tryParseJson(raw);
 }
 
-/**
- * The tenant name the board resolved from its own subdomain, or null when the
- * response carries no tenant-identity block at all.
- */
+/** The tenant name the board resolved from its own subdomain, or null when the response carries no tenant-identity block at all. */
 export function superworksTenantName(html: string): string | null {
   const initialData = extractInitialData(html);
   if (initialData === null) return null;
@@ -116,35 +69,13 @@ export function superworksTenantName(html: string): string | null {
 }
 
 /**
- * Throw when the listing page carries no tenant identity — i.e. the subdomain is
- * not a Superworks board.
- *
- * A subdomain Superworks does not host does NOT 404, and does not leave the host
- * either: <slug>.superworks.com answers HTTP 200 with the same Next.js shell a
- * real tenant serves, titled "Jobs & Careers | Recruit Superworks" (the vendor's
- * generic default rather than the tenant's name), and its Flight payload resolves
- * the page record to an RSC error instead of page data. There is no "initialData"
- * anywhere in it, so extractBalanced found nothing, parseSuperworksList returned
- * [] and listPostings resolved with zero postings — indistinguishable from a board
- * with nothing open today. Nothing failed, so consecutive_failures never moved.
- *
- * What separates the two is the tenant-identity block, not the job list:
- * initialData.companyInfo.companyName is resolved from the subdomain and is
- * present on every page a real tenant serves. Probed 2026-08-03: present on both
- * live rows (refrens, insidefpv), and — the case that matters — present on a
- * refrens job-detail page fetched with a nonexistent job id, whose initialData
- * carries companyInfo with no jobList whatsoever. So a tenant that closes every
- * job still identifies itself and still returns [], while a subdomain the vendor
- * does not host identifies nobody. Neither live board could be made to serve an
- * empty jobList directly: the listing page ignores every filter/paging query
- * param tried (search, searchText, location, department, jobType, page).
- *
- * Runs only after the parse comes up empty, so a page that yielded postings can
- * never be failed by this.
- *
- * A bot-blocker's challenge page carries no initialData either, so it is checked
- * for first and thrown infrastructure-shaped instead: an edge refusing us is
- * retried and deferred, never charged to the row.
+ * A subdomain Superworks doesn't host still answers 200 with the generic
+ * Next.js shell and no initialData at all - indistinguishable from a real
+ * tenant with zero open jobs, except a real tenant (even with nothing open)
+ * still resolves initialData.companyInfo.companyName from the subdomain.
+ * Runs only after a zero-row parse, so a page that yielded postings can
+ * never be failed by this. A bot-blocker's challenge page also carries no
+ * initialData, so it's checked for first and thrown infrastructure-shaped.
  */
 export function assertSuperworksTenantExists(html: string, slug: string, listUrl: string): void {
   if (superworksTenantName(html) !== null) return;
@@ -192,11 +123,7 @@ export function parseSuperworksList(html: string, company: AdapterCompany): Norm
   return postings;
 }
 
-/**
- * Resolve a Flight "Text" record: `<id>:T<hex-byte-length>,<raw bytes>`
- * elsewhere in the same blob. Byte-length (not char-length) matters because
- * the hex count is UTF-8 bytes and JD HTML can contain multi-byte chars.
- */
+/** Resolve a Flight "Text" record (`<id>:T<hex-byte-length>,<raw bytes>`); byte-length not char-length, since the hex count is UTF-8 bytes and JD HTML can contain multi-byte chars. */
 function resolveTextRecord(flightText: string, refId: string): string | null {
   const escapedId = refId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`(?:^|\\n)${escapedId}:T([0-9a-f]+),`);
@@ -235,8 +162,7 @@ export const superworksAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const html = await atsFetchText(superworksListUrl(company), { provider: "superworks" });
     const postings = parseSuperworksList(html, company);
-    // Only on a zero-row parse: a page that yielded postings is a live tenant
-    // whatever else its payload happens to carry.
+    // Only on a zero-row parse - a page that yielded postings is a live tenant regardless.
     if (postings.length === 0) {
       assertSuperworksTenantExists(html, company.slug, superworksListUrl(company));
     }

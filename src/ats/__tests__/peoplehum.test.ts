@@ -11,8 +11,6 @@ const company: AdapterCompany = {
   careersUrl: "https://hire.peoplehum.com/devnagri", tenantUrl: null, apiMeta: null,
 };
 
-// Captured live 2026-07-11 from
-// https://webapi.peoplehum.com/api/web/internal-api/customer/16900/external/job/list
 const job: PeoplehumJob = {
   id: "4ff664c2-1d81-4cf3-b89c-bf6ba34e317b",
   title: "Voicebot Developer",

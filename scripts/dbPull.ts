@@ -1,16 +1,7 @@
 /**
- * Download data/job_hunter.db from Google Drive, replacing the local copy.
- *
- *   npm run db:pull -- --profile vikrant
- *
- * Downloads to a temp file, runs PRAGMA integrity_check on it, and only then
- * swaps it in - a truncated or corrupt download can never clobber a working
- * database. `npm run once` pulls automatically when the remote is ahead, so this
- * is mainly for setting up a fresh machine or forcing a refresh.
- *
- * Refuses to run when the LOCAL copy is newer, because that means an earlier run
- * on this machine never pushed and pulling would discard it. Override with
- * --force only if you are sure the local state is disposable.
+ * Downloads data/job_hunter.db from Google Drive, replacing the local copy.
+ *   npm run db:pull -- --profile vikrant [--force]
+ * Verifies integrity in a temp file before swapping it in, and refuses when the local copy is newer (an earlier run here never pushed) unless --force.
  */
 import "dotenv/config";
 import { pullDb, checkState, syncSkipReason } from "../src/db/sync.js";
@@ -28,8 +19,7 @@ async function main(): Promise<void> {
   const force = process.argv.includes("--force");
   await assertGoogleTokenValid(profileId);
 
-  // Each profile is a separate Google account with its own Drive, so pulling as the
-  // wrong profile would fetch a DIFFERENT database over this machine's.
+  // Each profile is a separate Google account with its own Drive - the wrong profile would fetch a different database.
   const skip = syncSkipReason(profileId);
   if (skip !== null && !force) {
     logger.error({ profileId }, `refusing to pull: ${skip}`);

@@ -29,10 +29,7 @@ function pageHtml<T>(pageProps: T): string {
   return `<!DOCTYPE html><html><body><div id="__next"></div><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(nextData)}</script></body></html>`;
 }
 
-// Real shape captured live 2026-07-12 from careers.peerlist.io/ — the board
-// is live but has zero open postings today (companyData trimmed here to the
-// fields that matter; the real payload also carries logo/socialLinks/tools/
-// images/integrations, none of which this adapter reads).
+// Real shape from careers.peerlist.io - board is live with zero postings; companyData trimmed to fields this adapter reads.
 const REAL_EMPTY_ISLAND_HTML = pageHtml({
   companyData: { name: "Peerlist", domain: "peerlist.io", profileHandle: "peerlist" },
   careersList: [],
@@ -41,10 +38,7 @@ const REAL_EMPTY_ISLAND_HTML = pageHtml({
   isCustomDomain: true,
 });
 
-// Synthetic — no live board has openings today, so this exercises the
-// tolerant per-item schema with two different alias sets: job A uses
-// id/title/location-as-string/description; job B uses slug/role/location-as-
-// an-array-of-{city,country}/jobDescription.
+// Synthetic (no live board has openings) - exercises the tolerant per-item schema across two alias sets (id/title/string-location vs slug/role/array-location).
 const SYNTHETIC_TWO_JOBS_HTML = pageHtml({
   companyData: { name: "Acme" },
   careersList: [
@@ -155,8 +149,6 @@ test("normalizePeerlistItem falls back to 'Untitled' and null location/jdText=''
   assert.equal(p.isRemote, false);
   assert.equal(p.jdText, "");
 });
-
-// --- adapter-level: real empty board, synthetic non-empty board, missing island ---
 
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {

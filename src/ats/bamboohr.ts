@@ -1,12 +1,6 @@
-// src/ats/bamboohr.ts — BambooHR hosted career sites, e.g. noorahealth.bamboohr.com.
-// Two-phase JSON API, no auth, no pagination (single array + totalCount):
-//   GET <tenant>.bamboohr.com/careers/list           -> { meta, result: Job[] }
-//   GET <tenant>.bamboohr.com/careers/<id>/detail    -> { meta, result: { jobOpening } }
-// `company.slug` is the tenant subdomain. The list endpoint's location data is
-// split across two objects (`location` and `atsLocation`) and either one may
-// be the one actually populated — sometimes with city/state swapped or a
-// pincode sitting in `state`/`province`. We just join whichever object has
-// non-null parts rather than trying to normalize the swap.
+// src/ats/bamboohr.ts — BambooHR hosted career sites (<tenant>.bamboohr.com), two-phase JSON API, no auth, no pagination.
+// GET /careers/list and GET /careers/<id>/detail. Location is split across `location`/`atsLocation`, either may be
+// populated (sometimes with city/state swapped or a pincode in state/province) - we just join whichever has parts.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -61,26 +55,16 @@ const DetailResponseSchema = z.object({
   }),
 });
 
-/** List/detail endpoints for one tenant. */
 export function bambooHrListUrl(slug: string): string {
   return `https://${slug}.bamboohr.com/careers/list`;
 }
 export function bambooHrDetailUrl(slug: string, id: string): string {
   return `https://${slug}.bamboohr.com/careers/${id}/detail`;
 }
-/** The share URL pattern is stable and derivable from list data alone —
- * verified against the detail endpoint's `jobOpeningShareUrl`. */
 export function bambooHrJobUrl(slug: string, id: string): string {
   return `https://${slug}.bamboohr.com/careers/${id}`;
 }
 
-/**
- * Build a location string from whichever of `location`/`atsLocation` is
- * actually populated. Field semantics are inconsistent between tenants/rows
- * (e.g. a pincode may land in `state` or `province`, a state name may land
- * in `city`) so we don't try to disambiguate — just surface every non-null
- * part in a stable order.
- */
 export function buildBambooHrLocation(
   location: z.infer<typeof LocationSchema>,
   atsLocation: z.infer<typeof AtsLocationSchema>,

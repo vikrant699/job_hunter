@@ -1,13 +1,6 @@
-/**
- * Undici's `fetch` reports every connection-level failure as the same opaque
- * `TypeError: fetch failed` and hides the real error in `err.cause`. Since
- * `String(err)` drops the cause, a stored error told us nothing: run 29
- * (2026-07-26) recorded 72 dead Workday boards as 23 characters of
- * "TypeError: fetch failed", which is indistinguishable from a genuinely broken
- * board. These helpers walk the cause chain so the stored text names the actual
- * failure (ENOTFOUND, ECONNRESET, ...) and so the scheduler can tell a transport
- * fault apart from a board defect.
- */
+// Undici's fetch collapses every connection-level failure into the same opaque "TypeError: fetch failed" and hides the real
+// error in err.cause, which String(err) drops. These helpers walk the cause chain so the stored text names the actual
+// failure (ENOTFOUND, ECONNRESET, ...) and the scheduler can tell a transport fault apart from a board defect.
 
 /** Cause chains are shallow in practice; the cap only guards a cyclic `cause`. */
 const MAX_CAUSE_DEPTH = 5;
@@ -37,10 +30,7 @@ function chain(err: unknown): unknown[] {
   return out;
 }
 
-/**
- * Every `code` in the cause chain (e.g. ["ENOTFOUND"]). Empty when the failure
- * carries no syscall/undici code — i.e. it is not transport-shaped.
- */
+/** Every `code` in the cause chain; empty when the failure carries no syscall/undici code (not transport-shaped). */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function errorCauseCodes(err: unknown): string[] {
   return chain(err)
@@ -48,31 +38,19 @@ export function errorCauseCodes(err: unknown): string[] {
     .map((e) => e.code);
 }
 
-/**
- * Human-readable error text that keeps the cause. `TypeError: fetch failed`
- * becomes `TypeError: fetch failed <- Error: getaddrinfo ENOTFOUND host (ENOTFOUND)`,
- * which is the difference between diagnosing an outage and guessing at one.
- */
+/** Human-readable error text that keeps the cause chain, e.g. "TypeError: fetch failed <- Error: getaddrinfo ENOTFOUND host". */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function describeError(err: unknown): string {
   const parts = chain(err).map((e) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)));
   const codes = errorCauseCodes(err);
   const text = parts.length > 0 ? parts.join(" <- ") : String(err);
-  // Codes usually appear in the message already; append only what is missing so
-  // the tag stays greppable without duplicating text.
+  // Append only codes missing from the message, so the tag stays greppable without duplicating text.
   const missing = codes.filter((c) => !text.includes(c));
   return missing.length > 0 ? `${text} (${missing.join(",")})` : text;
 }
 
-/**
- * Transport-shaped failures: the network/DNS/socket layer never delivered a
- * response, so the remote board told us nothing about itself. These are
- * retryable and must NOT count toward a company's consecutive-failure
- * quarantine — a dead resolver is not a dead board.
- *
- * Deliberately excluded: HTTP status errors (4xx/5xx), schema failures and
- * config errors. Those came FROM the board and are genuinely per-company.
- */
+/** Transport-shaped failures (network/DNS/socket never delivered a response) are retryable and must not count toward a
+ *  company's failure quarantine - a dead resolver is not a dead board. HTTP status/schema/config errors are excluded; those came from the board. */
 const TRANSPORT_CODES = new Set([
   "ENOTFOUND", // DNS: no such host
   "EAI_AGAIN", // DNS: temporary resolver failure
@@ -106,11 +84,8 @@ function hasTimeoutName(value: unknown): boolean {
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isTransportError(err: unknown): boolean {
   if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
-  // A per-call timeout (AbortSignal.timeout in ats/http.ts) died on OUR side of
-  // the wire: under run congestion a 5MB board response can outlast the budget
-  // while the board itself is healthy (every "timed out" board probed on
-  // 2026-08-12 answered in under 3s individually). No response was read, so the
-  // error says nothing about the board.
+  // A per-call timeout dies on our side of the wire (a large response can outlast the budget under run congestion while the
+  // board itself is healthy); no response was read, so it says nothing about the board.
   if (chain(err).some(hasTimeoutName)) return true;
   return TRANSPORT_MESSAGE_RE.test(describeError(err));
 }
@@ -123,23 +98,9 @@ const JSON_PARSE_MESSAGE_RE = /is not valid JSON|Unexpected end of JSON input/i;
  *  `Unexpected token '<'` is V8's own way of saying so when it truncates. */
 const MARKUP_BODY_RE = /Unexpected token '<'|<!doctype\b|<html\b/i;
 
-/**
- * Markers that on their own prove the response came from a bot-blocker rather than
- * from the board. Every one is either a vendor brand token or a sentence a careers
- * page has no reason to contain, because a false positive here is worse than the
- * bug being fixed: it would hand a genuinely dead board a permanent excuse.
- *
- * Deliberately rejected as too weak to stand alone, with the pairing used instead
- * in CHALLENGE_PAIRED_MARKERS below:
- *   "Reference #"        — how boards label requisition ids ("Reference #18274").
- *   "challenge-container" — employers run coding challenges; it is a CSS class name.
- *   "Access Denied"      — also a plain 403 body and an app-level error string.
- *   "Just a moment..."   — ordinary loading copy in an un-hydrated SPA shell.
- *   "Attention Required!" — plain English a page can use for its own warnings, and
- *                           one word off the "Attention!" chrome SuccessFactors
- *                           renders on a healthy tenant with nothing open.
- *   "Request unsuccessful" / "Incident ID:" — generic enough to be app-level text.
- */
+// Markers that on their own prove a bot-blocker response, not the board: each is a vendor brand token or a sentence a
+// careers page has no reason to contain, since a false positive here would hand a genuinely dead board a permanent excuse.
+// Weaker phrases (generic enough to appear in legitimate app text) are pairing-gated instead, in CHALLENGE_PAIRED_MARKERS.
 const CHALLENGE_STRONG_MARKERS = [
   /Incapsula incident ID/i, // Imperva/Incapsula block page
   /cf-browser-verification/i, // Cloudflare interstitial body class
@@ -149,13 +110,10 @@ const CHALLENGE_STRONG_MARKERS = [
   /Verifying you are human/i, // Cloudflare Turnstile managed challenge
   /Please enable JS and disable any ad blocker/i, // Cloudflare's noscript line
   /\bawswaf\b/i, // token.awswaf.com / AWS WAF challenge+captcha JS namespace
-  /Generated by cloudfront/i, // CloudFront's own error/block page footer (run 37: eightfold's edge 403'd qualcomm+hsbc with it)
+  /Generated by cloudfront/i, // CloudFront's own error/block page footer
 ];
 
-/**
- * Phrases that only count as a block page alongside a second, corroborating
- * signal — the pairing is what keeps them off legitimate careers markup.
- */
+/** Phrases that only count as a block page alongside a second, corroborating signal, keeping them off legitimate careers markup. */
 const CHALLENGE_PAIRED_MARKERS: Array<readonly [RegExp, RegExp]> = [
   [/Attention Required!/i, /cloudflare/i],
   [/Access Denied/i, /you (?:don['’]?t|do not) have permission to access/i],
@@ -164,8 +122,7 @@ const CHALLENGE_PAIRED_MARKERS: Array<readonly [RegExp, RegExp]> = [
   [/Incident ID\s*:/i, /Request unsuccessful|Incapsula|Access Denied/i],
   [/Request unsuccessful/i, /incident id|support id/i],
   [/AWS WAF/i, /request blocked|challenge|captcha/i],
-  // CloudFront's block-page headline; paired with the brand token because careers
-  // pages routinely serve assets from *.cloudfront.net, so the token alone is weak.
+  // CloudFront's block-page headline, paired with the brand token since careers pages routinely serve assets from *.cloudfront.net.
   [/The request could not be satisfied/i, /cloudfront/i],
 ];
 
@@ -179,16 +136,8 @@ function quoteMatch(re: RegExp, text: string): string | null {
   return hit === undefined ? null : `"${hit.slice(0, MARKER_EXCERPT_MAX)}"`;
 }
 
-/**
- * The marker text this body matched, quoted — or null when nothing did.
- *
- * The quote IS the sanitised snippet: every piece of it is a literal substring of
- * the body, short and bounded, so an error built from it can travel into
- * `last_error` (the DB and the Discord summary) without carrying a document. Both
- * halves of a paired marker are quoted on purpose, so re-scanning the quote
- * satisfies the same pairing rule the body did — that round trip is what lets a
- * guard throw an error the classifier will still recognise.
- */
+/** The marker text this body matched, quoted (or null). The quote is a short bounded literal substring so it can travel
+ *  into `last_error` without carrying a whole document, and re-scanning it still satisfies the same pairing rule. */
 export function challengeEvidence(text: string): string | null {
   for (const re of CHALLENGE_STRONG_MARKERS) {
     const quoted = quoteMatch(re, text);
@@ -203,26 +152,14 @@ export function challengeEvidence(text: string): string | null {
   return null;
 }
 
-/**
- * Whether a response body is a bot-block / WAF challenge page rather than the
- * board. The HTML dead-tenant guards ask this BEFORE reaching their verdict: an
- * absence-of-fingerprint guard cannot otherwise tell a blocked request from a host
- * that stopped serving the board, because a challenge page has no job rows and none
- * of the vendor's engine markup either.
- */
+/** Whether a body is a bot-block/WAF challenge page rather than the board; HTML dead-tenant guards check this first, since a
+ *  challenge page has no job rows or engine markup either, indistinguishable otherwise from a genuinely dead host. */
 export function looksLikeChallengePage(html: string): boolean {
   return challengeEvidence(html) !== null;
 }
 
-/**
- * Throw an infrastructure-shaped error if `body` is a bot-block page. Guards call
- * this first, so an edge refusal never reaches a dead-board verdict.
- *
- * The message quotes the matched marker, which is what makes the thrown error
- * classify as infrastructure again on the way out (see challengeEvidence). One
- * marker set therefore decides both halves — a guard can never disagree with the
- * scheduler about what a challenge looks like.
- */
+/** Throws an infrastructure-shaped error if `body` is a bot-block page, so an edge refusal never reaches a dead-board verdict.
+ *  Quotes the matched marker so the thrown error re-classifies as infrastructure on the way out. */
 export function assertNotEdgeChallenge(provider: string, url: string, body: string): void {
   const evidence = challengeEvidence(body);
   if (evidence === null) return;
@@ -234,36 +171,15 @@ export function assertNotEdgeChallenge(provider: string, url: string, body: stri
   );
 }
 
-/**
- * A JSON endpoint that answers with an HTML document is not a broken board: it is
- * an edge interstitial (WAF challenge, rate-limit notice, error page) in front of a
- * healthy board. Run 31 (2026-08-01) lost 17 Workday boards this way inside a
- * 24-second window — alphabetically consecutive tenants, and every one returned
- * HTTP 200 application/json when probed individually minutes later. Because the
- * body arrives over a live socket with a 2xx status, isTransportError cannot see it,
- * so the scheduler was charging the burst to each board's quarantine counter.
- *
- * Matching is deliberately narrow: only a JSON parse failure whose body began with
- * a tag. Malformed-but-JSON bodies and truncated bodies stay board defects, and an
- * HTTP status error carrying an HTML snippet stays an HTTP status error — those
- * really did come from the board's application.
- *
- * The parse rule alone left the HTML adapters exposed, because they never parse
- * JSON: a challenge page reaches their dead-tenant guard as markup with no job rows
- * and no engine fingerprint, which is exactly what a dead host looks like. So an
- * explicit bot-block signature anywhere in the error text also counts — that covers
- * the guards (which quote the marker they matched) and, for free, an HTTP status
- * error whose 200-char body snippet from atsHttpError is a block page. A 403 served
- * by Cloudflare's block page is an edge refusing us, not a board defect.
- */
-/**
- * HTTP statuses that are an edge refusing the MOMENT, not the board refusing the
- * request: 429 is an explicit rate limit, and 406 is how Avature's nginx edge
- * (and AppTrana, see ats/adityabirla.ts) answers traffic it decides looks
- * automated — the same request returns 200 minutes later (verified live
- * 2026-08-12 on siemens + tesco). Deliberately narrow: 403/422/5xx stay board
- * defects, because those regularly ARE the board's application answering.
- */
+// A JSON endpoint answering with an HTML document is an edge interstitial (WAF challenge, rate-limit notice) in front of a
+// healthy board, not a broken one - since it arrives over a live socket with a 2xx status, isTransportError can't see it.
+// Matching is narrow: only a JSON parse failure whose body began with a tag (malformed-but-JSON and truncated bodies stay
+// board defects). An explicit bot-block signature anywhere in the text also counts, covering HTML adapters that never
+// parse JSON and would otherwise see a challenge page as indistinguishable from a dead host.
+
+/** HTTP statuses that are an edge refusing the moment, not the board refusing the request (429 rate limit; 406 is how some
+ *  nginx/AppTrana edges answer traffic that looks automated, with the same request succeeding minutes later). Narrow on
+ *  purpose - 403/422/5xx stay board defects since those regularly are the board's own application answering. */
 const EDGE_REFUSAL_STATUS_RE = /\bHTTP (?:406|429)\b/;
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
@@ -276,16 +192,8 @@ export function isEdgeInterstitialError(err: unknown): boolean {
   return parseFailed && MARKUP_BODY_RE.test(text);
 }
 
-/**
- * Faults from the network or from an edge in front of the board — never from the
- * board's own application. Retryable, and never chargeable to the company's
- * failure count.
- *
- * The union lives here so every caller routes on the same rule: while the OR was
- * copied into the scheduler alone, the JD-fetch loop in pipeline/postingPipeline.ts
- * still tested transport only, giving an edge page zero retries and silently
- * dropping the posting before it was ever inserted.
- */
+/** Faults from the network or an edge in front of the board, never from the board's own application: retryable and never
+ *  chargeable to the company's failure count. Lives here so every caller (scheduler, JD-fetch loop) routes on the same rule. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isInfrastructureFault(err: unknown): boolean {
   return isTransportError(err) || isEdgeInterstitialError(err);

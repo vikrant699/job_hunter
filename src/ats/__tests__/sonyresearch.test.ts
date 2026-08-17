@@ -15,12 +15,7 @@ const company: AdapterCompany = {
   careersUrl: "https://www.sonyresearchindia.com/careers/", tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed excerpt mirroring the real sonyresearchindia.com/wp-json/wp/v2/pages
-// ?slug=careers Elementor body (captured 2026-07-12): each category renders a
-// "no open positions" placeholder <h2> BEFORE the real opening's <h2>, then a
-// text-editor block with Location/Duration, then an Apply Now button linking
-// to LinkedIn. Two categories here (Internships, Full Time Positions) to
-// prove "nearest preceding heading" isn't fooled by the placeholder.
+// Each category renders a "no open positions" placeholder <h2> BEFORE the real opening's <h2>, proving "nearest preceding heading" isn't fooled by the placeholder.
 const CONTENT_FIXTURE = `
 <section><div><div><div><div class="elementor-widget-heading"><div class="elementor-widget-container">
 <h2 class="elementor-heading-title elementor-size-default">Internships</h2></div></div>
@@ -120,8 +115,6 @@ test("normalizeSonyResearchOpening falls back to the constant location and isRem
   assert.equal(p.location, SONYRESEARCH_DEFAULT_LOCATION);
   assert.equal(p.isRemote, false);
 });
-
-// --- fetchJd: never touches LinkedIn ---
 
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {

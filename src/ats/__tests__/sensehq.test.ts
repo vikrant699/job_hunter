@@ -1,4 +1,3 @@
-// src/ats/sensehq.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -147,8 +146,6 @@ test("normalizeSenseHq: no location and no JD map to null/empty, not throw", () 
   assert.equal(p.isRemote, false);
 });
 
-// --- listPostings (full flow, mocked fetch) -------------------------------
-
 function rowN(id: number): SenseHqRow {
   return { ...row, id, title: `Job ${id}` };
 }
@@ -177,7 +174,6 @@ test("listPostings: paginates via _next/data, stopping on a short page", async (
   stubFetch(t, async (input) => {
     const url = String(input);
     if (url.endsWith("/careers")) {
-      // Initial page only has 10 of the 113; must paginate via _next/data.
       return new Response(initialHtml(Array.from({ length: 10 }, (_, i) => rowN(1000 + i)), 113), { status: 200 });
     }
     assert.match(url, /_next\/data\/jEPRsaxO17zCozEuBEAkW\/jobs\.json/);
@@ -200,8 +196,7 @@ test("listPostings: paginates via _next/data, stopping on a short page", async (
 });
 
 test("listPostings: stops on a zero-row page even when the prior page was full-sized and count is stale", async (t) => {
-  // count (999) deliberately doesn't match reality — the spec warns SenseHQ's
-  // count can be stale, so termination must not rely on it.
+  // count (999) is deliberately wrong - SenseHQ's count can be stale, so termination must not rely on it.
   stubFetch(t, async (input) => {
     const url = String(input);
     if (url.endsWith("/careers")) {

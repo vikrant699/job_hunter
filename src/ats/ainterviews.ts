@@ -1,14 +1,5 @@
 // src/ats/ainterviews.ts — ainterviews.com hosted career boards (e.g. Lenskart).
-// Clean JSON API, no auth, no pagination:
-//
-//   list: GET https://ainterviews.com/api/job_board/<tenant>/jobs/
-//         -> { jobs: [ { id, title, description(HTML), location, apply_url, ... } ], filters: {...} }
-//
-// The list response already carries the full HTML JD, so jdText is populated
-// here and no fetchJd is needed. `apply_url` is a site-relative path
-// ("/job_board/<tenant>/job/<id>/"); it's resolved against the fixed
-// ainterviews.com origin (the host is the same for every tenant — the tenant
-// only varies the path).
+// GET /api/job_board/<tenant>/jobs/ (no auth, no pagination); full HTML JD inline; apply_url is a relative path.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -30,7 +21,6 @@ export type AinterviewsJob = z.infer<typeof AinterviewsJobSchema>;
 
 const ListResponseSchema = z.object({ jobs: z.array(AinterviewsJobSchema) });
 
-/** Board list URL for a tenant slug, e.g. "lenskart_ho". */
 export function ainterviewsListUrl(tenant: string): string {
   return `${AINTERVIEWS_ORIGIN}/api/job_board/${encodeURIComponent(tenant)}/jobs/`;
 }

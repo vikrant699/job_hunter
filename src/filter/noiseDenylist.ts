@@ -1,24 +1,11 @@
-/**
- * Confirmed-NOISE denylist. Companies here were REMOVED from the registry
- * (formerly config/companies.json, now the Companies tab) because they meet
- * the strict noise bar (see docs/superpowers/plans/2026-06-19-
- * registry-expansion-denoise-categorize.md §9): they (i) never hire tech in India
- * and never will, (ii) are not a tech employer at all, or are defunct / mis-seeded
- * / exact duplicates. `isDeniedCompany` checks this so the discovery queue can
- * NEVER re-add them. Keyed by the exact `source_slug` the company had.
- *
- * Each removal is researched + confirmed by hand (web + curl), not by telemetry.
- * Grows one denoise wave at a time. Low/zero scrape yield is NOT grounds for entry.
- */
+/** Companies removed from the registry for confirmed noise (dead/non-tech/duplicate); keyed by source_slug so they're never re-added. Hand-researched, not telemetry-driven. */
 export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
-  // Wave 5 (2026-07-10): broken-repair + dormant-audit sweeps — defunct/acquired, confirmed by hand
   "koo": "defunct: Koo shut down July 2024 (dormant-audit 2026-07-10)",
   "vauld": "defunct: suspended trading 2022, court-supervised restructuring (dormant-audit 2026-07-10)",
   "abcoffee": "defunct: domain parked/for sale (dormant-audit 2026-07-10)",
   "golorry": "defunct: domain expired/parked, no working site (broken-repair 2026-07-10)",
   "techbiz": "defunct: acquired by CredFlow 2023-06, domain abandoned (broken-repair 2026-07-10)",
   "verak": "defunct: acquired by InsuranceDekho 2023-04, domain NXDOMAIN (broken-repair 2026-07-10)",
-  // Wave 1 (2026-06-19)
   "lifestyle-international-india": "exact duplicate of lifestyle-international",
   "frapper": "DNS-dead (frapper.in unresolvable); mis-seed, likely typo of Frappe",
   "bharat-ai": "DNS-dead (bharatai.in unresolvable); unverifiable, mis-seed",
@@ -28,10 +15,8 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "entrackr": "startup-news media outlet — does not hire tech roles",
   "leadingx": "Austrian coaching/training consultancy — not India, not a tech product co",
   "lazy-ai": "US-only (Wilmington, DE); no India hiring",
-  // Wave 2 (2026-06-19)
   "blinkit": "does not hire publicly — no public careers board (darwinbox tenant errors on jobs API)",
   "grofers": "old name of Blinkit — no public hiring board",
-  // Wave 3 (2026-06-19): evidence-checked - no evidence of EVER hiring SWE or data/SQL roles in India (or defunct/non-India/malformed)
   "atomicindustries": "no SWE/data-hiring evidence 2026-06-19 (Atomic Industries)",
   "abg-shipyard": "no SWE/data-hiring evidence 2026-06-19 (ABG Shipyard)",
   "aeropay": "no SWE/data-hiring evidence 2026-06-19 (AeroPay)",
@@ -85,10 +70,8 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "wow-tea": "no SWE/data-hiring evidence 2026-06-19 (Wow Tea)",
   "xyxx": "no SWE/data-hiring evidence 2026-06-19 (XYXX)",
   "levitate": "no SWE/data-hiring evidence 2026-06-19 (Levitate)",
-  // Wave 3b: name-kebab variants (re-discovery guard)
   "atomic-industries": "no SWE/data-hiring evidence 2026-06-19 (Atomic Industries)",
   "helios-lifestyle-emami-owned": "no SWE/data-hiring evidence 2026-06-19 (Helios Lifestyle (Emami-owned))",
-  // Wave 4 (2026-06-19): full-registry evidence sweep - no evidence of EVER hiring SWE/data in India (foreign/no-India, defunct, non-existent, non-tech)
   "browse.ai": "no India SWE/data evidence 2026-06-19 (Browse.ai India)",
   "browse-ai-india": "no India SWE/data evidence 2026-06-19 (Browse.ai India)",
   "coinflow": "no India SWE/data evidence 2026-06-19 (Coinflow)",
@@ -157,7 +140,6 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "ngc": "no India SWE/data evidence 2026-06-19 (Northrop Grumman India)",
   "northrop-grumman-india": "no India SWE/data evidence 2026-06-19 (Northrop Grumman India)",
   "reply-io-india": "no India SWE/data evidence 2026-06-19 (Reply.io India)",
-  // Wave 5 (2026-07-01): broken-companies repair - confirmed defunct / acquired / parked domain
   "camp-k12": "defunct - edtech shut down (confirmed 2026-06-05, still dead 2026-07-01)",
   "waycool-foods": "defunct - WayCool under NCLT insolvency; careers.waycool.in dead",
   "trell": "defunct - social-commerce app shut down; trell.co careers dead",
@@ -169,7 +151,6 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "yenmo": "defunct - yenmo.com domain parked for sale (hugedomains.com)",
   "retape": "defunct - retape.com domain parked for sale (hugedomains.com)",
   "nykaa-fashion": "exact duplicate of nykaa (both careers URLs redirect to nykaa.com/who_are_we)",
-  // Wave 6 (2026-07-01): broken-repair research pass - confirmed defunct/acquired/mis-seed
   "better-opinions": "defunct - prediction market shut down 2023",
   "edyst": "defunct - edtech platform discontinued (shutdown notice on site)",
   "able": "acquired by Instawork (Aug 2024); no own careers board",
@@ -184,7 +165,6 @@ export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "tilt": "DNS-dead junk domain (mis-seed)",
 };
 
-/** True if this slug is on the confirmed-noise denylist. */
 export function isNoiseSlug(slug: string): boolean {
   return Object.prototype.hasOwnProperty.call(NOISE_DENYLIST_SLUGS, slug.toLowerCase());
 }

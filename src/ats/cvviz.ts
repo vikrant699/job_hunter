@@ -1,23 +1,8 @@
-// src/ats/cvviz.ts — CVViz hosted career boards (jobs.cvviz.com/<tenant>).
-//
-// The React SPA at jobs.cvviz.com/<slug> reads its jobs from a public,
-// no-auth JSON API on the SAME frontend host (NOT api.cvviz.com, which is
-// token-gated):
-//
-//   GET https://jobs.cvviz.com/api/career/employers/<employerId>/jobs?page=<n>&pageSize=<m>
-//     -> { data: [ { id, title, city, state, country, jobdescription (HTML), ... } ],
-//          total: <int> }
-//
-// IMPORTANT: the tenant must be addressed by its NUMERIC careerpage id, not the
-// public slug — the slug form (employers/<slug>/jobs) is served intermittently
-// and often 200s with {"error":"Invalid employer id"}. The numeric id is stable.
-// It equals the `sett_id` on every job row and the id in the tenant's og:image
-// (/careerpage/<id>/…); store it in api_meta.employerId at registry time. (Note
-// the /settings endpoint's own `id` is a DIFFERENT settings id — do not use it.)
-//
-// `jobdescription` is the full HTML JD inline, so no fetchJd is needed.
-// Paginated by page/pageSize with `total` giving the end. Verified live
-// 2026-08-13 against the stackby tenant (employerId 1753).
+// src/ats/cvviz.ts — CVViz hosted career boards (jobs.cvviz.com/<tenant>). The React SPA reads jobs from a public,
+// no-auth JSON API on the same host (NOT api.cvviz.com, which is token-gated):
+// GET /api/career/employers/<employerId>/jobs?page=&pageSize= -> { data: [...], total }.
+// The tenant must be addressed by its NUMERIC careerpage id, not the slug - the slug form 200s intermittently with
+// an "Invalid employer id" error body. jobdescription is full HTML inline, so no fetchJd is needed.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -44,16 +29,13 @@ const ListResponseSchema = z.object({
   total: z.number().nullable().optional(),
 });
 
-/** The numeric careerpage id (api_meta.employerId), required — the slug form of
- *  the API is unreliable (see file header). */
 export function cvvizEmployerId(company: AdapterCompany): string {
   const id = company.apiMeta?.employerId;
   if (!id) throw new Error(`cvviz requires apiMeta.employerId (numeric careerpage id) for ${company.slug}`);
   return id;
 }
 
-/** Public tenant slug for building human job URLs (display only — not used for
- *  the API). Last path segment of the board URL, else the registry slug. */
+/** Display-only slug for building human job URLs (not used for the API call itself). */
 export function cvvizDisplaySlug(company: AdapterCompany): string {
   const url = company.tenantUrl ?? company.careersUrl;
   try {

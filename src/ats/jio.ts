@@ -1,23 +1,9 @@
-// src/ats/jio.ts — Reliance Jio careers (careers.jio.com), a legacy ASP.NET
-// WebForms site. Covers the Jio-group rows (Reliance Jio / Jio Platforms /
-// Jio Payments Bank) — one careers portal.
-//
-// Shape (verified live 2026-08-13, ~30k postings across 24 job functions):
-//   functions: GET frmJobCategories.aspx -> 24 <a href="frmfuncwisejob.aspx
-//              ?func=&desc=&flag="> links (opaque but stable query tokens), the
-//              anchor text is the function name.
-//   per-func:  GET frmfuncwisejob.aspx?func=… server-renders 10 rows; each row is
-//              an <a id="…hylUser_N" href="frmjobdescription.aspx?JBTITLE=&jbID=
-//              &funcCode="> whose text is "Title ( <jobcode> )", with the city in
-//              a sibling <span id="…Label2_N">.
-//   PAGINATION IS BROWSER-ONLY: the DataPager pages via an ASP.NET UpdatePanel
-//              async postback (__doPostBack); replaying it with a bare HTTP POST
-//              is F5-WAF-blocked (302 -> /index.aspx). So each function is walked
-//              in a real browser: set page size to 25, then click Next until the
-//              pager stops. (The function list and per-job JD are plain fetches —
-//              only the pager needs the browser.)
-//   jd:        GET frmjobdescription.aspx?… -> spans lblSummRole / lblEduReq /
-//              lblExpReq / lblSkill (role, education, experience, skills). Plain fetch.
+// src/ats/jio.ts — Reliance Jio careers (careers.jio.com), a legacy ASP.NET WebForms site covering the
+// whole Jio group (Reliance Jio / Jio Platforms / Jio Payments Bank).
+// functions: GET frmJobCategories.aspx -> per-function links; per-func: GET frmfuncwisejob.aspx?func=...
+// server-renders 10 rows/page. Pagination is BROWSER-ONLY: the DataPager's __doPostBack UpdatePanel is
+// F5-WAF-blocked over bare HTTP, so each function is walked with a real browser (set page size 25, click
+// Next until it stops). jd: GET frmjobdescription.aspx (plain fetch).
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -71,8 +57,7 @@ export function parseJioFunctions(html: string): JioFunction[] {
   return out;
 }
 
-/** "Frontend Engineer ( 86701445 )" -> { title, jobcode }. jobcode null when the
- *  " ( <digits> )" suffix is absent. */
+/** "Frontend Engineer ( 86701445 )" -> { title, jobcode }; jobcode null when the " ( <digits> )" suffix is absent. */
 export function splitJioTitle(raw: string): { title: string; jobcode: string | null } {
   const m = raw.match(/^(.*?)\s*\(\s*(\d+)\s*\)\s*$/);
   if (m?.[1] && m[2]) return { title: m[1].trim(), jobcode: m[2] };
@@ -142,8 +127,7 @@ export function parseJioJd(html: string): string {
   return parts.join("\n\n").trim();
 }
 
-/** Whether the pager's Next submit-button is live, vs disabled on the last page
- *  (`disabled` attribute or the `aspNetDisabled` class) or absent. */
+/** Whether the pager's Next submit-button is live, vs disabled (attribute or `aspNetDisabled` class) or absent. */
 export function jioNextIsClickable(html: string): boolean {
   const $ = cheerio.load(html);
   const next = $(NEXT_SELECTOR).first();
@@ -152,8 +136,7 @@ export function jioNextIsClickable(html: string): boolean {
   return !(next.attr("class") ?? "").split(/\s+/).includes("aspNetDisabled");
 }
 
-/** Walk ONE job function to the end in a browser: set 25/page, then click Next
- *  until the pager stops, deduping rows by externalId across pages. */
+/** Walk ONE job function to the end in a browser: set 25/page, click Next until the pager stops, dedupe by externalId. */
 async function crawlJioFunction(company: AdapterCompany, fn: JioFunction): Promise<NormalizedPosting[]> {
   return withBrowserPage(fn.url, async (page) => {
     const rows = new Map<string, NormalizedPosting>();
@@ -174,8 +157,7 @@ async function crawlJioFunction(company: AdapterCompany, fn: JioFunction): Promi
 
       if (!jioNextIsClickable(html)) break;
       const added = rows.size - before;
-      // A live Next that adds nothing new means the pager looped — stop rather
-      // than spin (mirrors the shared paginate stall guard).
+      // A live Next that adds nothing new means the pager looped — stop rather than spin.
       if (pageNo > 0 && added === 0) break;
 
       const next = page.locator(NEXT_SELECTOR).first();

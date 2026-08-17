@@ -1,22 +1,5 @@
-// src/ats/snapdeal.ts — Snapdeal careers (blog.snapdeal.com), a single static
-// WordPress page (id 632, slug "careers") whose body lists every opening as
-// one <p> per role: "Title/Role: X", "Skill Set (Area of Expertise): Y",
-// "Experience: Z". There is no per-job API and no per-job URL — applicants
-// are told to email ta@snapdeal.com with the job title in the subject line,
-// so jobUrl for every posting is the careers page itself.
-//
-// Confirmed live 2026-07-12:
-//   GET https://blog.snapdeal.com/index.php/wp-json/wp/v2/pages/632
-// -> WP page JSON; content.rendered (~5.5KB HTML) has exactly one <p> per
-// opening (25 openings today), each starting with a "Title/Role:" line —
-// intro copy and the closing "email us" paragraphs are plain <p>s with no
-// such marker, so filtering paragraphs on that marker cleanly separates jobs
-// from boilerplate without needing to split mid-paragraph.
-//
-// Page id 632 is hardcoded (this is a single-company, single-page board) but
-// resolved defensively: if it ever 404s (page renumbered/removed), fall back
-// to the site's own search API for "open positions" and use whatever page id
-// that turns up instead. Throws if neither resolves — never silently [].
+// src/ats/snapdeal.ts — Snapdeal careers, a single static WordPress page (id 632, slug "careers") listing every opening as one <p> per role starting "Title/Role: X"; applicants apply by emailing ta@snapdeal.com, so there's no per-job URL and jobUrl is the careers page itself for every posting.
+// GET wp-json/wp/v2/pages/632; if the page id is ever renumbered, falls back to the site's search API for "open positions". Throws if neither resolves - never silently [].
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -27,11 +10,8 @@ import { kebabCase } from "../util/slug.js";
 
 const ORIGIN = "https://blog.snapdeal.com/index.php";
 const CAREERS_PAGE_ID = 632;
-// The page itself is what applicants are told to read/apply from — there is
-// no per-job page, so every posting's jobUrl points here.
 export const SNAPDEAL_CAREERS_URL = `${ORIGIN}/careers/`;
-// The page states its entire board is for "our Gurugram office" and never
-// names a location per-role — so this is a constant, not an extraction.
+// The page states its entire board is for "our Gurugram office" and never names a location per-role, so this is a constant, not an extraction.
 export const SNAPDEAL_LOCATION = "Gurugram, India";
 
 const WpPageSchema = z.object({
@@ -60,14 +40,7 @@ function extractParagraphs(html: string): string[] {
   return out;
 }
 
-/**
- * Pull every "Title/Role: ..." opening out of the careers page body. Live
- * verified: the page publishes exactly one opening per <p> — a paragraph
- * that doesn't mention "Title/Role:" is boilerplate (intro copy, the "email
- * us" footer, the culture blurb) and is skipped rather than mis-parsed as a
- * job. Returns [] when the page genuinely has no such blocks (not an error —
- * distinct from the page being unreachable, which throws upstream).
- */
+/** Pull every "Title/Role: ..." opening out of the page body; a paragraph without that marker is boilerplate (intro/footer copy) and is skipped, not mis-parsed as a job. */
 export function parseSnapdealOpenings(contentHtml: string): SnapdealOpening[] {
   const openings: SnapdealOpening[] = [];
   for (const p of extractParagraphs(contentHtml)) {
@@ -79,21 +52,13 @@ export function parseSnapdealOpenings(contentHtml: string): SnapdealOpening[] {
     const title = firstLine.replace(TITLE_MARKER_RE, "").trim();
     if (!title) continue;
 
-    // jdText is the ENTIRE block (title line + skill set + experience +
-    // anything else the page publishes for this role) — this is the full JD
-    // Snapdeal makes available, there is nothing further to fetch.
+    // jdText is the whole block - the full JD Snapdeal makes available, nothing further to fetch.
     openings.push({ title, jdText: text });
   }
   return openings;
 }
 
-/**
- * Stable-enough id for this small, hand-maintained list: kebab-case of the
- * title. Two openings with the exact identical title (none today, live
- * verified 25 distinct titles) would collide on the (provider, externalId)
- * dedup key — acceptable for a board this size and static in nature; called
- * out here rather than silently risked.
- */
+/** Kebab-case of the title; two openings with an identical title would collide on the (provider, externalId) dedup key, acceptable for a board this small and static. */
 export function snapdealExternalId(title: string): string {
   return kebabCase(title);
 }
@@ -118,13 +83,7 @@ async function fetchSnapdealPageContent(pageId: number): Promise<string> {
   return WpPageSchema.parse(raw).content.rendered;
 }
 
-/**
- * Fetch the careers page body, resolving its id defensively: page 632 first;
- * if (and only if) that 404s, fall back to the site's own search API for
- * "open positions" and use the first page-type hit's id instead. Any other
- * failure (network error, unexpected shape) propagates as-is rather than
- * being masked by a fallback attempt. Throws — never silently returns "".
- */
+/** Fetch the careers page body: page 632 first, falling back to the site's search API only on a 404 (any other failure propagates as-is). Throws - never silently returns "". */
 export async function fetchSnapdealCareersHtml(): Promise<string> {
   try {
     return await fetchSnapdealPageContent(CAREERS_PAGE_ID);

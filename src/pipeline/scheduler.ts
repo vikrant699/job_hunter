@@ -27,14 +27,11 @@ export function classifyFetchError(msg: string): string {
   return "other";
 }
 
-/** Timing for infrastructure faults: the inline backoff schedule plus the pace of
- *  the end-of-run deferred pass. Injected so tests need not wait real seconds;
- *  production always passes the config values via defaultRetryPolicy(). */
+/** Timing for infrastructure faults (inline backoff + deferred-pass pace); injected so tests skip real waits. */
 export interface TransportRetryPolicy {
   retries: number;
   baseDelayMs: number;
-  /** Pause BETWEEN deferred boards, which the deferred pass works one at a time.
-   *  See config.fetch.deferredPassPaceMs for where the number comes from. */
+  /** Pause between deferred boards, which the deferred pass works one at a time. */
   deferredPaceMs: number;
 }
 
@@ -67,8 +64,7 @@ export async function processBucket(
       const company = companies[idx];
       if (!company) return;
       await processOneCompany(adapter, company, stats, retry);
-      // Count every company worked (fetched or denylist-skipped) so the bucket's
-      // scanned reaches its total — this drives the progress heartbeat.
+      // Count every company worked (fetched or skipped) so scanned reaches total, driving the progress heartbeat.
       if (progress) progress.scanned++;
       if (config.fetch.interCallDelayMs > 0) {
         await sleep(config.fetch.interCallDelayMs);
@@ -79,12 +75,7 @@ export async function processBucket(
   await Promise.all(Array.from({ length: cap }, () => worker()));
 }
 
-/**
- * Deferred boards in round-robin order across their providers. These boards are
- * here because a vendor's edge (or the network) refused a burst, so draining one
- * vendor's queue back-to-back would aim the same concentrated rate at it again;
- * alternating vendors spreads each one's requests over the whole pass for free.
- */
+/** Round-robins deferred boards across providers, so draining one vendor's queue back-to-back doesn't re-aim the same burst that got it deferred. */
 function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
   const queues = new Map<string, DeferredBoard[]>();
   for (const d of deferred) {
@@ -93,8 +84,7 @@ function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
     else queues.set(d.company.provider, [d]);
   }
   const out: DeferredBoard[] = [];
-  // Each sweep takes one board from every provider that still has one, so every
-  // sweep makes progress and this terminates.
+  // Each sweep takes one board per remaining provider queue, so it always makes progress and terminates.
   while (out.length < deferred.length) {
     for (const q of queues.values()) {
       const next = q.shift();
@@ -104,34 +94,16 @@ function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
   return out;
 }
 
-/**
- * Second chance for boards the infrastructure took down. Inline retries
- * (listWithTransportRetry) span ~35s, which covers a blip but not a multi-minute
- * outage: in run 29 a ~9-minute network failure at 22:42 killed 72 Workday boards,
- * and the network was healthy again by 22:49. An edge throttle behaves the same way
- * — run 31 lost 17 alphabetically-adjacent Workday tenants to a 24-second burst,
- * and by then the bucket had moved on to a different vendor. By the time every
- * bucket has finished, such a fault has had the rest of the run to clear, so one
- * more attempt recovers boards that would otherwise have been written off.
- *
- * Paced, NOT parallel: one board at a time with a gap between them. Replaying a
- * throttled group at concurrencyPerProvider is the very burst that deferred them,
- * which is how run 31 could keep all 17 boards out of quarantine and still lose
- * their 909 postings. Getting the jobs is the goal; protecting the row is not.
- * Sequential is affordable precisely because this pass is small (8 boards in run
- * 31) and runs when nothing else is left to do.
- *
- * A board that fails this way on BOTH passes is finally recorded as a real failure
- * — at that point "it wasn't the board" is no longer a credible excuse.
- */
+/** Second chance for boards infrastructure took down: inline retries cover only a brief blip, not a multi-minute outage or an
+ *  edge throttle, so this replays them once more after every bucket is done, sequentially and spaced (replaying at full
+ *  concurrency would recreate the burst that got them deferred). Failing both passes is finally recorded as a real failure. */
 export async function runDeferredTransportPass(
   stats: RunContext,
   retry: TransportRetryPolicy = defaultRetryPolicy(),
 ): Promise<void> {
   const deferred = stats.transportDeferred;
   if (deferred.length === 0) return;
-  // Clear before re-running: processOneCompany pushes onto this same array, and
-  // what lands there during the pass is the still-failing set.
+  // Clear before re-running: processOneCompany pushes onto this same array, so what lands there is the still-failing set.
   stats.transportDeferred = [];
 
   logger.info(
@@ -172,18 +144,8 @@ export async function runDeferredTransportPass(
   );
 }
 
-/**
- * Fetch a board's listing, retrying infrastructure failures in place. A brief
- * DNS/socket outage must not be mistaken for a broken board (run 29 lost 72
- * healthy Workday boards in 21 seconds that way), nor must an edge throttling a
- * burst of sibling tenants (run 31 lost 17 the same way in 24 seconds), so each
- * such error backs off and retries. The delays also slow the worker down, which is
- * the point: a bucket that keeps its queue through a blip — or through an edge's
- * cool-off — gets to fetch those boards after recovery instead of burning them.
- *
- * Board-shaped failures (HTTP status, schema, config) are NOT retried — the
- * board answered, so a second identical request just wastes a round trip.
- */
+/** Fetches a board's listing, retrying infrastructure failures (DNS/socket, edge throttle) in place with backoff, so a
+ *  transient outage isn't mistaken for a broken board. Board-shaped failures (HTTP status, schema, config) are not retried. */
 export async function listWithTransportRetry(
   adapter: AtsAdapter,
   adapterCompany: AdapterCompany,
@@ -232,15 +194,12 @@ async function processOneCompany(
   try {
     postings = await listWithTransportRetry(adapter, adapterCompany, company, stats, retry);
   } catch (err) {
-    // Backend down (scrape adapters call the LLM shortlist) — abort, don't
-    // mark every company a fetch failure against a dead Ollama.
+    // Backend down (scrape adapters call the LLM shortlist) - abort rather than mark every company a fetch failure against a dead Ollama.
     if (err instanceof LlmUnavailableError) throw err;
     const msg = describeError(err);
 
-    // Infrastructure failed even after retries — the transport died, or an edge
-    // answered on the board's behalf. Either way the board's application never
-    // spoke, so it told us nothing about its own health: record the diagnostics but
-    // leave the quarantine counter alone, and hand it to the end-of-run deferred pass.
+    // The board's application never spoke (transport died, or an edge answered on its behalf), so it told us nothing about its
+    // own health: leave the quarantine counter alone and hand it to the end-of-run deferred pass.
     if (isInfrastructureFault(err)) {
       logger.warn(
         { company: company.name, slug: company.slug, err: msg },
@@ -254,8 +213,7 @@ async function processOneCompany(
     logger.warn({ company: company.name, slug: company.slug, err: msg }, "fetch failed");
     markFetchFailure(company.provider, company.slug, msg);
     stats.errors.push(`${company.provider}/${company.slug}: ${msg.slice(0, 100)}`);
-    // A board that errored was NOT scanned — record it as an issue instead of
-    // counting it toward companiesScanned (which now means "fetched OK").
+    // Errored boards are not scanned; record as an issue instead of counting toward companiesScanned.
     stats.failedCompanies.push({
       provider: company.provider,
       slug: company.slug,

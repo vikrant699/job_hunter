@@ -52,7 +52,7 @@ test("errorCauseCodes collects codes down the chain", () => {
   assert.deepEqual(errorCauseCodes(new Error("no code here")), []);
 });
 
-test("isTransportError is true for the run-29 outage signatures", () => {
+test("isTransportError is true for common outage signatures", () => {
   assert.ok(isTransportError(undiciDnsFailure()));
   const reset = new Error("socket hang up");
   Object.assign(reset, { code: "ECONNRESET" });
@@ -89,10 +89,10 @@ function jsonParseFailure(body: string): unknown {
   throw new Error(`expected ${body} to fail JSON.parse`);
 }
 
-/** Verbatim from run 31 (2026-08-01), all 17 Workday boards. */
+/** V8's phrasing when a JSON.parse hits an HTML document. */
 const RUN_31_MESSAGE = `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`;
 
-test("isEdgeInterstitialError catches the run-31 HTML-for-JSON signature", () => {
+test("isEdgeInterstitialError catches the HTML-for-JSON signature", () => {
   assert.ok(isEdgeInterstitialError(new SyntaxError(RUN_31_MESSAGE)));
   assert.ok(isEdgeInterstitialError(jsonParseFailure("<!DOCTYPE html><html></html>")));
 });
@@ -128,10 +128,7 @@ test("isEdgeInterstitialError is false for failures the board really produced", 
 });
 
 test("isTransportError is true for an AbortSignal.timeout TimeoutError", () => {
-  // AbortSignal.timeout rejects fetch with a DOMException named TimeoutError.
-  // A timeout under run congestion says nothing about the board (recruitee /
-  // greenhouse / ashby all answered in under 3s when probed individually on
-  // 2026-08-12), so it must be retryable and never quarantine-chargeable.
+  // A timeout under run congestion says nothing about the board itself, so it must be retryable and never quarantine-chargeable.
   const timedOut = new DOMException("The operation was aborted due to timeout", "TimeoutError");
   assert.ok(isTransportError(timedOut));
   assert.ok(isInfrastructureFault(timedOut));
@@ -142,9 +139,7 @@ test("isTransportError is true for an AbortSignal.timeout TimeoutError", () => {
 });
 
 test("isEdgeInterstitialError treats HTTP 406/429 as the edge throttling, not the board", () => {
-  // Avature answers 406 (bare nginx page) to request bursts and 200 to the same
-  // request minutes later; eightfold's 429 is an explicit rate limit. Both are
-  // the edge refusing the moment, not the board being dead.
+  // 406 (bare nginx page) and 429 (explicit rate limit) are the edge refusing the moment, not the board being dead.
   assert.ok(
     isEdgeInterstitialError(
       new Error("avature HTTP 406: <html>\r\n<head><title>406 Not Acceptable</title></head>"),
@@ -166,12 +161,7 @@ test("the two infrastructure predicates stay disjoint", () => {
   assert.equal(isTransportError(jsonParseFailure("<!DOCTYPE html>")), false);
 });
 
-/**
- * The union of the two is what every caller actually wants to route on, so it
- * lives here rather than being re-derived per call site. The JD-fetch loop in
- * pipeline/postingPipeline.ts checked only isTransportError until it used this,
- * which is why an edge page there dropped the posting with zero retries.
- */
+/** The union of the two is what every caller actually wants to route on, so it lives here rather than being re-derived per call site. */
 test("isInfrastructureFault covers both shapes the board is not to blame for", () => {
   assert.ok(isInfrastructureFault(undiciDnsFailure()));
   assert.ok(isInfrastructureFault(new SyntaxError(RUN_31_MESSAGE)));
@@ -194,12 +184,8 @@ test("isInfrastructureFault is false for board defects, which must still count",
 });
 
 // --- HTML bot-block / challenge pages ----------------------------------------
-//
-// The JSON-parse rule above cannot see these: an HTML adapter never parses JSON,
-// so a WAF page reaches its dead-tenant guard as ordinary markup with no job rows
-// and no engine fingerprint — the exact shape the guard is built to fail. Twelve
-// radancy rows (AstraZeneca 4,681 postings, Amgen 2,014, Optum 1,719, ...) sit
-// behind such an edge, so five refusals in a row would have quarantined them.
+// The JSON-parse rule above cannot see these: an HTML adapter never parses JSON, so a WAF page reaches its dead-tenant guard
+// as ordinary markup with no job rows and no engine fingerprint - the exact shape the guard is built to fail.
 
 /** Bodies shaped like the block pages this repo's boards actually sit behind,
  *  trimmed to the marker plus enough chrome to stay recognisable. */
@@ -224,8 +210,7 @@ const AKAMAI_BODY =
 const AWS_WAF_BODY =
   `<!DOCTYPE html><html><head><script src="https://de0c4f5c.token.awswaf.com/de0c4f5c/` +
   `challenge.js"></script></head><body><div id="challenge-container"></div></body></html>`;
-// The page eightfold's edge served run 37's qualcomm + hsbc 403s with (the stored
-// 200-char snippet truncates at `<TITLE>ERROR`, which is this template's third line).
+// A CloudFront edge 403 page (the stored 200-char snippet truncates at `<TITLE>ERROR`, this template's third line).
 const CLOUDFRONT_BODY =
   `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n` +
   `<HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">\n` +
@@ -250,13 +235,9 @@ test("looksLikeChallengePage recognises every block page the boards sit behind",
   }
 });
 
-/**
- * Pages that must NOT read as a challenge — a marker that fires here would turn a
- * genuine board defect (or a healthy empty board) into an un-chargeable fault, and
- * a board that is really gone would then never quarantine.
- */
+/** Pages that must not read as a challenge, or a genuine board defect would become an un-chargeable fault and never quarantine. */
 test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
-  // A live Radancy search page with nothing matching today (Cargill, probed 2026-08-03).
+  // A live Radancy search page with nothing matching today.
   assert.equal(
     looksLikeChallengePage(
       `<section id="search-results" data-total-pages="0" data-total-results="0"></section>`,
@@ -356,11 +337,7 @@ test("assertNotEdgeChallenge lets ordinary markup through untouched", () => {
   );
 });
 
-/**
- * The amnesty must stay narrow. A board that is genuinely gone still has to reach
- * consecutive_failures, so the dead-tenant guards' own wording — which describes a
- * block page without being one — must stay chargeable.
- */
+/** The amnesty must stay narrow: a genuinely gone board still has to reach consecutive_failures, even when a dead-tenant guard's own wording describes a block page without being one. */
 test("a dead-board verdict with no challenge markers is still a board defect", () => {
   assert.equal(
     isInfrastructureFault(

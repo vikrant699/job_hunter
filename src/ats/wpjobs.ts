@@ -1,33 +1,15 @@
-// src/ats/wpjobs.ts — generic WordPress REST API adapter for career sites that
-// expose jobs as a custom post type. Confirmed live on Fibe/EarlySalary:
-//   GET https://altcont.fibe.in/wp-json/wp/v2/jobpost?per_page=100&page=1&order=desc&_embed=1
-// -> a JSON ARRAY of WP posts (no auth). The post-type slug varies by site
-// (jobpost / job / career / vacancy / job-listing / ...), so it's configurable
-// via `apiMeta.postType` (default "jobpost"); the host comes from `tenantUrl`
-// (the WP origin, not the wp-json path itself).
-//
-// Pagination: `atsFetchJson` only returns the parsed body, not headers, so we
-// can't read WP's `X-WP-Total`/`X-WP-TotalPages` response headers here. Fall
-// back to the same short-page convention the other simple list APIs use
-// (Workday/SmartRecruiters/Eightfold/Oracle): a page shorter than `per_page`
-// (including empty) ends pagination.
-//
-// Location: WP job plugins store this inconsistently. Best-effort chain, most
-// to least reliable (confirmed against Fibe's live data, which has none of
-// this in `acf` — only an external-ATS redirect payload — but *does* carry a
-// `jobpost_location` taxonomy):
-//   1. `_embedded['wp:term']` (requires `_embed=1`, added to every request) —
-//      the taxonomy term's human-readable `name`, for any taxonomy whose name
-//      contains "location" (e.g. Fibe's `jobpost_location`).
-//   2. `class_list` — WP renders taxonomy terms as `<taxonomy>-<term-slug>`
-//      classes even without `_embed`; catches sites where embedding is
-//      disabled. Slug is de-kebabed to Title Case.
-//   3. `acf` / `meta` — a string field whose key looks location-related
-//      (location/city/office/workplace), skipping anything that looks like a
-//      redirect payload.
-//   4. A "Location:" / "Job location:" label embedded in the post body copy
-//      (seen literally in one live Fibe posting).
-//   5. Otherwise null — the pipeline's text-based location filter decides.
+// src/ats/wpjobs.ts — generic WordPress REST API adapter for career sites exposing jobs as
+// a custom post type. Confirmed live on Fibe/EarlySalary: GET
+// <origin>/wp-json/wp/v2/<postType>?per_page=100&page=1&order=desc&_embed=1 -> a JSON
+// ARRAY of WP posts (no auth). Post-type slug is configurable via apiMeta.postType
+// (default "jobpost"); host comes from tenantUrl.
+// Pagination: atsFetchJson only returns the body, not headers, so we can't read WP's
+// X-WP-Total. Falls back to the short-page convention (a page shorter than per_page ends pagination).
+// Location: WP job plugins store this inconsistently; best-effort chain, most to least
+// reliable: (1) _embedded['wp:term'] taxonomy name containing "location"; (2) class_list
+// `<taxonomy>-<term-slug>` classes (catches sites with embedding disabled); (3) acf/meta
+// string field with a location-like key, skipping redirect payloads; (4) a "Location:"
+// label embedded in the post body copy; (5) null — the pipeline's text filter decides.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -66,12 +48,12 @@ export type WpPost = z.infer<typeof WpPostSchema>;
 
 const WpListSchema = z.array(WpPostSchema);
 
-/** Custom post-type slug for the jobs CPT; configurable per tenant. */
+// Custom post-type slug for the jobs CPT; configurable per tenant.
 export function wpjobsPostType(company: AdapterCompany): string {
   return company.apiMeta?.postType ?? "jobpost";
 }
 
-/** Paged list URL for the WP REST API, with embedded taxonomy terms for location. */
+// Paged list URL for the WP REST API, with embedded taxonomy terms for location.
 export function wpjobsApiUrl(company: AdapterCompany, page: number): string {
   const postType = wpjobsPostType(company);
   return `${tenantOrigin(company)}/wp-json/wp/v2/${postType}?per_page=${PER_PAGE}&page=${page}&order=desc&_embed=1`;
@@ -126,7 +108,7 @@ function locationFromContent(html: string | null | undefined): string | null {
   return found ? found : null;
 }
 
-/** Best-effort location extraction; see the module doc comment for the priority chain. */
+// Best-effort location extraction; see the module doc for the priority chain.
 export function wpjobsLocation(post: WpPost): string | null {
   return (
     locationFromEmbeddedTerms(post) ??
@@ -137,11 +119,9 @@ export function wpjobsLocation(post: WpPost): string | null {
   );
 }
 
-/** Prefer date_gmt (true UTC) over the site-local `date` field; null if
- *  neither parses. date_gmt has no zone designator of its own (WP serializes
- *  it as bare local-looking wall-clock UTC), so "Z" is appended before
- *  parsing — otherwise `Date.parse` would read it in the machine's local
- *  timezone instead of UTC. */
+// Prefers date_gmt (true UTC) over the site-local `date` field. date_gmt has no zone
+// designator (bare local-looking wall-clock UTC), so "Z" is appended before parsing —
+// otherwise Date.parse would read it in the machine's local timezone.
 function wpjobsPostedAt(post: WpPost): string | null {
   return dateToIso(post.date_gmt ? `${post.date_gmt}Z` : null) ?? dateToIso(post.date);
 }

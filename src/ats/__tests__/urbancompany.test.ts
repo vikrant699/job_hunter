@@ -1,4 +1,3 @@
-// src/ats/urbancompany.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeUrbancompany, urbancompanyAdapter } from "../urbancompany.js";
@@ -9,8 +8,7 @@ const company: AdapterCompany = {
   careersUrl: "https://careers.urbancompany.com", tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed live fixture — captured 2026-07-11 from
-// POST https://www.urbanclap.com/api/v2/platform-gateway/getAllJobs (body {})
+// Endpoint is still on the legacy urbanclap.com domain (not urbancompany.com).
 const job = {
   job_id: "8a31200e-1ab3-4f68-a59f-2037732da59c",
   job_code: "UCL-8888",

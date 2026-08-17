@@ -11,9 +11,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Fixture 1 — mirrors Fibe's confirmed live shape: no acf/meta location (acf
-// only carries an external-ATS redirect payload), location comes from the
-// `jobpost_location` taxonomy, exposed via `_embed=1` as `_embedded['wp:term']`.
+// Fibe's confirmed live shape: no acf/meta location (acf only carries a redirect payload); location comes from the `jobpost_location` taxonomy via `_embed=1`.
 const postWithEmbeddedLocation: WpPost = {
   id: 47816,
   date: "2025-01-21T15:38:43",
@@ -27,8 +25,7 @@ const postWithEmbeddedLocation: WpPost = {
   _embedded: { "wp:term": [[{ taxonomy: "jobpost_category", name: "BNPL" }], [{ taxonomy: "jobpost_location", name: "Bangalore" }]] },
 };
 
-// Fixture 2 — no _embedded (e.g. embedding disabled), location comes from a
-// plain `acf` field instead; remote-looking value should set isRemote.
+// No _embedded (embedding disabled); location comes from a plain `acf` field instead.
 const postWithAcfLocation: WpPost = {
   id: 100,
   date: "2026-02-01T09:00:00",
@@ -42,8 +39,7 @@ const postWithAcfLocation: WpPost = {
   _embedded: null,
 };
 
-// Fixture 3 — no _embedded, no acf/meta location; falls all the way through
-// to a "Location:" label parsed out of the body copy.
+// No _embedded, no acf/meta location; falls through to a "Location:" label in the body copy.
 const postWithContentLocation: WpPost = {
   id: 101,
   date: "2026-02-02T09:00:00",

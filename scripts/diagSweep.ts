@@ -1,17 +1,8 @@
 /**
- * Read-only diagnostic sweep (NOT part of the pipeline, safe to delete).
- *
- * For every active ats-api company: run the real adapter's listPostings,
- * measure listing-level gaps (dup/missing externalIds, null location/postedAt,
- * suspicious round counts), then sample up to 3 JDs via fetchJd and grade the
- * text (empty / thin / HTML residue / error-page / identical-across-samples).
- *
- * Writes NDJSON results incrementally so a crash loses nothing:
- *   results file:  one line per company
- *   run with NODE_ENV=production and redirect stdout to capture pino's
- *   pagination stall/runaway warnings as NDJSON for post-processing.
- *
- * Usage: npx tsx scripts/diagSweep.ts <outDir> [providerFilter]
+ * Read-only diagnostic sweep (NOT part of the pipeline, safe to delete): runs each active
+ * ats-api company's listPostings, measures listing-level gaps, then samples JDs via fetchJd
+ * and grades the text. Writes NDJSON incrementally so a crash loses nothing.
+ *   npx tsx scripts/diagSweep.ts <outDir> [providerFilter]
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

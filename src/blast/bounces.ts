@@ -1,14 +1,9 @@
-// src/blast/bounces.ts
-//
-// Bounce sweep for blast drafts: one precise per-address Gmail query (same
-// query shape as src/outreach/verify.ts's bounceSearchQuery — duplicated so
-// the blast tool stays deletable). Bounced is terminal; a Gmail search that
-// flakes to 0 hits later never un-bounces a record.
+// Bounce sweep for blast drafts: one precise per-address Gmail query (duplicated from
+// verify.ts's bounceSearchQuery so the blast tool stays deletable). Bounced is terminal.
 import type { MessageRef, MessageMetadata } from "../google/gmail.js";
 import type { BlastState } from "./state.js";
 
-/** How many days back a drafted address keeps being re-checked. Covers Divya
- *  scheduling sends across the week plus slow bounce delivery. */
+/** How many days back a drafted address keeps being re-checked. */
 const RECHECK_DAYS = 21;
 
 /** Gmail `after:` takes epoch SECONDS (ms silently matches nothing). */
@@ -30,8 +25,7 @@ export interface SweepDeps {
 export interface SweepResult {
   checked: number;
   newlyBounced: number;
-  /** Stats for the most recent batch — the stop-loss guard's input. Null when
-   *  nothing has ever been drafted. */
+  /** Stats for the most recent batch, the stop-loss guard's input; null when nothing was ever drafted. */
   lastBatch: { batch: number; total: number; bounced: number; ratePct: number } | null;
 }
 
@@ -53,8 +47,7 @@ export async function sweepBounces(profileId: string, state: BlastState, deps: S
     newlyBounced++;
   }
 
-  // Max batch over NON-SKIP records: a batch that only produced skipped_invalid
-  // rows must not reset the stop-loss to a fresh 0% bounce rate.
+  // Max batch over non-skip records: a batch of only skipped_invalid rows must not reset the stop-loss.
   const last = state.records.reduce((m, r) => (r.status === "skipped_invalid" ? m : Math.max(m, r.batch)), 0);
   if (last === 0) return { checked: toCheck.length, newlyBounced, lastBatch: null };
   const inBatch = state.records.filter((r) => r.batch === last && r.status !== "skipped_invalid");

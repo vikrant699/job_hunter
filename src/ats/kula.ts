@@ -6,15 +6,10 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
-// Kula ATS public board API:
-//   GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>
-//       &type=ats_job_post.index&items=99
-//   -> { data: AtsJobPost[], meta: { count, page, items, pages }, errors }
-// One-phase: `ats_job.job_description` is present on every listing item
-// (confirmed identical to the per-posting detail endpoint on avoma id 1912),
-// so `fetchJd` is unnecessary. Both verified tenants (avoma: 27, cashfree: 52)
-// fit on one page, but `meta.count` is honored via `paginate`'s total-based
-// stop so a larger tenant would page correctly rather than being truncated.
+// Kula ATS public board API: GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>
+// &items=99 -> { data: AtsJobPost[], meta: { count, ... } }.
+// One-phase (job_description present on every list item, no fetchJd needed); meta.count is honored via
+// paginate's total-based stop so a larger tenant pages correctly rather than truncating.
 const PAGE_SIZE = 99;
 
 const OfficeSchema = z.object({
@@ -58,15 +53,13 @@ export function kulaJobUrl(slug: string, id: string | number): string {
 export const kulaAdapter: AtsAdapter = {
   provider: "kula",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Board token defaults to the registry slug; apiMeta.boardSlug overrides it
-    // when they differ (e.g. multiplier -> "usemultiplier", plum -> "plumhq").
+    // Board token defaults to the registry slug; apiMeta.boardSlug overrides it when they differ.
     const slug = company.apiMeta?.boardSlug ?? company.slug;
     return paginate<NormalizedPosting>({
       provider: "kula",
       company: slug,
       pageSize: PAGE_SIZE,
-      // Kula pages by 1-based page number, not offset — `page` here is
-      // paginate's 0-based call index.
+      // Kula pages by 1-based page number, not offset — `page` here is paginate's 0-based call index.
       fetchPage: async (_offset, page) => {
         const url = kulaListUrl(slug, page + 1);
         const raw = await atsFetchJson(url, { provider: "kula" });

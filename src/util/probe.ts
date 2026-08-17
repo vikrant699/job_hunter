@@ -22,11 +22,7 @@ export interface ProbeResponse {
   ok: boolean;
 }
 
-/**
- * Fetch a URL with a timeout, never throwing — network errors, aborts, and
- * body-read failures all collapse into a `{ ok: false, status: 0 }` result so
- * callers can treat "couldn't check" uniformly with "checked and it's broken".
- */
+/** Fetches a URL with a timeout, never throwing; network errors, aborts, and body-read failures all collapse into `{ ok: false, status: 0 }`. */
 export async function probeWithTimeout(url: string, opts: ProbeOptions = {}): Promise<ProbeResponse> {
   try {
     const res = await fetch(url, {

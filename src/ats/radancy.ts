@@ -1,48 +1,11 @@
-// src/ats/radancy.ts — Radancy (formerly TMP Worldwide) enterprise career
-// sites, e.g. careers.ford.com (Ford) and jobs.intuit.com (Intuit). Fully
-// server-rendered HTML, no auth. The registry `careersUrl` is the listing
-// base and may be EITHER a full-board search page (Intuit's
-// /search-jobs) or a location-scoped landing (Ford's
-// /location/<slug>/<orgId>/<facet>/<page> URLs) — this adapter works with
-// either, never hardcoding a path.
-//
-//   list: GET <careersUrl> for page 1; GET <careersUrl>?p=N (or &p=N if the
-//         base already carries a query string) for page N>1. The rendered
-//         HTML carries the pager state as plain attributes on a
-//         `#search-results`-ish element: `data-total-pages="N"` and
-//         `data-total-results="N"`. We also stop defensively on a page that
-//         yields zero job links, in case those attributes are ever missing
-//         or wrong. A page-1 response with neither job links NOR that pager
-//         state is not a Radancy search page at all — see
-//         assertRadancyBoardServed.
-//
-//         Job cards live inside whichever element(s) have "search-results"
-//         in their id/class (Ford: `#search-results-jobs.search-results-list__list`
-//         inside `#search-results`; Intuit: `.search-list` inside
-//         `#search-results-list`). This deliberately excludes a same-page
-//         "similar jobs" widget Ford renders elsewhere in
-//         `.job-list__list` — confirmed live to hold unrelated jobs from
-//         other cities, not part of the requested location's results.
-//
-//         Each card is an anchor with an href containing "/job/" in the
-//         shape `/job/<city>/<title-slug>/<orgId>/<jobId>` — the trailing
-//         numeric segment is the stable external id. Title is the anchor's
-//         own text with any nested `[class*="job-location"]` element's text
-//         subtracted (Ford renders location as a sibling outside the
-//         anchor, so this is a no-op there; Intuit renders it as a child of
-//         the anchor). Location is read from the nearest `[class*="job-location"]`
-//         within the anchor's closest `<li>` card.
-//
-//   jd:   GET the job page. JD body: the first non-empty class tier among
-//         `ats-description` (Ford's real body, confirmed live — NOT
-//         `content-page-display__description`, which is unrelated marketing
-//         boilerplate present on every Ford job page), `job-description`
-//         (Intuit's `section.job-description.pane.pane-jd`), then a generic
-//         `__description` suffix for any other tenant naming. Within the
-//         first matching tier, take the largest block's inner HTML.
-//
-// Both tenants' WAF/CDN blocks the plain bot UA on at least some routes, so
-// every request goes out with a browser UA.
+// src/ats/radancy.ts — Radancy enterprise career sites (e.g. careers.ford.com, jobs.intuit.com).
+// Fully server-rendered HTML, no auth. careersUrl may be a full-board search page or a
+// location-scoped landing; pagination is `?p=N` and pager state comes from data-total-pages/
+// data-total-results attributes on the results container. Job cards live inside whichever element
+// has "search-results" in its id/class (excludes Ford's unrelated same-page "similar jobs" widget);
+// externalId is the trailing numeric segment of the card's `/job/.../<jobId>` href. JD body is the
+// largest block in the first matching class tier of ats-description/job-description/__description.
+// Both tenants' WAF/CDN blocks the plain bot UA on some routes, so every request uses a browser UA.
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -53,47 +16,17 @@ import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from
 import { BROWSER_UA } from "../util/userAgent.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
-// Both live tenants' pager chrome carries data-records-per-page="15"; not
-// otherwise parsed/used (pagination relies on data-total-results, not a
-// page-length comparison — see listPostings below), so this is informational.
-const NOMINAL_PAGE_SIZE = 15;
+const NOMINAL_PAGE_SIZE = 15; // informational only; pagination relies on data-total-results, not this
 
 const TOTAL_PAGES_RE = /data-total-pages="(\d+)"/;
 const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
 
-/**
- * Throw when a page-1 response that yielded no job cards is not a Radancy
- * search-results page at all.
- *
- * These tenants sit on the company's own domain (careers.ford.com,
- * jobs.intuit.com, ...), so the failure to catch is the domain quietly ceasing to
- * serve Radancy while still answering 200 — parked, re-pointed at another ATS, or
- * replaced by a marketing page. None of those carries a `#search-results`
- * container, so parseRadancyList returned [] and the row reported a healthy empty
- * board forever, no error, consecutive_failures never moving.
- *
- * "No job cards" alone CANNOT be the signal: Cargill's board is a live Radancy
- * search page that legitimately matches nothing for India today
- * (data-total-results="0", zero cards, probed 2026-08-03), and every tenant that
- * ever empties out looks the same. The engine's own pager state is what separates
- * them — `data-total-results` is emitted on the results `<section>` whatever the
- * count, and the count is simply 0.
- *
- * Probed 2026-08-03 across all 12 live rows: present on 12/12, Cargill included,
- * and reproducibly still present when a healthy tenant is asked for a nonsense
- * location (verified on careers.arm.com and jobs.intuit.com, both 0 results).
- * Absent from every non-search response the same hosts serve: careers.arm.com's
- * own 404 page, its careers home, and www.arm.com. `totalResults` is the value
- * the pager already parses, so the check costs no extra request and no extra
- * parsing.
- *
- * A bot-blocker's challenge page has no `data-total-results` either, and all 12
- * live rows are WAF-fronted — so the body is checked for a block signature first
- * and, when it is one, the error thrown is infrastructure-shaped instead: an edge
- * refusing us is retried and deferred, never charged to the row. Without that,
- * five blocked runs would have quarantined AstraZeneca India Ops (4,681 postings
- * seen), Amgen (2,014), Optum (1,719) and nine more.
- */
+// "No job cards" alone can't signal a dead board: a live search page can legitimately match zero
+// India results (data-total-results="0"), which looks identical to the domain having quietly
+// stopped serving Radancy altogether. data-total-results is emitted on the results section whatever
+// the count, so its total absence (not zero count) is what means the board is gone. A WAF challenge
+// page also lacks that attribute, so it's checked for a block signature first and treated as
+// infrastructure (retried/deferred) rather than charged to the row.
 export function assertRadancyBoardServed(
   totalResults: number | null,
   careersUrl: string,
@@ -112,14 +45,13 @@ export function assertRadancyBoardServed(
 // Checked in order; the first tier with any match wins (see file header).
 const JD_CLASS_TIERS = ["ats-description", "job-description", "__description"];
 
-/** Listing URL for page N (1-based). Page 1 is the bare careersUrl, unmodified. */
+// Page 1 is the bare careersUrl, unmodified.
 export function radancyListUrl(careersUrl: string, page: number): string {
   if (page <= 1) return careersUrl;
   const sep = careersUrl.includes("?") ? "&" : "?";
   return `${careersUrl}${sep}p=${page}`;
 }
 
-/** Parse the `data-total-pages` / `data-total-results` pager attributes. Either may be null if absent/malformed. */
 export function parseRadancyTotals(html: string): { totalPages: number | null; totalResults: number | null } {
   const pagesMatch = TOTAL_PAGES_RE.exec(html);
   const resultsMatch = TOTAL_RESULTS_RE.exec(html);
@@ -129,7 +61,7 @@ export function parseRadancyTotals(html: string): { totalPages: number | null; t
   };
 }
 
-/** jobId from a "/job/<city>/<slug>/<orgId>/<jobId>" href — the trailing numeric path segment. Null if absent. */
+// jobId is the trailing numeric segment of a "/job/<city>/<slug>/<orgId>/<jobId>" href.
 export function parseRadancyJobId(href: string): string | null {
   const path = href.split(/[?#]/)[0] ?? "";
   const segs = path.split("/").filter(Boolean);
@@ -137,15 +69,9 @@ export function parseRadancyJobId(href: string): string | null {
   return last && /^\d+$/.test(last) ? last : null;
 }
 
-/**
- * Parse the listing page into postings. Scopes card search to elements whose
- * id/class contains "search-results" (both tenants' actual results
- * container), so it never picks up Ford's unrelated same-page "similar
- * jobs" widget (`.job-list__list`). Dedups by externalId — the scoped
- * selector can visit the same anchor twice (nested search-results
- * containers), and this is also a defensive backstop against any future
- * tenant genuinely rendering a duplicate card.
- */
+// Scopes card search to elements whose id/class contains "search-results" so it never picks up
+// Ford's unrelated same-page "similar jobs" widget. Dedups by externalId (nested search-results
+// containers can visit the same anchor twice).
 export function parseRadancyList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -175,12 +101,10 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
       }
 
       const $li = $a.closest("li");
-      // Table-layout tenants (Disney) put the location span in a SIBLING <td>,
-      // outside the anchor entirely - scope to the row when no <li> exists.
+      // Table-layout tenants put the location span in a sibling <td>, outside the anchor entirely.
       const $tr = $li.length ? $li : $a.closest("tr");
       const $card = $tr.length ? $tr : $a;
-      // Some tenants (ARM) use a bare `class="location"` span instead of the
-      // usual `job-location` — fall back to it before giving up.
+      // Some tenants use a bare `class="location"` span instead of `job-location`.
       const $loc = $card.find('[class*="job-location"]').first();
       const $locFallback = $loc.length ? $loc : $card.find("span.location").first();
       const location = collapseWs($locFallback.text()) || null;
@@ -204,14 +128,8 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
   return postings;
 }
 
-/**
- * Extract the JD body: the first non-empty tier in `JD_CLASS_TIERS`, taking
- * the largest matching block's inner HTML (see file header for why the
- * tiering + "largest" rule matter — Ford's outer `.job-description` wrapper
- * would otherwise out-rank the real `.ats-description` body, and generic
- * `__description` hits would out-rank nothing on tenants that never reach
- * that tier).
- */
+// The largest matching block in the first non-empty tier — Ford's outer .job-description wrapper
+// would otherwise out-rank the real .ats-description body.
 export function parseRadancyJd(html: string): string {
   const $ = cheerio.load(html);
 
@@ -237,10 +155,8 @@ export const radancyAdapter: AtsAdapter = {
       provider: "radancy",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // No page-length comparison in the original loop either - termination
-      // is a zero-job page (defensive backstop) or reaching
-      // data-total-results, read once from page 1 and never reconsidered
-      // (mirrors the original's one-shot data-total-pages read - see below).
+      // Termination is a zero-job page (defensive backstop) or reaching data-total-results, read
+      // once from page 1 and never reconsidered.
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
@@ -250,25 +166,16 @@ export const radancyAdapter: AtsAdapter = {
           userAgent: BROWSER_UA,
         });
         const items = parseRadancyList(html, company);
-        // totalResults (data-total-results) is a genuine item count, unlike
-        // totalPages (a page count the original loop used instead) - paginate()
-        // latches whichever value fetchPage first reports and ignores later
-        // ones, exactly matching the original reading this once from page 1
-        // and never reconsidering it on later pages.
         const { totalResults } = parseRadancyTotals(html);
-        // Page 1 only, and only when it produced no cards: a page that yielded
-        // rows is a live board whatever its pager markup says, and a pager
-        // running off the end on a later page must just stop, not fail.
+        // Only page 1, and only when it produced no cards: a page with rows is a live board
+        // whatever its pager markup says, and a pager running off the end on a later page just stops.
         if (page === 0 && items.length === 0) {
           assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1), html);
         }
         if (page === 0) state.page1Total = totalResults;
-        // Location-scoped boards (careers_url ending in a location path like
-        // /search-jobs/India) can DROP the scope when ?p=N is appended: Disney's
-        // page 2 answers with the full global board (total 772 vs page 1's 29),
-        // silently merging foreign postings into the scoped result set
-        // (verified live 2026-08-13). A page whose own reported total differs
-        // from page 1's is answering a different query - discard it and stop.
+        // Location-scoped boards can drop the scope when ?p=N is appended, silently merging foreign
+        // postings into the result set. A page whose own reported total differs from page 1's is
+        // answering a different query - discard it and stop.
         if (page > 0 && state.page1Total !== null && totalResults !== null && totalResults !== state.page1Total) {
           logger.warn(
             { slug: company.slug, page: page + 1, page1Total: state.page1Total, pageTotal: totalResults },

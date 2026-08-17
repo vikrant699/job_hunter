@@ -1,4 +1,3 @@
-// src/ats/__tests__/sirion.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sirionListUrl, parseSirionList, parseSirionJobTitle, parseSirionJobLocation, parseSirionJd } from "../sirion.js";
@@ -19,7 +18,6 @@ test("sirionListUrl builds page 1 as /careers/ and page N as /careers/page/N/", 
   assert.equal(sirionListUrl(3), "https://www.sirion.ai/careers/page/3/");
 });
 
-// WP "jobs" archive: each card links to a /jobs/<slug>/ permalink with the title.
 const LIST_HTML = `<html><body><main>
   <article class="job"><h2><a href="https://www.sirion.ai/jobs/senior-frontend-engineer/">Senior Frontend Engineer</a></h2></article>
   <article class="job"><h2><a href="/jobs/staff-devops-engineer/">Staff DevOps Engineer</a></h2></article>
@@ -49,8 +47,7 @@ test("parseSirionList dedupes a slug seen twice and returns [] with no job links
   assert.deepEqual(parseSirionList(company, "<html><body><p>none</p></body></html>"), []);
 });
 
-// Job single page: title in <h1>, location encoded in the WP body/article class
-// "gh_office-<city>", JD in the gh-job-single / entry-content block.
+// WordPress encodes location in the body class as gh_office-<city>.
 const JOB_HTML = `<html><head><title>Senior Frontend Engineer - SirionLabs</title></head>
 <body class="single single-jobs postid-24189 gh_department-engineering gh_office-gurugram">
   <main><article class="gh-job-single">

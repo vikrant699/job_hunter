@@ -1,20 +1,5 @@
-// src/ats/freshteam.ts — Freshteam (Freshworks) career sites, one tenant per
-// subdomain: <tenant>.freshteam.com. The board is server-rendered, no auth:
-//
-//   list: GET <origin>/jobs -> ALL postings inline in one page, no pagination.
-//         <div data-portal-id="jobs_list"> wraps one
-//           <a href="/jobs/<id>/<slug>" data-portal-title=".." data-portal-location=".."
-//              data-portal-job-type=".." data-portal-remote-location=true|false>
-//         per posting. The display title lives in a nested
-//         `<div class="job-title">` — `data-portal-title` is a lowercased,
-//         whitespace-stripped slug of it, not display text.
-//
-//   jd:   GET <origin>/jobs/<id>/<slug> -> full rich HTML in
-//         `.job-details-content`. That div also contains the apply form
-//         (`.application-form` + a portal <script>) as trailing siblings of
-//         the JD markup, so those are stripped before converting to text.
-//
-// The legacy `/api/job_postings` endpoint 401s — do not use it.
+// src/ats/freshteam.ts — Freshteam (Freshworks) career sites, one tenant per subdomain (<tenant>.freshteam.com), server-rendered, no auth.
+// list: GET <origin>/jobs (all postings inline, no pagination); jd: GET /jobs/<id>/<slug> -> .job-details-content (apply form stripped). Legacy /api/job_postings endpoint 401s, don't use it.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -38,21 +23,12 @@ export function parseFreshteamHref(href: string): { id: string; slug: string } |
   return { id, slug };
 }
 
-// Freshteam answers HTTP 200 for a subdomain that does NOT exist, serving its
-// own "We couldn't find <domain> ... You can claim it now" page (~889 bytes,
-// stylesheet /src/404.css) from the same /jobs URL a real board would use.
-// It carries no jobs_list container, so it used to parse as a board with zero
-// openings: the row reported success, never failed, and never quarantined.
-// niki-talent and tickertape were both converted to this provider on the
-// strength of that false pass. These two class names are unique to that page —
-// a live board's empty state is `.no-jobs-found` / `[data-portal-id="no_data"]`
-// instead, and must keep returning [].
+// A nonexistent subdomain still answers HTTP 200 with Freshteam's own "claim it now" page (no jobs_list
+// container) instead of a 404 — detected via INVALID_DOMAIN_SELECTOR, distinct from a genuinely empty
+// board's `.no-jobs-found` / `[data-portal-id="no_data"]`, which must keep returning [].
 const INVALID_DOMAIN_SELECTOR = ".invalid-domain-wrapper, .no-ats";
 
-/** Parse the /jobs listing page into postings. Tolerates a missing or empty
- *  jobs_list container (returns []) and skips any row missing an href, id, or
- *  title. Dedups by job id in case markup ever renders a row twice. Throws when
- *  the page is Freshteam's invalid-domain page — see INVALID_DOMAIN_SELECTOR. */
+/** Parse the /jobs listing into postings; throws on Freshteam's invalid-domain page (see INVALID_DOMAIN_SELECTOR). */
 export function parseFreshteamList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -98,11 +74,8 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     });
   });
 
-  // Legacy template (live on ninjacart, 2026-08-12): no data-portal-* markup at
-  // all — bare `a.job-title` anchors inside .job-list-info rows, location in a
-  // sibling .job-location block as "City, Country <br/> Employment Type". Only
-  // consulted when the data-portal pass found nothing, so a board that carries
-  // both never double-counts.
+  // Legacy template fallback: bare a.job-title anchors in .job-list-info rows, location in a sibling
+  // .job-location block; only consulted when the data-portal pass found nothing, so a board with both never double-counts.
   if (postings.length === 0) {
     $(".job-list-info a.job-title").each((_, el) => {
       const $a = $(el);
@@ -122,8 +95,7 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
         return;
       }
 
-      // First <br/>-separated line of .location-info is the location; the rest
-      // is the employment type ("Full Time"), which is not a location.
+      // First <br/>-separated line of .location-info is the location; the rest is employment type, not location.
       const locationHtml = $a.closest(".row").find(".job-location .location-info").first().html() ?? "";
       const location = collapseWs(cheerio.load(locationHtml.split(/<br\s*\/?>/i)[0] ?? "").text()) || null;
 
@@ -143,11 +115,8 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     });
   }
 
-  // Checked only after the parse comes up empty: a page that yielded rows is a
-  // live tenant whatever its (customer-editable) template names its classes, so
-  // a marker collision can never fail a working board. The URL comes from the
-  // company row because the served page never names the tenant — the domain in
-  // its heading is injected client-side from document.domain.
+  // Checked only when the parse yields nothing, so a marker collision can't fail a board that has rows;
+  // the URL comes from the company row since the served page never names the tenant itself.
   if (postings.length === 0 && $(INVALID_DOMAIN_SELECTOR).length > 0) {
     throw new Error(
       `freshteam: tenant does not exist at ${freshteamListUrl(company)} — Freshteam served its ` +

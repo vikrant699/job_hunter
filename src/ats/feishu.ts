@@ -1,22 +1,5 @@
-// src/ats/feishu.ts
-//
-// Feishu Hire (ByteDance's recruiting platform) public careers API. Each tenant
-// is configured via api_meta: the API base + the friendly job-URL base. No auth
-// (the /public/supplier endpoints are open); the only required header is
-// `website-path` (locale segment). ByteDance itself is the first tenant:
-//   apiBase    = https://jobs.bytedance.com/api/v1/public/supplier
-//   jobUrlBase = https://jobs.bytedance.com/en/position
-//
-//   list: POST <apiBase>/search/job/posts
-//     body { recruitment_id_list, job_category_id_list, subject_id_list,
-//            location_code_list, keyword, limit, offset }
-//     -> { code, data: { job_post_list: [{ id, title, description, requirement,
-//                        city_info }], count } }   (JD inline)
-//   jobUrl: <jobUrlBase>/<id>/detail
-//
-// `locationCodes` (api_meta, comma-separated Feishu city codes, e.g. "CT_44"
-// for Gurgaon) scopes the search server-side to the tenant's India cities;
-// empty => all locations.
+// src/ats/feishu.ts — Feishu Hire (ByteDance) public careers API, no auth; per-tenant apiMeta (apiBase, jobUrlBase, websitePath).
+// list: POST <apiBase>/search/job/posts, JD inline; locationCodes (comma-separated Feishu city codes) scopes India cities server-side.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -42,7 +25,7 @@ function meta(company: AdapterCompany): FeishuMeta {
   return { apiBase, jobUrlBase, websitePath: company.apiMeta?.websitePath ?? "en", locationCodes: codes };
 }
 
-// city_info is a recursive city -> state -> country chain (each with en_name).
+// city_info is a recursive city -> state -> country chain (each node has en_name).
 interface CityNode { en_name?: string | null | undefined; parent?: CityNode | null | undefined }
 const CitySchema: z.ZodType<CityNode> = z.lazy(() =>
   z.object({ en_name: z.string().nullable().optional(), parent: CitySchema.nullable().optional() }),

@@ -6,11 +6,10 @@ import type { RunContext } from "../pipeline/index.js";
 const COLOR_BLUE = 0x3498db;
 
 export interface ProgressContext {
-  /** Live run stats — read, never mutated, by the heartbeat. */
+  /** Live run stats, read but never mutated by the heartbeat. */
   stats: RunContext;
-  /** Run start (ms epoch), for elapsed. */
   startedAt: number;
-  /** Profile label so concurrent profiles are distinguishable on the shared channel. */
+  /** So concurrent profiles are distinguishable on the shared channel. */
   profileId: string;
 }
 
@@ -32,9 +31,7 @@ export function buildBreakdown(bp: ReadonlyMap<string, { total: number; scanned:
   return parts.join(" · ") || "—";
 }
 
-// Type aliases (not interfaces): postWebhookJson's JsonValue parameter needs
-// the implicit index signature TS infers for object type literals, which
-// interfaces don't get.
+// Type aliases, not interfaces: postWebhookJson's JsonValue param needs the implicit index signature.
 type ProgressEmbedField = { name: string; value: string; inline: boolean };
 export type ProgressEmbed = {
   title: string;
@@ -43,7 +40,7 @@ export type ProgressEmbed = {
   timestamp: string;
 };
 
-/** Pure builder for the heartbeat embed — no I/O, so it's unit-testable. */
+/** Pure builder for the heartbeat embed, no I/O. */
 export function buildProgressEmbed(ctx: ProgressContext, nowMs: number): ProgressEmbed {
   const { stats, startedAt, profileId } = ctx;
   const bp = stats.bucketProgress;
@@ -76,8 +73,7 @@ export function buildProgressEmbed(ctx: ProgressContext, nowMs: number): Progres
   };
 }
 
-/** Build and post one progress heartbeat. Never throws — a failed heartbeat must
- *  not abort or slow the run. Mock-logs when the progress webhook is unset. */
+/** Build and post one progress heartbeat; never throws. Mock-logs when the webhook is unset. */
 export async function postProgress(ctx: ProgressContext): Promise<void> {
   const embed = buildProgressEmbed(ctx, Date.now());
 
@@ -97,12 +93,7 @@ export async function postProgress(ctx: ProgressContext): Promise<void> {
   }
 }
 
-/**
- * Start a 15-min progress heartbeat over the live run context. Returns a stop()
- * that clears the interval. The timer is unref()'d so it never keeps the process
- * alive past run completion; the caller must still call stop() in a finally so no
- * heartbeat fires during post-run wrap-up.
- */
+/** Starts the heartbeat, returns stop(); timer is unref()'d but caller must still stop() in a finally. */
 export function startProgressHeartbeat(ctx: ProgressContext): () => void {
   const timer = setInterval(() => {
     void postProgress(ctx);

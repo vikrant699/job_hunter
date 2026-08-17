@@ -1,17 +1,12 @@
 import { readFileSync } from "node:fs";
 
-/** Parsed outreach email template: subject line + body, both still containing
- *  {{placeholder}} tokens for renderDraft to fill in. */
+/** Parsed template: subject + body, both still containing {{placeholder}} tokens. */
 export interface OutreachTemplate {
   subject: string;
   body: string;
 }
 
-/**
- * Reads a template file whose first line is `Subject: ...`, followed by a
- * blank line, then the body. Throws an actionable error if the file doesn't
- * match that shape.
- */
+/** Reads a template file: first line `Subject: ...`, blank line, then body; throws if malformed. */
 export function loadTemplate(path: string): OutreachTemplate {
   const raw = readFileSync(path, "utf-8");
   const newlineIndex = raw.indexOf("\n");
@@ -99,9 +94,7 @@ function fill(text: string, placeholders: Record<string, string>): string {
   });
 }
 
-/** Pure renderer: fills {{placeholders}} in the template's subject and body.
- *  Throws if the template references a placeholder this function doesn't know
- *  how to fill. */
+/** Fills {{placeholders}} in the template's subject and body; throws on an unknown placeholder. */
 export function renderDraft(input: RenderDraftInput): RenderedDraft {
   const placeholders = buildPlaceholders(input);
   return {

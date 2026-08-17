@@ -1,29 +1,6 @@
-// src/ats/sfunify.ts — SAP SuccessFactors Career Site Builder "Unify" skin
-// (e.g. careers.wipro.com, careers.hcltech.com, jobs.standardchartered.com,
-// careers.skyworksinc.com).
-//
-// List: POST <origin>/services/recruiting/v1/jobs with a JSON body (see
-// sfunifyRequestBody); response is
-//   { jobSearchResult: [{ response: {...job fields} }], totalJobs }
-// Page size is server-fixed at 10 — size/pageSize/resultsPerPage body fields
-// are silently ignored.
-//
-// Detail: GET <origin>/job/<urlTitle>/<id>-<locale> — plain server-rendered
-// HTML (no JS needed); the full JD text lives in one or more
-// <span itemprop="description"> blocks.
-//
-// KNOWN LIMITATION (confirmed live on careers.skyworksinc.com, 2026-07-12):
-// pageNumber-based pagination on this API is NOT fully deterministic — the
-// same pageNumber sometimes returns a different 10-item slice across
-// repeated identical requests (looks like a small pool of backend replicas
-// with slightly different internal orderings; not fixed by resending the
-// JSESSIONID sticky cookie the server sets). The *counts* per page reliably
-// sum to `totalJobs`, but the *set* of unique postings collected in one
-// crawl can fall short by ~10-20%. We dedupe by externalId and retry a page
-// once when it comes back 100% duplicate, which recovers some of that for
-// free, but full completeness in a single run isn't guaranteed. Postings
-// missed in one run are expected to surface in a later scheduled crawl since
-// (provider, external_id) upserts persist whatever's been seen so far.
+// src/ats/sfunify.ts — SAP SuccessFactors CSB "Unify" skin (e.g. careers.wipro.com, careers.hcltech.com, jobs.standardchartered.com, careers.skyworksinc.com).
+// List: POST <origin>/services/recruiting/v1/jobs (page size server-fixed at 10). Detail: GET <origin>/job/<urlTitle>/<id>-<locale>, SSR HTML with the JD in one or more <span itemprop="description"> blocks.
+// KNOWN LIMITATION: pageNumber-based pagination isn't fully deterministic - the same page can return a different 10-item slice on repeat requests (looks like backend replicas with different orderings), so a single crawl can undercount unique postings by ~10-20%. We dedupe by externalId and retry an all-duplicate page once; missed postings are expected to surface in a later scheduled crawl.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -39,11 +16,9 @@ export const SfunifyJobSchema = z.object({
   unifiedStandardTitle: z.string(),
   urlTitle: z.string().nullable().optional(),
   unifiedUrlTitle: z.string().nullable().optional(),
-  // Present on Skyworks/Wipro/Standard Chartered as one pre-joined "City,
-  // State, Country" string.
+  // Present on Skyworks/Wipro/Standard Chartered as one pre-joined "City, State, Country" string.
   jobLocationShort: z.array(z.string()).nullable().optional(),
-  // HCLTech's tenant has no jobLocationShort at all — its per-client-configured
-  // custom fields carry city + country separately instead.
+  // HCLTech has no jobLocationShort - carries city + country in separate custom fields instead.
   custprimecity: z.string().nullable().optional(),
   custCountryRegion: z.array(z.string()).nullable().optional(),
   unifiedStandardStart: z.string().nullable().optional(),
@@ -55,20 +30,7 @@ const SfunifyListSchema = z.object({
   totalJobs: z.number().nullable().optional(),
 });
 
-/**
- * Request body for one page. `locale` defaults to "en_US"; some tenants
- * (Standard Chartered) require "en_GB" instead — set via `apiMeta.locale`.
- *
- * `location` narrows the search server-side by country name (e.g. "India")
- * when `apiMeta.location` is set, via the flat `location` field — this works
- * on Skyworks/Wipro/Standard Chartered. HCLTech's tenant does NOT honor that
- * field (it returns 0 results for ANY non-empty value, confirmed live with
- * both a real and a nonsense country); it instead exposes the same country
- * facet under a custom field name (`custCountryRegion`) that must go through
- * `facetFilters`. Set `apiMeta.locationFacetField` to the facet's field name
- * (e.g. "custCountryRegion") to route the filter through `facetFilters`
- * instead of the flat field for such tenants.
- */
+// Body for one page; locale defaults en_US (Standard Chartered needs en_GB via apiMeta.locale). The flat `location` field narrows by country on most tenants, but HCLTech ignores it entirely (0 results for any value) and instead needs the country facet routed through `facetFilters` via apiMeta.locationFacetField.
 export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number): Record<string, JsonValue> {
   const location = company.apiMeta?.location;
   const facetField = company.apiMeta?.locationFacetField;
@@ -93,13 +55,7 @@ export function sfunifyPageJobs(pageJson: JsonValue): { jobs: SfunifyJob[]; tota
   return { jobs: (parsed.jobSearchResult ?? []).map((j) => j.response), totalJobs: parsed.totalJobs ?? null };
 }
 
-/**
- * "M/D/YY" (2-digit year — Skyworks/Wipro/HCLTech's en_US-style tenants) or
- * "DD/MM/YYYY" (4-digit year — Standard Chartered's en_GB) → ISO. Which
- * layout applies is inferred from the year segment's digit count rather
- * than the request locale, since that's what actually distinguishes the two
- * formats observed live. Returns null for anything else.
- */
+/** "M/D/YY" (2-digit year, en_US tenants) or "DD/MM/YYYY" (4-digit year, Standard Chartered's en_GB) -> ISO; which layout applies is inferred from the year digit count, not the request locale. Null otherwise. */
 export function parseSfunifyStartDate(s: string | null | undefined): string | null {
   if (!s) return null;
   const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
@@ -113,26 +69,13 @@ export function parseSfunifyStartDate(s: string | null | undefined): string | nu
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/**
- * Job detail URL. `urlTitle` (falling back to `unifiedUrlTitle`) arrives
- * already percent-encoded from the API (e.g.
- * "Sr_-Buyer-2%E3%80%80%28Strategic-Sourcing-Specialist%29") — interpolate
- * it as-is; running it through encodeURIComponent again would double-encode
- * the existing "%" escapes and 404.
- */
+/** `urlTitle`/`unifiedUrlTitle` arrive already percent-encoded from the API - interpolate as-is; re-encoding would double-encode the existing "%" escapes and 404. */
 export function sfunifyJobUrl(company: AdapterCompany, job: SfunifyJob, locale: string): string {
   const slug = job.urlTitle ?? job.unifiedUrlTitle ?? "";
   return `${tenantOrigin(company)}/job/${slug}/${job.id}-${locale}`;
 }
 
-/**
- * Location string for a job entry. Prefers the pre-joined `jobLocationShort`
- * (Skyworks/Wipro/Standard Chartered); falls back to joining HCLTech's
- * separate `custprimecity` + `custCountryRegion` custom fields when that's
- * absent. Some tenants (Wipro) embed a stray literal "<br/>" in
- * jobLocationShort (e.g. "Tampa, USA-FL, USA, 33634<br/>") — strip any HTML
- * before use either way.
- */
+/** Prefers the pre-joined `jobLocationShort`, falling back to joining HCLTech's separate custom fields; some tenants (Wipro) embed a stray "<br/>" in jobLocationShort, so HTML is stripped either way. */
 export function sfunifyLocation(job: SfunifyJob): string | null {
   const short = job.jobLocationShort?.[0];
   if (short) {
@@ -161,16 +104,7 @@ export function normalizeSfunify(company: AdapterCompany, job: SfunifyJob, local
   };
 }
 
-/**
- * Extract every `<span itemprop="description">...</span>` block's text and
- * join them — the job detail page renders the JD server-side as 1-3 such
- * spans (intro company boilerplate, the actual "Job Description:" section,
- * and sometimes a closing EEO statement). Some tenants (Standard Chartered)
- * nest plain `<span style="...">` runs inside for inline font styling, so a
- * naive non-greedy match against the next `</span>` truncates the JD at that
- * inner tag — this walks span open/close tags counting depth to find the
- * outer span's real matching close instead.
- */
+/** Joins every itemprop="description" span's text (the JD is rendered as 1-3 such spans); tracks span open/close depth rather than a naive match to the next </span>, since some tenants (Standard Chartered) nest inline <span style> runs that would otherwise truncate the JD. */
 export function extractSfunifyJd(html: string): string {
   const blocks: string[] = [];
   const openRe = /<span\b[^>]*itemprop="description"[^>]*>/gi;
@@ -220,22 +154,14 @@ export const sfunifyAdapter: AtsAdapter = {
       provider: "sfunify",
       company: company.slug,
       pageSize: PAGE,
-      // The server's own page slicing isn't reliably tied to `pageSize` —
-      // see the module-level comment. Only a genuinely empty page or
-      // reaching `totalJobs` ends pagination.
+      // Page slicing isn't reliably tied to pageSize (see module header) - only an empty page or reaching totalJobs ends pagination.
       shortPageEndsPagination: false,
-      // Cross-page accumulation dedup is delegated to dedupeBy (below); `seen`
-      // is kept directly only to decide the retry below, which needs to know
-      // BEFORE any filtering whether every id on this page was already
-      // collected on an earlier page — the same identity dedupeBy tracks
-      // internally, but not a question it can answer back to fetchPage.
+      // dedupeBy handles cross-page accumulation; `seen` is tracked separately only so fetchPage can know BEFORE filtering whether a page was 100% already-collected, to decide the retry below.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         let { jobs, totalJobs } = await fetchOnce(page);
         const allDuplicate = jobs.length > 0 && jobs.every((j) => seen.has(j.id));
-        // A page that comes back 100% duplicate doesn't necessarily mean
-        // we're done — retry once, since resampling the same pageNumber
-        // sometimes surfaces a different backend replica's ordering.
+        // Retry once on an all-duplicate page - resampling the same pageNumber sometimes surfaces a different backend replica's ordering.
         if (allDuplicate && (totalJobs === null || seen.size < totalJobs)) {
           ({ jobs, totalJobs } = await fetchOnce(page));
         }

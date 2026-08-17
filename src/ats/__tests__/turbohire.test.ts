@@ -117,11 +117,7 @@ test("mergeTurboHirePages stops once total is reached", () => {
   assert.deepEqual(out.map((p) => p.externalId), ["ef888dcf-c65a-4fd2-a10e-b8dd2b7c131e"]);
 });
 
-// The filteredjobs endpoint ignores pageNumber/pageSize and returns the whole
-// board in one call (verified live on all 10 tenants 2026-07-25: Total ===
-// Result.length). Should a tenant ever report a Total larger than one response
-// while still ignoring pageNumber, every "next page" would repeat page 1 — so
-// the merge must not stack the same job twice on the way to Total.
+// The filteredjobs endpoint ignores pageNumber/pageSize and returns the whole board in one call, so every "next page" call would repeat page 1 - the merge must not stack the same job twice.
 test("mergeTurboHirePages ignores a repeated page instead of duplicating jobs", () => {
   const out: NormalizedPosting[] = [];
   mergeTurboHirePages(company, out, [page([job]), page([job]), page([{ ...job, JobId: "2" }])], 3);
@@ -146,7 +142,6 @@ test("mergeTurboHirePages throws (not warn+truncate) on a mid-pagination schema 
     () => mergeTurboHirePages(company, out, [{ Total: 5, Result: "not-an-array" }], 5),
     /turbohire page \(fetched \d+\/\d+ so far\) response failed schema for flipkart/,
   );
-  // Must not silently keep only the partial list — the throw happens before
-  // any further mutation from this malformed page.
+  // Must not silently keep only the partial list.
   assert.equal(out.length, 1);
 });

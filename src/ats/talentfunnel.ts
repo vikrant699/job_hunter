@@ -1,27 +1,11 @@
-// src/ats/talentfunnel.ts — Talent Funnel (multi-tenant UK ATS). Every
-// customer's board (a custom-branded Next.js site on a vanity domain, e.g.
-// jobs.drmartens.com) is backed by ONE shared JSON API keyed by a per-customer
-// Tenant UUID:
-//
-//   list: POST https://ats-api.talent-funnel.com/js/search/vacancy
-//         header  Tenant: <uuid>        (REQUIRED — omitting it 403s)
-//         body    {"limit":5000}        (one shot; server returns the whole board)
-//         -> { results:[{ vacancyId, jobTitle, applicationUrl, validFrom,
-//                         hoursType, location:{city,country,formattedAddress} }],
-//              totalResults }
-//   JD:   GET https://ats-api.talent-funnel.com/js/vacancy/<vacancyId>
-//         header  Tenant: <uuid>
-//         -> { positionProfile:{ description(HTML), ... }, ... }
-//
-// The list response carries NO description — the JD HTML is on the per-job
-// detail endpoint at positionProfile.description, so jdText is filled by
-// fetchJd. The `?country[0]=IN` URL facet is client-side only and NOT honored
-// server-side, so we fetch the whole board and let the pipeline's location
-// filter do the India cut. `applicationUrl` (forms.talent-funnel.com) is the
-// canonical human link; it carries a SEPARATE form UUID, not vacancyId.
-//
-// The Tenant UUID lives in apiMeta.tenant (found once in the board's
-// __NEXT_DATA__ island under any vacancy's `tenant`).
+// src/ats/talentfunnel.ts — Talent Funnel (multi-tenant UK ATS). Every customer's
+// board is backed by one shared JSON API keyed by a per-customer Tenant UUID.
+// list: POST ats-api.talent-funnel.com/js/search/vacancy, header Tenant:<uuid> (required,
+// else 403), body {"limit":5000} returns the whole board in one shot. JD: GET
+// .../js/vacancy/<vacancyId> -> positionProfile.description (HTML) — the list response
+// carries no description. The `?country[0]=IN` URL facet is client-side only and not
+// honored server-side, so we fetch the whole board and let the location filter cut India.
+// The Tenant UUID lives in apiMeta.tenant.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -59,7 +43,7 @@ const TalentfunnelResponseSchema = z.object({
   totalResults: z.number().nullable().optional(),
 });
 
-/** Per-job detail: the JD HTML lives at positionProfile.description. */
+// Per-job detail: the JD HTML lives at positionProfile.description.
 const TalentfunnelDetailSchema = z.object({
   positionProfile: z
     .object({ description: z.string().nullable().optional() })
@@ -67,7 +51,7 @@ const TalentfunnelDetailSchema = z.object({
     .optional(),
 });
 
-/** The per-customer Tenant UUID (apiMeta.tenant), sent as the `Tenant` header. */
+// The per-customer Tenant UUID (apiMeta.tenant), sent as the `Tenant` header.
 export function talentfunnelTenant(company: AdapterCompany): string {
   const tenant = company.apiMeta?.tenant;
   if (tenant === undefined || tenant === "") {
@@ -83,8 +67,7 @@ function locationString(loc: TalentfunnelVacancy["location"]): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-/** Map the shared-API response into normalized postings (jdText filled later
- *  by fetchJd — the list response carries no description). */
+// Maps the shared-API response into normalized postings (jdText filled later by fetchJd).
 export function parseTalentfunnelList(raw: JsonValue, company: AdapterCompany): NormalizedPosting[] {
   const body = parseOrThrow(TalentfunnelResponseSchema, raw, { provider: "talentfunnel", slug: company.slug });
   return body.results.map((v) => {

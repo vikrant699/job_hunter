@@ -62,14 +62,7 @@ test("returns null when no India leaf exists", async (t) => {
   assert.equal(await discoverIndiaFacet({ cxsBase: CXS }), null);
 });
 
-// --- api_meta facet pin -------------------------------------------------------
-//
-// Some tenants (lowes LWS_External_CS, probed 2026-08-17) expose ONLY a flat
-// per-city `locations` facet whose India leaves carry no "India" token
-// ("Bengaluru"), so token-based discovery finds nothing and the adapter falls
-// back to crawling the whole 11,823-job board. api_meta can pin the facet
-// explicitly instead: facetParam + facetValueIds (comma-separated — ApiMeta
-// values are strings).
+// Some tenants expose only a flat per-city `locations` facet whose India leaves carry no "India" token, so token-based discovery finds nothing; api_meta can pin the facet explicitly instead.
 test("pinnedFacet builds a DiscoveredFacet from api_meta, splitting comma-separated ids", () => {
   assert.deepEqual(
     pinnedFacet({ facetParam: "locations", facetValueIds: "aaa, bbb" }),

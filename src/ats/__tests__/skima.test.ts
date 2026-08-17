@@ -19,8 +19,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed from the live Nykaa board (2026-07-18): one full card + the
-// Apply-button anchor that shares the title link's uuid, plus the counter.
+// Trimmed from the live Nykaa board: one full card, an Apply anchor sharing the title link's uuid, and the counter.
 const LISTING_HTML = `
 <html><body>
 <div class="divide-y-[1px] rounded-md border border-offset-background">
@@ -60,14 +59,10 @@ const DETAIL_HTML = `
 </div>
 </main></body></html>`;
 
-// --- skimaPageUrl ----------------------------------------------------------
-
 test("skimaPageUrl returns the bare URL for page 1 and ?page=N beyond", () => {
   assert.equal(skimaPageUrl("https://careers.nykaa.com", 1), "https://careers.nykaa.com");
   assert.equal(new URL(skimaPageUrl("https://careers.nykaa.com", 3)).searchParams.get("page"), "3");
 });
-
-// --- parseSkimaListingHtml -------------------------------------------------
 
 test("parseSkimaListingHtml extracts title cards, skips text-less Apply anchors, reads total", () => {
   const page = parseSkimaListingHtml(LISTING_HTML, "https://careers.nykaa.com");
@@ -92,8 +87,6 @@ test("parseSkimaListingHtml returns null total when the counter is absent", () =
   assert.equal(page.items.length, 0);
 });
 
-// --- normalizeSkimaItem ----------------------------------------------------
-
 test("normalizeSkimaItem maps fields onto NormalizedPosting", () => {
   const page = parseSkimaListingHtml(LISTING_HTML, "https://careers.nykaa.com");
   const p = normalizeSkimaItem(company, at(page.items, 0));
@@ -103,8 +96,6 @@ test("normalizeSkimaItem maps fields onto NormalizedPosting", () => {
   assert.equal(p.location, "Mumbai");
   assert.equal(p.jdText, "");
 });
-
-// --- extractSkimaJd --------------------------------------------------------
 
 test("extractSkimaJd pulls the job-description-panel text", () => {
   const jd = extractSkimaJd(DETAIL_HTML);

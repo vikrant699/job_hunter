@@ -1,30 +1,7 @@
-// src/ats/hdfclife.ts — HDFC Life careers ("find your fit", hdfclife.com).
-//
-// Single-tenant, not a multi-company ATS: everything is hardcoded to HDFC
-// Life's own encrypted career-portal API (mist.api-hdfclife.com), traced from
-// the site's client JS (js/script.js's Encrypter class) and confirmed live
-// (2026-08-13, 1,508 postings).
-//
-// Client-side-encrypted API, AES-256-GCM:
-//   - key = the first 32 chars of a long STATIC token string, as raw UTF-8
-//     bytes; iv = base64-decode of a static string -> an 11-byte nonce (not the
-//     usual 12; node:crypto accepts it, SubtleCrypto rejects it, which is why we
-//     use createCipheriv/createDecipheriv here).
-//   - ciphertext is base64(AES-GCM(plaintext) || 16-byte auth tag).
-//   - The REQUEST is encrypted under the static token/iv below. The RESPONSE
-//     comes back as { data: { token, iv, payload } } where token/iv rotate per
-//     call but are returned IN CLEARTEXT, so we decrypt payload under THOSE.
-//     If HDFC rotates the static request token, grep a fresh js/script.js for
-//     the `new Encrypter("<token>", "<iv>")` literals feeding the request call.
-//
-// Endpoints (confirmed live):
-//   list: POST mist.api-hdfclife.com/career-portal/get-open-requisition
-//         body {token, iv, payload: enc({jobRole:"All", functionParam:[], ...})}
-//         -> results.results[] buckets (one per JOB_ROLE), each with
-//            REQUISITION.results[] of jobs. The whole board (1,508) comes back
-//            in ONE call — no pagination.
-//   jd:   POST mist.api-hdfclife.com/career-portal/get-job-descriptions
-//         body {token, iv, payload: enc({reqId})} -> results.results[0].JOBDESCRIPTION (HTML)
+// src/ats/hdfclife.ts — HDFC Life careers, single-tenant AES-256-GCM encrypted API (mist.api-hdfclife.com),
+// traced from the site's client JS (Encrypter class).
+// list: POST get-open-requisition -> results.results[] JOB_ROLE buckets, each with REQUISITION.results[]
+// (whole board in one call, no pagination). jd: POST get-job-descriptions -> results.JOBDESCRIPTION (HTML).
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -42,16 +19,16 @@ const LIST_URL = `${API_BASE}/get-open-requisition`;
 const JD_URL = `${API_BASE}/get-job-descriptions`;
 const CAREERS_URL = "https://www.hdfclife.com/hdfc-careers/find-your-fit.html";
 
-// Static request key material lifted from the site's client JS (see header on
-// rotation). The key is the first 32 chars of REQUEST_TOKEN, as UTF-8 bytes.
+// Key is the first 32 chars of REQUEST_TOKEN as UTF-8 bytes; if HDFC rotates it, grep a fresh script.js
+// for the `new Encrypter("<token>", "<iv>")` literals feeding the request call.
 export const REQUEST_TOKEN =
   "ob1VbQlyRRaKms81nzKB91hjb4QvmP-5f7jSdTgmOIzNvWh5-eLFykYnBx7_1flXG7MGYXSwcVKplNypX26VC19wHmYI4RZFD9uiUfjj3pyUOG-YX7-TkGzIUTpMEE2Bm9YDYBpNRzI6FGns0csd0t1XU7hoVuwazD_NEMJiv2f68HaM7zf_YKHIJHamig2p7jWtBnaUSvm5UZi3wJSw_B7A6qiIFKFYstdxQJCTv7G1jyTmBIWWi23rQ8";
+// 11-byte IV (not the usual 12); node's createCipheriv accepts it, SubtleCrypto would reject it.
 export const REQUEST_IV = "vS7YzoFtgUU1Ovf";
 
 const AUTH_TAG_LEN = 16;
 
-/** AES-256-GCM encrypt a JSON value the way the site's Encrypter does: key is
- *  token[:32] as UTF-8, iv is base64-decoded, output is base64(cipher||tag). */
+/** AES-256-GCM encrypt as the site's Encrypter does: key token[:32] as UTF-8, iv base64-decoded, output base64(cipher||tag). */
 export function hdfcEncrypt(value: JsonValue, token: string, ivB64: string): string {
   const key = Buffer.from(token.slice(0, 32), "utf8");
   const iv = Buffer.from(ivB64, "base64");
@@ -96,11 +73,8 @@ const ListEnvelopeSchema = z.object({
   }),
 });
 
-// The JD endpoint returns `results` as a FLAT object (unlike the list, whose
-// `results.results` is an array). The plain-text/HTML body lives in JOB_DESC
-// (a string); JOBDESCRIPTION also appears but its value is a NESTED OBJECT on
-// this tenant, so both fields are read leniently as JsonValue and only a
-// non-empty string is used (JOB_DESC first).
+// JD endpoint's `results` is FLAT (unlike list's `results.results` array); JOB_DESC is the real HTML
+// string, JOBDESCRIPTION is a nested object on this tenant, so only a non-empty string field is used (JOB_DESC first).
 const DetailEnvelopeSchema = z.object({
   results: z.object({
     JOB_DESC: JsonValueSchema.optional(),
@@ -108,22 +82,18 @@ const DetailEnvelopeSchema = z.object({
   }),
 });
 
-/** Flatten the two-level list envelope (JOB_ROLE buckets -> REQUISITION.results)
- *  into one array of jobs. Throws on an unexpected envelope (real field drift). */
+/** Flatten the two-level list envelope (JOB_ROLE buckets -> REQUISITION.results). Throws on an unexpected envelope. */
 export function flattenHdfcRequisitions(raw: JsonValue): HdfcRequisition[] {
   const parsed = ListEnvelopeSchema.safeParse(raw);
   if (!parsed.success) throw new Error(`hdfclife: list response failed schema (${parsed.error.issues[0]?.message ?? "?"})`);
   return parsed.data.results.results.flatMap((b) => b.REQUISITION?.results ?? []);
 }
 
-/** Full JD (JOBDESCRIPTION, HTML) from a get-job-descriptions envelope, as plain
- *  text; "" when the shape is unexpected (degrade, don't fail the posting). */
+/** Full JD from a get-job-descriptions envelope, as plain text; "" when the shape is unexpected (degrade, don't fail the posting). */
 export function hdfcJdFromDetail(raw: JsonValue): string {
   const parsed = DetailEnvelopeSchema.safeParse(raw);
   if (!parsed.success) return "";
   const r = parsed.data.results;
-  // JOB_DESC is the reliable HTML string; JOBDESCRIPTION is a nested object on
-  // this tenant, so take whichever field is actually a non-empty string.
   const body = [r.JOB_DESC, r.JOBDESCRIPTION].find((v): v is string => typeof v === "string" && v.trim() !== "");
   return body ? htmlToText(body) : "";
 }
@@ -137,8 +107,7 @@ export function normalizeHdfc(company: AdapterCompany, r: HdfcRequisition): Norm
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: r.DESIGNATION.trim(),
-    // No per-job public URL exists (apply happens inside the SPA), so anchor
-    // into the careers page by reqId rather than invent one.
+    // No per-job public URL exists (apply happens inside the SPA), so anchor into the careers page by reqId.
     jobUrl: `${CAREERS_URL}#job-${r.REQID}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
@@ -154,7 +123,7 @@ const LIST_PAYLOAD: JsonValue = {
 
 const EnvelopeSchema = z.object({ data: z.object({ token: z.string(), iv: z.string(), payload: z.string() }) });
 
-/** POST an encrypted request, decrypt the rotating-key response envelope. */
+/** POST an encrypted request; response arrives under a FRESH rotating token/iv (returned in cleartext), decrypted under those rather than the static request ones. */
 async function hdfcPost(url: string, payload: JsonValue): Promise<JsonValue> {
   await awaitNetwork();
   const body = JSON.stringify({

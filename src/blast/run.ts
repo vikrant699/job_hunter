@@ -1,10 +1,5 @@
-// src/blast/run.ts
-//
-// One weekly blast run: bounce sweep -> safety guards -> candidate pool ->
-// MX gate -> render + create drafts (state flushed per draft) -> Blast Log
-// projection. TEMPORARY tool (design spec
-// docs/superpowers/specs/2026-07-09-divya-blast-design.md); never sends mail
-// and touches no job_hunter DB tables.
+// One weekly blast run: bounce sweep -> safety guards -> candidate pool -> MX gate -> render +
+// create drafts -> Blast Log projection. TEMPORARY tool; never sends mail, touches no job_hunter DB tables.
 import { readFileSync } from "node:fs";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
@@ -27,8 +22,7 @@ import { sweepBounces } from "./bounces.js";
 
 export const BLAST_LOG_TAB = "Blast Log";
 const DRAFT_GAP_MS = 1_000;
-/** "Already drafted this week" guard: refuse a new batch when the newest
- *  drafted record is younger than this many days (override with --force). */
+/** Refuse a new batch when the newest drafted record is younger than this many days (override with --force). */
 const SAME_WEEK_DAYS = 5;
 /** Stop-loss: refuse to draft when the last batch bounced above this rate. */
 const MAX_BOUNCE_RATE_PCT = 10;
@@ -43,8 +37,7 @@ export interface BlastDeps {
   readFile: (path: string) => Buffer;
   /** undefined -> MxChecker's real node:dns resolver. */
   mxResolver: MxResolver | undefined;
-  /** ALL profiles' states for the shared Blast Log projection (a rewrite from
-   *  one profile must never wipe another profile's rows). */
+  /** All profiles' states for the shared Blast Log projection; a rewrite from one profile must never wipe another's rows. */
   listStates: () => { profileId: string; state: BlastState }[];
   now: () => Date;
   sleepMs: (ms: number) => Promise<void>;
@@ -130,7 +123,6 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
   let remaining = 0;
 
   if (!verifyOnly) {
-    // Fail fast on missing content before any Google write.
     const template = loadBlastTemplate(paths.template);
     const content = loadBlastContent(paths.content);
     const resume = deps.readFile(paths.resume);
@@ -186,9 +178,9 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
       state.records.push({
         ...candidate, status: "drafted", batch, variant: rendered.variant, draftId: created.draftId, at: nowIso, note: null,
       });
-      // Log before flushing: if saveState throws after a successful createDraft, the log is the only trace of the orphan draft.
+      // Logged before flushing: if saveState throws after createDraft succeeds, this is the only trace of the orphan draft.
       logger.info({ email: candidate.email, variant: rendered.variant, draftId: created.draftId, drafted: drafted + 1 }, "blast: draft created");
-      // Flush BEFORE the inter-draft gap so a crash can never re-draft.
+      // Flush before the inter-draft gap so a crash can never re-draft.
       saveState(paths.state, state);
       drafted++;
       rotation++;
@@ -197,9 +189,7 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
     remaining = pool.length - index;
   }
 
-  // Shared tab: merge EVERY profile's state so this rewrite can't wipe another
-  // profile's rows. The current profile's state was saved above, so re-reading
-  // from disk is consistent.
+  // Merge every profile's state so this rewrite can't wipe another profile's rows.
   const allRows = deps.listStates().flatMap(({ profileId: pid, state: s }) =>
     s.records.map((r) => [
       pid, r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",

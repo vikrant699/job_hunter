@@ -2,14 +2,7 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { LlmUnavailableError } from "./errors.js";
 
-/**
- * Ollama transport. Lifted out of client.ts unchanged when the OpenRouter
- * provider landed - client.ts keeps the provider-agnostic machinery (semaphore,
- * retry loop, circuit breaker) and dispatches here when config.llm.local is true.
- *
- * Nothing in this file retries: that is the caller's job, so both transports get
- * identical retry/breaker semantics.
- */
+// Nothing here retries; that's client.ts's job, so both transports share identical retry/breaker semantics.
 
 const OllamaResponseSchema = z.object({ response: z.string().optional() });
 const OllamaTagsSchema = z.object({
@@ -21,12 +14,7 @@ export interface OllamaGenerateOpts {
   temperature?: number | undefined;
 }
 
-/**
- * Pre-flight: confirm Ollama is reachable AND the configured model is pulled.
- * Throws LlmUnavailableError with an actionable message otherwise. Call this
- * before a production tick so we fail fast instead of storing a flood of
- * gate-errors against a backend that was never up (root cause of 2026-06-17).
- */
+/** Pre-flight: confirm Ollama is reachable and the configured model is pulled. */
 export async function assertOllamaAvailable(): Promise<void> {
   let names: string[];
   try {
@@ -59,9 +47,7 @@ export async function ollamaGenerate(prompt: string, opts: OllamaGenerateOpts): 
       prompt,
       stream: false,
       format: opts.format,
-      // Disable "thinking" on reasoning models (qwen3, etc.) — the reasoning
-      // tokens break strict-JSON parsing and blow the timeout. No-op on plain
-      // instruct models like qwen2.5.
+      // Disable "thinking": reasoning tokens break strict-JSON parsing and blow the timeout; no-op on non-reasoning models.
       think: false,
       options: { temperature: opts.temperature ?? 0.2, num_ctx: config.llm.numCtx },
     }),
