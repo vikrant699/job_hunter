@@ -1,14 +1,8 @@
 // src/ats/comeet.ts — Comeet hosted job boards (www.comeet.com/jobs/<company>/<code>).
-// The board page embeds `COMPANY_POSITIONS_DATA = [...];` — a single JSON array
-// holding EVERY public position (no pagination; verified live: algosec 35,
-// solaredge 119), each with the full JD HTML inline under
-// custom_fields.details (Description/Requirements sections). jdText is
-// therefore populated at list time; fetchJd exists only as a fallback for a
-// tenant whose island omits the details, and reads the identically-shaped
-// `POSITION_DATA = {...};` island off the position's hosted page. The islands
-// are serialized on ONE line, so extraction greedy-matches to the last
-// bracket on the line (a literal "];" inside a description can't truncate it),
-// with a lazy multi-line fallback.
+// The board page embeds `COMPANY_POSITIONS_DATA = [...];`, a single JSON array with every position and its full
+// JD HTML inline (no pagination); fetchJd is a fallback reading the same-shaped `POSITION_DATA = {...};` island off
+// the position's own page. Islands are serialized on one line, so extraction greedy-matches to the line's last
+// bracket (a literal "];" inside a description can't truncate it), with a lazy multi-line fallback.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -49,9 +43,6 @@ export const ComeetPositionSchema = z.object({
 });
 export type ComeetPosition = z.infer<typeof ComeetPositionSchema>;
 
-/** Match an island assignment: greedy to the line's last bracket first (the
- * JSON is one line, so this survives literal "];"/"};" inside strings), then
- * a lazy multi-line fallback. Returns the parsed JSON or null. */
 function extractIsland(html: string, varName: string, open: "[" | "{"): JsonValue | null {
   const close = open === "[" ? "]" : "}";
   const esc = (c: string) => `\\${c}`;
@@ -66,20 +57,17 @@ function extractIsland(html: string, varName: string, open: "[" | "{"): JsonValu
   return null;
 }
 
-/** The board page's COMPANY_POSITIONS_DATA array, or null when absent/null. */
 export function extractComeetPositions(html: string): JsonValue[] | null {
   const parsed = extractIsland(html, "COMPANY_POSITIONS_DATA", "[");
   return Array.isArray(parsed) ? parsed : null;
 }
 
-/** The position page's POSITION_DATA object, or null when absent/null. */
 export function extractComeetPosition(html: string): Record<string, JsonValue> | null {
   const parsed = extractIsland(html, "POSITION_DATA", "{");
   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
 }
 
-/** "city, name" — collapsed to just one when either contains the other
- * (tenants often repeat the city inside the location name) — else country. */
+/** "city, name" collapsed to just one when either contains the other, else country. */
 export function comeetLocationString(loc: ComeetLocation | null | undefined): string | null {
   if (!loc) return null;
   const city = loc.city?.trim() || null;

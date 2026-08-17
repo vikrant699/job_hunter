@@ -12,8 +12,6 @@ import {
   refineVerdict,
 } from "../openrouter.js";
 
-// The request body we send is an external boundary like any other, so it gets a
-// schema rather than a cast (Standard rule 4).
 const SentBodySchema = z.object({
   model: z.string(),
   messages: z.array(z.object({ role: z.string(), content: z.string() })),
@@ -63,13 +61,10 @@ test("openRouterGenerate sends one user message, json response_format, and the b
 
   assert.match(seenUrl, /openrouter\.ai\/api\/v1\/chat\/completions/);
   const headers = new Headers(seenInit?.headers);
-  // OPENROUTER_API_KEY is unset under test (config.ts reads process.env at
-  // import), so the value is a bare "Bearer" — the scheme is what we can pin
-  // here. An actually-missing key is caught by assertOpenRouterAvailable.
+  // Key is unset under test, so only the "Bearer" scheme is pinned here.
   assert.match(headers.get("authorization") ?? "", /^Bearer/);
   const body = sentBody(seenInit);
-  // One message keeps the token prefix byte-identical across postings, which is
-  // what the provider's prompt cache keys on.
+  // One message keeps the token prefix byte-identical, which the provider's prompt cache keys on.
   assert.deepEqual(body.messages, [{ role: "user", content: "THE PROMPT" }]);
   assert.deepEqual(body.response_format, { type: "json_object" });
   assert.equal(body.reasoning.enabled, false);
@@ -91,7 +86,7 @@ test("openRouterGenerate retries a 429 honouring Retry-After, then succeeds", as
   let calls = 0;
   stubFetch(t, async () => {
     calls++;
-    // "0.1" clamps to the 250ms floor so the test stays fast.
+    // "0.1" clamps to the 250ms floor to keep the test fast.
     return calls === 1 ? throttled("0.1") : completion("recovered");
   });
 
@@ -136,9 +131,7 @@ test("openRouterGenerate throws LlmUnavailableError on 401 without retrying", as
   assert.equal(calls, 1, "a bad key must fail fast, not burn retries");
 });
 
-// OpenRouter's 402 means the account is out of credits. Every subsequent posting
-// would fail identically, so this has to stop the run like a bad key does -
-// before this was fatal it produced a whole sweep of gate-errors instead.
+// 402 (out of credits) is fatal like a bad key: every subsequent posting would fail identically.
 test("openRouterGenerate throws LlmUnavailableError on 402 (out of credits)", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {
@@ -153,22 +146,18 @@ test("openRouterGenerate throws LlmUnavailableError on 402 (out of credits)", as
   assert.equal(calls, 1, "out of credits must fail fast, not burn retries");
 });
 
-// 403 on OpenRouter is a guardrail/moderation block on THIS input, not a bad key
-// (that is 401). Treating it as fatal let one flagged JD abort a whole sweep.
+// 403 is a moderation block on this input, not a bad key (401); must not abort the whole sweep.
 test("openRouterGenerate treats 403 as a per-call failure, not a dead backend", async (t) => {
   stubFetch(t, async () => new Response('{"error":{"message":"flagged by moderation"}}', { status: 403 }));
 
   await assert.rejects(openRouterGenerate("prompt", {}), {
-    // A plain Error, NOT LlmUnavailableError (whose name differs) — one flagged
-    // posting must not abort the sweep.
     name: "Error",
     message: /OpenRouter HTTP 403/,
   });
   assert.equal(classifyOpenRouterStatus(403), "perCall");
 });
 
-// A model id that does not resolve fails identically on every posting, so it is
-// fatal - and the message must name the knob to fix rather than the status alone.
+// An unresolvable model id is fatal; message must name the knob to fix.
 test("openRouterGenerate throws LlmUnavailableError on 404 naming the model knob", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {
@@ -183,8 +172,7 @@ test("openRouterGenerate throws LlmUnavailableError on 404 naming the model knob
   assert.equal(calls, 1);
 });
 
-// The live API returns 400 (not 404) for an unknown slug — verified against
-// openrouter.ai — so the model case has to be picked out of the body.
+// The live API returns 400 (not 404) for an unknown slug, so the model case is picked out of the body.
 test("openRouterGenerate treats a 400 'not a valid model ID' as fatal", async (t) => {
   stubFetch(
     t,
@@ -201,8 +189,7 @@ test("openRouterGenerate treats a 400 'not a valid model ID' as fatal", async (t
   });
 });
 
-// ...but a plain 400 must stay per-posting: an over-long prompt returns one too,
-// and that is a property of the JD, not of the run.
+// A plain 400 stays per-posting: an over-long prompt returns one too.
 test("openRouterGenerate keeps an ordinary 400 per-posting", async (t) => {
   stubFetch(t, async () => new Response('{"error":{"message":"prompt is too long"}}', { status: 400 }));
 
@@ -218,8 +205,6 @@ test("assertModelAvailable accepts a model the provider serves", async (t) => {
   await assertModelAvailable("deepseek/deepseek-v4-flash-0731");
 });
 
-// The reason this check exists: a stale/typo'd slug used to pass pre-flight and
-// only reveal itself as a per-posting error on every posting in the sweep.
 test("assertModelAvailable rejects an unknown model id before any scraping", async (t) => {
   stubFetch(t, async () => new Response('{"error":{"message":"Not Found","code":404}}', { status: 404 }));
 
@@ -229,8 +214,7 @@ test("assertModelAvailable rejects an unknown model id before any scraping", asy
   });
 });
 
-// A flaky metadata endpoint must not block a run: only an explicit 404 (the model
-// genuinely is not there) is a verdict. Anything else is not evidence.
+// Only an explicit 404 is a verdict; a flaky metadata endpoint must not block a run.
 test("assertModelAvailable tolerates a metadata-endpoint outage", async (t) => {
   stubFetch(t, async () => new Response("upstream error", { status: 503 }));
   await assertModelAvailable("deepseek/deepseek-v4-flash-0731");

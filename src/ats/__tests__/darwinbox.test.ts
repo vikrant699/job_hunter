@@ -19,8 +19,7 @@ const company: AdapterCompany = {
   tenantUrl: "https://emeritus.darwinbox.in/ms/candidate/careers", apiMeta: null,
 };
 
-// candidatev2 fixture — modeled on the live LG Soft India tenant
-// (lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/allJobs).
+// candidatev2 fixture, modeled on the live LG Soft India tenant.
 const v2Company: AdapterCompany = {
   provider: "darwinbox", slug: "lg-soft-india", name: "LG Soft India",
   careersUrl: "https://lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/home",
@@ -59,11 +58,7 @@ test("normalizeDarwinbox falls back to designation when title empty", () => {
   assert.equal(p.jobTitle, "Team Leader");
 });
 
-// Darwinbox writes the literal placeholder "Multiple locations" on multi-city
-// requisitions (139/267 of Kotak Securities' board, 41 of 70 tenants swept
-// 2026-07-25). Carrying it through as a location makes the pipeline's strict
-// checkLocation() drop the posting as out-of-region before the JD is ever
-// fetched; null instead defers to the recall-safe title/JD/URL filter.
+// Darwinbox writes the literal placeholder "Multiple locations" on multi-city listings; nulling it defers to the recall-safe title/JD/URL filter instead of dropping as out-of-region.
 test("darwinboxLocation nulls the 'Multiple locations' placeholder", () => {
   assert.equal(darwinboxLocation("Multiple locations"), null);
   assert.equal(darwinboxLocation("Multiple Locations"), null);
@@ -92,9 +87,7 @@ test("normalizeDarwinboxV2 emits null location for the placeholder", () => {
   assert.equal(p.location, null);
 });
 
-// The legacy list API serves 10 jobs/page (verified live). Clamping the page
-// count silently truncates a big tenant's board, so the cap is a runaway
-// backstop only — matching turbohire's "fetch every page, never truncate".
+// The legacy list API serves 10 jobs/page; the cap is a runaway backstop only, never a truncation - matches turbohire's "fetch every page" rule.
 test("darwinboxPagesNeeded covers the whole board without truncating", () => {
   assert.equal(darwinboxPagesNeeded(684, 10), 69);
   assert.equal(darwinboxPagesNeeded(20, 10), 2);
@@ -135,12 +128,9 @@ test("mergeDarwinboxPages throws (not warn+truncate) on a mid-pagination schema 
     () => mergeDarwinboxPages(company, out, [{ status: "ok", message: { jobs: "not-an-array" } }], 5),
     /darwinbox page \(fetched \d+\/\d+ so far\) response failed schema for emeritus/,
   );
-  // Must not silently keep only the partial list — the throw happens before
-  // any further mutation from this malformed page.
+  // Must not silently keep only the partial list - the throw happens before any further mutation from this malformed page.
   assert.equal(out.length, 1);
 });
-
-// ---- candidatev2 ----
 
 test("darwinboxV2Token extracts the per-tenant token from a candidatev2 URL", () => {
   assert.equal(darwinboxV2Token(v2Company), "a6914476a29263");

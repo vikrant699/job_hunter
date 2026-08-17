@@ -1,11 +1,6 @@
-// src/runOnce.ts - the body of `npm run once`, everything after the DB sync.
-//
-// Split out of index.ts for one structural reason: importing any of these modules
-// transitively imports db/db.ts, which OPENS the SQLite file at module load. The
-// pre-run Drive pull replaces that file, so it has to happen while nothing holds
-// it - which means index.ts must not import this module statically. It reaches it
-// with a dynamic import once the sync is done. db/openState.ts enforces the rule
-// at runtime so the split cannot silently rot.
+// Body of `npm run once`, everything after the DB sync. Split from index.ts because these modules transitively open
+// db/db.ts at load, which the pre-run Drive pull must not race; index.ts reaches this via dynamic import post-sync,
+// and db/openState.ts enforces the rule at runtime.
 import { logger } from "./logger.js";
 import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
 import type { RegistrySyncResult } from "./registry/sheetRegistry.js";
@@ -31,14 +26,10 @@ async function runTickAndOutreach(
   let outreachResult: RunOutreachResult | null = null;
   let outreachError: string | null = null;
   try {
-    // Verify runs FIRST: yesterday's bounces must set the recruiter's status
-    // to 'bounced' before today's runOutreach does its contact matching, or a
-    // known-dead address would get drafted to again.
+    // Verify runs first so yesterday's bounces mark 'bounced' before today's contact matching, or a dead address gets re-drafted.
     verifyResult = await runVerify({ profileId, runId: outcome.runId });
     outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
     await projectToSheet(profileId, outcome.runId);
-    // The happy path above is otherwise silent — without this line a clean
-    // run's log just stops at "production tick complete".
     logger.info(
       {
         profileId,
@@ -51,8 +42,7 @@ async function runTickAndOutreach(
     );
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
-      // Scrape results are already saved — a stale/revoked Google token must
-      // not crash the process. Log the exact renewal command and move on.
+      // Scrape results are already saved; a stale/revoked Google token must not crash the process.
       logger.error({ err: err.message }, "outreach skipped — Google auth expired");
       outreachError = err.message;
     } else {
@@ -75,12 +65,7 @@ async function runTickAndOutreach(
   }
 }
 
-/**
- * Report what the hosted provider's prompt cache actually did over the run.
- * Cached vs uncached input is roughly a 4x cost difference, so the end-of-run
- * total is the number worth seeing - the every-100-calls line during a sweep
- * scrolls past.
- */
+/** Report the hosted provider's prompt cache totals for the run (cached vs uncached input is a ~4x cost difference). */
 function logCacheStats(): void {
   if (config.llm.local) return;
   const stats = getCacheStats();
@@ -97,12 +82,7 @@ export async function runOnceAfterSync(profileId: string): Promise<void> {
   logCacheStats();
 }
 
-/**
- * Hand the database back before the post-run push. The push WAL-checkpoints the
- * file, which reports busy while this process still holds it open - and a
- * half-checkpointed upload is a backup silently missing its newest commits.
- * Terminal: nothing may touch the DB after this.
- */
+/** Close the DB before the post-run push, which WAL-checkpoints it; still-open reports busy and half-checkpoints silently. Terminal - nothing may touch the DB after this. */
 export function releaseDbForSync(): void {
   closeDb();
 }

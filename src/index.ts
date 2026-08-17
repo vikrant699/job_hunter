@@ -7,10 +7,8 @@ import { syncBeforeRun, syncAfterRun } from "./db/sync.js";
 import { startConnectivityMonitor } from "./util/connectivity.js";
 import { profile } from "./profile.js";
 
-// NOTHING in this file's static imports may reach src/db/db.ts. That module opens
-// the SQLite file when it loads, and syncBeforeRun replaces that file - so the
-// run's body lives in ./runOnce.ts and is reached by dynamic import AFTER the
-// sync. src/__tests__/indexImportGraph.test.ts pins the rule.
+// No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces);
+// the run body lives in ./runOnce.ts, reached via dynamic import after the sync. Pinned by indexImportGraph.test.ts.
 
 function printUsage(): void {
   console.log(`Usage: npm run <command> [-- --profile <name>]
@@ -39,35 +37,21 @@ async function main(): Promise<void> {
 
   const profileId = profile.id ?? "default";
 
-  // Start watching connectivity BEFORE the pre-flights. A run launched while the
-  // connection happens to be down should wait for it rather than exit — and from
-  // here on, every outbound call (boards, JDs, OpenRouter, Sheets/Gmail/Drive)
-  // pauses during an outage and resumes exactly where it left off, instead of
-  // failing its way through the company list. The wait is deliberately unbounded.
+  // Start before pre-flights so a run launched mid-outage waits (unbounded) instead of exiting; every outbound call resumes where it left off.
   const stopConnectivity = startConnectivityMonitor();
 
-  // A production tick needs the LLM backend — check it before the (~30s)
-  // registry sync so a down Ollama or a bad OpenRouter key/model fails in seconds
-  // with a clear message. (runProductionTick re-checks, so programmatic callers
-  // stay protected too.) The Google token check is likewise fail-fast pre-flight:
-  // abort BEFORE any scraping so a revoked/expired refresh token surfaces
-  // immediately, instead of discovering it only after a multi-hour tick when
-  // outreach runs.
+  // Fail-fast pre-flights before the ~30s registry sync: bad LLM backend or expired Google token must surface in seconds, not after a multi-hour tick.
   await assertLlmAvailable();
   await assertGoogleTokenValid(profileId);
 
-  // Pull a newer DB from Drive BEFORE anything opens it. Running against a stale
-  // database makes postingExists() miss postings the other machine already
-  // handled, which re-scores them and drafts duplicate emails to recruiters who
-  // were already contacted.
+  // Pull a newer DB from Drive before anything opens it, or a stale DB re-scores postings the other machine already handled.
   await syncBeforeRun(profileId);
 
   // Only now is it safe to load the DB-backed half of the app.
   const { runOnceAfterSync, releaseDbForSync } = await import("./runOnce.js");
   await runOnceAfterSync(profileId);
 
-  // Push the finished state so the other machine can pick up where this left off.
-  // Best-effort by design: a Drive failure here must not fail a completed run.
+  // Best-effort: a Drive push failure here must not fail an already-completed run.
   releaseDbForSync();
   await syncAfterRun(profileId);
   stopConnectivity();
@@ -75,8 +59,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // The LLM/Google pre-flight guards are expected, actionable stops — log
-  // just the message (no stack noise) so the operator sees exactly what to fix.
+  // Pre-flight guards are expected, actionable stops - log just the message, no stack noise.
   if (err instanceof LlmUnavailableError || err instanceof GoogleAuthExpiredError) {
     logger.error(`aborting — ${err.message}`);
   } else {

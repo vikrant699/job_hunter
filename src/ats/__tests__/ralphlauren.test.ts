@@ -2,11 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { indiaCityFromLatlon, ralphLaurenDetailLocation } from "../ralphlauren.js";
 
-// Avature's job-detail page carries the true location as labelled fields in the
-// first `article--details` block (verified live 2026-07-25 on jobId 64715 /
-// 57886). The list API only gives lat/lon and dumps many jobs into an
-// ungeocoded "," bucket, so this is the only place a real location exists for
-// them — without it a Hong Kong role reaches the LLM gate as "unknown-defer".
+// Avature's job-detail page carries the true location in the first article--details block; the list API only gives lat/lon and dumps many jobs into an ungeocoded "," bucket, so this is the only place a real location exists for them.
 const DETAIL_HTML = `
 <article class="article article--details">
   <div class="article__content__view">

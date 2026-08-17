@@ -11,9 +11,7 @@
  *   - softDealBreakers    Conditions that still notify, but with a yellow warning
  *   - filters             YOE bounds + the green/yellow score thresholds
  *   - location            Which locations count as in-region or acceptable remote
- *   - titleDenyPatterns   Cheap regex pre-filter that drops obvious non-fits before
- *                         the LLM call (saves time and Ollama load).
- *                         Conservative — false positives mean missed roles.
+ *   - titleDenyPatterns   Cheap regex pre-filter before the LLM call; keep it conservative (false positives mean missed roles)
  *   - servicesDenylist    Companies you never want to see (e.g. staffing agencies)
  */
 
@@ -21,12 +19,9 @@ import type { UserProfile } from "../src/types.js";
 export type { UserProfile };
 
 export const profile: UserProfile = {
-  // Optional. Identifies this profile in the shared DB. Usually left unset for the
-  // default profile; named profiles live in config/profiles/<name>/profile.ts and
-  // the loader sets `id` from the dir name.
+  // id: optional, identifies this profile in the shared DB; usually left unset for the default profile.
 
-  // resumeText is NOT set here. Put your resume at config/resume.pdf; it is
-  // extracted to config/resume.txt and loaded at startup (see src/profile.ts).
+  // resumeText is NOT set here - put your resume at config/resume.pdf, it is extracted automatically at startup.
 
   hardDealBreakers: [
     // Things you ABSOLUTELY do not want to see — these silently reject a posting.
@@ -45,15 +40,12 @@ export const profile: UserProfile = {
     candidateYoe: 4.5,
     hardYoeCap: 6,
     yoeAcceptUnspecified: false,
-    // Must stay above SILENT_SCORE_FLOOR (0.65, see src/filter/verdict.ts) or the
-    // yellow band inverts and profile load will refuse to start.
+    // Must stay above SILENT_SCORE_FLOOR (0.65, see src/filter/verdict.ts) or profile load refuses to start.
     matchThreshold: 0.8,
   },
 
   location: {
-    // Edit for your region. Below is an India-targeting example — replace with
-    // your own cities/countries. Lowercase strings, matched against the posting's
-    // location field (case-insensitive).
+    // India-targeting example - replace with your own cities/countries (lowercase, case-insensitive match).
     targetCities: [
       "bangalore", "bengaluru", "blr",
       "mumbai",
@@ -75,10 +67,7 @@ export const profile: UserProfile = {
       "us only", "us-only", "usa only",
       "uk only", "eu only", "europe only",
     ],
-    // Distinctive non-India places. Whole-word match against the TITLE, so these
-    // catch title-embedded foreign locations without false-rejecting an India role
-    // whose JD merely mentions a foreign HQ. Curated to avoid India collisions
-    // (e.g. "phoenix" is intentionally absent — it appears in a Hyderabad tech park).
+    // Distinctive non-India places, whole-word matched against the TITLE only; curated to avoid India collisions (e.g. "phoenix" is deliberately absent, it's also a Hyderabad tech park).
     rejectRegions: [
       "sydney", "melbourne", "brisbane", "perth", "canberra", "nsw", "vic", "auckland", "wellington",
       "new york", "san francisco", "seattle", "chicago", "los angeles", "boston", "austin",
@@ -92,13 +81,8 @@ export const profile: UserProfile = {
     ],
   },
 
-  // Pre-filter regex patterns. Each pattern fires BEFORE the LLM call and silently
-  // drops postings whose titles match. Adjust for your target role family.
-  //
-  // The defaults below target a data-analyst job hunt — they drop pure SWE,
-  // SRE/DevOps, QA, design, and hardware-engineering postings. If you are a
-  // software engineer, REMOVE these defaults and add patterns targeting roles
-  // you don't want (e.g. analyst, sales, marketing).
+  // Pre-filter regexes that silently drop matching titles before the LLM call; adjust for your target role family.
+  // Defaults target a data-analyst hunt (drop SWE/SRE/QA/design/hardware) - swap them if you're hunting a different role.
   titleDenyPatterns: [
     /\b(?:senior |staff |principal |lead |sr\.? |junior |jr\.? )?(?:backend|back[- ]end|frontend|front[- ]end|fullstack|full[- ]stack|full stack|mobile|ios|android|embedded|firmware|hardware|kernel|graphics|game|3d|blockchain|web3|crypto)\s+(?:software\s+)?(?:engineer|engineering|developer|dev|programmer)\b/i,
     /\b(?:senior |staff |principal |lead |sr\.? |junior |jr\.? )?(?:software|application|applications|product)\s+(?:engineer|engineering|developer|dev|programmer)\b/i,
@@ -110,8 +94,7 @@ export const profile: UserProfile = {
     /\b(?:asic|fpga|verification|silicon|rtl|analog|digital design|pcb|mechanical|electrical|electronics)\s+(?:engineer|engineering|designer)\b/i,
   ],
 
-  // Companies you never want to see — used as a hard pre-fetch deny. The defaults
-  // below cover the largest services / staffing firms. Add or remove freely.
+  // Companies you never want to see (hard pre-fetch deny); defaults cover the largest services/staffing firms.
   servicesDenylist: {
     slugFragments: [
       "infosys", "tcs", "tata-consultancy", "wipro", "cognizant",

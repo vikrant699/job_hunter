@@ -19,8 +19,6 @@ const company: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Real shape captured live 2026-07-13 from
-// GET https://careers.mediatek.com/api/trpc/job.getJobs?batch=1&input=...
 const job: MediatekJob = {
   id: "MTB120260618001",
   title: "SRAM Design Engineer",

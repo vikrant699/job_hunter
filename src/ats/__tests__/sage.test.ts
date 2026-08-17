@@ -1,4 +1,3 @@
-// src/ats/sage.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSage, filterIndiaSage, SageRecordSchema } from "../sage.js";
@@ -14,9 +13,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real (trimmed) record from GET https://www.sage.com/api/sagedotcom/CareerSearch/GetCareerSearchData/
-// — one of the ex-Fyle Bangalore roles, identifiable by the JD body explicitly
-// naming Fyle ("About Fyle (now part of Sage)").
+// Real record from Sage's CareerSearch API - an ex-Fyle Bangalore role, JD still mentions Fyle post-acquisition.
 const fyleRecord: SageRecord = {
   Id: "VN33156",
   Name: "Frontend Architect",

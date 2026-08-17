@@ -1,4 +1,3 @@
-// src/ats/dronahq.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dronahqListUrl, stripDronahqShortcodes, buildDronahqJd, dronahqLocationFromContent, dronahqWorkTypeFromContent, normalizeDronahqJob } from "../dronahq.js";
@@ -14,8 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// --- URL builder -------------------------------------------------------------
-
 test("dronahqListUrl builds the per_page/page-paged career CPT URL", () => {
   assert.equal(
     dronahqListUrl(1),
@@ -26,8 +23,6 @@ test("dronahqListUrl builds the per_page/page-paged career CPT URL", () => {
     "https://www.dronahq.com/wp-json/wp/v2/career?per_page=100&page=2",
   );
 });
-
-// --- shortcode stripping ------------------------------------------------------
 
 test("stripDronahqShortcodes removes WPBakery/vc_* tokens but leaves HTML intact", () => {
   const html = `[vc_row][vc_column]<p>Body copy.</p>[/vc_column][/vc_row]`;
@@ -43,8 +38,7 @@ test("stripDronahqShortcodes leaves plain text with no brackets untouched", () =
   assert.equal(stripDronahqShortcodes("<p>No shortcodes here.</p>"), "<p>No shortcodes here.</p>");
 });
 
-// --- realistic fixture (trimmed from a live DronaHQ posting) ------------------
-
+// Trimmed from a live DronaHQ posting.
 const SAMPLE_CONTENT_HTML = `[vc_row][vc_column]
     <div class="job-hero-banner-wrapper">
         <div class="job-title-and-description">
@@ -113,8 +107,6 @@ test("dronahqWorkTypeFromContent extracts the work-type span", () => {
 test("dronahqWorkTypeFromContent returns null when absent", () => {
   assert.equal(dronahqWorkTypeFromContent("<p>No work-type markup here.</p>"), null);
 });
-
-// --- normalizeDronahqJob ------------------------------------------------------
 
 const baseJob: DronahqJob = {
   id: 35315,

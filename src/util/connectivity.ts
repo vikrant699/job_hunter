@@ -1,22 +1,6 @@
-// src/util/connectivity.ts - one process-wide answer to "is the internet up?".
-//
-// The problem this solves: every outbound caller used to discover an outage on its
-// own, and a single failed request cannot distinguish "the connection is gone" from
-// "this one host is refusing us". So each board burned ~35s of retries, gave up, and
-// the run marched on through the whole company list - skipping hundreds of boards
-// during what was only a few minutes of downtime (run 29: an ~8 minute drop).
-//
-// The fix is to stop inferring it from failures at all. A heartbeat probes a neutral
-// endpoint on a timer, so an outage is noticed within one tick rather than after a
-// worker has already wasted its retry budget. A failing request no longer decides
-// anything by itself; it just asks for a probe RIGHT NOW. The probe is the arbiter:
-//
-//   probe fails    -> the connection is down. Everything waits.
-//   probe succeeds -> that one host is the problem. The run carries on.
-//
-// That asymmetry is what makes a Cloudflare-blocked vendor unable to stall the run,
-// and it is why there is no "N hosts failed in M seconds" threshold anywhere here -
-// such a rule is only ever a guess standing in for the evidence a probe gives you.
+// One process-wide answer to "is the internet up?". A single failed request can't distinguish a real outage from one host
+// refusing us, so a neutral-endpoint heartbeat is the sole arbiter: probe fails -> everything waits; probe succeeds -> that
+// one host is the problem and the run carries on. No "N hosts failed in M seconds" threshold - a probe replaces the guess.
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 
@@ -44,11 +28,7 @@ interface Monitor {
   stopped: boolean;
 }
 
-/**
- * null until a run starts one. Deliberate: `npm run health`, the blast tool, the
- * test suite and every other entry point keep their existing behaviour, and nothing
- * can accidentally park forever in a context that never opted in.
- */
+/** null until a run starts one, so other entry points (health check, blast tool, tests) keep their existing behaviour and never park in a context that didn't opt in. */
 let monitor: Monitor | null = null;
 
 /** Neutral, tiny, and built for exactly this: 204 with an empty body. */
@@ -68,13 +48,7 @@ function wakeWaiters(m: Monitor): void {
   for (const resolve of waiting) resolve();
 }
 
-/**
- * Read the flag through a call rather than touching `m.stopped` directly.
- * stopConnectivityMonitor() can set it WHILE the probe below is awaited, but
- * TypeScript's narrowing cannot see that and concludes the later checks are dead
- * code. They are not: without them a monitor stopped mid-probe would reschedule
- * itself and keep the loop alive past the end of the run.
- */
+/** Read via a call, not `m.stopped` directly: it can flip while a probe is awaited, and without re-checking, a monitor stopped mid-probe would reschedule itself and outlive the run. */
 function isStopped(m: Monitor): boolean {
   return m.stopped;
 }
@@ -116,8 +90,7 @@ function markDown(m: Monitor): void {
     );
     return;
   }
-  // Waiting is unbounded by design, so the wait has to be loud enough that a run
-  // parked at 3am does not look identical to a run that is merely slow.
+  // Waiting is unbounded by design, so this has to be loud enough that a parked run doesn't look identical to a slow one.
   const downMs = m.downSince === null ? 0 : m.now() - m.downSince;
   if (m.failedProbes % 6 === 0) {
     logger.warn(
@@ -140,10 +113,7 @@ function markUp(m: Monitor): void {
   wakeWaiters(m);
 }
 
-/**
- * Begin monitoring. Returns the stop function; call it when the run ends.
- * Starting twice replaces the previous monitor rather than running two loops.
- */
+/** Begin monitoring; returns the stop function. Starting twice replaces the previous monitor rather than running two loops. */
 export function startConnectivityMonitor(opts: ConnectivityOptions = {}): () => void {
   stopConnectivityMonitor();
   const m: Monitor = {
@@ -160,9 +130,7 @@ export function startConnectivityMonitor(opts: ConnectivityOptions = {}): () => 
     stopped: false,
   };
   monitor = m;
-  // Probe straight away rather than after one interval: the run's pre-flight starts
-  // immediately, and starting blind means the first thing it does is fail against a
-  // connection we could already have known was down. runProbe schedules the next one.
+  // Probe immediately rather than after one interval, so the pre-flight doesn't fail blind against a connection we could already know was down.
   void runProbe(m);
   return stopConnectivityMonitor;
 }
@@ -176,13 +144,7 @@ export function stopConnectivityMonitor(): void {
   monitor = null;
 }
 
-/**
- * Park here until the network is usable. Resolves immediately when things are
- * healthy, or when no monitor is running at all.
- *
- * Call it BEFORE each attempt inside a retry loop, so a retry waits for the network
- * instead of spending itself against a connection that is still down.
- */
+/** Parks until the network is usable (resolves immediately if healthy or unmonitored). Call before each retry-loop attempt so it waits instead of spending itself against a dead connection. */
 export async function awaitNetwork(): Promise<void> {
   const m = monitor;
   if (m === null || !m.down) return;
@@ -191,12 +153,7 @@ export async function awaitNetwork(): Promise<void> {
   });
 }
 
-/**
- * A request just failed. This does NOT declare an outage - it asks for a probe now
- * rather than at the next tick, so a genuine outage is confirmed in milliseconds and
- * a single hostile host is dismissed just as fast. Cheap to call from everywhere:
- * concurrent reports collapse into the one probe already in flight.
- */
+/** A request just failed; this doesn't declare an outage, it asks for a probe now so a real outage or a single hostile host is confirmed in milliseconds. Concurrent reports collapse into one in-flight probe. */
 export function reportNetworkFailure(): void {
   const m = monitor;
   if (m === null || m.stopped || m.probing) return;
@@ -204,11 +161,7 @@ export function reportNetworkFailure(): void {
   void runProbe(m);
 }
 
-/**
- * A request just got a response. Proof the connection works - including a 403 from a
- * bot-blocker, which says nothing about the board but everything about the network.
- * Beats a probe, so recovery is instant rather than waiting for the next tick.
- */
+/** A request just got a response (even a 403 from a bot-blocker), proving the network works; beats a probe so recovery is instant. */
 export function reportNetworkSuccess(): void {
   const m = monitor;
   if (m === null || m.stopped) return;

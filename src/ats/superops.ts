@@ -1,17 +1,5 @@
-// src/ats/superops.ts — SuperOps careers (superops.com), a Gatsby static site
-// backed by a headless CMS. The careers list is a Gatsby static-query result:
-//
-//   1. GET /page-data/careers/page-data.json -> { staticQueryHashes: [...] }
-//   2. for each hash: GET /page-data/sq/d/<hash>.json
-//        the careers one -> { data: { SuperOps: { careers: [{ jobTitle,
-//        slug, location, natureOfJob, tags }] } } }
-//
-// Verified live (2026-07-18, plain curl): the careers array is currently []
-// (SuperOps has no open roles), but the channel resolves cleanly. The static
-// hashes change on each site redeploy, so they're re-discovered from
-// page-data.json every run rather than hardcoded. Detail page:
-// /careers/<slug>. JD isn't in the list payload; the pipeline fetches it from
-// the detail page when a posting survives filtering.
+// src/ats/superops.ts — SuperOps careers (superops.com), a Gatsby static site: GET /page-data/careers/page-data.json for staticQueryHashes, then GET /page-data/sq/d/<hash>.json until the one holding data.<X>.careers[] is found.
+// Hashes change on every redeploy, so they're re-discovered each run rather than hardcoded; JD isn't in the list payload, fetched from /careers/<slug> instead.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -34,8 +22,7 @@ const PageDataSchema = z.object({ staticQueryHashes: z.array(z.union([z.string()
 const SqBlobSchema = z.object({ data: z.record(z.string(), JsonValueSchema) });
 const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
 
-/** Find the careers[] array inside any sq-data blob (shape:
- *  data.<Anything>.careers). Returns null when this blob isn't the one. */
+/** Find the careers[] array inside any sq-data blob (shape: data.<Anything>.careers); null when this blob isn't the one. */
 export function extractSuperopsCareers(blob: JsonValue): SuperopsCareer[] | null {
   const parsed = SqBlobSchema.safeParse(blob);
   if (!parsed.success) return null;
@@ -63,7 +50,7 @@ export const superopsAdapter: AtsAdapter = {
       const found = blob ? extractSuperopsCareers(blob) : null;
       if (found) { careers = found; break; }
     }
-    if (!careers) return []; // no careers static-query on this deploy => no openings
+    if (!careers) return [];
 
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();

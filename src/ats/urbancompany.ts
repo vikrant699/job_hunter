@@ -1,4 +1,7 @@
-// src/ats/urbancompany.ts
+// src/ats/urbancompany.ts — Urban Company single-tenant board API (backed by TurboHire
+// under the hood, but exposed through Urban Company's own gateway, hence single-company).
+// POST www.urbanclap.com/api/v2/platform-gateway/getAllJobs, body {} -> { jobs: JobRow[] }.
+// One-phase: job_description (full HTML) and apply_url are inline on every row.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -6,15 +9,6 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
-// Urban Company single-tenant board API (backed by TurboHire under the hood,
-// but exposed through Urban Company's own gateway rather than a shared
-// TurboHire host, so this is a single-company adapter):
-//   POST www.urbanclap.com/api/v2/platform-gateway/getAllJobs
-//   Content-Type: application/json, body {}
-//   -> { jobs: JobRow[] }
-// One-phase: `job_description` (full HTML) and `apply_url` are inline on
-// every row — no separate detail fetch. No pagination/count field observed;
-// `jobs` is returned as one array, so listPostings just maps it directly.
 const JobSchema = z.object({
   job_id: z.string(),
   job_code: z.string().nullable().optional(),

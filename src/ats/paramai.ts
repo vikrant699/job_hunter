@@ -1,10 +1,5 @@
-// src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai). One
-// unauthenticated GET returns every posting grouped by department:
-//   GET https://<tenant>.app.param.ai/api/career/get_job/
-//     -> { data: { "<Department>": { jobs: [{ id, title, req_id, slug,
-//          locations: [string], description (HTML JD) }] }, ... } }
-// apiMeta.subdomain selects the tenant (e.g. "maruti"). JD inline. Verified
-// live on Maruti Suzuki (784 jobs across 32 departments, 2026-07-18).
+// src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai). One unauthenticated GET
+// returns every posting grouped by department, with the JD inline. apiMeta.subdomain selects the tenant.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

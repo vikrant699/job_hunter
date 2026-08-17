@@ -14,8 +14,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// --- URL builders -----------------------------------------------------------
-
 test("advantageClubListUrl builds a 1-based page/per_page URL", () => {
   assert.equal(
     advantageClubListUrl(1, 50),
@@ -37,8 +35,6 @@ test("advantageClubJobUrl builds the public vacancy_details page URL", () => {
     "https://www.advantageclub.ai/pages/ac_career/vacancy_details/17",
   );
 });
-
-// --- normalizeAdvantageClubJob -----------------------------------------------
 
 const baseJob: AdvantageClubJob = {
   id: 17,
@@ -82,8 +78,6 @@ test("normalizeAdvantageClubJob maps an unparseable/absent published_at to null 
   assert.equal(p.postedAt, null);
 });
 
-// --- buildAdvantageClubJd -----------------------------------------------------
-
 test("buildAdvantageClubJd concatenates the JD-bearing fields in order and strips HTML", () => {
   const detail: AdvantageClubDetail = {
     id: 17,
@@ -102,8 +96,7 @@ test("buildAdvantageClubJd concatenates the JD-bearing fields in order and strip
   assert.match(jd, /Bachelor's degree/);
   assert.doesNotMatch(jd, /<ul>|<li>/);
 
-  // order: description, responsibilities, skills_required,
-  // experience_qualification, education_qualification, short_description
+  // order: description, responsibilities, skills_required, experience_qualification, education_qualification, short_description
   const iDesc = jd.indexOf("experienced Customer Success Manager");
   const iResp = jd.indexOf("Own client relationships");
   const iSkills = jd.indexOf("Strong CRM proficiency");

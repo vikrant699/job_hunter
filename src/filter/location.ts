@@ -5,12 +5,7 @@ export interface LocationConfig {
   targetCountryHints: readonly string[];
   remoteAcceptStrings: readonly string[];
   rejectIfPresent: readonly string[];
-  /** Distinctive out-of-region place names (cities/states/countries), whole-word
-   *  matched. Applied to the metadata location field in checkLocation(), and to
-   *  the TITLE (never the JD body) in checkLocationFromText() — so a foreign HQ
-   *  mentioned only in the JD body does not reject an otherwise in-region role.
-   *  In both paths, an in-region city/country alongside the foreign one overrides
-   *  the reject (multi-location postings like "Bengaluru | New York" stay in). */
+  /** Out-of-region place names, whole-word matched; an in-region city/country alongside one overrides the reject. */
   rejectRegions?: readonly string[] | undefined;
 }
 
@@ -39,8 +34,7 @@ interface Compiled {
   rejectRegions: RegExp;
 }
 
-// Compiling the alternations once per config object keeps the per-posting hot
-// path cheap. Keyed on the config reference (the profile singleton in prod).
+// Cached per config object (the profile singleton) to keep the per-posting hot path cheap.
 const cache = new WeakMap<object, Compiled>();
 function compile(cfg: LocationConfig): Compiled {
   let c = cache.get(cfg);
@@ -57,11 +51,7 @@ function compile(cfg: LocationConfig): Compiled {
   return c;
 }
 
-/**
- * Decide whether a posting's metadata location field is acceptable (in-region or
- * acceptable-remote). `isRemote` comes from the provider when it tags the posting
- * as remote.
- */
+/** Accepts in-region or accepted-remote metadata locations; isRemote is the provider's own remote tag. */
 export function checkLocation(
   location: string | null,
   isRemote: boolean,
@@ -76,8 +66,7 @@ export function checkLocation(
   if (re.reject.test(lc)) {
     return { accept: false, reason: "geo-rejected" };
   }
-  // Foreign place name rejects only when no in-region signal sits beside it —
-  // multi-location postings ("Bengaluru, India; New York, NY") must survive.
+  // Foreign place name rejects only when no in-region signal sits beside it (multi-location postings survive).
   if (re.rejectRegions.test(lc) && !(re.city.test(lc) || re.country.test(lc))) {
     return { accept: false, reason: "geo-rejected" };
   }
@@ -90,10 +79,7 @@ export function checkLocation(
   return { accept: false, reason: "out-of-region" };
 }
 
-/** The job URL's PATH as plain words: decoded, with slug separators flattened
- *  to spaces so multi-word regions ("new york" in ".../new-york-123") match.
- *  The host is deliberately excluded — a foreign word there names the company
- *  or its board, not the role's location. */
+/** URL path as plain words (slug separators -> spaces); host excluded since it names the company/board, not the location. */
 function urlPathText(jobUrl: string): string {
   let path = jobUrl;
   try {
@@ -109,23 +95,7 @@ function urlPathText(jobUrl: string): string {
   return path.replace(/[-_/.+]/g, " ").toLowerCase();
 }
 
-/**
- * Late-stage check for postings that arrived without a metadata location field
- * (i.e. llm-scrape / custom). Scans the TITLE, the first ~2000 chars of the JD,
- * and the job URL's path.
- *
- * Recall-safe by design:
- *   - An explicit out-of-region phrase ("US only") anywhere → reject.
- *   - A clearly-foreign place named in the TITLE → reject (the title carries the
- *     role's location for title-embedded scrapes like DoorDash's "… Sydney, NSW").
- *     Title-only, so a foreign HQ mentioned in the JD body does NOT reject an
- *     in-region role.
- *   - A clearly-foreign place in the URL SLUG → reject (boards like Zoom put the
- *     role's location only in the URL: ".../senior-front-end-engineer-remote-brazil-…").
- *     An in-region signal in the title or the URL overrides, as with titles.
- *   - A positive in-region signal anywhere → accept.
- *   - Otherwise defer (accept) and let the LLM gate make the final call.
- */
+/** Late-stage check for postings without a metadata location field: scans title, JD head, and URL path; recall-safe (defers to accept when unclear). */
 export function checkLocationFromText(
   title: string,
   jdText: string,
@@ -141,9 +111,7 @@ export function checkLocationFromText(
   const both = `${t}\n${head}`;
   const re = compile(cfg);
 
-  // Explicit reject phrases ("US only", work-authorization boilerplate) are
-  // unambiguous wherever they sit — and they usually sit at the BOTTOM of the
-  // JD, past the head window — so scan the whole text for these alone.
+  // Explicit reject phrases often sit past the head window, so scan the full text for these alone.
   if (re.reject.test(`${t}\n${full}`)) {
     return { accept: false, reason: "geo-rejected" };
   }
@@ -159,9 +127,7 @@ export function checkLocationFromText(
       return { accept: false, reason: "geo-rejected-url" };
     }
   }
-  // An explicit "Location: …" label line in the JD carries the role's location
-  // (Confido's JD led with "Location: New York, NY") — unlike prose mentions,
-  // which stay recall-safe and never reject. In-region beside it overrides.
+  // A "Location:" label line is treated as authoritative, unlike prose mentions elsewhere in the JD.
   const locLine = /^[ \t]*location[ \t]*[:–-][ \t]*(.+)$/im.exec(full)?.[1];
   if (locLine && re.rejectRegions.test(locLine) && !(re.country.test(locLine) || re.city.test(locLine))) {
     return { accept: false, reason: "geo-rejected-jd-location" };

@@ -1,15 +1,10 @@
 import { profile } from "../profile.js";
 import { NOISE_DENYLIST_SLUGS, isNoiseSlug } from "./noiseDenylist.js";
 
-/**
- * Cheap pre-filter: is this company on the user's services/staffing denylist, or
- * on the confirmed-noise denylist (removed companies that must never be re-added)?
- * Returning true is a hard deny — the LLM gate is never invoked for the company.
- */
+/** Hard deny (LLM gate never invoked) if on the services/staffing denylist or the confirmed-noise denylist. */
 export function isDeniedCompany(name: string, slug: string): { denied: boolean; reason: string | null } {
   const slugLc = slug.toLowerCase();
 
-  // Confirmed-noise removals — block re-discovery of companies we deleted.
   if (isNoiseSlug(slugLc)) {
     return { denied: true, reason: `noise:${NOISE_DENYLIST_SLUGS[slugLc]}` };
   }

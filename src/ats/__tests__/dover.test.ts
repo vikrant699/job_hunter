@@ -1,4 +1,3 @@
-// src/ats/dover.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -22,8 +21,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real shape captured live from
-// GET https://app.dover.com/api/v1/careers-page/<clientId>/jobs
+// Real shape captured live from GET /api/v1/careers-page/<clientId>/jobs.
 const job: DoverJob = {
   id: "23891f33-004d-42ab-a720-0647b834dee0",
   title: "Business Development Associate ",
@@ -87,7 +85,7 @@ test("normalizeDover maps fields: trimmed title, apply URL, primary location, ON
   assert.equal(p.jobUrl, "https://app.dover.com/apply/codingal/23891f33-004d-42ab-a720-0647b834dee0");
   assert.equal(p.location, "Bengaluru, India");
   assert.equal(p.isRemote, false);
-  assert.equal(p.jdText, ""); // two-phase — fetchJd fills this in
+  assert.equal(p.jdText, ""); // two-phase - fetchJd fills this in
   assert.equal(p.postedAt, null);
 });
 
@@ -101,8 +99,7 @@ test("normalizeDover falls back to locations[0] when no location is flagged prim
   assert.equal(p.location, "Bengaluru, India");
 });
 
-// Real shape captured live from
-// GET https://app.dover.com/api/v1/jobs/<jobId>/get_job_description (codingal)
+// Real shape captured live from GET /api/v1/jobs/<jobId>/get_job_description (codingal).
 test("extractDoverJd prefers user_facing_description, HTML-stripped", () => {
   const detail: DoverJobDescription = {
     user_facing_description: "<p><strong>About the role</strong></p><p>Teach kids to code.</p>",

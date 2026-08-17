@@ -1,21 +1,8 @@
-// src/ats/google.ts — Google Careers (google.com/about/careers/applications).
-//
-// Single-tenant (Google's own boq-hiring "Cportal"). The public JSON API
-// (careers.google.com/api/v3/search) is retired (404), but the results and
-// detail pages are fully SERVER-RENDERED, so a plain fetch + cheerio suffices —
-// no browser, no XHR. Parsing keys on STRUCTURE and STABLE HEADING TEXT, never
-// on Google's rotating obfuscated CSS class names:
-//
-//   list: GET .../jobs/results?location=India&page=<n>   (1-based)
-//         -> <li> cards, each with an <a href="jobs/results/<id>-<slug>?…"> and
-//            an <h3> clean title. 20 cards/page; paginate until a short/empty page.
-//   jd:   GET .../jobs/results/<id>-<slug>  -> the JD lives in the smallest block
-//         that contains the <h3> sections "About the job" / "Minimum
-//         qualifications" / "Preferred qualifications" / "Responsibilities".
-//
-// location is fixed to "India" (the list is India-filtered); the detail page
-// carries per-city text but the India country filter only needs the country.
-// Verified live 2026-08-13 (321 India postings).
+// src/ats/google.ts — Google Careers (google.com/about/careers/applications), single-tenant. The public JSON
+// API is retired (404s); results/detail pages are fully server-rendered, parsed via cheerio keyed on
+// structure + stable heading text (never Google's rotating obfuscated CSS classes).
+// list: GET .../jobs/results?location=India&page=<n> (1-based, 20/page); jd: detail page, JD is the smallest
+// block containing all of the "About the job"/"Minimum qualifications"/"Preferred qualifications"/"Responsibilities" headings.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -74,9 +61,8 @@ export function parseGoogleList(company: AdapterCompany, html: string): Normaliz
   return out;
 }
 
-/** JD text from a detail page: the smallest ancestor block that holds all of the
- *  stable JD-section <h3>s, taken from the first such <h3> onward (so page chrome
- *  above it — share links, breadcrumb — is dropped). "" when no sections found. */
+/** JD text: the smallest ancestor block holding all stable JD-section <h3>s, from the first heading onward
+ *  (page chrome above it is dropped). "" when no sections found. */
 export function parseGoogleJd(html: string): string {
   const $ = cheerio.load(html);
   const jdHeads = $("h3").filter((_, e) => JD_HEADING_RE.test($(e).text()));
@@ -103,8 +89,7 @@ export function parseGoogleJd(html: string): string {
     if (started) parts.push($el.text());
   });
   const text = htmlToText(parts.join("\n"));
-  // Fallback: if the child-walk found nothing (headings nested oddly), take the
-  // whole container text — still far better than an empty JD.
+  // Fallback: if the child-walk found nothing (headings nested oddly), take the whole container text.
   return text.trim() ? text : htmlToText(container.text());
 }
 

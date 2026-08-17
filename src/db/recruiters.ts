@@ -59,15 +59,8 @@ function rowToRecruiter(r: RecruiterDbRow): RecruiterRow {
 
 /* ===== Statements ===== */
 
-// Upsert never DOWNGRADES bot-managed fields. Two rules, in priority order:
-//   1. 'bounced' is terminal against imports — a dead address stays dead even if
-//      it still sits in the manual Recruiters List tab (which imports rows as
-//      'verified'; without this rule the next sync would resurrect it and the
-//      bot would draft to a known-bouncing mailbox). Only setRecruiterStatus
-//      (the verify pipeline) can move a row out of 'bounced'.
-//   2. An incoming 'unverified' (raw-csv re-import) never overwrites an existing
-//      verified/bounced status.
-// verified_at follows the same rules so re-imports can't wipe the timestamp.
+// Upsert never downgrades status/verified_at: 'bounced' is terminal against imports (only setRecruiterStatus can clear it),
+// and an incoming 'unverified' never overwrites an existing verified/bounced row.
 const upsertRecruiterStmt = db.prepare(`
   INSERT INTO recruiters (
     email, company, company_norm, alt_names_norm, contact_name, phone,
@@ -113,10 +106,7 @@ export interface UpsertRecruiterInput {
   importedAt: string;
 }
 
-/** Insert or refresh a recruiter contact. Never downgrades `status`/`verified_at`
- *  on re-import: an existing 'bounced' row keeps its status even against an
- *  incoming 'verified' (stale manual-sheet row), and an incoming 'unverified'
- *  never overwrites verified/bounced. All other fields refresh. */
+/** Insert or refresh a recruiter contact; never downgrades status/verified_at on re-import (see upsert SQL above). */
 export function upsertRecruiter(row: UpsertRecruiterInput): void {
   upsertRecruiterStmt.run({ ...row, email: row.email.toLowerCase() });
 }
@@ -143,13 +133,7 @@ const setRecruiterStatusStmt = db.prepare(`
     AND NOT (status = 'bounced' AND :status = 'verified')
 `);
 
-/** Sets a recruiter's global status. `verified_at` is stamped only when the new
- *  status is 'verified'; transitioning to 'unverified' or 'bounced' leaves any
- *  existing verified_at as-is (it records the original verification time).
- *  bounced -> verified is REFUSED: with per-profile mailboxes, one profile's
- *  24h-clean window can elapse after another profile's send already bounced,
- *  and a verified overwrite would put a dead address back into rotation (and
- *  onto the Recruiters List tab via promotion). Dead is dead. */
+/** Sets a recruiter's global status; bounced -> verified is refused (a later profile's clean send must not resurrect an address another profile already bounced). */
 export function setRecruiterStatus(email: string, status: RecruiterStatus, atIso: string): void {
   setRecruiterStatusStmt.run({ email: email.toLowerCase(), status, atIso });
 }

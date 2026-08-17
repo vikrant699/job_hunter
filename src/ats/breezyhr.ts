@@ -1,4 +1,7 @@
-// src/ats/breezyhr.ts
+// src/ats/breezyhr.ts — BreezyHR public boards (<tenant>.breezy.hr), no auth.
+// GET /json returns a bare array with no description field; ?limit= is ignored. JD comes from GET <job.url>: pick
+// the innermost element with the exact class "description" (not "job-description"/"position-description"), which
+// is stable across both observed themes.
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
@@ -8,23 +11,6 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchHtml } from "./http.js";
 import { REMOTE_RE, tenantOriginOr } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
-
-// BreezyHR public boards: <tenant>.breezy.hr
-//   list: GET https://<tenant>.breezy.hr/json  (no auth; ?limit= is ignored,
-//         the server always returns the full board) -> a bare JSON ARRAY of
-//         jobs: [{ id, friendly_id, name, url, published_date, type:{...},
-//         location:{...}, department, ... }]. The list carries NO description
-//         field, so jdText is left empty here and fetchJd does the real work.
-//   JD:   GET <job.url> (== https://<tenant>.breezy.hr/p/<friendly_id>)
-//         -> server HTML. The JD body lives in the innermost `.description`
-//         div; this is stable across both observed themes:
-//           "simple" theme: <div class="job-description"><div class="description">
-//           "bold" theme:   <div id="description" class="...position-description">
-//                              ... <div class="description"> (sibling of the
-//                              breadcrumbs/sidebar/apply-buttons blocks)
-//         so selecting the innermost element with the exact class
-//         "description" (not "job-description"/"position-description", which
-//         don't match a `.description` class selector) works for both.
 
 const BreezyLocationSchema = z
   .object({
@@ -49,18 +35,11 @@ export const BreezyJobSchema = z.object({
 });
 export type BreezyJob = z.infer<typeof BreezyJobSchema>;
 
-/** Tenant host origin, e.g. "https://talentmovers.breezy.hr". Prefers an
- *  explicit tenant_url host when set, else builds it from the slug. */
 export function breezyBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.breezy.hr`);
 }
 
-/**
- * Validate the raw `/json` response (a bare array) and skip individual
- * malformed items rather than failing the whole board — a public,
- * unauthenticated endpoint like this can carry the occasional odd record.
- * Throws only if the top-level shape isn't an array at all.
- */
+/** Skips individually malformed items rather than failing the whole board; throws only if the top level isn't an array. */
 export function parseBreezyJobs(raw: JsonValue, slug: string): BreezyJob[] {
   if (!Array.isArray(raw)) {
     throw new Error(`breezyhr list response for ${slug} was not an array`);
@@ -97,13 +76,7 @@ export function normalizeBreezyhr(company: AdapterCompany, j: BreezyJob): Normal
   };
 }
 
-/**
- * Extract the JD body's plain text from a `/p/<friendly_id>` page. Picks the
- * innermost element(s) with the exact class "description" (there's normally
- * exactly one — see module doc for the two theme shapes); falls back to every
- * matched node if none is a leaf, which shouldn't happen in practice but
- * keeps this from silently returning nothing on an unexpected nesting.
- */
+/** Falls back to every matched node if none is a leaf (shouldn't happen, but avoids returning nothing on odd nesting). */
 export function extractBreezyJd(html: string): string {
   const $ = cheerio.load(html);
   const all = $(".description").toArray();

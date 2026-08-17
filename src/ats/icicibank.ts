@@ -1,50 +1,9 @@
-// src/ats/icicibank.ts — ICICI Bank's careers SPA (careers.icici.bank.in).
-//
-// Single-tenant, not a multi-company ATS platform: everything below is
-// hardcoded to this one bank's own hand-rolled API, not derived from
-// `company.tenantUrl`/`company.apiMeta` the way multi-tenant adapters are.
-//
-// Client-side-encrypted API. Traced from the SPA bundle (main.*.chunk.js,
-// webpack module "0" of chunk id 20, "webpackJsonpcareer-document") and
-// confirmed live against captured network traffic (2026-07):
-//
-//   - AES-128-CBC, PKCS7 padding. The bundle builds keys/IVs via CryptoJS's
-//     `enc.Utf8.parse(str)`, i.e. the literal strings below are used as their
-//     raw UTF-8 bytes (16 bytes = AES-128), not base64/hex.
-//   - The IV is NOT fixed. The encryptor generates a random 16-character
-//     alphanumeric string, uses it as the IV, AES-encrypts, then appends the
-//     IV string IN PLAIN TEXT after the base64 ciphertext. The decryptor does
-//     the reverse: slice the last 16 characters off as the IV, base64-decode
-//     the remainder as ciphertext. Same scheme both directions (request
-//     bodies and response bodies), under the SAME key.
-//   - The bundle actually defines TWO keys for this "payload-derived IV"
-//     scheme ("$P@mOu$0172@0r!P" and "$k@m0u$0172@0r!k"). Live traffic for
-//     every CareerApplicantApi endpoint we could reach with a browser UA —
-//     getToken, Career/Banner, Career/portfolioListing, Career/GetMoreJobs,
-//     and the job-search endpoint used here — decrypted only under the
-//     SECOND key. If ICICI ever rotates keys, grep a fresh bundle for
-//     `enc.Utf8.parse("` literals feeding `AES.encrypt`/`AES.decrypt` calls
-//     that also slice a 16-char suffix off their input — that is this scheme.
-//
-// Endpoint (confirmed live, 2026-07-10): the FULL public job list is
-//   POST https://careers.icici.bank.in/CareerApplicantApi/Career/Search/1
-//   body {"data": <encrypted `IciciSearchRequest`>}
-//   -> {"Data": <encrypted JSON array of job rows>, "ResponseCode": 100}
-// Paginated via 0-based `PageNo` + `limit`; each job row carries `Total_Rows`
-// (total count for the query). Exhausted pages come back as
-// {"ResponseMessage":"No Record Found","ResponseCode":103} (no `Data` field)
-// — a clean, unencrypted termination signal.
-//
-// The JD is NOT included in the search response (`hc_JD` is always ""). The
-// per-job description lives at:
-//   GET https://careers.icici.bank.in/CareerApplicantApi/Career/getMobileJd/<jobId>
-// which — unlike every other endpoint here — is plain, UNENCRYPTED JSON:
-// {"Data":[{..., "JD": "<html>"}]}. JD MANDATORY per adapter contract, so
-// `fetchJd` hits this endpoint per posting.
-//
-// Both endpoints 403/WAF-block the default bot UA (confirmed live: returns an
-// HTML error page, not JSON) — same story as Jibe — so both requests go out
-// with a browser UA.
+// src/ats/icicibank.ts — ICICI Bank careers SPA (careers.icici.bank.in), single-tenant hardcoded adapter
+// (not tenant_url/apiMeta driven). AES-128-CBC/PKCS7, traced from the SPA bundle: 16-byte UTF-8 key,
+// random 16-char IV generated per request and appended in PLAIN TEXT after the base64 ciphertext (same
+// scheme both directions). list: POST Career/Search/1 (0-based PageNo+limit; exhausted page =
+// ResponseCode 103, no Data, unencrypted). jd: GET Career/getMobileJd/<id>, plain UNENCRYPTED JSON (the
+// list's hc_JD is always empty). Both endpoints WAF-block the bot UA — use BROWSER_UA.
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -64,10 +23,8 @@ const jdUrl = (jobId: string): string => `${API_BASE}/Career/getMobileJd/${encod
 
 const PAGE_SIZE = 12; // matches the real client's /Career/job-listing/ page.
 
-// See the module header for provenance. Read from a constant so a future key
-// rotation is a one-line patch: re-derive by grepping a fresh bundle for the
-// `enc.Utf8.parse("...")` literal feeding the AES call that slices a 16-char
-// IV suffix off its input/output.
+// If ICICI rotates keys: grep a fresh bundle for the enc.Utf8.parse("...") literal feeding the AES call
+// that slices a 16-char IV suffix off its input/output.
 const ENCRYPT_KEY = "$k@m0u$0172@0r!k";
 const IV_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -77,11 +34,7 @@ function randomIv(): string {
   return out;
 }
 
-/**
- * Encrypt a request payload the way the SPA does: AES-128-CBC/PKCS7 under
- * `ENCRYPT_KEY` with a fresh random IV, IV appended in plain text after the
- * base64 ciphertext. Exported for the round-trip test.
- */
+/** Encrypt a request payload as the SPA does: AES-128-CBC/PKCS7 under `ENCRYPT_KEY` with a fresh random IV, appended in plain text after the base64 ciphertext. */
 export function encryptPayload<T>(value: T): string {
   const iv = randomIv();
   const cipher = createCipheriv("aes-128-cbc", Buffer.from(ENCRYPT_KEY, "utf8"), Buffer.from(iv, "utf8"));
@@ -89,12 +42,7 @@ export function encryptPayload<T>(value: T): string {
   return ciphertext.toString("base64") + iv;
 }
 
-/**
- * Decrypt a response (or echoed request) blob: the last 16 characters are
- * the IV, the rest is base64 ciphertext. Throws if the blob is shorter than
- * an IV (malformed) or the key/IV don't unpad cleanly (wrong key — see the
- * module header on key rotation).
- */
+/** Decrypt a response (or echoed request) blob: last 16 chars are the IV, the rest is base64 ciphertext. Throws if too short or the key/IV don't unpad cleanly. */
 export function decryptPayload(blob: string): JsonValue {
   if (blob.length <= 16) throw new Error(`icicibank: ciphertext too short to hold a 16-char IV suffix (${blob.length})`);
   const iv = blob.slice(blob.length - 16);
@@ -123,9 +71,7 @@ function searchRequest(pageNo: number): IciciSearchRequest {
   };
 }
 
-// Encrypted-envelope response: {"Data": "<ciphertext>", "ResponseCode": 100}
-// on a page with results; exhausted pagination drops `Data` entirely and
-// reports {"ResponseMessage":"No Record Found","ResponseCode":103}.
+// Encrypted-envelope response: {"Data": "<ciphertext>"} on a page with results; exhausted pagination drops `Data` and reports ResponseCode 103.
 const SearchEnvelopeSchema = z.object({
   Data: z.string().optional(),
   ResponseCode: z.number().optional(),

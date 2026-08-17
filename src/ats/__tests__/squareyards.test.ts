@@ -1,4 +1,3 @@
-// src/ats/squareyards.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -17,8 +16,6 @@ const company: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed from the real https://www.squareyards.com/career/Technology
-// response (verified live 2026-08-01).
 const RESPONSE = {
   status: 1,
   message: "Successfully",

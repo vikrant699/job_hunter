@@ -45,14 +45,12 @@ test("normalizePhenom maps fields", () => {
   assert.equal(p.jobTitle, "Business Development Manager");
   assert.equal(p.location, "Mumbai, Maharashtra, India");
   assert.equal(p.jobUrl, "https://www.jobs.abbott/us/en/job/31146766/x");
-  // The teaser is NOT inlined — fetchJd pulls the full JD from the job page.
+  // The teaser is NOT inlined; fetchJd pulls the full JD from the job page.
   assert.equal(p.jdText, "");
 });
 
 test("normalizePhenom builds the canonical job page when applyUrl is absent or empty", () => {
-  // idfcfirst (2026-08-12): the widgets response carries applyUrl: "" on every
-  // job, so the old `applyUrl ?? tenantUrl` fallback linked 2751 postings to
-  // the search-results page.
+  // A widgets response can carry applyUrl: ""; the old `applyUrl ?? tenantUrl` fallback used to link those to the search-results page.
   const noApply = PhenomJobSchema.parse({ jobId: "P-183145", title: "Cluster Manager" });
   assert.equal(
     normalizePhenom(company, noApply).jobUrl,
@@ -91,13 +89,10 @@ test("phenomJobDescriptionFrom reads jobDetail.data.job.description", () => {
 });
 
 test("phenomTenantHasLocale requires the two-segment locale prefix", () => {
-  // Valid: locale present.
   assert.ok(phenomTenantHasLocale("https://careers.godrejindustries.com/in/en/search-results"));
   assert.ok(phenomTenantHasLocale("https://www.jobs.abbott/us/en/search-results?qcountry=India"));
   assert.ok(phenomTenantHasLocale("https://careers.abb/global/en/search-results"));
-  // Invalid: the godrej-agrovet misconfiguration — a bare host, and a host with
-  // only one path segment. Both make phenomJobPageUrl emit a locale-less
-  // /job/<id> URL that serves no jobDetail ddo.
+  // Invalid: a bare host or a host with only one path segment; phenomJobPageUrl would emit a locale-less URL with no jobDetail ddo.
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com"), false);
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/"), false);
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/in"), false);

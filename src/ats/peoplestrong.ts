@@ -1,20 +1,6 @@
-// src/ats/peoplestrong.ts — PeopleStrong (Altone) career portals. Each tenant is
-// a subdomain: <tenant>.peoplestrong.com. The board is a JS app backed by a
-// clean, unauthenticated JSON API sharing one path across every tenant:
-//
-//   list: POST https://<tenant>.peoplestrong.com/api/cp/rest/altone/cp/jobs/v1?offset=0&limit=45
-//         body {} -> { totalRecords, response: [ { jobTitle, jobCode,
-//                        locationHierarchy, jobDetailUrl, jobPostedDate, ... } ] }
-//         Paginate offset += 45 until totalRecords collected.
-//
-//   jd:   GET https://<tenant>.peoplestrong.com/api/cp/rest/altone/cp/job/
-//              <jobCode with "/" -> "_">/v2?part=basic,organisational,descriprion,...&isReqId=false
-//         -> { response: { jobDescription: "<html>", ... } }  (vendor misspells
-//            "descriprion" in the part list — that spelling is required).
-//
-// externalId is jobCode (stable, also the JD key). jobDetailUrl is populated on
-// some tenants and null on others (e.g. RBL); when absent we construct the same
-// public deep link the populated tenants use: /job/detail/<jobCode _-encoded>.
+// src/ats/peoplestrong.ts — PeopleStrong (Altone) career portals (<tenant>.peoplestrong.com), a
+// clean unauthenticated JSON API shared across tenants. Paginate offset+=45 on the list endpoint;
+// the JD endpoint's `part=` list requires the vendor's misspelling "descriprion" verbatim.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -42,9 +28,7 @@ export type PeoplestrongJob = z.infer<typeof PeoplestrongJobSchema>;
 
 export const PeoplestrongListSchema = z.object({
   totalRecords: z.number().nullable().optional(),
-  // An EMPTY board serializes response as null, not [] (matrimony-com,
-  // verified live 2026-08-13) — rejecting it made empty boards look broken.
-  response: z.array(PeoplestrongJobSchema).nullable(),
+  response: z.array(PeoplestrongJobSchema).nullable(), // an empty board serializes this as null, not []
 });
 
 export const PeoplestrongJdSchema = z.object({
@@ -54,12 +38,11 @@ export const PeoplestrongJdSchema = z.object({
     .optional(),
 });
 
-/** Paged list endpoint at the given 0-based offset. */
 export function peoplestrongListUrl(base: string, offset: number, limit = PAGE): string {
   return `${base}/api/cp/rest/altone/cp/jobs/v1?offset=${offset}&limit=${limit}`;
 }
 
-/** JD endpoint for a jobCode. The path segment replaces every "/" with "_". */
+// The jobCode path segment replaces every "/" with "_".
 export function peoplestrongJdUrl(base: string, jobCode: string): string {
   const encoded = jobCode.replace(/\//g, "_");
   return (
@@ -69,16 +52,13 @@ export function peoplestrongJdUrl(base: string, jobCode: string): string {
   );
 }
 
-/** Public deep link for a posting: the API's jobDetailUrl when it gives one,
- *  else the same /job/detail/<jobCode _-encoded> link the other tenants use. */
 export function peoplestrongJobUrl(base: string, j: PeoplestrongJob): string {
   if (j.jobDetailUrl && /^https?:\/\//i.test(j.jobDetailUrl)) return j.jobDetailUrl;
   if (j.jobCode) return `${base}/job/detail/${j.jobCode.replace(/\//g, "_")}`;
   return base;
 }
 
-/** Map one API job to a NormalizedPosting. Null when the job has no jobCode
- *  (no stable id / JD key), so the caller can skip it. */
+// Null when the job has no jobCode (no stable id / JD key), so the caller can skip it.
 export function normalizePeoplestrong(
   company: AdapterCompany,
   j: PeoplestrongJob,
@@ -99,7 +79,6 @@ export function normalizePeoplestrong(
   };
 }
 
-/** Extract the JD body HTML from a job-detail response and strip to plain text. */
 export function parsePeoplestrongJd(raw: JsonValue): string {
   const parsed = PeoplestrongJdSchema.safeParse(raw);
   if (!parsed.success) return "";
@@ -111,10 +90,8 @@ export const peoplestrongAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
-    // Boxed in an object: a bare `let total` mutated only inside the fetchPage
-    // closure defeats TS's narrowing (it can't see paginate() invoking the
-    // closure, so it treats `total` as permanently its initial `null`); a
-    // property write is narrowed correctly at each read below.
+    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside
+    // the fetchPage closure defeats TS's narrowing).
     const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({

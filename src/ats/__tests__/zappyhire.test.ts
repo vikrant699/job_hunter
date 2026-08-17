@@ -38,8 +38,6 @@ const mtSource: MtSource = {
   job_type: "Full Time",
 };
 
-// ---------- pure field mapping ----------
-
 const newJob: NewGenJob = {
   id: 3218,
   title: "Retail Assets: Housing Loan, Loan Against Property, Auto Loans,etc. (Branch Channel)",
@@ -105,8 +103,6 @@ test("normalizeZappyhireLegacy prefers an explicit tenantUrl over the slug-deriv
   assert.equal(p.jobUrl, "https://esafcareers.zappyhire.com/tr/804");
 });
 
-// ---------- listPostings / fetchJd: new-gen (single call, JD inline) ----------
-
 test("zappyhireAdapter.listPostings (new-gen): one POST, maps every open_job", async (t) => {
   stubFetch(
     t,
@@ -147,8 +143,6 @@ test("zappyhireAdapter.fetchJd (new-gen): returns the already-inline jdText with
   const jd = await zappyhireAdapter.fetchJd(newGenCompany, posting);
   assert.equal(jd, "already populated");
 });
-
-// ---------- listPostings / fetchJd: legacy (dept -> jobs -> JD chain) ----------
 
 test("zappyhireAdapter.listPostings (legacy): dept dashboard then per-dept jobs, deduped by id, source param honored", async (t) => {
   stubFetch(
@@ -220,8 +214,6 @@ test("zappyhireAdapter.fetchJd (legacy): malformed detail response returns empty
   assert.equal(jd, "");
 });
 
-// ---------- multitenant (recruitcareers.zappyhire.com) ----------
-
 test("normalizeZappyhireMt maps fields, builds the recruitcareers apply URL, leaves JD empty", () => {
   const p = normalizeZappyhireMt(mtCompany, mtSource);
   assert.equal(p.externalId, "34");
@@ -258,8 +250,6 @@ test("zappyhireAdapter.fetchJd (multitenant): fetches the careers/jobs detail an
   assert.match(jd, /Own growth loops/);
   assert.doesNotMatch(jd, /<p>|<strong>/);
 });
-
-// ---------- apiMeta validation ----------
 
 test("listPostings throws a clear error when apiMeta.backendHost is missing", async () => {
   const c: AdapterCompany = { ...newGenCompany, apiMeta: { generation: "new" } };

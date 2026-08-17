@@ -46,9 +46,7 @@ test("normalizeWorkdayListing falls back to a bulletFields location when locatio
   assert.equal(p.location, "Bengaluru, India");
 });
 
-// Real Accenture (wd103) postings carry no jobPostingId/shortId/locationsText
-// at all — bulletFields is just [reqId, location] and location is often a
-// bare city name with no comma ("Milan", "London").
+// Real Accenture (wd103) postings carry no jobPostingId/shortId/locationsText - bulletFields is just [reqId, location], often a bare city name.
 test("normalizeWorkdayListing falls back to a bare city-name bulletField (no comma, no jobPostingId/shortId)", () => {
   const p = normalizeWorkdayListing(company, {
     title: "Workday Integration Developer",
@@ -101,15 +99,7 @@ test("normalizeWorkdayListing stays null when there are no bulletFields either",
   assert.equal(p.location, null);
 });
 
-// --- selectPartitionFacet ---------------------------------------------
-//
-// Modeled on the real Genpact (wd108/External_Careers) facets response: a
-// flat leaf facet (jobFamilyGroup, id+count per value) alongside a nested
-// facet (locationMainGroup, whose single top-level value is itself a facet
-// group with no id/count of its own — the real per-location leaves are one
-// level deeper). Only flat leaf facets are safe to partition on with a
-// single `appliedFacets` entry.
-
+// Modeled on the real Genpact (wd108) facets response.
 const jobFamilyGroupFacet: JsonValue = {
   facetParameter: "jobFamilyGroup",
   values: [
@@ -128,9 +118,7 @@ const timeTypeFacet: JsonValue = {
   ],
 };
 
-// Nested facet: its one top-level value is itself a facet group ("locations")
-// with no id/count of its own — the real per-location leaves are one level
-// deeper. Must be excluded from partition selection (see leafValuesOf).
+// Nested facet - its real per-location leaves are one level deeper, so it must be excluded from partition selection (see leafValuesOf).
 const locationMainGroupFacet: JsonValue = {
   facetParameter: "locationMainGroup",
   values: [
@@ -170,8 +158,6 @@ test("selectPartitionFacet returns null when every facet is nested or has fewer 
   assert.equal(selectPartitionFacet(onlyNested, null), null);
 });
 
-// --- crawlWorkdayPostings -----------------------------------------------
-
 function posting(externalId: string): NormalizedPosting {
   return {
     provider: "workday",
@@ -197,9 +183,7 @@ const genpactCompany: AdapterCompany = {
 };
 
 test("crawlWorkdayPostings does a plain crawl with no behavior change when total is not exactly 2000", async () => {
-  // First page must be a full page (pageSize 20) so pagination doesn't stop
-  // early on a short page — that would mask whether the second page (and its
-  // offset) is fetched correctly via the injected fetchPage.
+  // First page must be full (20) so pagination doesn't stop early, masking whether the offset-based fetch works.
   const page0 = Array.from({ length: 20 }, (_, i) => posting(`p${i}`));
   const calls: Array<{ offset: number; facets: Record<string, string[]> }> = [];
   const items = await crawlWorkdayPostings(genpactCompany, {}, null, async (offset, facets) => {
@@ -217,7 +201,6 @@ test("crawlWorkdayPostings does a plain crawl with no behavior change when total
     calls.map((c) => c.offset),
     [0, 20]
   );
-  // no facet ever applied beyond the caller-supplied base facets ({})
   assert.ok(calls.every((c) => Object.keys(c.facets).length === 0));
 });
 
@@ -247,7 +230,6 @@ test("crawlWorkdayPostings partitions by the selected facet when total is exactl
   assert.deepEqual(ids, ["fam1-a", "fam1-b", "fam2-a"]);
   // the unfiltered peek's own item must NOT leak into the result (partitioned crawl replaces it)
   assert.ok(!ids.includes("peek-a"));
-  // one partition call per facet value
   const partitionCalls = calls.filter((c) => "jobFamilyGroup" in c.facets);
   assert.equal(partitionCalls.length, 4);
 });
@@ -288,11 +270,7 @@ test("crawlWorkdayPostings still returns results (without throwing) when a parti
   assert.deepEqual(ids, ["huge-a", "small-a"]);
 });
 
-// --- parseWorkdayListPage: stub tolerance (2026-08-12) ---
-// Live barclays/bdx/cisco/comcast/intel pages occasionally contain a stub
-// jobPosting with no title/externalPath; one such row must not fail the whole
-// board (it was costing 1000+ postings per tenant per run).
-
+// A stub jobPosting (no title/externalPath) must not fail the whole board - it was costing 1000+ postings per tenant per run.
 const completePosting = {
   title: "Software Engineer",
   externalPath: "/job/Pune/Software-Engineer_R-1",

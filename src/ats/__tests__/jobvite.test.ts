@@ -20,8 +20,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup from GET /barracuda-networks-inc/search/ (three rows:
-// leading-asterisk title, plain state location, and a "2 Locations" jv-meta row).
+// Trimmed real markup: leading-asterisk title, plain state location, and a "2 Locations" jv-meta row.
 function listHtml(rows: string, paginationText: string | null): string {
   return `
 <html><body><div class="jv-wrapper">
@@ -49,8 +48,7 @@ const ROWS_PAGE_1 = `
     <td class="jv-job-list-location">  Bengaluru, India  </td>
   </tr>`;
 
-// Trimmed real markup from a job page: meta is department, then one or more
-// locations, all separated by jv-inline-separator spans.
+// Trimmed real markup: meta is department then locations, separated by jv-inline-separator spans.
 const JD_HTML = `
 <html><body>
   <h2 class="jv-header">  * Sales Renewals Representative  </h2>

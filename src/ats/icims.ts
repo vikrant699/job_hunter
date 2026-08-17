@@ -1,28 +1,9 @@
-// src/ats/icims.ts — iCIMS "classic" hosted career portals on shared
-// <tenant>.icims.com hosts (e.g. globalcareers-lennox, jobs-fmglobal).
-//
-// These portals sit behind an AWS WAF that 405s bundled Chromium (and any
-// non-Edge UA) with a "Human Verification" interstitial, so this adapter drives
-// a real Microsoft Edge browser (playwright channel:"msedge" + Edge's native
-// UA). After a single navigation to the parent search page clears the challenge
-// and sets the session cookies, both the list pages and the JD pages are pulled
-// with page.request inside that same warmed context.
-//
-//   list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N>   (0-based; 17 rows/page)
-//         rows: li.iCIMS_JobCardItem, each with
-//           .col-xs-6.header.left  -> "Job Locations" label + a value <span>
-//                                     ("US-AZ-Tucson" / "IN-TN-Chennai")
-//           .col-xs-12.title a     -> href (may point at a franchisee subdomain)
-//                                     + h3 title; the /jobs/<id>/ number is the id
-//         Walk pages until one returns < 17 rows (or zero).
-//   JD:   GET <job href>?in_iframe=1 -> the JD is split across SEVERAL
-//         .iCIMS_Expandable_Text sections (Overview / Responsibilities /
-//         Qualifications ...) inside .iCIMS_JobContent; concatenate them all
-//         (falling back to the whole .iCIMS_JobContent block).
-//
-// The Edge browser + one warmed context PER HOST are cached for the run so the
-// two-phase list/JD flow doesn't re-clear the WAF each call. If Edge is not
-// installed the launch throws and the pipeline marks just this company failed.
+// src/ats/icims.ts — iCIMS "classic" hosted career portals on shared <tenant>.icims.com hosts.
+// Portals sit behind an AWS WAF that 405s bundled Chromium (and non-Edge UAs) with a "Human Verification"
+// interstitial, so this adapter drives a real Edge browser (playwright channel:"msedge") to clear it once
+// per host, then fetches list/JD pages via page.request in that warmed context (cached for the run).
+// list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N> (0-based, 17 rows/page); jd: description is split
+// across several .iCIMS_Expandable_Text sections inside .iCIMS_JobContent, concatenated.
 import * as cheerio from "cheerio";
 import { chromium } from "playwright";
 import type { Browser, BrowserContext } from "playwright";
@@ -99,10 +80,7 @@ export function parseIcimsList(html: string, company: AdapterCompany): Normalize
   return jobs;
 }
 
-/** Extract the JD text from a job page. The description is split across several
- *  .iCIMS_Expandable_Text sections (Overview / Responsibilities / ...), so join
- *  them all; fall back to the whole .iCIMS_JobContent block when the page uses a
- *  different layout. */
+/** Extract JD text: joins every .iCIMS_Expandable_Text section inside .iCIMS_JobContent; falls back to the whole block for other layouts. */
 export function parseIcimsJd(html: string): string {
   const $ = cheerio.load(html);
   const sections = $(".iCIMS_JobContent .iCIMS_Expandable_Text");
@@ -115,8 +93,6 @@ export function parseIcimsJd(html: string): string {
   }
   return htmlToText($(".iCIMS_JobContent").first().html() ?? "");
 }
-
-// ---- Edge-channel browser + per-host warmed context (WAF-cleared), run-scoped ----
 
 let edgeBrowser: Browser | null = null;
 let edgeBoot: Promise<Browser> | null = null;
@@ -136,8 +112,7 @@ async function getEdgeBrowser(): Promise<Browser> {
     process.once("exit", () => { void teardown(); });
     return b;
   })();
-  // A failed launch must not poison future calls: clear the cached promise so
-  // the next call retries instead of re-returning the same rejection.
+  // A failed launch must not poison future calls: clear the cached promise so the next call retries.
   edgeBoot.catch(() => { edgeBoot = null; });
   return edgeBoot;
 }
@@ -155,8 +130,7 @@ async function warmContext(origin: string): Promise<BrowserContext> {
     await page.close();
     return ctx;
   })();
-  // Drop a failed warm-up so a later call re-clears the WAF instead of reusing
-  // the rejected promise.
+  // Drop a failed warm-up so a later call re-clears the WAF instead of reusing the rejected promise.
   created.catch(() => { warmContexts.delete(origin); });
   warmContexts.set(origin, created);
   return created;
@@ -196,8 +170,7 @@ export const icimsAdapter: AtsAdapter = {
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    // The JD may live on a different *.icims.com subdomain than the search host
-    // (franchisee boards), so warm the WAF for the job URL's own origin.
+    // The JD may live on a different *.icims.com subdomain than the search host (franchisee boards), so warm the WAF for the job URL's own origin.
     const origin = new URL(posting.jobUrl).origin;
     const url = posting.jobUrl.includes("?") ? `${posting.jobUrl}&in_iframe=1` : `${posting.jobUrl}?in_iframe=1`;
     const html = await icimsFetch(origin, url);

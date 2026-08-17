@@ -24,8 +24,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup shape from GET / (three rows: one missing location, one
-// duplicate slug to prove dedup).
 const LIST_HTML = `
 <html><body>
   <div class="js-careers-page-job-list-item">
@@ -56,11 +54,7 @@ const JD_HTML = `
 </body></html>
 `;
 
-// Trimmed from GET https://medibuddy.hire.trakstar.com/ (HTTP 200, 85,331
-// bytes, captured 2026-08-02) — a cancelled tenant. The board is gone and
-// Trakstar's marketing site is served in its place, headed by the inactive
-// notice. Note the empty <title> and the canonical pointing at Trakstar's own
-// shared /inactive-ats page rather than at the tenant.
+// A cancelled tenant: the board is gone and Trakstar's marketing site is served instead, with an empty <title> and the canonical pointing at Trakstar's shared /inactive-ats page rather than the tenant.
 const INACTIVE_ACCOUNT_HTML = `<!DOCTYPE html>
 <html>
   <head>
@@ -97,10 +91,7 @@ const INACTIVE_ACCOUNT_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-// A LIVE tenant with nothing open: real careers chrome (heading, blurb, the
-// job-alert signup every serving board carries), just no rows. Shape taken
-// from a serving board with its single job item removed. No canonical link —
-// serving boards emit none. This is the case the check must not swallow.
+// A live tenant with nothing open: real careers chrome but no job rows and no canonical link. Must not be mistaken for the cancelled-tenant case above.
 const EMPTY_BOARD_HTML = `<!DOCTYPE html>
 <html>
   <head><title>Acme Corp jobs | Acme Corp openings | Acme Corp careers</title></head>
@@ -173,8 +164,6 @@ test("parseTrakstarList returns [] when there are no job-list-item rows (empty b
   assert.deepEqual(parseTrakstarList("<html><body>No jobs right now.</body></html>", company), []);
 });
 
-// --- cancelled tenant vs empty board -------------------------------------------
-
 /** Run `fn` and hand back whatever it threw, failing the test if it returned. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function thrownBy(fn: () => unknown): unknown {
@@ -189,17 +178,14 @@ function thrownBy(fn: () => unknown): unknown {
 test("parseTrakstarList throws on Trakstar's inactive-account page instead of reporting an empty board", () => {
   const err = thrownBy(() => parseTrakstarList(INACTIVE_ACCOUNT_HTML, company));
   assert.ok(err instanceof Error);
-  // The URL has to come from the company row: the notice is Trakstar's own
-  // shared page and never names the tenant it replaced.
+  // The URL has to come from the company row: the notice never names the tenant it replaced.
   assert.match(err.message, /acme\.hire\.trakstar\.com/);
   assert.match(err.message, /tenant does not exist/);
   assert.match(err.message, /inactive-account notice/);
 });
 
 test("the cancelled-tenant error is charged to the company, not written off as infrastructure", () => {
-  // A cancelled board is a real per-company defect and MUST count toward the
-  // row's consecutive_failures. If any of these flipped true the scheduler
-  // would retry the board forever and never quarantine it.
+  // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
   const err = thrownBy(() => parseTrakstarList(INACTIVE_ACCOUNT_HTML, company));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
@@ -211,8 +197,7 @@ test("parseTrakstarList returns [] for a LIVE tenant whose board has no open rol
 });
 
 test("a page that yielded rows is never failed, even carrying the inactive marker", () => {
-  // Belt and braces: the marker cannot coexist with a real board, but the check
-  // is gated on an empty parse so a collision could not fail a working tenant.
+  // The check is gated on an empty parse, so a collision could never fail a working tenant.
   const withMarker = INACTIVE_ACCOUNT_HTML.replace("</body>", `${LIST_HTML}</body>`);
   assert.equal(parseTrakstarList(withMarker, company).length, 2);
 });
@@ -257,8 +242,6 @@ test("parseTrakstarJd returns '' when div.jobdesciption is absent (malformed/cha
   assert.equal(parseTrakstarJd("<html><body>Not found</body></html>"), "");
 });
 
-// --- listPostings pagination -------------------------------------------------
-
 /** One job row; `n` yields a unique slug so cross-page identity is real. */
 function row(n: number): string {
   return `<div class="js-careers-page-job-list-item">
@@ -279,8 +262,7 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-/** Serve a canned page per `?p=N` (the bare origin is page 1); anything past
- *  the end is an empty board. Returns the page numbers requested, in order. */
+/** Serve a canned page per `?p=N`; anything past the end is an empty board. Returns the pages requested. */
 function stubPages(pages: Record<string, string>): string[] {
   const seen: string[] = [];
   globalThis.fetch = async (input) => {
@@ -293,9 +275,7 @@ function stubPages(pages: Record<string, string>): string[] {
 }
 
 test("trakstarAdapter.listPostings collects the whole board when the tenant pages below the assumed 25", async () => {
-  // `?p=N` never tells the server a page size — 25 was a guess about the
-  // product, and a tenant serving 5 rows a page had page 1 judged short and
-  // the board stopped there.
+  // `?p=N` never tells the server a page size; 25 was a guessed constant that judged a 5-row page short and stopped early.
   const seen = stubPages({ "1": page(5, 1), "2": page(5, 6), "3": page(2, 11) });
   try {
     const items = await trakstarAdapter.listPostings(company);
@@ -320,10 +300,7 @@ test("trakstarAdapter.listPostings is unchanged on a tenant that really does pag
 });
 
 test("trakstarAdapter.listPostings stops on a board that ignores ?p and re-serves page 1", async () => {
-  // Trakstar publishes no total, so with every page full the short-page rule
-  // never fires either: a board that clamps an out-of-range `p` back to page 1
-  // would be crawled all the way to the runaway cap. The exact-page-repeat
-  // stall guard is the only thing that can stop it.
+  // Trakstar publishes no total, so only the exact-page-repeat stall guard can stop a board that clamps out-of-range `p` back to page 1.
   const seen: string[] = [];
   globalThis.fetch = async (input) => {
     const url = new URL(String(input));
@@ -341,9 +318,7 @@ test("trakstarAdapter.listPostings stops on a board that ignores ?p and re-serve
 });
 
 test("trakstarAdapter.listPostings still collapses a slug served on two different pages", async () => {
-  // Pages that overlap without being identical are NOT a stall — the board
-  // still has more to give, so the crawl continues and only the duplicate row
-  // is dropped.
+  // Pages that overlap without being identical are not a stall; the crawl continues and only the duplicate row is dropped.
   const seen = stubPages({
     "1": page(5, 1),
     "2": `<html><body>${row(5)}${row(6)}${row(7)}${row(8)}${row(9)}</body></html>`,

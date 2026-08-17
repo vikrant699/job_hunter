@@ -32,9 +32,7 @@ export const ashbyAdapter: AtsAdapter = {
   provider: "ashby",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Ashby board name is usually our registry slug, but some orgs use a name
-    // that can't be a registry slug (e.g. "monday.com") — apiMeta.boardSlug
-    // overrides it, same pattern as tatacareers' apiMeta.company.
+    // Board name usually equals the registry slug, but some orgs (e.g. "monday.com") need apiMeta.boardSlug instead.
     const slug = company.apiMeta?.boardSlug ?? company.slug;
     const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(slug)}?includeCompensation=false`;
 

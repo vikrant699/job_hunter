@@ -27,10 +27,7 @@ function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
 }
 
 // ---- processOnePosting orchestration fixtures ----
-// Local to this file: mirrors pipeline/index.ts's RunContext defaults and
-// types.ts's Company shape for the pre-LLM drop-path pins below. A counter
-// keeps externalIds unique across calls within one test process, so the same
-// (provider, external_id, profile_id) row is never re-inserted across runs.
+// A counter keeps externalIds unique across calls in one test process, so the same (provider, external_id, profile_id) row is never re-inserted.
 let orchPostingCounter = 0;
 function mkNormalizedPosting(overrides: Partial<NormalizedPosting> = {}): NormalizedPosting {
   orchPostingCounter++;
@@ -109,18 +106,14 @@ const orchAdapterCompany = mkAdapterCompany({
   careersUrl: "https://acme.com/careers",
 });
 
-// An adapter may only learn the real location while fetching the JD (Avature's
-// list API gives lat/lon and leaves many jobs ungeocoded). When it resolves one,
-// that metadata must face the STRICT check — the text heuristic is the
-// no-metadata fallback and would defer a foreign role to the LLM gate.
+// An adapter may only learn the real location while fetching the JD; that metadata must face the strict check, not the no-metadata text fallback, or a foreign role could defer to the LLM gate.
 test("lateLocationCheck applies the strict metadata check when fetchJd resolved a location", () => {
   // "hong kong" is a listed rejectRegion, so that rule fires first.
   const listed = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon, Hong Kong SAR" }));
   assert.equal(listed.accept, false);
   assert.equal(listed.reason, "geo-rejected");
 
-  // A foreign place NOT on the reject list still fails for want of any
-  // in-region signal — which is the whole point of using the strict check here.
+  // A foreign place not on the reject list still fails for want of any in-region signal.
   const unlisted = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon" }));
   assert.equal(unlisted.accept, false);
   assert.equal(unlisted.reason, "out-of-region");
@@ -225,11 +218,8 @@ test("verdictResult: duplicate shape prefixes reason and carries extract yoe", (
   });
 });
 
-// processOnePosting orchestration: pre-LLM drop paths only (location -> dedup ->
-// title-deny, all ahead of fetchJd/gate/extract). Full gate/extract stubbing would
-// need a DI refactor of processOnePosting, out of scope here — these three pin the
-// LLM-free stages against the real test DB (test-setup.mjs points it at a throwaway
-// file) using the checked-in example profile's actual location/title-deny config.
+// processOnePosting orchestration: pre-LLM drop paths only (location -> dedup -> title-deny, ahead of fetchJd/gate/extract).
+// These pin the LLM-free stages against the real test DB using the checked-in example profile's location/title-deny config.
 
 test("processOnePosting drops an out-of-region posting before any DB write", async () => {
   const outOfRegionPosting = mkNormalizedPosting({ location: "Berlin, Germany" });
@@ -240,9 +230,7 @@ test("processOnePosting drops an out-of-region posting before any DB write", asy
 });
 
 test("processOnePosting counts a prior-notified duplicate and skips the title/JD stages", async () => {
-  // Title deliberately also matches a titleDenyPatterns entry, to prove cross-run
-  // dedup (priorNotifyKeys) is checked BEFORE the title-deny stage: if the pipeline
-  // ever reordered these, this would report a titleDenied count instead.
+  // Title also matches a titleDenyPatterns entry, to prove cross-run dedup is checked before title-deny (else this would report titleDenied instead).
   const dupPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Frontend Engineer" });
   const stats = mkRunContext();
   stats.priorNotifyKeys.add(notifyKey(dupPosting.companyName, dupPosting.jobTitle, dupPosting.location));
@@ -256,9 +244,7 @@ test("processOnePosting counts a prior-notified duplicate and skips the title/JD
 });
 
 test("processOnePosting title-deny drops before fetchJd", async () => {
-  // First titleDenyPatterns entry in config/profile.example.ts denies backend/
-  // frontend/fullstack/... "(software) engineer" titles; "Backend Engineer" matches
-  // it verbatim.
+  // First titleDenyPatterns entry in config/profile.example.ts denies "(software) engineer" titles; "Backend Engineer" matches it verbatim.
   const deniedPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Backend Engineer" });
   const stats = mkRunContext();
   const adapter: AtsAdapter = {
@@ -271,8 +257,7 @@ test("processOnePosting title-deny drops before fetchJd", async () => {
 });
 
 // ---- JD-fetch retry: which errors qualify ----
-// Verbatim from run 31 (2026-08-01): what res.json() throws when a JSON endpoint
-// answers with an HTML challenge/error page.
+// What res.json() throws when a JSON endpoint answers with an HTML challenge/error page.
 const EDGE_INTERSTITIAL = `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`;
 
 test("a JD lost to an edge interstitial is retried, and the posting survives", async () => {
@@ -285,16 +270,13 @@ test("a JD lost to an edge interstitial is retried, and the posting survives", a
     fetchJd: async () => {
       calls++;
       if (calls === 1) throw new SyntaxError(EDGE_INTERSTITIAL);
-      // An empty JD is a legitimate adapter result, and it halts the pipeline at
-      // the "no-jd" write — after insertPostingIfNew, before any LLM call.
+      // An empty JD is a legitimate result and halts the pipeline at the "no-jd" write, after insertPostingIfNew, before any LLM call.
       return "";
     },
   };
 
   await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
 
-  // The loop used to test isTransportError alone, so an edge page got zero
-  // retries and the posting vanished before it was ever inserted.
   assert.equal(calls, 2, "an edge page must be retried, not dropped");
   assert.equal(stats.jdFetchFailed, 0);
   assert.equal(stats.postingsNew, 1);
@@ -337,8 +319,7 @@ test("an edge interstitial that never clears still gives up inside the retry bud
 
   await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
 
-  // Widening WHICH errors qualify must not widen HOW MANY attempts they get:
-  // thousands of postings run through here, so the budget stays 1 + retries.
+  // Widening which errors qualify must not widen how many attempts they get: the budget stays 1 + retries.
   assert.equal(calls, FAST.retries + 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);

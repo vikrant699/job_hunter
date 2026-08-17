@@ -27,9 +27,7 @@ const namedProfile = resolve(namedDir, "profile.ts");
 const defaultProfile = resolve(here, "../config/profile.ts");
 const examplePath = resolve(here, "../config/profile.example.ts");
 
-// Refuse to mislabel data: if a named profile was explicitly requested but its
-// config is missing, abort rather than silently scoring the DEFAULT resume and
-// stamping every row with the requested profile_id.
+// Abort if a named profile was requested but missing, rather than silently scoring the default resume under the requested profile_id.
 if (profileName !== "default" && !existsSync(namedProfile)) {
   process.stderr.write(
     `[profile] --profile ${profileName} requested but config/profiles/${profileName}/profile.ts not found — aborting.\n`,
@@ -42,11 +40,7 @@ const userPath = useNamed ? namedProfile : existsSync(defaultProfile) ? defaultP
 const resumeDir = useNamed ? namedDir : resolve(here, "../config");
 const usingExample = userPath === examplePath;
 
-// If matchThreshold sits at or below the silent floor, the yellow band vanishes:
-// classifyVerdict silently drops everything below the floor, and everything that
-// survives already clears matchThreshold — every notification comes out green and
-// the borderline tier stops existing. Fail loudly at load time instead of quietly
-// degrading the triage signal.
+// matchThreshold at or below the silent floor collapses the yellow band (everything is either dropped or green); fail loudly at load time.
 export function assertMatchThresholdAboveFloor(matchThreshold: number, silentFloor?: number): void {
   const floor = silentFloor ?? SILENT_SCORE_FLOOR;
   if (matchThreshold <= floor) {
@@ -65,14 +59,11 @@ assertMatchThresholdAboveFloor(mod.profile.filters.matchThreshold, mod.profile.f
 const resumeText = await ensureResumeText(resumeDir);
 export const profile: UserProfile = { ...mod.profile, id: profileName, resumeText };
 
-/** Absolute path to this profile's resume PDF (config/resume.pdf for the
- *  default profile, config/profiles/<name>/resume.pdf for a named one).
- *  Same base directory ensureResumeText already used for resume.txt. */
+/** Absolute path to this profile's resume PDF. */
 export const resumePdfPath: string = join(resumeDir, "resume.pdf");
 
 if (usingExample) {
-  // Logged before pino is fully configured — use stderr so it's visible even
-  // when run via npm scripts that swallow stdout.
+  // stderr: pino isn't configured yet, and npm scripts can swallow stdout.
   process.stderr.write(
     "[profile] using config/profile.example.ts — copy it to config/profile.ts and edit to make this your own.\n",
   );

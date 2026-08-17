@@ -1,14 +1,5 @@
-// src/ats/sharechat.ts — ShareChat's public careers JSON API (also backs
-// Moj — same product, same board). Single-host, no per-tenant subdomain.
-//
-//   GET https://sharechat.com/api/careersList?limit=100
-//     -> { data: { careersList: [ { title: <category>, data: [ job, ... ] }, ... ] } }
-//
-// Jobs come back grouped by category; FLATTEN across every group. The list
-// endpoint's `jobDescription` field is null for every live job we've seen and
-// there is no public per-job detail endpoint (probed /api/careers/:id and
-// variants — all 410 Gone), so jdText is left "" and jobUrl points at the
-// public careers page.
+// src/ats/sharechat.ts — ShareChat's public careers JSON API (also backs Moj, same product/board); single-host, no per-tenant subdomain.
+// GET /api/careersList groups jobs by category (flatten across groups); no per-job detail endpoint exists, so jdText stays "" and jobUrl points at the careers page.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -67,6 +58,4 @@ export const sharechatAdapter: AtsAdapter = {
     const jobs = flattenShareChatJobs(raw);
     return jobs.map((j) => normalizeShareChat(company, j));
   },
-  // The list response's jobDescription is always null in practice and no
-  // per-job detail endpoint exists — no fetchJd to implement.
 };

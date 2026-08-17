@@ -7,8 +7,6 @@ export type PromptVar = string | number | boolean | null | undefined | readonly 
 export function render(template: string, vars: Record<string, PromptVar>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
     if (!(key in vars)) {
-      // A template edited without updating its caller would otherwise silently
-      // substitute "" and quietly degrade the prompt.
       logger.warn({ key }, "render: template placeholder has no matching variable");
       return "";
     }

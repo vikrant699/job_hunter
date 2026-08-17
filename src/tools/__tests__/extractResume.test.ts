@@ -62,8 +62,7 @@ test("isResumeTextStale: txt newer than pdf is not stale", () => {
 
 test("ensureResumeText returns the cached txt when it is fresher than the pdf", async () => {
   const dir = mkResumeDir();
-  // The pdf is garbage bytes: if ensureResumeText wrongly tries to parse it,
-  // this test fails with an unpdf error instead of returning the cached text.
+  // Garbage pdf bytes: a wrong attempt to parse it fails with an unpdf error instead of returning cached text.
   writeFileSync(join(dir, "resume.pdf"), "not a real pdf");
   writeFileSync(join(dir, "resume.txt"), "cached text\n");
   setMtime(join(dir, "resume.pdf"), 0);
@@ -77,8 +76,7 @@ test("ensureResumeText re-extracts (attempts the PDF parse) when the pdf is newe
   writeFileSync(join(dir, "resume.pdf"), "not a real pdf");
   setMtime(join(dir, "resume.txt"), 0);
   setMtime(join(dir, "resume.pdf"), 60);
-  // The garbage pdf makes the parse throw - proof the extract path was taken
-  // rather than the stale cache returned.
+  // The garbage pdf makes the parse throw - proof the extract path was taken, not the stale cache.
   await assert.rejects(ensureResumeText(dir));
 });
 

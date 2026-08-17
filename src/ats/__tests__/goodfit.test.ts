@@ -1,4 +1,3 @@
-// src/ats/goodfit.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -21,8 +20,6 @@ const company: AdapterCompany = {
   tenantUrl: null,
   apiMeta: null,
 };
-
-// --- fixtures, trimmed from live pages (captured 2026-07-11) ---
 
 // v1 board shell for a migrated tenant: meta-refresh + RSC redirect template to v2.
 const redirectShell = `<html><head><meta http-equiv="refresh" content="1;url=https://v2.app.goodfit.so/jobs/springworks"/></head>
@@ -93,11 +90,7 @@ test("extractGoodfitRscJobs unescapes the flight-data island into an id map", ()
 });
 
 test("extractGoodfitRscJobs isn't confused by an unbalanced brace inside a job's own string field", () => {
-  // A stray "}" inside the (unused-by-this-function) title field would have
-  // thrown off the old string-blind brace counter, truncating the scan
-  // before the real end of the array; the shared extractBalanced's
-  // quote-tracking (post-unescape) correctly treats it as ordinary string
-  // content instead.
+  // A stray "}" in a string field must not truncate the scan; extractBalanced's quote-tracking treats it as ordinary string content.
   const withStrayBrace = `<html><body>
 <script>self.__next_f.push([1,"3a:[\\"$\\",\\"$L3b\\",null,{\\"jobs\\":[{\\"id\\":\\"stray-1\\",\\"title\\":\\"Ops Level } One\\",\\"createdAt\\":\\"2026-01-01 00:00:00+00\\",\\"locations\\":[\\"Remote\\"]}]}]\\n"])</script>
 </body></html>`;

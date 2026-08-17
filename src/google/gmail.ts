@@ -43,11 +43,7 @@ export async function createDraft(profileId: string, mime: string, deps: RestDep
   return { draftId: parsed.id, messageId: parsed.message.id, threadId: parsed.message.threadId };
 }
 
-/**
- * Check whether a draft still exists (the user may have deleted or sent it
- * from the Gmail UI). Distinguishes a 404 ("gone") from any other failure,
- * which callers must not silently swallow.
- */
+/** Check whether a draft still exists; distinguishes a 404 ("gone") from any other failure. */
 export async function getDraft(profileId: string, draftId: string, deps: RestDeps = {}): Promise<"exists" | "gone"> {
   try {
     await googleFetchJson(profileId, `${BASE_URL}/drafts/${encodeURIComponent(draftId)}`, {}, deps);

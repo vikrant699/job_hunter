@@ -1,26 +1,10 @@
-// src/ats/reliancebrands.ts — Reliance Brands careers. rblcareers.in redirects
-// to Reliance's group-wide "PeopleFirst / OPMP" candidate portal
-// (peoplefirst.ril.com), an Angular SPA. Its jobs come from:
-//
-//   POST https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSearch
-//     body { pageno, pagesize, filters:[{ match:{ Country:"IN" } }] }
-//     -> { status:"Success", result:[ <job> ], total? }
-//
-// The endpoint is unauthenticated but the origin is WAF-guarded against plain
-// Node fetch, so this runs the POST inside the shared headless browser (which
-// clears the WAF) — same "load a page, fetch in-page" trick as the other
-// browser-backed adapters. Paged by pageno until a short/empty page.
-//
-// FIELD-MAPPING NOTE: at build time (2026-07-18) the whole RIL portal returned
-// `result:[]` for every filter (incl. no filter) — Reliance had no live
-// postings anywhere on it — so the per-job field NAMES could not be observed.
-// The normalizer therefore reads each field from a list of candidate keys
-// (title / location / id / JD / date) rather than fixed names, mirroring the
-// directemployers adapter's tolerant approach. It returns [] cleanly today and
-// is expected to extract postings once RBL opens a requisition; if the real
-// keys fall outside the candidate lists, that surfaces as a 0-count run to fix,
-// not a crash. apiMeta.country overrides the country filter (default "IN"),
-// apiMeta.subtenant adds a subtenant scope when set.
+// src/ats/reliancebrands.ts — Reliance Brands careers. rblcareers.in redirects to Reliance's
+// group-wide "PeopleFirst / OPMP" candidate portal (peoplefirst.ril.com), an Angular SPA. Jobs come
+// from POST https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSearch, unauthenticated but
+// WAF-guarded against plain Node fetch, so this runs the POST inside the shared headless browser.
+// The whole portal had zero live postings at build time, so per-job field NAMES could not be
+// observed; the normalizer reads each field from a list of candidate keys rather than fixed names.
+// apiMeta.country overrides the country filter (default "IN"), apiMeta.subtenant scopes further.
 import type { Page } from "playwright";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -39,14 +23,10 @@ const PAGE_SIZE = 20;
 const TITLE_KEYS = ["JobTitle", "jobTitle", "title", "PositionName", "positionName", "Position", "Designation", "designation"];
 const ID_KEYS = ["ReqId", "reqId", "reqid", "JobId", "jobId", "id", "PositionId", "RequisitionId", "requisitionId"];
 const LOCATION_KEYS = ["Location", "location", "City", "city", "WorkLocation", "workLocation", "JobLocation"];
-// Kept OUT of LOCATION_KEYS: a bare ISO code like "IN" (exactly what this
-// adapter's own filter sends) carries no signal the pipeline's checkLocation()
-// can match — the profile's hints are "india" / "in," — so surfacing it as the
-// whole location would drop an India-only req as out-of-region. It is expanded
-// and appended to the city instead (see `composeLocation`).
+// Kept out of LOCATION_KEYS: a bare ISO code like "IN" carries no signal checkLocation() can match
+// against the profile's "india"/"in," hints, so it's expanded and appended to the city instead (see composeLocation).
 const COUNTRY_KEYS = ["Country", "country", "CountryCode", "countryCode"];
-/** Only the codes this adapter actually filters on; anything else is passed
- *  through verbatim rather than guessed at. */
+// Only the codes this adapter actually filters on; anything else passes through verbatim.
 const COUNTRY_CODE_NAMES: Record<string, string> = { IN: "India" };
 const JD_KEYS = ["JobDescription", "jobDescription", "Description", "description", "JD", "jd", "RoleDescription"];
 const DATE_KEYS = ["PostedDate", "postedDate", "PostingDate", "postingDate", "CreatedDate", "createdDate", "lastUpdated", "LastUpdated"];
@@ -60,8 +40,7 @@ function pick(job: Record<string, JsonValue>, keys: string[]): string | null {
   return null;
 }
 
-/** City-ish location plus the country, de-duplicated: "Mumbai" + "IN" ->
- *  "Mumbai, India". Either half may be absent; null when both are. */
+// City-ish location plus the country, deduplicated: "Mumbai" + "IN" -> "Mumbai, India".
 export function composeLocation(city: string | null, country: string | null): string | null {
   const countryName = country ? (COUNTRY_CODE_NAMES[country.toUpperCase()] ?? country) : null;
   if (!city) return countryName;

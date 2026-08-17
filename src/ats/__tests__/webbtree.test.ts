@@ -31,9 +31,7 @@ function makeCompany(slug: string, overrides: Partial<AdapterCompany> = {}): Ada
   };
 }
 
-// Webbtree's TransferState serializer: JSON.stringify the whole island, then
-// escape every literal "&" to "&a;" FIRST (so the escape tokens it inserts
-// aren't themselves re-escaped), then every literal '"' to "&q;".
+// Webbtree's TransferState serializer: JSON.stringify the island, then escape "&" to "&a;" FIRST, then '"' to "&q;" (so its own escape tokens aren't re-escaped).
 function encodeIsland<T>(obj: T): string {
   return JSON.stringify(obj).replace(/&/g, "&a;").replace(/"/g, "&q;");
 }
@@ -104,10 +102,6 @@ function fullIsland(jobs: ReadonlyArray<Record<string, JsonValue>> = [job1, job2
   return { ...companyInfoEntry(SLUG, CE_TOKEN), ...getjobsEntry(jobs) };
 }
 
-// ---------------------------------------------------------------------------
-// decodeWebbtreeEntities
-// ---------------------------------------------------------------------------
-
 test("decodeWebbtreeEntities decodes &q; and &a; in one pass", () => {
   assert.equal(decodeWebbtreeEntities("&q;hello&q;"), '"hello"');
   assert.equal(decodeWebbtreeEntities("a &a; b"), "a & b");
@@ -121,15 +115,9 @@ test("decodeWebbtreeEntities round-trips text containing both & and \" via the e
 });
 
 test("decodeWebbtreeEntities does not re-scan a decoded &a; as the start of a new entity", () => {
-  // "&a;q;" is an encoded "&" immediately followed by literal "q;" text — a
-  // naive two-pass (first &a;->&, then re-scan for &q;) would wrongly fuse
-  // them into a decoded quote. Single-pass regex must leave it as "&q;" text.
+  // A naive two-pass (first &a;->&, then re-scan for &q;) would wrongly fuse "&a;q;" into a decoded quote.
   assert.equal(decodeWebbtreeEntities("&a;q;"), "&q;");
 });
-
-// ---------------------------------------------------------------------------
-// extractServerAppStateIsland
-// ---------------------------------------------------------------------------
 
 test("extractServerAppStateIsland finds the island script contents", () => {
   const raw = extractServerAppStateIsland(pageWith(fullIsland()));
@@ -142,10 +130,6 @@ test("extractServerAppStateIsland returns null when the island is absent", () =>
   assert.equal(extractServerAppStateIsland("<html><body>no board here</body></html>"), null);
   assert.equal(extractServerAppStateIsland(""), null);
 });
-
-// ---------------------------------------------------------------------------
-// parseServerAppState
-// ---------------------------------------------------------------------------
 
 test("parseServerAppState decodes, JSON-parses, and zod-validates the island", () => {
   const raw = extractServerAppStateIsland(pageWith(fullIsland()));
@@ -165,17 +149,12 @@ test("parseServerAppState throws an actionable error on non-JSON garbage", () =>
 });
 
 test("parseServerAppState throws an actionable error when the shape is wrong", () => {
-  // A top-level array (not a Record<string, {url, body}>) means the
-  // TransferState serialization changed shape.
+  // A top-level array (not a Record<string, {url, body}>) means the TransferState serialization changed shape.
   assert.throws(
     () => parseServerAppState(encodeIsland([1, 2, 3]), SLUG),
     /webbtree serverApp-state island response failed schema for ideaforge/,
   );
 });
-
-// ---------------------------------------------------------------------------
-// webbtreeJobsFromIsland
-// ---------------------------------------------------------------------------
 
 test("webbtreeJobsFromIsland extracts the jobs array from the getjobs entry", () => {
   const island = parseServerAppState(encodeIsland(fullIsland()), SLUG);
@@ -211,10 +190,6 @@ test("webbtreeJobsFromIsland returns [] for an empty (but present) board", () =>
   assert.deepEqual(webbtreeJobsFromIsland(island, SLUG), []);
 });
 
-// ---------------------------------------------------------------------------
-// extractCeToken
-// ---------------------------------------------------------------------------
-
 test("extractCeToken reads the token from the getcompanyinfo request URL", () => {
   const island = parseServerAppState(encodeIsland(fullIsland()), SLUG);
   const jobs = webbtreeJobsFromIsland(island, SLUG);
@@ -233,19 +208,11 @@ test("extractCeToken returns null when neither source carries the token", () => 
   assert.equal(extractCeToken(island, jobs), null);
 });
 
-// ---------------------------------------------------------------------------
-// WebbtreeJobSchema
-// ---------------------------------------------------------------------------
-
 test("WebbtreeJobSchema tolerates missing optionals but requires jobnumber+jobname", () => {
   assert.ok(WebbtreeJobSchema.safeParse({ jobnumber: "1", jobname: "T" }).success);
   assert.equal(WebbtreeJobSchema.safeParse({ jobnumber: "1" }).success, false);
   assert.equal(WebbtreeJobSchema.safeParse({ jobname: "T" }).success, false);
 });
-
-// ---------------------------------------------------------------------------
-// normalizeWebbtree
-// ---------------------------------------------------------------------------
 
 test("normalizeWebbtree maps fields onto NormalizedPosting", () => {
   const company = makeCompany(SLUG);
@@ -270,10 +237,6 @@ test("normalizeWebbtree treats remotelocation:true as remote and falls back the 
   assert.equal(p.jobUrl, webbtreeListUrl(SLUG));
 });
 
-// ---------------------------------------------------------------------------
-// postingsFromWebbtreeHtml
-// ---------------------------------------------------------------------------
-
 test("postingsFromWebbtreeHtml maps the full island into postings", () => {
   const company = makeCompany(SLUG);
   const postings = postingsFromWebbtreeHtml(company, pageWith(fullIsland()));
@@ -296,10 +259,6 @@ test("postingsFromWebbtreeHtml throws when the island is missing entirely", () =
   );
 });
 
-// ---------------------------------------------------------------------------
-// webbtreeJdRequestBody / webbtreeCustomUrlHeader
-// ---------------------------------------------------------------------------
-
 test("webbtreeJdRequestBody builds the shared request body with the hardcoded companynumber placeholder", () => {
   assert.deepEqual(webbtreeJdRequestBody(SLUG, job1.jobnumber, CE_TOKEN), {
     companynumber: "qwer23",
@@ -313,10 +272,6 @@ test("webbtreeJdRequestBody builds the shared request body with the hardcoded co
 test("webbtreeCustomUrlHeader builds /<slug>/<token>", () => {
   assert.equal(webbtreeCustomUrlHeader(SLUG, CE_TOKEN), `/${SLUG}/${CE_TOKEN}`);
 });
-
-// ---------------------------------------------------------------------------
-// webbtreeAdapter (network-mocked)
-// ---------------------------------------------------------------------------
 
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {

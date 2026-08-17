@@ -26,9 +26,8 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-/** Client-side "signature" the site's own bundle computes — not a real secret
- *  (the salt is public in the JS bundle) but required for the server to
- *  return real data instead of a silent empty list. */
+// Not a real secret (the salt is public in the JS bundle), but required for the server to return
+// real data instead of a silent empty list.
 export function redbusHash(timestamp: number): string {
   return createHash("sha512").update(HASH_SALT + timestamp).digest("hex");
 }
@@ -65,7 +64,6 @@ const RedbusJobDescSchema = z.object({
   }),
 });
 
-/** Parses the API's "DD-MM-YYYY HH:mm:ss" timestamp into ISO, or null. */
 export function parseRedbusTimestamp(s: string | null | undefined): string | null {
   if (!s) return null;
   const m = /^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/.exec(s);

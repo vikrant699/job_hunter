@@ -1,24 +1,9 @@
-// src/ats/reliance.ts — Reliance Industries corporate careers board
-// (careers.ril.com/rilcareers), a classic ASP.NET WebForms site. Single
-// tenant: RIL corporate only. Jio (careers.jio.com) and Retail
-// (rcareers.ril.com, SAP E-Recruiting) run entirely different stacks and are
-// OUT of scope for this adapter.
-//
-// Board:  https://careers.ril.com/rilcareers/frmjobsearch.Aspx
-// Detail: https://careers.ril.com/rilcareers/frmJobSearch.aspx?JBTITLE=...&jbID=...
-//         (relative link taken straight from the list page; JBTITLE/jbID are
-//         opaque encrypted params — not usable as a stable id, so externalId
-//         instead uses the numeric requisition code embedded in the title,
-//         e.g. "CS Operations Lead 2 - CS ( 82861680 )" -> "82861680").
-//
-// Pagination: ~10 jobs/page, ~6 pages, paged via __doPostBack on the pager's
-// page-number <select> (ctl00$MainContent$rgJobs$ctl13$PageDropDownList).
-// __VIEWSTATE is self-contained here — confirmed live that paging works with
-// NO session cookie carried between requests — so each page's hidden
-// __VIEWSTATE/__EVENTVALIDATION/etc. fields just need to be re-extracted from
-// that page's HTML and POSTed back with the target page number appended. No
-// WAF in front of this board; the plain bot UA (config.fetch.userAgent) is
-// enough, no browser UA needed.
+// src/ats/reliance.ts — Reliance Industries corporate careers board (careers.ril.com/rilcareers),
+// a classic ASP.NET WebForms site. Single tenant: RIL corporate only (Jio and Retail run different
+// stacks). JBTITLE/jbID detail-link params are opaque encrypted, not usable as a stable id, so
+// externalId uses the numeric requisition code embedded in the title instead. Pagination is via
+// __doPostBack on the pager's page-number <select>; __VIEWSTATE is self-contained (no session cookie
+// needed), so each page's hidden fields are just re-extracted and POSTed back with the target page.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -49,14 +34,8 @@ export interface RelianceListPage {
   totalPages: number;
 }
 
-/**
- * Pull every non-button form control's current value out of the WebForms
- * <form> — the hidden __VIEWSTATE/__EVENTVALIDATION/etc. state, the (empty)
- * search filters, and the ddlentries/pager <select>s. Submit/image inputs are
- * excluded: the postback here is always driven by a <select>'s onchange
- * (__doPostBack), never by "clicking" a button, so a real browser wouldn't
- * include any button's value in this particular request either.
- */
+// Pulls every non-button form control's value (hidden __VIEWSTATE/etc, filters, pager <select>s).
+// Submit/image inputs are excluded: the postback is always driven by a <select>'s onchange.
 export function extractFormFields(html: string): Record<string, string> {
   const $ = cheerio.load(html);
   const form = $("form").first();
@@ -81,11 +60,7 @@ export function extractFormFields(html: string): Record<string, string> {
   return fields;
 }
 
-/**
- * Parse one rendered list page: job rows plus the "Showing X of Y Pages"
- * pager state. Boards small enough to fit on one page (<=10 jobs) may omit
- * the pager row entirely — treated as page 1 of 1.
- */
+// Boards small enough to fit on one page may omit the pager row entirely — treated as page 1 of 1.
 export function parseRelianceListPage(html: string): RelianceListPage {
   const $ = cheerio.load(html);
   const rows: RelianceJobRow[] = [];
@@ -115,22 +90,13 @@ export function parseRelianceListPage(html: string): RelianceListPage {
   };
 }
 
-/**
- * Requisition code embedded at the end of the title, e.g.
- * "CS Operations Lead 2 - CS ( 82861680 )" -> "82861680". Falls back to a
- * kebab-cased slug of the title when it has no parseable code — NOT the
- * detail href: its JBTITLE/jbID params are encrypted and possibly
- * session-varying (see the module doc above), so they are not a safe stable
- * id. A title-slug fallback can still collide/rotate across runs if the
- * title itself changes, but cross-run notifyKey dedup (company|title|
- * location) suppresses re-notification for the one-time id-scheme change
- * this introduces for rows already seen under the old href-based id.
- */
+// Requisition code embedded at the end of the title, e.g. "... ( 82861680 )" -> "82861680". Falls
+// back to a kebab-cased title slug — not the detail href, whose JBTITLE/jbID params are encrypted
+// and possibly session-varying, so unsafe as a stable id.
 export function relianceExternalId(row: Pick<RelianceJobRow, "title" | "href">): string {
   return JOB_CODE_RE.exec(row.title)?.[1] ?? kebabCase(row.title);
 }
 
-/** "10 Jul 2026" -> ISO, or null if unparseable. */
 export function parseRelianceDate(s: string): string | null {
   const ms = Date.parse(s);
   return Number.isNaN(ms) ? null : new Date(ms).toISOString();
@@ -152,11 +118,7 @@ export function normalizeReliance(company: AdapterCompany, row: RelianceJobRow):
   };
 }
 
-/**
- * Build the POST body for advancing to `targetPage` via the pager
- * <select>'s onchange postback, starting from a previously extracted page's
- * form fields (fresh __VIEWSTATE required each hop).
- */
+// Fresh __VIEWSTATE required each hop, so fields come from the previously extracted page.
 export function buildPageRequestBody(fields: Record<string, string>, targetPage: number): Record<string, string> {
   return {
     ...fields,
@@ -166,18 +128,9 @@ export function buildPageRequestBody(fields: Record<string, string>, targetPage:
   };
 }
 
-/**
- * Job description block on the detail page — one div holding responsibilities,
- * education/experience requirements, and skills/competencies together.
- *
- * The live markup embeds Facebook/LinkedIn share buttons whose `href`
- * attributes contain a literal, unescaped "<url>" placeholder (invalid HTML —
- * confirmed on the live site). That trips up htmlText.ts's regex-based tag
- * stripper (it's documented as only safe for well-formed HTML), so this
- * removes those buttons — plus the Apply/Back submit inputs, neither of
- * which belongs in the JD body — with cheerio (a real, tolerant HTML parser)
- * *before* falling back to htmlToText for whitespace normalization.
- */
+// The live markup embeds share buttons whose href contains a literal unescaped "<url>" placeholder
+// (invalid HTML, trips up htmlText.ts's regex-based stripper), so cheerio removes those plus the
+// Apply/Back inputs before falling back to htmlToText for whitespace normalization.
 export function parseRelianceJd(html: string): string {
   const $ = cheerio.load(html);
   const div = $("#MainContent_divDesc");

@@ -6,15 +6,8 @@ import { parseRetryAfterMs, isRetryableHttpStatus } from "../util/httpRetry.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { LlmUnavailableError } from "./errors.js";
 
-/**
- * OpenRouter transport (LOCAL=false). OpenAI-compatible chat-completions.
- *
- * Rate limits are handled HERE rather than being surfaced to client.ts, because
- * a 429 is normal traffic shaping, not a dead backend - letting it reach the
- * consecutive-connection-failure breaker would abort a sweep mid-run. Auth
- * failures do the opposite and abort immediately: there is no point scoring
- * 40,000 postings against a bad key.
- */
+// OpenRouter transport (LOCAL=false). Rate limits (429) are retried here, not surfaced to client.ts's
+// connection breaker, since they're traffic shaping not a dead backend; auth failures abort immediately instead.
 
 const OpenRouterResponseSchema = z.object({
   choices: z
@@ -47,16 +40,12 @@ export interface CacheStats {
 
 const cacheStats: CacheStats = { calls: 0, promptTokens: 0, cachedTokens: 0 };
 
-/**
- * Running prompt-cache totals for the process. The cached fraction is what
- * decides whether a month of sweeps costs ~$5 or ~$19, so it is logged rather
- * than left to the invoice to reveal.
- */
+/** Running prompt-cache totals for the process; logged since the cached fraction drives sweep cost. */
 export function getCacheStats(): CacheStats {
   return { ...cacheStats };
 }
 
-/** Test seam — the counters are module state, same as the client's breaker. */
+/** Test seam - the counters are module state. */
 export function resetCacheStats(): void {
   cacheStats.calls = 0;
   cacheStats.promptTokens = 0;
@@ -83,43 +72,21 @@ function recordUsage(usage: z.infer<typeof OpenRouterResponseSchema>["usage"]): 
   }
 }
 
-/**
- * How a response status is treated. Split out from the request loop so the policy
- * is one readable table instead of a chain of ifs, and so the reasoning behind
- * each verdict is written down next to it.
- *
- * The distinction that matters: "fatal" means every remaining posting would fail
- * the same way, so the run must stop; "perCall" means this one posting failed and
- * the sweep should carry on. Getting this backwards is expensive in both
- * directions - a fatal misread as perCall floods the DB with gate-errors, and a
- * perCall misread as fatal throws away a multi-hour sweep.
- */
+// fatal = every remaining posting would fail the same way (stop the run); perCall = only this posting failed (keep going).
 type StatusVerdict = "ok" | "retry" | "fatalKey" | "fatalCredits" | "fatalModel" | "perCall";
 
 export function classifyOpenRouterStatus(status: number): StatusVerdict {
-  // Per OpenRouter's documented error codes: 401 = invalid/disabled key,
-  // 402 = out of credits, 403 = permissions OR a guardrail/moderation flag,
-  // 404 = unknown model / no provider serving it.
+  // 401 = invalid/disabled key, 402 = out of credits, 403 = permissions/moderation (per-call, not fatal), 404 = unknown model.
   if (status === 401) return "fatalKey";
   if (status === 402) return "fatalCredits";
   if (status === 404) return "fatalModel";
-  // 403 is deliberately NOT fatal: it is most often a moderation block on this
-  // particular JD, and one flagged posting must not end the run.
   if (status === 403) return "perCall";
   if (isRetryableHttpStatus(status)) return "retry";
   return status >= 200 && status < 300 ? "ok" : "perCall";
 }
 
-/**
- * Second look at a per-call verdict once the body is in hand.
- *
- * Needed because the live API answers an unknown model slug with **400** ("<id> is
- * not a valid model ID"), not the 404 you would expect - and a 400 cannot be fatal
- * in general, since it is also what an over-long prompt returns, which really is
- * per-posting. So the model case is picked out by message instead. In practice
- * pre-flight catches a typo'd OPENROUTER_MODEL before any scraping; this covers the
- * model being delisted mid-sweep, where every remaining call would fail the same way.
- */
+// The live API answers an unknown model slug with 400 ("not a valid model ID"), not 404 - but a
+// plain 400 is also what an over-long prompt returns (per-call), so the model case is picked out by message.
 export function refineVerdict(verdict: StatusVerdict, status: number, body: string): StatusVerdict {
   if (verdict === "perCall" && status === 400 && /not a valid model/i.test(body)) {
     return "fatalModel";
@@ -127,7 +94,7 @@ export function refineVerdict(verdict: StatusVerdict, status: number, body: stri
   return verdict;
 }
 
-/** The fatal verdicts, each with the knob the operator actually has to change. */
+/** Fatal verdicts, each naming the knob the operator has to change. */
 function fatalMessage(verdict: StatusVerdict, status: number, body: string): string | null {
   const detail = body.slice(0, 160);
   switch (verdict) {
@@ -145,17 +112,8 @@ function fatalMessage(verdict: StatusVerdict, status: number, body: string): str
 const API_BASE = "https://openrouter.ai/api/v1";
 const MODEL_ENDPOINTS_BASE = `${API_BASE}/models`;
 
-/**
- * Confirm the configured model slug actually resolves to a served model.
- *
- * Worth a pre-flight call of its own because a wrong slug is invisible until it
- * has already cost you the run: the key check passes, scraping starts, and then
- * every single gate call fails. Only an explicit 404 is treated as a verdict -
- * a 5xx or an unreachable metadata endpoint is not evidence about the model, and
- * blocking a sweep on it would be worse than proceeding.
- *
- * No auth needed: this route is public, which also means it costs nothing.
- */
+// Confirms the model slug resolves; only an explicit 404 is treated as a verdict since a 5xx or
+// unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
 export async function assertModelAvailable(model: string): Promise<void> {
   let res: Response;
   try {
@@ -183,11 +141,7 @@ export async function assertModelAvailable(model: string): Promise<void> {
   }
 }
 
-/**
- * Pre-flight: key present and accepted, and the configured model served. Mirrors
- * assertOllamaAvailable's fail-fast role (which checks reachability AND that the
- * model is pulled) so both backends refuse to start a sweep they cannot finish.
- */
+/** Pre-flight: key present and accepted, and the configured model served (mirrors assertOllamaAvailable). */
 export async function assertOpenRouterAvailable(): Promise<void> {
   if (config.llm.openRouterKey.trim() === "") {
     throw new LlmUnavailableError(
@@ -221,25 +175,15 @@ export async function assertOpenRouterAvailable(): Promise<void> {
   await assertModelAvailable(config.llm.openRouterModel);
 }
 
-/**
- * One logical generation. Retries internally ONLY for 429/5xx; every other
- * failure propagates to client.ts, which owns the transport retry and breaker.
- *
- * The whole rendered prompt goes in a single user message on purpose: splitting
- * it into system+user would change the token prefix and cost us prompt-cache
- * hits, which are ~80% of the input on a gate call.
- */
+// Retries internally ONLY for 429/5xx; every other failure propagates to client.ts's retry/breaker.
+// The whole prompt goes in one user message on purpose: splitting into system+user would change the
+// token prefix and cost prompt-cache hits (~80% of input on a gate call).
 export async function openRouterGenerate(
   prompt: string,
   opts: OpenRouterGenerateOpts,
 ): Promise<string> {
   for (let attempt = 0; attempt <= MAX_STATUS_RETRIES; attempt++) {
-    // Unlike Ollama on localhost, this backend is across the internet: an outage
-    // would otherwise fail five calls in a row and trip client.ts's backend-down
-    // breaker, killing a multi-hour sweep over a few minutes of downtime. Waiting
-    // here keeps that breaker meaning what it was built to mean — a backend that is
-    // genuinely dead or misconfigured — and costs nothing, since a paused run makes
-    // no billable calls at all.
+    // Wait out local network outages here so they don't trip client.ts's backend-down breaker over a hosted-provider blip.
     await awaitNetwork();
     let res: Response;
     try {
@@ -255,9 +199,7 @@ export async function openRouterGenerate(
           stream: false,
           temperature: opts.temperature ?? 0.2,
           ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
-          // Reasoning traces would multiply output tokens on every posting; the
-          // gate wants a score and a reason, not a chain of thought. This is the
-          // hosted equivalent of Ollama's `think: false`.
+          // Hosted equivalent of Ollama's think: false - avoids multiplying output tokens with reasoning traces.
           reasoning: { enabled: false },
         }),
         signal: AbortSignal.timeout(config.llm.timeoutMs),
@@ -270,8 +212,6 @@ export async function openRouterGenerate(
 
     const verdict = classifyOpenRouterStatus(res.status);
 
-    // Throttling and transient 5xx are handled here so they never reach the
-    // consecutive-connection-failure breaker in client.ts.
     if (verdict === "retry" && attempt < MAX_STATUS_RETRIES) {
       const waitMs = parseRetryAfterMs(res.headers.get("retry-after"));
       logger.warn({ status: res.status, waitMs, attempt }, "openrouter throttled; backing off");
@@ -280,15 +220,10 @@ export async function openRouterGenerate(
     }
 
     if (verdict !== "ok") {
-      // One read only — a Response body cannot be consumed twice.
       const body = await res.text();
-      // A bad key, an empty balance, or a model that does not resolve would fail
-      // identically on every remaining posting — stop the whole run.
       const fatal = fatalMessage(refineVerdict(verdict, res.status, body), res.status, body);
       if (fatal !== null) throw new LlmUnavailableError(fatal);
-      // Deliberately free of the words isConnectionError() sniffs for
-      // ("timeout", "aborted", "network"): an HTTP-status failure must not be
-      // mistaken for the backend being down and trip the breaker.
+      // Message deliberately avoids "timeout"/"aborted"/"network" so isConnectionError() doesn't misclassify it.
       throw new Error(`OpenRouter HTTP ${res.status}: ${body.slice(0, 200)}`);
     }
 

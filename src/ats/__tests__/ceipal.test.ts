@@ -26,8 +26,6 @@ const job: CeipalJob = {
   campus_portal_job_details_url: "https://candidateportal.ceipal.com/job-details/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10",
 };
 
-// --- token / URL helpers ---------------------------------------------------
-
 test("ceipalTokens reads api_key + cp_id from apiMeta", () => {
   assert.deepEqual(ceipalTokens(company), {
     apiKey: "NDlYd05RTlF2REZhaHVnTEdjT294dz09",
@@ -47,8 +45,6 @@ test("ceipalListUrl builds the per-tenant CareerPortal list URL for a page", () 
   );
 });
 
-// --- date parsing ------------------------------------------------------------
-
 test("parseCeipalDate parses vendor's DD/Month/YYYY format to ISO", () => {
   assert.equal(parseCeipalDate("30/March/2026"), new Date("30 March 2026").toISOString());
   assert.equal(parseCeipalDate("10/July/2026"), new Date("10 July 2026").toISOString());
@@ -60,8 +56,6 @@ test("parseCeipalDate returns null for missing or unparseable input", () => {
   assert.equal(parseCeipalDate("Today"), null);
   assert.equal(parseCeipalDate(""), null);
 });
-
-// --- location ----------------------------------------------------------------
 
 test("ceipalLocation prefers multpile_job_location, stripped of its parens", () => {
   assert.equal(ceipalLocation(job), "Bengaluru, KA, 560001");
@@ -77,8 +71,6 @@ test("ceipalLocation returns null when nothing usable is present", () => {
   assert.equal(ceipalLocation(j), null);
 });
 
-// --- teaser (list JD, ~184-char truncation) ------------------------------------
-
 test("ceipalTeaser prefers requistion_description and strips its HTML", () => {
   const t = ceipalTeaser(job);
   assert.match(t, /Inside Sales Specialist/);
@@ -92,13 +84,10 @@ test("ceipalTeaser falls back to public_job_desc when requistion_description is 
 });
 
 test("ceipalTeaser falls back to public_job_desc when requistion_description is an EMPTY string (not just null)", () => {
-  // The API returns requistion_description:"" for some jobs whose public_job_desc
-  // has content — a plain `??` would keep the empty string (defect).
+  // requistion_description can be "" while public_job_desc has content; a plain `??` would keep the empty string.
   const t = ceipalTeaser({ ...job, requistion_description: "" });
   assert.match(t, /Location: HSR, Bangalore/);
 });
-
-// --- detail-endpoint helpers ---------------------------------------------------
 
 test("ceipalDetailToken extracts the token from a /job-details/ URL", () => {
   assert.equal(
@@ -118,8 +107,6 @@ test("ceipalDescriptionUrl builds the candidate-portal full-JD endpoint", () => 
   );
 });
 
-// --- normalize -----------------------------------------------------------------
-
 test("normalizeCeipal maps title, location, job URL, remote flag, and posted date; leaves jdText empty for fetchJd", () => {
   const p = normalizeCeipal(company, job);
   assert.equal(p.provider, "ceipal");
@@ -128,8 +115,7 @@ test("normalizeCeipal maps title, location, job URL, remote flag, and posted dat
   assert.equal(p.location, "Bengaluru, KA, 560001");
   assert.equal(p.jobUrl, "https://candidateportal.ceipal.com/job-details/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10");
   assert.equal(p.isRemote, false);
-  // The list JD is a truncated teaser — jdText is left empty so the pipeline
-  // calls fetchJd for the full description.
+  // The list JD is a truncated teaser; jdText is left empty so the pipeline calls fetchJd for the full description.
   assert.equal(p.jdText, "");
   assert.equal(p.postedAt, new Date("30 March 2026").toISOString());
 });
@@ -143,8 +129,6 @@ test("normalizeCeipal falls back to a constructed job URL when no detail URL is 
   const p = normalizeCeipal(company, { ...job, campus_portal_job_details_url: null });
   assert.equal(p.jobUrl, "https://www.simplilearn.com/job-openings?job=94");
 });
-
-// --- listPostings (paginated fetch) --------------------------------------------
 
 const realFetch = globalThis.fetch;
 function stubFetch(fn: typeof globalThis.fetch): void {
@@ -220,8 +204,6 @@ test("listPostings surfaces the ATS HTTP error when the API 400s (missing Refere
     restoreFetch();
   }
 });
-
-// --- fetchJd (full JD from the candidate-portal detail endpoint) ----------------
 
 const FULL_JD =
   "Job Title: Inside Sales Specialist &ndash; B2C<br />Location: HSR, Bangalore<br /><br />" +

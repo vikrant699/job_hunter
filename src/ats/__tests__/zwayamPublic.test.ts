@@ -21,8 +21,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed from the real https://public.zwayam.com/jobs/search response for
-// domain=career.axismaxlife.com (verified live 2026-08-01, companyId 15865).
 const hitWithShortJd: ZwayamPublicHit = {
   _id: 961558,
   _source: {
@@ -96,9 +94,7 @@ test("zwayamPublicPage throws on a malformed response (missing data.data) - sche
   assert.throws(() => zwayamPublicPage(null));
 });
 
-// A tenant queried against the WRONG shard 200s with `data: null` rather than
-// an empty board, so a mis-set apiMeta.apiHost surfaces as a schema mismatch
-// (a hard company failure) instead of silently reporting zero postings.
+// A wrong-shard tenant 200s with `data: null` rather than an empty board, so a mis-set apiMeta.apiHost fails as a schema mismatch instead of reporting zero postings.
 test("zwayamPublicPage throws on the wrong-shard response (data: null), rather than reading as an empty board", () => {
   assert.throws(() => zwayamPublicPage({ code: 200, data: null }));
 });
@@ -168,10 +164,7 @@ test("normalizeZwayamPublic: empty everything still returns a posting with empty
   assert.equal(p.postedAt, null);
 });
 
-// Zwayam shards its tenants across more than one API host, and each host
-// answers `data: null` for the other's tenants. Verified live 2026-08-02:
-// careers.infoedge.com answers only on public.zwayam.com (5 rows/page), while
-// jobs.bajajgeneral.com answers only on apic2.zwayam.com (10 rows/page).
+// Zwayam shards tenants across API hosts; each host answers data: null for tenants it doesn't own.
 const bajaj: AdapterCompany = {
   provider: "zwayam-public", slug: "bajaj-allianz", name: "Bajaj Allianz General Insurance",
   careersUrl: "https://jobs.bajajgeneral.com/bajajgeneral/",
@@ -179,13 +172,7 @@ const bajaj: AdapterCompany = {
   apiMeta: { apiHost: "apic2.zwayam.com" },
 };
 
-// --- location backfill from jobLocationRecord ------------------------------
-
-// The apic2 shard leaves `locationSeparatedbySlash` empty (swept live
-// 2026-08-03: populated on 1 of Bajaj Allianz's 338 postings) and carries the
-// real location in `jobLocationRecord` instead (non-empty on 336/338). The
-// values below come from that sweep; the live rows also carry jobId/companyId/
-// id/country/state/city, which the schema drops as unread.
+// The apic2 shard leaves locationSeparatedbySlash empty and puts the real location in jobLocationRecord instead.
 const recordOnlyHit: ZwayamPublicHit = {
   _id: 5002832,
   _source: {
@@ -201,8 +188,7 @@ const recordOnlyHit: ZwayamPublicHit = {
   },
 };
 
-/** The same posting shape with one `jobLocationRecord` of the given raw code +
- *  geocoded string — the two fields the backfill actually reads. */
+/** The same posting shape with one `jobLocationRecord` of the given raw code + geocoded string. */
 function hitWithRecords(records: { location: string; formattedLocation: string }[]): ZwayamPublicHit {
   return {
     _id: 9001,
@@ -216,10 +202,7 @@ test("normalizeZwayamPublic backfills location from jobLocationRecord when locat
   assert.equal(p.isRemote, false);
 });
 
-// "HO" is Bajaj's internal head-office marker, not a place. Zwayam's geocoder
-// resolves it to the real town of Ho in Ghana, which checkLocation would then
-// reject as out-of-region. Null instead, so the posting reaches the JD-text
-// fallback (see the lateLocationCheck note in normalizeZwayamPublic).
+// "HO" is Bajaj's head-office marker; Zwayam's geocoder resolves it to Ho, Ghana, which would fail region-check, so it's nulled instead.
 test("normalizeZwayamPublic leaves location null for the HO head-office code rather than asserting Ghana", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -242,9 +225,7 @@ test("normalizeZwayamPublic treats the marker as head office however the tenant 
   }
 });
 
-// The marker also appears with the office's name appended ("HO Commerce Zone"
-// is Bajaj's Pune head office), which Zwayam geocodes to Akita, Japan — a
-// harder reject than Ghana. Same class of bad data, same verdict.
+// The marker also appears with a name appended ("HO Commerce Zone"), which geocodes to Akita, Japan - same class of bad data, same verdict.
 test("normalizeZwayamPublic leaves location null for a named head-office code (HO Commerce Zone -> Japan)", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -255,8 +236,7 @@ test("normalizeZwayamPublic leaves location null for a named head-office code (H
   assert.equal(p.location, null);
 });
 
-// The guard must not swallow a genuine city that merely starts with those two
-// letters: the marker is an all-caps abbreviation, "Ho Chi Minh City" is a name.
+// The marker is an all-caps abbreviation; "Ho Chi Minh City" is a name and must not be swallowed by the guard.
 test("normalizeZwayamPublic does not mistake a genuine Ho Chi Minh City code for the head-office marker", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -267,10 +247,7 @@ test("normalizeZwayamPublic does not mistake a genuine Ho Chi Minh City code for
   assert.equal(p.location, "Ho Chi Minh City, Vietnam");
 });
 
-// Info Edge (public shard) populates BOTH fields on 289 of its 293 postings.
-// The slash field is what every prior run keyed on, including notifyKey's
-// cross-run dedup, so it keeps winning even though the record is richer
-// ("Pune" vs "Pune, Maharashtra, India").
+// The slash field wins over jobLocationRecord because notifyKey's cross-run dedup already keys on it, even though the record is richer.
 test("normalizeZwayamPublic prefers a populated locationSeparatedbySlash over jobLocationRecord (Info Edge regression)", () => {
   const bothFields: ZwayamPublicHit = {
     _id: 923734,
@@ -293,9 +270,7 @@ test("normalizeZwayamPublic falls back to jobLocationRecord when the slash field
   assert.equal(p.location, "Bengaluru, Karnataka, India");
 });
 
-// Multi-entry records are rare (4 of 338) and in 3 of the 4 the FIRST entry is
-// the head-office artefact while the real city sits second — so "take [0]"
-// would throw away the good row.
+// The head-office artefact is often the first entry with the real city second, so naive [0] would drop the good row.
 test("normalizeZwayamPublic skips a head-office entry to reach the real city in a multi-entry record", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -364,8 +339,6 @@ test("zwayamPublicPage keeps jobLocationRecord through boundary validation", () 
   assert.equal(at(page.hits, 0)._source.jobLocationRecord?.[0]?.formattedLocation, "Bengaluru, Karnataka, India");
 });
 
-// --- listPostings: per-tenant API host + pagination ------------------------
-
 function makeHits(startId: number, n: number): ZwayamPublicHit[] {
   return Array.from({ length: n }, (_, i) => ({
     _id: startId + i,
@@ -408,8 +381,7 @@ test("listPostings targets apiMeta.apiHost, passing the tenant host as `domain`"
 
   assert.equal(calls.length, 1);
   assert.equal(at(calls, 0).url, "https://apic2.zwayam.com/jobs/search");
-  // Only the API host is overridden — `domain` stays the TENANT host, which is
-  // what selects the board on whichever shard serves it.
+  // Only the API host is overridden - `domain` stays the tenant host, which selects the board.
   assert.equal(at(calls, 0).fields.domain, "jobs.bajajgeneral.com");
   assert.equal(postings.length, 3);
   assert.equal(
@@ -432,8 +404,7 @@ test("listPostings still targets public.zwayam.com when no apiMeta.apiHost is se
 });
 
 test("listPostings walks every page of a tenant that serves 10 rows at a time", async (t) => {
-  // apic2.zwayam.com serves 10 per page where public.zwayam.com serves 5, so
-  // the page size is a property of the TENANT, not of the engine.
+  // Page size is a per-tenant property: apic2 serves 10 per page where public.zwayam.com serves 5.
   const TOTAL = 25;
   const PER_PAGE = 10;
   const offsets: number[] = [];
@@ -452,10 +423,7 @@ test("listPostings walks every page of a tenant that serves 10 rows at a time", 
 });
 
 test("listPostings does not truncate a tenant serving fewer rows per page than the declared page size", async (t) => {
-  // paginate() checks the short-page rule BEFORE the reported total, so a page
-  // size guessed above what the tenant actually serves ended the board on page
-  // 1 with `totalCount` sitting unread. Two shards already disagree (5 vs 10),
-  // so no constant is safe here — the first page's own row count is.
+  // paginate() checks the short-page rule before totalCount, so a guessed-too-high page size would end the board on page 1 with total unread.
   const TOTAL = 9;
   const PER_PAGE = 3;
   let calls = 0;
@@ -472,10 +440,7 @@ test("listPostings does not truncate a tenant serving fewer rows per page than t
 });
 
 test("listPostings stops on a board that ignores the offset and re-serves page 1", async (t) => {
-  // The stall guard's page signature is built from dedupeBy, so without a
-  // per-item key it is inert and an offset-ignoring board gets walked all the
-  // way to `totalCount`, re-fetching the same rows (godrej-agrovet turned 3
-  // real postings into 96 JD fetches this way on phenom).
+  // The stall guard needs a dedupeBy key or an offset-ignoring board gets walked to totalCount, re-fetching the same rows.
   let calls = 0;
   stubFetch(t, () => {
     calls++;
@@ -487,8 +452,6 @@ test("listPostings stops on a board that ignores the offset and re-serves page 1
   assert.equal(calls, 2, "the second identical page must end pagination");
   assert.equal(postings.length, 10, "the repeated rows must not be accumulated twice");
 });
-
-// --- fetchJd via the jobs-service detail endpoint ----------------------------
 
 test("fetchJd POSTs the jobUrl slug + learned companyId to the detail endpoint and reads longDescription", async (t) => {
   const calls: { url: string; body: string }[] = [];

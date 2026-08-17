@@ -29,8 +29,7 @@ function hashKey(s: string): string {
   return h.toString(36);
 }
 
-// At/below this many same-host candidate links, the page is almost certainly
-// an SPA cheerio can't read — bail rather than waste an LLM call.
+// At/below this many same-host candidate links, the page is almost certainly an SPA cheerio can't read.
 const SPA_SENTINEL_THRESHOLD = 3;
 
 /** The company slug of a YC company-profile URL, or null for anything else. */
@@ -44,13 +43,7 @@ function ycCompanySlug(url: string): string | null {
   }
 }
 
-/**
- * YC company pages embed job links for OTHER YC companies ("similar jobs"
- * rails), so scraping one company's page would attribute strangers' openings
- * to it. When the careers URL is a YC company page, drop links that point at
- * a DIFFERENT company's YC page; keep same-company and off-YC links. No-op
- * for non-YC careers pages.
- */
+/** YC company pages embed "similar jobs" links to OTHER YC companies; drops links pointing at a different company's YC page. No-op for non-YC pages. */
 export function dropCrossCompanyYcLinks<T extends { url: string }>(items: T[], careersUrl: string): T[] {
   const own = ycCompanySlug(careersUrl);
   if (!own) return items;
@@ -66,16 +59,9 @@ export interface LlmScrapeFactoryOptions {
   /** Log tag — distinguishes "llm-scrape" from "playwright-llm-scrape". */
   tag: string;
   fetcher: Fetcher;
-  /**
-   * Apply the SPA sentinel? Default true (raw cheerio). Disabled in the
-   * Playwright variant since Playwright IS the SPA fallback.
-   */
+  /** Apply the SPA sentinel? Default true; disabled in the Playwright variant since Playwright IS the SPA fallback. */
   spaSentinel?: boolean;
-  /**
-   * When the page yields zero anchors but the fetcher provided bodyText,
-   * try a second-pass LLM extraction from rendered text. Recovers
-   * Eightfold/iCIMS SPAs.
-   */
+  /** Second-pass LLM extraction from rendered bodyText when there are zero anchors; recovers Eightfold/iCIMS SPAs. */
   textFallback?: boolean;
 }
 
@@ -95,8 +81,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         throw new Error(`${tag} fetch failed for ${company.slug}: ${String(err).slice(0, 160)}`);
       }
 
-      // If the page just links out to a known ATS we have an adapter for,
-      // surface a warning and skip — the registry entry should be re-classified.
+      // If the page just links out to a known ATS we have an adapter for, warn and skip - re-classify the registry entry.
       const atsHits = extractAtsCandidates(page.html, page.finalUrl);
       const adapterHit = atsHits.find((c) => c.hasAdapter);
       if (adapterHit) {
@@ -113,9 +98,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         return [];
       }
 
-      // Structured data first: schema.org JobPosting JSON-LD gives titles,
-      // locations, and dates without an LLM call — and location metadata
-      // lets the cheap pre-gate India filter work for scraped postings.
+      // Structured data first: JSON-LD gives titles/locations/dates without an LLM call, and location metadata feeds the pre-gate India filter.
       const ldJobs = extractJsonLdJobs(page.html);
       if (ldJobs.length > 0) {
         logger.info(
@@ -138,8 +121,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
       let candidates = extractLinkShortlist(page.html, page.finalUrl);
 
-      // One-level recursion when the landing page has 0-ish candidates but
-      // contains an obvious "View all jobs"-style CTA.
+      // One-level recursion when the landing page has 0-ish candidates but an obvious "View all jobs"-style CTA.
       if (candidates.length <= SPA_SENTINEL_THRESHOLD) {
         const followUrl = findOpeningsRecursionLink(page.html, page.finalUrl);
         if (followUrl) {
@@ -163,15 +145,10 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         }
       }
 
-      // Same-company guard BEFORE the sentinel/shortlist so cross-company YC
-      // links neither inflate the candidate count nor reach the LLM.
+      // Guard runs BEFORE the sentinel/shortlist so cross-company YC links can't inflate the candidate count or reach the LLM.
       candidates = dropCrossCompanyYcLinks(candidates, company.careersUrl);
 
-      // Zero-yield triage: if we're about to return nothing AND the page
-      // doesn't even look like a careers page (or silently redirected to the
-      // site root), the URL is the suspect — flag it url_suspect (surfaced by
-      // scripts/registryHealth.ts) instead of letting the dormancy policy
-      // file it under "not hiring".
+      // If we're about to return nothing and the page doesn't look like a careers page, flag url_suspect instead of "not hiring".
       const flagIfSuspectUrl = (): void => {
         const sig = analyzeCareersPage(page.html, page.finalUrl, company.careersUrl);
         if (!sig.looksLikeCareersPage || sig.redirectedToRoot) {
@@ -185,10 +162,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
       if (spaSentinel && candidates.length <= SPA_SENTINEL_THRESHOLD) {
         flagIfSuspectUrl();
-        // Act on the recommendation instead of just logging it: flip the
-        // strategy in the DB (this run's state) AND the Companies tab (the
-        // source of truth — sync would revert a DB-only flip next run).
-        // Next run fetches this company through headless chromium.
+        // Flip strategy in both the DB (this run) and the Companies tab (source of truth, or a sync would revert it).
         updateParsingStrategy(company.provider, company.slug, "playwright-llm-scrape");
         const inRegistry = await updateRegistryStrategy(
           company.provider, company.slug, company.name, "playwright-llm-scrape", profile.id ?? "default",
@@ -207,8 +181,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         return [];
       }
       if (!spaSentinel && candidates.length === 0) {
-        // Browser-rendered but no anchors — Eightfold/iCIMS often render
-        // jobs as non-anchor DOM. Try a text-fallback against bodyText.
+        // Browser-rendered but no anchors - Eightfold/iCIMS often render jobs as non-anchor DOM.
         const bodyText = "bodyText" in page ? page.bodyText : undefined;
         if (textFallback && bodyText && bodyText.length > 200) {
           try {
@@ -218,8 +191,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
                 { company: company.slug, jobs: textJobs.length, careersUrl: company.careersUrl },
                 `${tag}: text-fallback extracted ${textJobs.length} jobs from rendered text`
               );
-              // No per-job URLs available — synthesize stable externalId so
-              // dedup still works, and link clicks fall back to the listing page.
+              // No per-job URLs available - synthesize a stable externalId; link clicks fall back to the listing page.
               return textJobs.map<NormalizedPosting>((j) => ({
                 provider: company.provider,
                 externalId: `text:${company.slug}:${hashKey(j.title + "|" + (j.location ?? ""))}`,
@@ -250,11 +222,9 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
       let jobs: ShortlistItem[];
       const cached = getLinkCache(company.provider, company.slug, LINK_CACHE_TTL_MS);
-      // An empty cached list is not a usable hit — `[]` is truthy, and serving
-      // it would pin the company at zero postings for the whole TTL.
+      // An empty cached list is not a usable hit - serving it would pin the company at zero postings for the whole TTL.
       if (cached && cached.length > 0) {
-        // Re-filter cache hits: rows cached before the guard existed may still
-        // carry cross-company YC links until their TTL expires.
+        // Re-filter: rows cached before the guard existed may still carry cross-company YC links.
         jobs = dropCrossCompanyYcLinks(cached, company.careersUrl);
         logger.debug({ company: company.slug, count: jobs.length }, `${tag}: link cache hit`);
       } else {
@@ -263,8 +233,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         } catch (err) {
           throw new Error(`${tag} shortlist failed for ${company.slug}: ${String(err).slice(0, 160)}`);
         }
-        // Only cache a useful result — caching an empty shortlist would skip
-        // the LLM retry on every run until the TTL expires.
+        // Only cache a useful result - an empty shortlist would skip the LLM retry until the TTL expires.
         if (jobs.length > 0) {
           const toCache: ShortlistedLink[] = jobs.map((j) => ({ url: j.url, title: j.title }));
           setLinkCache(company.provider, company.slug, toCache);
@@ -293,15 +262,13 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
 
     async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
       const { html } = await fetcher(posting.jobUrl);
-      // JD pages very often carry a JobPosting JSON-LD block with the full
-      // description — cleaner than heuristic main-text stripping.
+      // JD pages often carry a JobPosting JSON-LD block, cleaner than heuristic main-text stripping.
       const ld = extractJsonLdJobs(html);
       const ldDescription = ld[0]?.description;
       if (ldDescription && ldDescription.length > 100) {
         return htmlToText(ldDescription);
       }
-      // Overwrite the listing-shortlist title when it's a generic "Apply Now"-
-      // style anchor and the JD page exposes a real <h1>.
+      // Overwrite a generic "Apply Now"-style shortlist title when the JD page exposes a real <h1>.
       const hint = extractTitleHint(html);
       if (hint && /^(apply now|apply|view (role|job|opening|position)|read more|details|see more|learn more)$/i.test(posting.jobTitle.trim())) {
         posting.jobTitle = hint;

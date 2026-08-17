@@ -1,24 +1,11 @@
-// src/ats/jobvite.ts — Jobvite hosted job boards (jobs.jobvite.com/<tenant>),
-// server-rendered HTML, no public JSON API.
-//
-//   list: GET https://jobs.jobvite.com/<tenant>/search/?p=<N>   (0-based page)
-//         -> table.jv-job-list tbody tr, each with
-//              td.jv-job-list-name a   href="/<tenant>/job/<id>"  (the title)
-//              td.jv-job-list-location (location string; rows spanning several
-//                sites render a "<div class=jv-meta>N Locations</div>"
-//                placeholder instead — fetchJd refines those, see below)
-//         Total is inline in .jv-pagination-text as "1-50 of 53"; boards that
-//         fit one page render no .jv-pagination at all.
-//         A DEAD tenant is NOT a 404: Jobvite 302s to
-//         www.jobvite.com/support/job-seeker-support/?invalid=1, so any final
-//         URL off the board host means the tenant is gone (throw, never 0).
-//
-//   jd:   GET https://jobs.jobvite.com/<tenant>/job/<id>
-//         -> .jv-job-detail-description (rich HTML). The .jv-job-detail-meta
-//         line is "<department> <sep> <location> [<sep> <location>...]" — the
-//         first segment is a department, the rest are locations, which is how
-//         placeholder list locations get their real value (the pipeline
-//         re-checks location after fetchJd via lateLocationCheck).
+// src/ats/jobvite.ts — Jobvite hosted job boards (jobs.jobvite.com/<tenant>), server-rendered HTML, no
+// public JSON API.
+// list: GET .../search/?p=<N> (0-based) -> table.jv-job-list rows; multi-site rows render an "N Locations"
+// placeholder, refined by fetchJd. Total is inline as "1-50 of 53"; single-page boards render no
+// pagination control. A dead tenant 302s to jobvite.com's own support page (not a 404), so an off-host
+// final URL means the tenant is gone.
+// jd: GET .../job/<id> -> .jv-job-detail-description; .jv-job-detail-meta is "<department> <sep>
+// <location>..." (first segment is department, rest are locations).
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -50,14 +37,12 @@ export function jobviteTenant(company: AdapterCompany): string {
   throw new Error(`jobvite: no jobs.jobvite.com board URL for ${company.slug}`);
 }
 
-/** Paged search URL (0-based; the trailing slash is load-bearing — the
- *  slash-less path ignores ?p= and always serves page 0). */
+/** Paged search URL (0-based; the trailing slash is load-bearing — the slash-less path ignores ?p= and always serves page 0). */
 export function jobviteSearchUrl(tenant: string, page: number): string {
   return `${ORIGIN}/${encodeURIComponent(tenant)}/search/?p=${page}`;
 }
 
-/** Parse one search page: rows + the "1-50 of 53" total (null when the board
- *  fits a single page and renders no pagination control). */
+/** Parse one search page: rows + the "1-50 of 53" total (null when the board fits one page, no pagination control). */
 export function parseJobviteList(html: string): { jobs: JobviteJob[]; total: number | null } {
   const $ = cheerio.load(html);
   const jobs: JobviteJob[] = [];
@@ -84,9 +69,8 @@ export function parseJobviteList(html: string): { jobs: JobviteJob[]; total: num
 export function parseJobviteJd(html: string): { jdText: string; location: string | null } {
   const $ = cheerio.load(html);
   const jdText = htmlToText($(".jv-job-detail-description").first().html() ?? "");
-  // Meta segments are delimited by jv-inline-separator spans, so walk the
-  // node list structurally — a text sentinel can't survive the HTML parser
-  // (parse5 strips NUL), and joining on whitespace would merge segments.
+  // Meta segments are delimited by jv-inline-separator spans, so walk the node list structurally — a text
+  // sentinel can't survive the HTML parser, and joining on whitespace would merge segments.
   const segments: string[] = [];
   let buf = "";
   $(".jv-job-detail-meta").first().contents().each((_, node) => {

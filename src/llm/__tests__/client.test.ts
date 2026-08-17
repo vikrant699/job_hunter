@@ -29,17 +29,13 @@ test("isConnectionError does NOT flag model/output errors", () => {
   }
 });
 
-// Guards the whole OpenRouter feature: if an HTTP-status error from the hosted
-// provider were classified as connection-shaped, five of them in a row would
-// trip the breaker and abort a sweep over what is just traffic shaping. The
-// messages thrown by openrouter.ts must stay free of the words sniffed above.
+// Guards against an OpenRouter HTTP-status error being classified as connection-shaped,
+// which would trip the breaker and abort a sweep over ordinary traffic shaping.
 test("isConnectionError does NOT flag OpenRouter HTTP-status errors", () => {
   for (const e of [
     "OpenRouter HTTP 429: rate limit exceeded",
     "OpenRouter HTTP 500: upstream error",
     "OpenRouter HTTP 502: bad gateway",
-    // 403 is a per-posting moderation block, so it flows through the ordinary
-    // failure path — and must not be mistaken there for the backend being down.
     "OpenRouter HTTP 403: flagged by moderation",
     "OpenRouter returned no message content",
     "OpenRouter HTTP retries exhausted after 4 attempts",

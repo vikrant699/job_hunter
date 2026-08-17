@@ -1,16 +1,7 @@
 /**
- * TEMPORARY weekly blast for the Raw Data tab (design spec:
- * docs/superpowers/specs/2026-07-09-alice-blast-design.md).
- *
- *   npm run blast -- --profile alice                # sweep + draft next 100
- *   npm run blast -- --profile alice --limit 50
- *   npm run blast -- --profile alice --verify-only  # bounce check only
- *   npm run blast -- --profile alice --force        # override safety guards
- *
- * Drafts only, NEVER sends. Alice schedule-sends from the Gmail UI
- * (11:00-12:30 IST weekdays, ~20/day). Deliberately does not import
- * src/profile.ts: the blast needs only the Gmail/Sheets token identity, not
- * the job_hunter profile config.
+ * Weekly blast for the Raw Data tab.
+ *   npm run blast -- --profile alice [--limit N] [--verify-only] [--force]
+ * Drafts only, never sends. Doesn't import src/profile.ts - only needs the Gmail/Sheets token identity.
  */
 import "dotenv/config";
 import { assertGoogleTokenValid } from "../src/google/auth.js";

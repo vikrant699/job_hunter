@@ -1,6 +1,4 @@
-// src/ats/jsonList.test.ts — exercises makeJsonListAdapter against a fake
-// vendor (not a real ATS) so the factory's own contract is pinned
-// independently of any one real adapter's schema/normalize quirks.
+// src/ats/jsonList.test.ts - exercises makeJsonListAdapter against a fake vendor, independent of any real adapter's schema/normalize quirks.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
@@ -8,9 +6,7 @@ import { makeJsonListAdapter } from "../jsonList.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
 import { stubFetch, fetchSequence, jsonResponse, mkAdapterCompany } from "./testHelpers.js";
 
-// "greenhouse" is reused here purely as a valid Provider literal — the
-// factory has no per-provider special-casing, so any real enum member is a
-// fine stand-in for a fake vendor in this test.
+// "greenhouse" is reused purely as a valid Provider literal; the factory has no per-provider special-casing.
 const FAKE_PROVIDER = "greenhouse";
 const LIST_URL = "https://fake.example.com/api/jobs";
 

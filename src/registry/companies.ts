@@ -11,12 +11,7 @@ import { JsonValueSchema } from "../util/json.js";
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);
 
-/**
- * Read+validate a JSON array of RegistryEntry from disk. Used by the
- * sheet-backed cache fallback (sheetRegistry.ts), which reads
- * data/registry-cache.json through this same function — the cache is a plain
- * JSON snapshot of the last fully-valid Companies-tab sync.
- */
+/** Reads+validates a JSON array of RegistryEntry from disk; used by the sheet-backed cache fallback in sheetRegistry.ts. */
 export function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
   const raw = readFileSync(path, "utf-8");
@@ -40,13 +35,7 @@ export interface SyncEntriesResult {
   pruned: number;
 }
 
-/**
- * Shared upsert+prune core behind the sheet-backed sync (both the live-sheet
- * path and the cache fallback in sheetRegistry.ts). `opts.prune` gates the
- * delete-orphans pass: callers with any unvalidated/quarantined rows must
- * pass `prune: false` so a single bad row in the source can't wipe out
- * companies it doesn't even mention.
- */
+/** Shared upsert+prune core behind the sheet sync; `opts.prune` gates the delete-orphans pass so a quarantined row can't wipe out companies it doesn't mention. */
 export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }): SyncEntriesResult {
   // Map dedups in case the source carries duplicate keys.
   const merged = new Map<string, RegistryEntry>();
@@ -56,9 +45,7 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
   let denied = 0;
   let pruned = 0;
 
-  // Upsert + prune run as one transaction: a crash or thrown error mid-loop
-  // must not leave the DB with some companies synced against the new source and
-  // others (including prune deletes) still reflecting the old one.
+  // One transaction so a mid-loop crash can't leave the DB partially synced to the new source.
   db.exec("BEGIN");
   try {
     for (const entry of merged.values()) {
@@ -86,10 +73,7 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
       });
     }
 
-    // Prune DB rows no longer in the source-of-truth. Without this, a removed
-    // company — or one whose (provider,slug) changed on conversion (e.g. custom →
-    // darwinbox) — leaves a stale row the scheduler would still scrape. Skipped
-    // entirely when the caller has quarantined rows this run (opts.prune=false).
+    // Prune DB rows no longer in the source-of-truth (removed companies, or ones whose provider/slug changed on conversion).
     if (opts.prune) {
       const valid = new Set(merged.keys());
       for (const c of selectAllCompanies()) {

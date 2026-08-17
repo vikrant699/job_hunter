@@ -1,4 +1,3 @@
-// src/ats/__tests__/pinpoint.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -19,7 +18,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real item from GET https://hiverhq.pinpointhq.com/postings.json (2026-08-12).
+// Trimmed real item from GET https://hiverhq.pinpointhq.com/postings.json.
 const rawPosting = {
   id: "524572",
   title: "Principal Engineer",

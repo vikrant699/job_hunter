@@ -1,18 +1,8 @@
-// src/ats/directemployers.ts — DirectEmployers-network career sites (Nuxt
-// shells on `<company>.jobs` domains, backed by the shared jobsyn.org Solr
-// search API). Verified live on John Deere (deerecareers.jobs).
-//
-//   GET https://prod-search-api.jobsyn.org/api/v1/solr/search?page=<N>
-//     Header: x-origin: <tenant .jobs domain>   (NOT the standard Origin
-//     header — the app reads a custom x-origin; a request without it 403s
-//     "Mismatched origin" even from a real browser)
-//     -> { jobs: [{ id|guid, title_exact, location_exact|city_exact,
-//                   country_exact, description }],
-//          pagination: { total, total_pages, has_more_pages } }
-//
-// apiMeta.origin selects the tenant (the .jobs domain sent as x-origin).
-// Optional apiMeta.location narrows the Solr query to a location facet.
-// JD is inline in `description`. Paged by page until pagination.total.
+// src/ats/directemployers.ts — DirectEmployers-network career sites (Nuxt shells on `<company>.jobs` domains,
+// backed by the shared jobsyn.org Solr search API).
+// GET prod-search-api.jobsyn.org/api/v1/solr/search?page=<N>, header x-origin: <tenant .jobs domain> is REQUIRED
+// (a custom header, not the standard Origin - omitting it 403s "Mismatched origin" even from a real browser).
+// apiMeta.origin selects the tenant; JD is inline in `description`.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -20,10 +10,7 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
 
 const API = "https://prod-search-api.jobsyn.org/api/v1/solr/search";
-// Solr's actual per-page item count isn't evidenced anywhere in this file;
-// pagination is driven by pagination.total_pages (see listPostings below),
-// not a page-size comparison, so this placeholder value is harmless.
-const NOMINAL_PAGE_SIZE = 10;
+const NOMINAL_PAGE_SIZE = 10; // placeholder; pagination is actually driven by pagination.total_pages
 
 export const DeJobSchema = z.object({
   id: z.union([z.string(), z.number()]).nullable().optional(),
@@ -54,7 +41,7 @@ export const DeResponseSchema = z.object({
 function deOrigin(company: AdapterCompany): string {
   const o = company.apiMeta?.origin;
   if (o) return o;
-  // Fall back to the careers host (drop scheme) — DE tenants ARE .jobs hosts.
+  // Fall back to the careers host - DE tenants ARE .jobs hosts.
   try {
     return new URL(company.tenantUrl ?? company.careersUrl).host;
   } catch {
@@ -101,11 +88,7 @@ export const directemployersAdapter: AtsAdapter = {
       provider: "directemployers",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // No page-size comparison in the original loop either - termination is
-      // a zero-item page or reaching pagination.total_pages (a PAGE count,
-      // re-read from every response - see below), so a "short page" was
-      // never a stop signal on its own.
-      shortPageEndsPagination: false,
+      shortPageEndsPagination: false, // termination is a zero-item page or reaching pagination.total_pages instead
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
@@ -119,13 +102,8 @@ export const directemployersAdapter: AtsAdapter = {
         const items = parsed.jobs
           .map((j) => normalizeDeJob(company, j))
           .filter((p): p is NormalizedPosting => p !== null);
-        // total_pages is re-read from THIS page's own response (matching the
-        // original loop, which reassigned it every iteration rather than
-        // latching page 1's value) - translated into paginate()'s item-count
-        // `total` contract by reporting a total exactly equal to the
-        // cumulative offset once this page is the last one, so the loop
-        // stops right after fetching it regardless of how many items were
-        // on earlier pages.
+        // total_pages is re-read from every response (not latched from page 1); once this page is the last one,
+        // `total` is reported as the cumulative offset so paginate() stops right after fetching it.
         const totalPagesNow = parsed.pagination?.total_pages ?? currentPage;
         const isLastPage = currentPage >= totalPagesNow;
         return {

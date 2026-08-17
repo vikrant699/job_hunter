@@ -1,17 +1,6 @@
-// src/ats/pinpoint.ts — Pinpoint hosted career sites (<tenant>.pinpointhq.com).
-//
-// A plain GET of the tenant's public postings feed returns the full board with
-// the complete JD inline, no auth and no pagination:
-//
-//   GET https://<tenant>.pinpointhq.com/postings.json
-//     -> { data: [ { id, title, description (HTML), url, workplace_type,
-//                     workplace_type_text, employment_type_text,
-//                     location: { city, name, province, ... } | null, ... } ] }
-//
-// `description` carries the full HTML JD, so no fetchJd is needed. Location is a
-// structured object (city + province, or a free-text `name`); workplace_type is
-// one of remote/hybrid/onsite. The feed carries no posting date, so postedAt is
-// always null. Verified live 2026-08-12 against the hiverhq tenant.
+// src/ats/pinpoint.ts — Pinpoint hosted career sites (<tenant>.pinpointhq.com). A plain GET of
+// GET https://<tenant>.pinpointhq.com/postings.json returns the full board with the complete HTML
+// JD inline, no auth/pagination, so no fetchJd. The feed carries no posting date.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -39,11 +28,9 @@ export type PinpointPosting = z.infer<typeof PinpointPostingSchema>;
 
 const ListResponseSchema = z.object({ data: z.array(PinpointPostingSchema) });
 
-/** Tenant host origin, e.g. "https://hiverhq.pinpointhq.com". The pinpointhq
- *  subdomain frequently differs from both the registry slug and the company's
- *  own careers domain, so: use tenant_url only when it is itself a pinpointhq
- *  host, else build from apiMeta.boardSlug, else the slug. Never fall back to
- *  careers_url — that is the marketing site, not the board host. */
+// The pinpointhq subdomain frequently differs from both the registry slug and the company's own
+// careers domain, so: use tenant_url only when it is itself a pinpointhq host, else apiMeta.boardSlug,
+// else the slug. Never fall back to careers_url — that's the marketing site, not the board host.
 export function pinpointBase(company: AdapterCompany): string {
   if (company.tenantUrl) {
     try {
@@ -57,7 +44,6 @@ export function pinpointBase(company: AdapterCompany): string {
   return `https://${sub}.pinpointhq.com`;
 }
 
-/** City + province, falling back to the free-text `name`, else null. */
 export function pinpointLocation(loc: PinpointLocation | null | undefined): string | null {
   if (!loc) return null;
   const parts = [loc.city, loc.province].filter((s): s is string => Boolean(s && s.trim()));
@@ -83,8 +69,6 @@ export function normalizePinpoint(company: AdapterCompany, p: PinpointPosting): 
   };
 }
 
-/** Validate the raw `/postings.json` body and map every row. Throws with an
- *  actionable message on a schema mismatch rather than letting zod bubble raw. */
 export function postingsFromPinpointJson(company: AdapterCompany, raw: JsonValue): NormalizedPosting[] {
   const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "pinpoint", slug: company.slug });
   return parsed.data.map((p) => normalizePinpoint(company, p));

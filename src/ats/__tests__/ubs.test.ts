@@ -27,9 +27,9 @@ const PAYLOAD = {
           { QuestionName: "jobdescription", Value: "<p>Build test automation.</p>" },
         ],
       },
-      // Duplicate reqid — must dedup.
+      // Duplicate reqid - must dedup.
       { Questions: [{ QuestionName: "reqid", Value: "330284" }, { QuestionName: "jobtitle", Value: "dup" }] },
-      // Missing title — skipped.
+      // Missing title - skipped.
       { Questions: [{ QuestionName: "reqid", Value: "999" }] },
     ],
   },
@@ -57,10 +57,7 @@ test("parseUbsMatchedJobs returns [] on an empty/absent Jobs array", () => {
   assert.deepEqual(parseUbsMatchedJobs({ Jobs: { Job: [] } }, company, company.careersUrl, "5012"), []);
 });
 
-// The MatchedJobs response caps at 50 jobs (verified live: an unfiltered search
-// reports JobsCount=577 and returns 50), and this adapter has no pagination.
-// `JobsCount` is the server's own count for the search, so a shortfall against
-// it is the ONLY signal that the India set has outgrown one response.
+// MatchedJobs caps at 50 with no pagination; JobsCount is the only signal that a shortfall means truncation, not filtering.
 test("ubsReportedJobsCount reads the server's own count for the search", () => {
   assert.equal(ubsReportedJobsCount({ ...PAYLOAD, JobsCount: 20 }), 20);
   assert.equal(ubsReportedJobsCount(PAYLOAD), null);
@@ -73,8 +70,7 @@ test("ubsTruncationWarning fires when fewer jobs came back than the server repor
 
 test("ubsTruncationWarning stays silent on a complete response", () => {
   assert.equal(ubsTruncationWarning(20, 20), null);
-  // Dedup/skipped rows legitimately shrink the parsed count below the raw one;
-  // only a shortfall against the SERVER's count means jobs were never sent.
+  // Dedup/skipped rows legitimately shrink the count; only a shortfall vs the server count means truncation.
   assert.equal(ubsTruncationWarning(20, null), null);
   assert.equal(ubsTruncationWarning(21, 20), null);
 });

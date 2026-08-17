@@ -39,8 +39,7 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
-    // A live CXS endpoint that answers with the expected JSON shape is a valid
-    // tenant even with zero current openings (matches ats-validate.ts).
+    // A live CXS endpoint answering with the expected shape is a valid tenant even with zero current openings.
     const parsed = z.object({ total: z.number().optional() }).safeParse(await res.json());
     return parsed.success;
   } catch {
@@ -57,9 +56,7 @@ async function probeUrl(url: string, timeoutMs = 15_000): Promise<boolean> {
       "Accept-Language": "en-US,en;q=0.9",
     },
   });
-  // ok (2xx, post-redirect) or 403 = page exists but bot-blocks GETs.
-  // 404/410 means the careers page is actually gone — that's the point
-  // of this script, so don't paper over it.
+  // ok or 403 = page exists (403 just bot-blocks GETs); 404/410 means it's actually gone.
   return res.ok || res.status === 403;
 }
 
@@ -84,9 +81,7 @@ async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result>
 
   const builder = ATS_URL_BUILDERS[entry.source];
   if (!builder) {
-    // No public probe for this provider (or it needs api_meta tokens we can't
-    // synthesize, e.g. keka/eightfold/oracle). Fall back to probing the careers
-    // page rather than reporting a false "broken".
+    // No public probe for this provider - fall back to the careers page rather than reporting a false "broken".
     return checkUrl(entry, suggest);
   }
 

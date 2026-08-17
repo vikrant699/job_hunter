@@ -28,12 +28,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Article 1 mirrors Lenovo's skin: plain <span> subtitle siblings, each with a
-// text prefix ("Req #:" / "Posted"), title link straight to a "slug/id" JobDetail
-// href, top-of-page pagination block with the Next <a> carrying the class itself.
-// Article 2 mirrors Siemens's skin: `.list-item-location` (+ jobCity/jobState/
-// jobCountry sub-spans) and `.list-item-jobId`, title link to a bare-id
-// JobDetail href (no slug segment).
+// Article 1 mirrors Lenovo's skin (span subtitles, slug+id JobDetail href); article 2 mirrors Siemens's skin (list-item-location, bare-id href).
 const SEARCH_HTML = `
 <html><body>
   <div class="list-controls__pagination">
@@ -83,8 +78,7 @@ const SEARCH_HTML = `
   </div>
 </body></html>`;
 
-// Past-the-last-page fallback: a stale placeholder article with no title
-// link, but the pagination widget still (buggily) renders a Next link.
+// Past-the-last-page fallback: a stale placeholder article with no title link, but the pager still (buggily) renders a Next link.
 const NO_JOBS_HTML = `
 <html><body>
   <div class="list-controls__pagination">
@@ -102,8 +96,7 @@ const NO_JOBS_HTML = `
   </div>
 </body></html>`;
 
-// Siemens-style Next link: `.paginationNextLink` is on the wrapping <li>, not
-// the <a> itself.
+// Siemens-style Next link: `.paginationNextLink` is on the wrapping <li>, not the <a> itself.
 const SIEMENS_PAGINATION_HTML = `
 <div class="list-controls__pagination">
   <nav aria-label="Pagination Navigation">
@@ -223,9 +216,7 @@ test("parseAvatureSearch drops the stale 'No jobs found' placeholder (no title l
     company,
   );
   assert.equal(postings.length, 0);
-  // nextHref is still reported by the parser (it's genuinely present in the
-  // HTML) — it's the *adapter's* listPostings loop that must stop on a
-  // zero-posting page regardless of this value.
+  // nextHref is genuinely present; it's the adapter's loop that must stop on a zero-posting page regardless.
   assert.equal(nextHref, "https://jobs.lenovo.com/en_US/careers/SearchJobs/?jobRecordsPerPage=10&jobOffset=10");
 });
 
@@ -258,38 +249,26 @@ test("parseAvatureJd returns empty string when .section__content is absent", () 
   assert.equal(parseAvatureJd("<html><body><p>nothing</p></body></html>"), "");
 });
 
-// --- portal no longer served vs genuinely empty portal --------------------------
-
-// The engine's meta namespace, verbatim from every live capture (2026-08-03) —
-// jobs.lenovo.com, careers.tesco.com, www.metlifecareers.com and jobsearch.harman.com
-// all stamp it, custom host or avature.net alike.
+// The engine's meta namespace, stamped by every live tenant regardless of custom host or avature.net.
 const PORTAL_META = `<meta name="avature.wizard.registrars" content="[]"/>
 <meta name="avature.portal.id" content="4"/>
 <meta name="avature.portal.urlPath" content="careers"/>
 <meta name="avature.portal.lang" content="en_US"/>`;
 
-// Trimmed from GET https://jobs.lenovo.com/en_US/careers/ (HTTP 200, captured
-// 2026-08-03): a LIVE portal page carrying zero article--result blocks while still
-// stamping the meta namespace. Same shape as www.metlifecareers.com's home. This is
-// what a portal with nothing open looks like, and it must keep returning [].
+// A live portal with zero article--result blocks but still stamping the meta namespace - what an empty board looks like.
 const EMPTY_PORTAL_HTML = `
 <html><head>${PORTAL_META}</head><body>
   <div class="section__content__results"></div>
 </body></html>`;
 
-// The shape of a custom host that stopped serving Avature: 200, no result
-// articles, and none of the engine's markup (verified against radancy, jobsoid and
-// superworks boards, which carry neither marker).
+// A custom host that stopped serving Avature: 200, no result articles, none of the engine's markup.
 const NOT_A_PORTAL_HTML = `
 <html><head><title>Careers at Lenovo</title></head><body>
   <h1>Come work with us</h1>
   <p>Our openings have moved. Please visit our new careers site.</p>
 </body></html>`;
 
-// Trimmed from GET jobs.lenovo.com/en_US/careers/SearchJobs?jobOffset=99990
-// (HTTP 200, captured 2026-08-03): Avature's OWN transient failure page. It drops
-// every meta tag but still loads /jscore/ assets, so the engine marker has to
-// accept that path too or a vendor-side hiccup would fail a healthy board.
+// Avature's own transient failure page: drops every meta tag but still loads /jscore/ assets, so the marker must accept that path too.
 const ENGINE_ERROR_HTML = `
 <html><head><link href="/jscore/images/icons/favicon.ico" rel="shortcut icon"><title> </title></head>
 <body><img src="/jscore/images/http/fatal.png" class="errorImage" alt="">
@@ -328,18 +307,14 @@ test("assertAvatureBoardServed throws only when neither engine marker is present
 });
 
 test("the dead-portal error is charged to the company, not written off as infrastructure", () => {
-  // A host that stopped serving its Avature portal is a per-company board defect
-  // and MUST count toward the row's consecutive_failures. If any of these flipped
-  // true the scheduler would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   const err = thrownBy(() => assertAvatureBoardServed(NOT_A_PORTAL_HTML, "https://jobs.lenovo.com/x"));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A bot-block page carries neither engine marker, so it used to be indistinguishable
-// from a host that stopped serving its portal — and eight of the nine live rows sit
-// on the company's own (WAF-frontable) host.
+// A bot-block page carries neither engine marker, so it used to be indistinguishable from a dead portal.
 test("a WAF challenge page is an edge refusal, NOT a dead portal", () => {
   const err = thrownBy(() => assertAvatureBoardServed(CHALLENGE_PAGE_HTML, "https://jobs.siemens.com/x"));
   assert.ok(err instanceof Error);
@@ -356,8 +331,7 @@ test("avatureAdapter.listPostings rejects a host that no longer serves an Avatur
 });
 
 test("avatureAdapter.listPostings returns [] for a LIVE portal with nothing open", async (t) => {
-  // The distinction the check exists for: zero articles, but the engine's own
-  // markup is there, so nothing fails.
+  // Zero articles, but the engine's own markup is present, so nothing fails.
   stubFetch(t, fetchSequence(() => htmlResponse(EMPTY_PORTAL_HTML)));
   assert.deepEqual(await avatureAdapter.listPostings(company), []);
 });
@@ -368,8 +342,7 @@ test("avatureAdapter.listPostings returns [] rather than failing on the engine's
 });
 
 test("avatureAdapter.listPostings still lists a populated portal unchanged", async (t) => {
-  // Page 1 has a Next link, so page 2 is fetched; its stale "No jobs found"
-  // placeholder ends the loop.
+  // Page 1 has a Next link, so page 2 is fetched; its stale "No jobs found" placeholder ends the loop.
   stubFetch(t, fetchSequence(
     () => htmlResponse(SEARCH_HTML),
     () => htmlResponse(NO_JOBS_HTML),
@@ -380,8 +353,7 @@ test("avatureAdapter.listPostings still lists a populated portal unchanged", asy
 });
 
 test("avatureAdapter.listPostings lets a LATER page with no postings end pagination instead of failing", async (t) => {
-  // NO_JOBS_HTML carries neither engine marker, and past page 1 that must still
-  // read as "the pager ran off the end", not "the board is dead".
+  // Past page 1, a page with no engine marker must read as "pager ran off the end", not "board is dead".
   stubFetch(t, fetchSequence(
     () => htmlResponse(SEARCH_HTML),
     () => htmlResponse(NO_JOBS_HTML),
@@ -392,8 +364,7 @@ test("avatureAdapter.listPostings lets a LATER page with no postings end paginat
 });
 
 test("avatureAdapter.listPostings resolves a tenant_url override that omits /SearchJobs", async (t) => {
-  // MetLife's row: tenant_url is the portal root, so /SearchJobs is appended and
-  // the check must run against the page that actually comes back.
+  // tenant_url can be the portal root; /SearchJobs is appended and the check runs against the actual response.
   const metlife: AdapterCompany = {
     provider: "avature",
     slug: "metlife",

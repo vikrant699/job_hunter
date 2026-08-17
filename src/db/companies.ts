@@ -80,13 +80,8 @@ const upsertCompanyStmt = db.prepare(`
     tenant_url       = excluded.tenant_url,
     api_meta         = excluded.api_meta
 `);
-// Intentionally NOT updated on conflict:
-//   discovered_via / discovered_at — provenance of the FIRST discovery, frozen.
-//   broken status — a re-import alone doesn't prove the source recovered;
-//   recovery from broken requires a human fixing the row on the Companies tab
-//   (status cell back to active).
-//   dormant status — set by applyDormancy from runtime yield data; a registry
-//   re-sync must not wake a parked company (markFetchSuccess wakes it on jobs).
+// Not updated on conflict: discovered_via/discovered_at (frozen at first discovery); broken/dormant status (a re-import
+// alone doesn't prove recovery - broken needs a human flip, dormant wakes only via markFetchSuccess).
 
 interface UpsertCompanyRow {
   [key: string]: SQLInputValue;
@@ -134,8 +129,7 @@ const deleteCompanyStmt = db.prepare(`
   DELETE FROM companies WHERE provider = :provider AND slug = :slug
 `);
 
-/** Remove a company row. Used by registry sync to prune rows no longer in the
- *  source-of-truth JSON (e.g. after a removal or a provider/slug conversion). */
+/** Removes a company row; used by registry sync to prune rows no longer in the source-of-truth JSON. */
 export function deleteCompany(provider: Provider, slug: string): void {
   deleteCompanyStmt.run({ provider, slug });
 }
@@ -169,9 +163,7 @@ export function markFetchSuccess(
   });
 }
 
-// In the CASE, `consecutive_failures` reads the PRE-update value (SQLite evaluates
-// all SET expressions against the old row), so `+ 1 >= 5` flips to broken on the
-// 5th consecutive failure — the same failure that writes the counter as 5.
+// `consecutive_failures` in the CASE reads the pre-update value, so `+ 1 >= 5` flips to broken on the same failure that writes the counter as 5.
 const markFetchFailureStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at      = :now,
@@ -206,17 +198,8 @@ const markTransportFailureStmt = db.prepare(`
   WHERE provider = :provider AND slug = :slug
 `);
 
-/**
- * Record a transport-layer failure (DNS/socket death — see isTransportError)
- * WITHOUT advancing the consecutive-failure counter that quarantines a board at
- * 5. The board never answered, so it told us nothing about its own health: a
- * dead resolver is not a dead board.
- *
- * Why this exists: in run 29 (2026-07-26) a ~9-minute local network outage made
- * 72 healthy Workday boards fail in 21 seconds. Counting those would have put
- * every one of them four runs from an automatic 'broken' flip, including Visa,
- * NVIDIA and Mastercard. The error text is still stored so the run is auditable.
- */
+/** Records a transport-layer failure (DNS/socket death) without advancing the consecutive-failure counter that
+ *  quarantines a board at 5 - a board that never answered told us nothing about its own health. */
 export function markTransportFailure(
   provider: Provider,
   slug: string,
@@ -235,8 +218,7 @@ const updateParsingStrategyStmt = db.prepare(`
   WHERE provider = :provider AND slug = :slug
 `);
 
-/** Runtime strategy flip (SPA sentinel). Pair with updateRegistryStrategy —
- *  the registry file is the source of truth and re-syncs over this column. */
+/** Runtime strategy flip; pair with updateRegistryStrategy, since the registry file re-syncs over this column. */
 export function updateParsingStrategy(provider: Provider, slug: string, strategy: ParsingStrategy): void {
   updateParsingStrategyStmt.run({ provider, slug, strategy });
 }
@@ -257,19 +239,8 @@ const applyDormancyStmt = db.prepare(`
     AND zero_yield_streak >= :minStreak
 `);
 
-/**
- * Park scrape companies that have produced zero postings for `minStreak`
- * consecutive clean runs. They re-enter the rotation weekly
- * (selectActiveCompanies) and wake instantly when jobs appear
- * (markFetchSuccess). ats-api companies are exempt — an API call is too cheap
- * to be worth parking. Returns the number of companies parked.
- *
- * url_suspect boards used to be exempt on the theory that a suspect URL needs
- * manual repair rather than parking. In practice that exempted 96 boards from
- * ever being parked, so each run paid a headless-browser render for pages that
- * had returned nothing for up to 18 runs. Parking them still leaves them in the
- * weekly recheck, so a repaired URL recovers on its own.
- */
+/** Parks scrape companies (ats-api is exempt - too cheap to bother) with zero postings for `minStreak` consecutive clean
+ *  runs; they re-enter the weekly recheck (selectActiveCompanies) and wake instantly on jobs (markFetchSuccess). */
 export function applyDormancy(minStreak: number = 3): number {
   const result = applyDormancyStmt.run({ minStreak });
   return Number(result.changes);

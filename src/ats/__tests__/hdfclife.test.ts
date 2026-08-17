@@ -30,16 +30,14 @@ test("hdfcEncrypt/hdfcDecrypt round-trip under the same token+iv (AES-256-GCM, 1
 });
 
 test("hdfcDecrypt uses the response's own rotating token+iv", () => {
-  // The server returns {token, iv} in cleartext alongside the payload; decrypt
-  // must key off those, not the static request token.
+  // The server returns {token, iv} in cleartext alongside the payload; decrypt must key off those, not the static request token.
   const respToken = "0123456789abcdef0123456789abcdefEXTRA-IGNORED-TAIL";
   const respIv = REQUEST_IV;
   const payload = hdfcEncrypt({ ok: true }, respToken, respIv);
   assert.deepEqual(hdfcDecrypt(payload, respToken, respIv), { ok: true });
 });
 
-// The list response nests jobs two levels deep: results.results[] is buckets
-// (one per JOB_ROLE), each with REQUISITION.results[] of the actual jobs.
+// The list response nests jobs two levels deep: results.results[] is buckets (one per JOB_ROLE), each with REQUISITION.results[] of actual jobs.
 const listPayload = {
   results: {
     results: [
@@ -92,9 +90,7 @@ test("normalizeHdfc falls back to LOC_NAME when CITY is blank", () => {
   assert.equal(p.location, "Gurugram Corp");
 });
 
-// The JD endpoint's `results` is a FLAT object (not results.results[]). JOB_DESC
-// carries the HTML body; JOBDESCRIPTION is a NESTED OBJECT on this tenant, so the
-// extractor must ignore non-string values and take the string field.
+// The JD endpoint's 'results' is a FLAT object; JOBDESCRIPTION is a NESTED OBJECT on this tenant, so the extractor must ignore non-string values.
 test("hdfcJdFromDetail extracts the JOB_DESC HTML body as plain text", () => {
   const detail = { results: { REQID: "69962", JOB_DESC: "<p>Build <strong>APIs</strong>.</p>", JOBDESCRIPTION: { nested: "object" } } };
   const jd = hdfcJdFromDetail(asJson(detail));

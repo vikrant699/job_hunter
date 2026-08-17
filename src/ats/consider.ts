@@ -1,17 +1,7 @@
-// src/ats/consider.ts — Consider.co VC-portfolio job boards (Peak XV / Surge).
-//
-// One board host serves an entire portfolio; `isParent:false` with a company
-// slug narrows it to that company, so each portfolio company is its own
+// src/ats/consider.ts — Consider.co VC-portfolio job boards (Peak XV / Surge). One board host serves an entire
+// portfolio; `isParent:false` with a company slug narrows it to that company, so each portfolio company is its own
 // registry row (same slug-keyed shape as talent500.ts).
-//
-//   POST <host>/api-boards/search-jobs
-//   {"meta":{"size":100,"offset":0},"board":{"id":"<slug>","isParent":false},
-//    "query":{"promoteFeatured":true}}
-//   -> {total, jobs:[{jobId,title,locations[],companyName,url,applyUrl,
-//                     minYearsExp,maxYearsExp,remote,...}]}
-//
-// Verified live 2026-08-01: jobs.surgeahead.com parent board = 804 jobs across
-// 110 companies, 85% India-located; board {id:"meragi",isParent:false} = 23.
+// POST <host>/api-boards/search-jobs, body {meta:{size,offset}, board:{id, isParent:false}, query:{promoteFeatured}}.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -42,7 +32,6 @@ const ConsiderResponseSchema = z.object({
   jobs: z.array(JsonValueSchema).optional(),
 });
 
-/** Request body for one page of one company's jobs. */
 export function considerSearchBody(boardId: string, size: number, offset: number): Record<string, JsonValue> {
   return {
     meta: { size, offset },
@@ -69,9 +58,7 @@ export function normalizeConsider(company: AdapterCompany, j: ConsiderJob): Norm
     jobUrl: j.url ?? j.applyUrl ?? company.careersUrl,
     location,
     isRemote: j.remote === true || (location !== null && REMOTE_RE.test(location)),
-    // The list response carries no description; left empty so the relevance
-    // gate never sees a truncated JD.
-    jdText: "",
+    jdText: "", // list response carries no description
     postedAt: typeof j.timeStamp === "string" ? j.timeStamp : null,
   };
 }

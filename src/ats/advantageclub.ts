@@ -1,50 +1,7 @@
-// src/ats/advantageclub.ts — Advantage Club's own careers board (a single
-// company, not a shared-vendor aggregator — Advantage Club is itself the
-// employer here, not one of many tenants on someone else's platform).
-//
-//   list:   GET https://app.advantageclub.ai/api/v1/career/jobs
-//                ?page=<1-based N>&per_page=<SIZE>
-//           -> { success: true, jobs: [ <job>, ... ],
-//                meta: { current_page, total_pages, total_count } }
-//           No auth. Confirmed live 2026-07-15 (curl): page=1&per_page=50
-//           returned all 5 open India roles in one page; page=2 returned an
-//           empty `jobs: []` with the same meta — pagination terminates on
-//           either an empty page or offset >= meta.total_count.
-//
-//   The list item only carries a `short_description` (a 1-2 sentence
-//   summary), NOT the full JD — confirmed by inspecting a raw list response.
-//
-//   detail: GET https://app.advantageclub.ai/api/v1/career/jobs/<numeric id>
-//           -> { success: true, job: { id, slug, title, category, location,
-//                description, responsibilities, skills_required,
-//                experience_qualification, education_qualification,
-//                experience_required, short_description, remote_policy,
-//                salary_range, no_of_vacancy, job_type, deadline_date,
-//                published_at } }
-//           Confirmed live: GET .../api/v1/career/jobs/17 returns the full
-//           `description` / `responsibilities` / `experience_qualification`
-//           text for that role (200); a made-up id (e.g. 999999) 404s.
-//           NOTE: this is keyed by the job's numeric `id`, NOT its `slug` —
-//           GET .../api/v1/career/jobs/op1 (the slug) 404s (returns the
-//           site's generic 404 HTML page, not JSON).
-//
-//   public job URL: the marketing site's careers page
-//   (https://www.advantageclub.ai/pages/ac_career) client-fetches the same
-//   list endpoint and links each row to
-//   /pages/ac_career/vacancy_details/<id> — recovered from that page's Next.js
-//   chunk (.../pages/ac_career/page-*.js), which contains the literal
-//   template string `href:"/pages/ac_career/vacancy_details/".concat(e.id)`.
-//   Confirmed live: GET .../pages/ac_career/vacancy_details/17 (200) renders
-//   that job's title. Built from the numeric id, same as the detail endpoint.
-//
-// JD: the detail endpoint above does return a full JD, so fetchJd builds it
-//   by concatenating, in order, whichever of [description, responsibilities,
-//   skills_required, experience_qualification, education_qualification,
-//   short_description] are present and non-empty, then stripping HTML (the
-//   fields are plain text with literal bullets/CRLFs in practice, not HTML,
-//   but htmlToText is a harmless no-op on plain text and normalizes
-//   whitespace). short_description is included last purely as a safety net
-//   in case a future posting is missing every other field.
+// src/ats/advantageclub.ts — Advantage Club's own careers board (app.advantageclub.ai), single-company, no auth.
+// List: GET /api/v1/career/jobs?page=&per_page= (only a short_description teaser, not the full JD).
+// Detail: GET /api/v1/career/jobs/<numeric id> (keyed by numeric id, NOT the slug - the slug path 404s).
+// Public job URL is /pages/ac_career/vacancy_details/<id> on the marketing site, same numeric id.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -55,7 +12,7 @@ import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 const API_ORIGIN = "https://app.advantageclub.ai";
 const PUBLIC_ORIGIN = "https://www.advantageclub.ai";
 const PAGE_SIZE = 50;
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const MAX_PAGES = 5000; // runaway backstop only, never truncate
 
 const AdvantageClubJobSchema = z.object({
   id: z.number(),
@@ -94,17 +51,14 @@ const AdvantageClubDetailSchema = z.object({
 });
 export type AdvantageClubDetail = z.infer<typeof AdvantageClubDetailSchema>["job"];
 
-/** Build the paged list URL (1-based `page`, per the live API). */
 export function advantageClubListUrl(page: number, perPage: number = PAGE_SIZE): string {
   return `${API_ORIGIN}/api/v1/career/jobs?page=${page}&per_page=${perPage}`;
 }
 
-/** Build the job-detail URL from a job's numeric id (NOT its `slug`). */
 export function advantageClubDetailUrl(id: number): string {
   return `${API_ORIGIN}/api/v1/career/jobs/${id}`;
 }
 
-/** Public job page URL, built from the same numeric id. */
 export function advantageClubJobUrl(id: number): string {
   return `${PUBLIC_ORIGIN}/pages/ac_career/vacancy_details/${id}`;
 }
@@ -125,10 +79,7 @@ export function normalizeAdvantageClubJob(company: AdapterCompany, j: AdvantageC
   };
 }
 
-/** Build the plain-text JD by concatenating, in order, whichever of
- *  [description, responsibilities, skills_required, experience_qualification,
- *  education_qualification, short_description] are present and non-empty,
- *  then stripping HTML. Throws if none yield text. */
+/** Concatenates whichever JD-bearing fields are present, then strips HTML. Throws if none yield text. */
 export function buildAdvantageClubJd(detail: AdvantageClubDetail): string {
   const parts = [
     detail.description,

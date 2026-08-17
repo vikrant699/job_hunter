@@ -13,13 +13,10 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real jobPostings[0] shape from
-// https://www.ycombinator.com/companies/landeed/jobs, still HTML-attribute-escaped
-// the way YC's SSR emits it inside `data-page="..."`.
+// Trimmed real jobPostings[0] shape, still HTML-attribute-escaped the way YC's SSR emits it in data-page="...".
 const LIST_PAGE_HTML = `<div id="WaasShowJobsPage-react-component-abc" data-page="{&quot;component&quot;:&quot;WaasShowJobsPage&quot;,&quot;props&quot;:{&quot;company&quot;:{&quot;id&quot;:27252,&quot;slug&quot;:&quot;landeed&quot;,&quot;name&quot;:&quot;Landeed&quot;},&quot;jobPostings&quot;:[{&quot;id&quot;:95916,&quot;title&quot;:&quot;Member of Technical Staff - Post-Training Engineer&quot;,&quot;url&quot;:&quot;/companies/landeed/jobs/GL2b1aZ-member-of-technical-staff-post-training-engineer&quot;,&quot;location&quot;:&quot;Hyderabad, TS, IN / Hyderabad, Telangana, IN&quot;,&quot;type&quot;:&quot;Full-time&quot;,&quot;createdAt&quot;:&quot;about 1 month&quot;,&quot;lastActive&quot;:&quot;28 days&quot;},{&quot;id&quot;:64084,&quot;title&quot;:&quot;Performance Marketing Associate&quot;,&quot;url&quot;:&quot;/companies/material-depot/jobs/xtGGo2v-performance-marketing-associate&quot;,&quot;location&quot;:&quot;Remote&quot;,&quot;type&quot;:&quot;Full-time&quot;,&quot;createdAt&quot;:&quot;over 2 years&quot;}]}}">`;
 
-// Trimmed real detail-page shape from
-// https://www.ycombinator.com/companies/landeed/jobs/GL2b1aZ-...
+// Trimmed real detail-page shape from ycombinator.com/companies/landeed/jobs/<slug>.
 const DETAIL_PAGE_HTML = `<div id="WaasShowJobPage-react-component-def" data-page="{&quot;component&quot;:&quot;WaasShowJobPage&quot;,&quot;props&quot;:{&quot;company&quot;:{&quot;slug&quot;:&quot;landeed&quot;},&quot;job&quot;:{&quot;id&quot;:95916,&quot;title&quot;:&quot;Member of Technical Staff - Post-Training Engineer&quot;,&quot;description&quot;:&quot;## The Role\\n\\nYou&#x27;ll own post-training end to end.\\n\\n* Bullet one\\n* Bullet two&quot;}}}">`;
 
 test("extractYcDataPage decodes the entity-escaped data-page attribute and parses the JSON island", () => {
@@ -120,7 +117,6 @@ test("detail-page data-page extraction yields the full JD via ycJobFromDetailPag
   const job = ycJobFromDetailPage(data, "landeed", "95916");
   assert.ok(job);
   assert.match(job.description ?? "", /own post-training end to end/);
-  // Entities inside the JD text itself (apostrophe) are decoded too.
   assert.match(job.description ?? "", /You'll own/);
 });
 

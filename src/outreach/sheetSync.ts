@@ -11,10 +11,7 @@ function rolesCell(roles: RoleEntry[]): string {
   return roles.map((r) => `${r.title} — ${r.jobUrl}`).join("\n");
 }
 
-/** The role entry that should drive the row's Severity/Score columns: highest
- *  severity first (green beats yellow), then highest score within that tier.
- *  Null for an empty roles list (corrupt/hand-edited roles_json) so one bad
- *  row degrades to blank cells instead of aborting the whole projection. */
+/** Highest-severity role (green beats yellow), then highest score within that tier; null for an empty roles list. */
 function maxSeverityRole(roles: RoleEntry[]): RoleEntry | null {
   if (roles.length === 0) return null;
   return roles.reduce((best, r) => {
@@ -86,17 +83,9 @@ function undraftedRow(row: UndraftedRow): string[] {
   ];
 }
 
-/**
- * Projects the current outreach DB state into the bot-managed sheet tabs:
- *   - Drafts: full rewrite, ALL profiles' status='draft' rows (global view).
- *   - Sent: full rewrite, ALL profiles' sent/bounced/verified rows, newest first.
- *   - Undrafted: APPEND only, scoped to THIS run's rows by runId (never by
- *     calendar date — two runs on the same IST day would re-append the first
- *     run's rows and duplicate them on the tab, since append never dedups).
- *
- * `profileId` addresses which profile's Google credentials make the API calls
- * (Sheets access is per-profile-token), not which rows are included.
- */
+// Projects outreach DB state into the bot-managed tabs: Drafts/Sent full-rewrite across all profiles;
+// Undrafted append-only scoped by runId (never calendar date, since append never dedups).
+// profileId only picks which credentials make the API calls, not which rows are included.
 export async function projectToSheet(profileId: string, runId?: number | null, deps: SheetSyncDeps = defaultDeps()): Promise<void> {
   const drafts = selectOutreachByStatus("draft").map(draftRow);
   await deps.rewriteTab(profileId, config.google.tabs.drafts, [...DRAFTS_HEADER], drafts);

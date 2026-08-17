@@ -10,8 +10,8 @@ import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
-// Two-phase: listPostings (metadata only) then fetchJd (full body) so we only
-// pay the per-job HTTP call for postings that survived location + dedup.
+// Two-phase: listPostings (metadata only) then fetchJd (full body), so the per-job HTTP
+// call is only paid for postings that survived location + dedup.
 interface WorkdayUrlParts {
   base: string;
   tenant: string;
@@ -49,15 +49,11 @@ type WorkdayJobPosting = z.infer<typeof WorkdayJobPostingSchema>;
 
 const WorkdayListResponseSchema = z.object({
   total: z.number().nullable().optional(),
-  // Items validated one at a time in parseWorkdayListPage: live tenants
-  // (barclays, bdx, cisco, comcast, intel — run of 2026-08-12) occasionally
-  // include a stub row with no title/externalPath, and one stub must not fail
-  // a board of 1000+ postings.
+  // Items are validated one at a time in parseWorkdayListPage: live tenants occasionally
+  // include a stub row with no title/externalPath, and one stub must not fail a 1000+ posting board.
   jobPostings: z.array(JsonValueSchema),
-  // Raw facet tree (shape varies a lot by tenant — some leaves are flat
-  // id+count values, some nest a sub-facet group first). Only consumed by
-  // the 2000-total-latch partitioning path below; left unvalidated beyond
-  // "is JSON" since we defensively narrow it with getObj at read time.
+  // Raw facet tree, shape varies a lot by tenant; only consumed by the 2000-total-latch
+  // partitioning path below, so left unvalidated beyond "is JSON".
   facets: z.array(JsonValueSchema).nullable().optional(),
 });
 
@@ -68,13 +64,9 @@ export interface WorkdayListPage {
   skipped: number;
 }
 
-/**
- * Validate one CXS /jobs page. The envelope must parse (anything else is real
- * drift), but items are judged individually: a stub row is skipped, and only
- * EVERY item failing on a non-empty page throws — that shape means the field
- * names moved, and silently skipping all of them would report a healthy board
- * with zero jobs.
- */
+// Validates one CXS /jobs page. The envelope must parse, but items are judged
+// individually: a stub row is skipped, and only EVERY item failing on a non-empty page
+// throws (that shape means the field names moved, not that a row is a fluke).
 export function parseWorkdayListPage(raw: JsonValue, slug: string): WorkdayListPage {
   const envelope = parseOrThrow(WorkdayListResponseSchema, raw, { provider: "workday", slug });
   const postings: WorkdayJobPosting[] = [];
@@ -119,13 +111,10 @@ export const workdayAdapter: AtsAdapter = {
     const parts = parseTenantUrl(company.tenantUrl);
     const listUrl = `${parts.cxsBase}/jobs`;
 
-    // An api_meta pin (facetParam + facetValueIds) wins outright — set on
-    // tenants whose location facet has no "India"-token leaves for discovery
-    // to find (lowes: a flat `locations` facet, India leaf just "Bengaluru").
-    // Otherwise probe for an India country facet. Most tenants expose it;
-    // legacy ones may not — in that case we paginate unfiltered (bounded by
-    // the pagination cap below) and the downstream location filter handles
-    // India detection from the locationsText.
+    // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location
+    // facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just
+    // "Bengaluru"). Otherwise probe for an India country facet; legacy tenants without one
+    // paginate unfiltered and rely on the downstream location filter.
     const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
     const appliedFacets: Record<string, string[]> = indiaFacet
       ? { [indiaFacet.param]: indiaFacet.uuids }
@@ -142,17 +131,11 @@ export const workdayAdapter: AtsAdapter = {
       );
     }
 
-    // Caterpillar (and some others) report `total` correctly only on the
-    // first page; `paginate` latches the first non-zero value it sees and
-    // uses it to terminate even when later pages keep returning PAGE_LIMIT
-    // jobs past the real end.
-    //
-    // Separately, some "monster board" tenants (e.g. Genpact) report `total`
-    // as exactly 2000 — a Workday CXS server-side cap — even though the real
-    // board is much larger (verified live: Genpact's own jobFamilyGroup facet
-    // counts summed to 3077). crawlWorkdayPostings detects that exact value
-    // and, when a flat facet is available, partitions the crawl by it so each
-    // slice stays under the cap.
+    // Some tenants (Caterpillar) report `total` correctly only on the first page;
+    // `paginate` latches the first non-zero value. Separately, some "monster board"
+    // tenants (Genpact) cap `total` at exactly 2000 even when the real board is much
+    // larger — crawlWorkdayPostings detects that latch and, when a flat facet is
+    // available, partitions the crawl by it so each slice stays under the cap.
     return crawlWorkdayPostings(company, appliedFacets, indiaFacet?.param ?? null, async (offset, facets) => {
       const data = await atsFetchJson(listUrl, {
         method: "POST",
@@ -173,8 +156,7 @@ export const workdayAdapter: AtsAdapter = {
     }
     const parts = parseTenantUrl(company.tenantUrl);
 
-    // externalPath is stored in the posting's job-detail URL; we squirreled the path
-    // into jobUrl during normalizeListing. Reconstruct the CXS detail endpoint.
+    // externalPath was squirreled into jobUrl during normalizeListing; reconstruct the CXS detail endpoint.
     const externalPath = extractExternalPathFromJobUrl(posting.jobUrl, parts.uiBase);
     if (!externalPath) {
       throw new Error(`cannot derive externalPath from jobUrl: ${posting.jobUrl}`);
@@ -195,14 +177,10 @@ export const workdayAdapter: AtsAdapter = {
   },
 };
 
-// Some tenants (e.g. Accenture) omit `locationsText` entirely; the city then
-// only shows up as one of the display-only `bulletFields`, typically as
-// `[reqId, location]` with no jobPostingId/shortId present either. Take the
-// first bulletField that isn't the req id and isn't known non-location
-// display metadata ("Full time", "40 hrs/week"). Location values seen live
-// are plain city names ("Milan", "London") as often as "City, Country"
-// strings, so we can't require a comma — the req-id/metadata exclusions are
-// the only filter.
+// Some tenants (Accenture) omit locationsText entirely; the city then only shows up as one
+// of the display-only bulletFields, typically [reqId, location]. Take the first bulletField
+// that isn't the req id and isn't known non-location metadata ("Full time", "40 hrs/week")
+// — values are plain city names as often as "City, Country", so no comma requirement.
 const REQ_ID_RE = /^(req|r)[-_]?\d+$/i;
 const NON_LOCATION_BULLET_RE =
   /^(full|part)[\s-]*time$|^\d+(\.\d+)?\s*\+?\s*hrs?\.?\s*\/?\s*(per\s*)?week$|^(permanent|temporary|contract(or)?|intern(ship)?)$/i;
@@ -226,9 +204,8 @@ export function normalizeWorkdayListing(
   j: WorkdayJobPosting,
   parts?: WorkdayUrlParts
 ): NormalizedPosting {
-  // externalId: prefer shortId/jobPostingId, fall back to externalPath tail.
-  // bulletFields is display metadata ("Full time", "40 hrs/week") — never an ID;
-  // using it would collide every posting on tenants that omit shortId.
+  // externalId: prefer shortId/jobPostingId, fall back to externalPath tail. bulletFields is
+  // display metadata, never an ID — using it would collide postings on tenants without shortId.
   const externalId =
     j.shortId ??
     j.jobPostingId ??
@@ -245,8 +222,7 @@ export function normalizeWorkdayListing(
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    // jobUrl is the human-facing UI URL — useful for Discord links AND we use it
-    // to reconstruct externalPath in fetchJd.
+    // jobUrl is the human-facing UI URL; also used to reconstruct externalPath in fetchJd.
     jobUrl: `${uiBase}${j.externalPath}`,
     location,
     isRemote,
@@ -262,13 +238,10 @@ function extractExternalPathFromJobUrl(jobUrl: string, uiBase: string): string |
 }
 
 // --- 2000-total-latch partitioning ---------------------------------------
-//
-// Some Workday "monster board" tenants (Genpact confirmed live) report
-// `total` as exactly 2000 regardless of how far past that offset you page —
-// a server-side cap, not the real job count (Genpact's own jobFamilyGroup
-// facet counts summed to 3077). When that happens we partition the crawl by
-// a flat facet (one `appliedFacets` selection per value) so each slice's own
-// reported total stays under the cap, and union the results by externalId.
+// Some Workday "monster board" tenants (Genpact confirmed live) report `total` as exactly
+// 2000 regardless of offset — a server-side cap, not the real count. When that happens we
+// partition the crawl by a flat facet (one appliedFacets selection per value) so each
+// slice's own reported total stays under the cap, and union results by externalId.
 
 const WORKDAY_TOTAL_LATCH = 2000;
 
@@ -282,8 +255,7 @@ export interface PartitionFacet {
   values: PartitionFacetValue[];
 }
 
-/** Result of fetching one Workday listing page, including the raw facet tree
- *  (needed only to decide/execute latch partitioning — see above). */
+// Result of fetching one Workday listing page, including the raw facet tree (needed only for latch partitioning above).
 export interface WorkdayPageResult {
   items: NormalizedPosting[];
   total: number | null;
@@ -295,12 +267,9 @@ export type WorkdayPageFetcher = (
   facets: Record<string, string[]>
 ) => Promise<WorkdayPageResult>;
 
-// A "leaf" facet has values that are themselves directly selectable
-// (id + count), as opposed to a nested facet whose values are further facet
-// groups (e.g. Genpact's locationMainGroup, whose one top-level value is a
-// sub-facet named "locations" with no id/count of its own — the real
-// per-location leaves are one level deeper). Only leaf facets are safe to
-// select on with a single `appliedFacets` entry.
+// A "leaf" facet has values that are themselves directly selectable (id + count), as
+// opposed to a nested facet whose values are further facet groups. Only leaf facets are
+// safe to select on with a single appliedFacets entry.
 function leafValuesOf(node: JsonValue): PartitionFacetValue[] | null {
   const obj = getObj(node);
   if (!obj) return null;
@@ -319,14 +288,8 @@ function leafValuesOf(node: JsonValue): PartitionFacetValue[] | null {
   return out;
 }
 
-/**
- * Picks the best facet to partition the crawl by: the flat leaf facet (see
- * `leafValuesOf`) with the most distinct values — more buckets means a
- * smaller max-bucket size, which is less likely to hit the 2000 cap itself.
- * Facets with fewer than 2 values aren't useful for partitioning. Excludes
- * `excludeParam` (the India country facet already applied, if any) so we
- * don't try to select on a param that's already fixed in `appliedFacets`.
- */
+// Picks the flat leaf facet with the most distinct values (smaller max-bucket size, less
+// likely to hit the cap itself); excludes excludeParam (the India facet already applied).
 export function selectPartitionFacet(
   facets: JsonValue[] | null | undefined,
   excludeParam: string | null
@@ -351,8 +314,7 @@ export function selectPartitionFacet(
   return best;
 }
 
-/** Plain offset-paginated crawl (the pre-partitioning behavior), reusing the
- *  already-fetched first page instead of refetching it. */
+// Plain offset-paginated crawl (pre-partitioning behavior), reusing the already-fetched first page.
 async function crawlFlat(
   company: AdapterCompany,
   baseFacets: Record<string, string[]>,
@@ -375,13 +337,8 @@ async function crawlFlat(
   });
 }
 
-/**
- * Orchestrates a Workday listing crawl, transparently switching to
- * facet-partitioned crawling when the reported total latches at exactly
- * 2000. `fetchPage` is injected so this stays unit-testable with fixture
- * payloads — the real adapter wires it to `atsFetchJson` (see `listPostings`
- * above).
- */
+// Orchestrates a Workday listing crawl, switching to facet-partitioned crawling when the
+// reported total latches at exactly 2000. `fetchPage` is injected for unit-testability.
 export async function crawlWorkdayPostings(
   company: AdapterCompany,
   baseFacets: Record<string, string[]>,

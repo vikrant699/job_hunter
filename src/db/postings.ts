@@ -7,8 +7,7 @@ import { db, queryAll } from "./db.js";
 
 /* ===== Statements ===== */
 
-// p.jdText is deliberately NOT persisted: the gate consumes it in-memory during
-// the run and nothing reads it back afterwards.
+// p.jdText is deliberately not persisted: the gate consumes it in-memory and nothing reads it back afterwards.
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
     provider, external_id, profile_id, company_slug, job_title, job_url, location,
@@ -64,11 +63,7 @@ const selectNotifiedRoleKeysStmt = db.prepare(`
 // keeps the in-memory dedup set from growing unboundedly with notify history.
 const NOTIFY_DEDUP_WINDOW_DAYS = 180;
 
-/**
- * Every (company name, title, location) tuple notified in the last 180 days. Used
- * to dedupe re-listed roles ACROSS runs: a repost gets a fresh external_id, so
- * postingExists misses it, but the role is unchanged — we shouldn't ping it again.
- */
+/** Every (company, title, location) tuple notified in the last 180 days; dedupes reposts, which get a fresh external_id and would otherwise slip past postingExists. */
 export function selectNotifiedRoleKeys(profileId: string): Array<{
   company: string | null;
   title: string | null;
@@ -134,9 +129,7 @@ export interface OutreachNotifiedPosting {
   severity: Severity;
 }
 
-// Notified postings for outreach: drop_stage NULL -> green, drop_stage 'yellow'
-// -> yellow (the only two drop_stage values a notified row can carry). Company
-// DISPLAY name comes from a join since postings only stores the slug.
+// drop_stage NULL -> green, 'yellow' -> yellow (the only two values a notified row can carry); company display name comes from a join since postings only stores the slug.
 const selectNotifiedPostingsSinceStmt = db.prepare(`
   SELECT p.provider, c.name AS company, p.company_slug, p.job_title, p.job_url,
          p.location, p.llm_confidence, p.drop_stage
@@ -147,9 +140,7 @@ const selectNotifiedPostingsSinceStmt = db.prepare(`
     AND p.profile_id = :profileId
 `);
 
-/** Every posting notified since `sinceIso` for `profileId`, joined to the
- *  company's display name (falls back to the slug when no company row
- *  exists). Feeds the post-run outreach draft stage. */
+/** Postings notified since `sinceIso` for `profileId`, joined to company display name (falls back to slug). Feeds the outreach draft stage. */
 export function selectNotifiedPostingsSince(sinceIso: string, profileId: string): OutreachNotifiedPosting[] {
   const rows = queryAll(selectNotifiedPostingsSinceStmt, OutreachNotifiedPostingRowSchema, {
     sinceIso,

@@ -1,4 +1,3 @@
-// src/ats/setu.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseCsvRows, parseSetuCsv, setuExternalId, normalizeSetuRow, extractSetuJdText, SETU_LOCATION } from "../setu.js";
@@ -14,8 +13,6 @@ const company: AdapterCompany = {
   tenantUrl: null,
   apiMeta: null,
 };
-
-// --- parseCsvRows: the raw tokenizer -------------------------------------
 
 test("parseCsvRows splits plain comma-separated rows", () => {
   const rows = parseCsvRows("a,b,c\n1,2,3\n");
@@ -64,12 +61,7 @@ test("parseCsvRows handles a file with no trailing newline", () => {
   ]);
 });
 
-// --- parseSetuCsv: header-mapped rows, realistic live-captured shape ----
-
-// Trimmed excerpt of the real CSV (GET raw.githubusercontent.com/SetuHQ/
-// website-content/main/careers/Setu%20Website%20-%20CurrentOpenings.csv),
-// plus one synthetic row with an empty Description/Sub-category (verified
-// live shape: "Senior Manager - Strategic Accounts" row has both blank).
+// Trimmed excerpt of the real CSV, plus one synthetic row with an empty Description/Sub-category (a verified live shape).
 const REAL_CSV = `Role,Description,Link,Category,Sub-category
 SDE -II,https://docs.google.com/document/d/1wqbbzRAOxwIY8IjhLlAiVeoKHVFNFyWEib8gKmcsa38/edit?usp=sharing,https://pinelabsgroup.turbohire.co/get/YXQ5M3d,Engineering,Platform
 Senior Manager - Strategic Accounts,,https://pinelabsgroup.turbohire.co/get/OGk2WWZ,Sales,
@@ -85,7 +77,7 @@ test("parseSetuCsv maps columns by header name and trims cells", () => {
   assert.equal(at(rows, 1).role, "Senior Manager - Strategic Accounts");
   assert.equal(at(rows, 1).description, "");
   assert.equal(at(rows, 1).subCategory, "");
-  assert.equal(at(rows, 2).role, "Data Engineer"); // trailing space trimmed
+  assert.equal(at(rows, 2).role, "Data Engineer");
 });
 
 test("parseSetuCsv throws on an unrecognized header", () => {
@@ -95,8 +87,6 @@ test("parseSetuCsv throws on an unrecognized header", () => {
 test("parseSetuCsv throws on empty input", () => {
   assert.throws(() => parseSetuCsv(""), /empty CSV/);
 });
-
-// --- externalId / slugify -------------------------------------------------
 
 test("setuExternalId extracts the TurboHire code from the Link URL", () => {
   const row: SetuRow = {
@@ -120,8 +110,6 @@ test("setuExternalId falls back to a slugified role when the Link doesn't match"
   assert.equal(setuExternalId(row), "senior-manager-strategic-accounts");
 });
 
-// --- normalizeSetuRow -------------------------------------------------------
-
 test("normalizeSetuRow builds a posting with the fixed HQ location", () => {
   const rows = parseSetuCsv(REAL_CSV);
   const p = normalizeSetuRow(company, at(rows, 0));
@@ -134,11 +122,7 @@ test("normalizeSetuRow builds a posting with the fixed HQ location", () => {
   assert.equal(p.jdText, "");
 });
 
-// --- extractSetuJdText: JSON-LD JobPosting island --------------------------
-
-// Trimmed live-captured shape from GET pinelabsgroup.turbohire.co/get/YXQ5M3d
-// (~12.6KB full page) — head + the schema.org JobPosting script that carries
-// the full plain-text JD, matching what the integrator verified live.
+// Trimmed live-captured shape: head + the schema.org JobPosting script carrying the full plain-text JD.
 const REAL_JOB_PAGE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>TurboHire</title>
 <meta property="og:title" content="[Hiring For]: SDE II(DT_210)"/>

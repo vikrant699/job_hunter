@@ -20,8 +20,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// --- URL builders -----------------------------------------------------------
-
 test("talent500ListUrl builds a company_slug-filtered, offset/size-paged URL", () => {
   assert.equal(
     talent500ListUrl("best-buy-india", 0, 50),
@@ -46,8 +44,6 @@ test("talent500JobUrl builds the public job page URL", () => {
     "https://talent500.com/jobs/software-engineer-i-qa-bengaluru-T500-26950",
   );
 });
-
-// --- talent500ShouldKeep -----------------------------------------------------
 
 const baseJob: Talent500Job = {
   id: "a1b2c3d4-0000-0000-0000-000000000001",
@@ -78,8 +74,6 @@ test("talent500ShouldKeep drops an undisplayable job", () => {
 test("talent500ShouldKeep drops an inactive job", () => {
   assert.equal(talent500ShouldKeep({ ...baseJob, is_active: false }), false);
 });
-
-// --- normalizeTalent500Job ---------------------------------------------------
 
 test("normalizeTalent500Job maps fields correctly", () => {
   const p = normalizeTalent500Job(company, baseJob);
@@ -130,8 +124,6 @@ test("normalizeTalent500Job maps an unparseable/absent created_at to null posted
   assert.equal(p.postedAt, null);
 });
 
-// --- talent500SlugFromUrl -----------------------------------------------------
-
 test("talent500SlugFromUrl derives the job slug from the public jobUrl", () => {
   assert.equal(
     talent500SlugFromUrl("https://talent500.com/jobs/software-engineer-i-qa-bengaluru-T500-26950"),
@@ -142,8 +134,6 @@ test("talent500SlugFromUrl derives the job slug from the public jobUrl", () => {
 test("talent500SlugFromUrl throws on a URL with no path segment", () => {
   assert.throws(() => talent500SlugFromUrl("https://talent500.com/"), /could not derive job slug/);
 });
-
-// --- buildTalent500Jd ---------------------------------------------------------
 
 test("buildTalent500Jd concatenates the JD-bearing fields in order and strips HTML", () => {
   const detail: Talent500Detail = {
@@ -189,13 +179,8 @@ test("buildTalent500Jd throws when no JD-bearing field yields text", () => {
   );
 });
 
-// --- dead tenant vs empty board -----------------------------------------------
-//
-// Shapes below are trimmed from live probes of prod-warmachine.talent500.co on
-// 2026-08-02. The distinction under test: a slug that does not exist is NOT
-// answered with an empty board — the server drops the company_slug filter and
-// serves the whole aggregator, so the row would silently import thousands of
-// other employers' postings.
+// A slug that doesn't exist is NOT answered with an empty board - the server drops the
+// company_slug filter and serves the whole aggregator, importing other employers' postings.
 
 /** One list row, only the fields the adapter reads. */
 function row(id: string, companySlug: string | null): Talent500Job {
@@ -207,17 +192,13 @@ function row(id: string, companySlug: string | null): Talent500Job {
   };
 }
 
-// Verbatim shape of GET …/search/?company_slug=zzz-no-such-tenant-9x: HTTP 200,
-// the filter dropped, total 6190 (the entire aggregator), rows belonging to
-// whichever employers happen to sort first.
+// Shape for a dead slug: HTTP 200, filter dropped, total is the entire aggregator.
 const UNFILTERED_FEED = {
   total: 6190,
   data: [row("00bc53fe", "aatechhubindia"), row("11cd64ef", "albertsonsindia"), row("22de75f0", "summit-consulting")],
 };
 
-// A LIVE tenant with nothing open. ciena, zinnia, aveva, alfa-laval, vip-india
-// and csgi all returned exactly this on 2026-08-02 while resolving 200 at
-// /api/companies/<slug>/. This is the case the guard must never swallow.
+// A live tenant with nothing open, resolving 200 at /api/companies/<slug>/ - the guard must never swallow this case.
 const EMPTY_BOARD = { total: 0, data: [] };
 
 const nokia: AdapterCompany = {
@@ -242,8 +223,7 @@ test("talent500FilterWasIgnored accepts a page that contains this company's rows
 });
 
 test("talent500FilterWasIgnored stays quiet on an empty page and on rows with no company object", () => {
-  // Neither shape can answer "was the filter applied?", and guessing wrong here
-  // fails a working board — so both must fail open.
+  // Neither shape can answer "was the filter applied?", so both must fail open rather than fail a working board.
   assert.equal(talent500FilterWasIgnored([], "nokia"), false);
   assert.equal(talent500FilterWasIgnored([row("a", null), row("b", null)], "nokia"), false);
 });
@@ -257,9 +237,7 @@ test("listPostings rejects a dead slug served as the unfiltered aggregator feed"
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", async (t) => {
-  // A dead slug is a real per-company defect and MUST count toward the row's
-  // consecutive_failures. If any of these flipped true the scheduler would
-  // retry the board forever and never quarantine it.
+  // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
   stubFetch(t, () => Promise.resolve(jsonResponse(UNFILTERED_FEED)));
   const err = await talent500Adapter
     .listPostings({ ...company, slug: "zzz-no-such-tenant-9x" })
@@ -293,8 +271,7 @@ test("listPostings throws when an empty board's slug 404s at the company endpoin
 });
 
 test("an empty board survives the company endpoint answering 400 'Not Published'", async (t) => {
-  // 15 of the 85 live rows (aramco, bp, zillow, kaspersky, …) answer 400 there
-  // while listing jobs perfectly well — only a 404 may fail the company.
+  // Several live tenants answer 400 there while listing jobs fine; only a 404 may fail the company.
   stubFetch(t, (input) => {
     if (String(input).includes("/api/companies/")) {
       return Promise.resolve(new Response('"Not Published"', { status: 400 }));
@@ -328,19 +305,14 @@ test("listPostings still parses a populated board unchanged", async (t) => {
 });
 
 test("a populated page is never re-audited on later pages", async (t) => {
-  // Page 2+ must not run the filter check: only page 1 decides the tenant is
-  // real, and a board that already produced postings can never be failed here.
+  // Only page 1 runs the filter check; a stray foreign row deep in the crawl must not quarantine an already-yielding board.
   const full = { total: 60, data: Array.from({ length: 50 }, (_, i) => row(`nokia-${i}`, "nokia")) };
-  // The vendor re-serving a stray foreign row deep in the crawl must not
-  // quarantine a board that has already yielded 50 postings.
   const tail = { total: 60, data: [row("stray", "some-other-employer")] };
   let call = 0;
   stubFetch(t, () => Promise.resolve(jsonResponse(call++ === 0 ? full : tail)));
   const postings = await talent500Adapter.listPostings(nokia);
   assert.equal(postings.length, 51);
 });
-
-// --- search_after cursor pagination -----------------------------------------
 
 test("listPostings paginates via the search_after cursor (server ignores offset)", async (t) => {
   const mk = (n: number): Talent500Job => ({

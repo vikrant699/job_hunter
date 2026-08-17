@@ -1,28 +1,8 @@
-// src/ats/mercedes.ts — Mercedes-Benz careers (jobs.mercedes-benz.com), backed
-// by an HR-Open/USAJobs-style search gateway at jobs.api.mercedes-benz.com.
-//
-// List: GET https://jobs.api.mercedes-benz.com/search?data=<url-encoded JSON>
-//   { LanguageCode, SearchParameters: { FirstItem (1-indexed), CountItem, Sort,
-//     MatchedObjectDescriptor: [<fully-qualified field paths>] },
-//     SearchCriteria: [{ CriterionName, CriterionValue: [...] }] }
-//   -> { SearchResult: { SearchResultCountAll, SearchResultItems: [{
-//          MatchedObjectId, MatchedObjectDescriptor: {...} }] } }
-//   Filtering by `PositionLocation.Country` (390 = India) was captured from
-//   the real frontend by intercepting its window.fetch calls while it loaded
-//   facet counts (a *different*, undocumented endpoint from the plain
-//   POST /search/en?{page,size} one bare-curl turns up — that one ignores
-//   every filter and always returns the full global list, but this one
-//   filters correctly). Facet counts on jobs.mercedes-benz.com confirm this
-//   matches the site's own "India (150)" count once deduped (see below).
-//   Requisitions are published once per channel, so the raw feed repeats each
-//   job 2-3x with the same PositionID under different MatchedObjectIds —
-//   listPostings dedupes on PositionID.
-//
-// JD: this filtered endpoint never returns PositionFormattedDescription no
-//   matter what fields are requested (confirmed: request it alone, still
-//   absent). Instead fetchJd GETs the public job page (PositionURI, which is
-//   already a full absolute URL server-rendered by Nuxt) and pulls the body
-//   out of its embedded JSON-LD `JobPosting` node.
+// src/ats/mercedes.ts — Mercedes-Benz careers (jobs.mercedes-benz.com), backed by an HR-Open-style
+// search gateway (jobs.api.mercedes-benz.com/search?data=<url-encoded JSON>), filtered by
+// PositionLocation.Country=390 (India). Requisitions repeat 2-3x per channel under the same
+// PositionID, so listPostings dedupes on it. The filtered endpoint never returns a JD body, so
+// fetchJd pulls it from the public job page's embedded JSON-LD JobPosting node instead.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -50,7 +30,7 @@ const FIELDS = [
   "PositionSchedule.Name",
 ];
 
-/** Build the paged, India-filtered search URL (1-indexed `firstItem`). */
+// 1-indexed firstItem.
 export function mercedesSearchUrl(firstItem: number, countItem: number): string {
   const query = {
     LanguageCode: "EN",
@@ -103,9 +83,6 @@ export function normalizeMercedes(company: AdapterCompany, d: MercedesDescriptor
   };
 }
 
-/** JD text from a job page's JSON-LD JobPosting island. Nuxt emits one
- *  `<script type="application/ld+json">` with an `@graph` array (which
- *  extractJsonLdJobs already walks); "" when absent or malformed. */
 export function mercedesJdFromHtml(html: string): string {
   const [job] = extractJsonLdJobs(html);
   return job?.description ? htmlToText(job.description) : "";
@@ -128,8 +105,7 @@ export const mercedesAdapter: AtsAdapter = {
       },
     });
 
-    // The feed republishes each requisition once per channel (2-3x) — keep
-    // the first-seen row per PositionID so a job isn't multiplied downstream.
+    // Keep the first-seen row per PositionID so a job isn't multiplied downstream.
     const seen = new Map<string, MercedesDescriptor>();
     for (const d of raw) {
       if (!seen.has(d.PositionID)) seen.set(d.PositionID, d);

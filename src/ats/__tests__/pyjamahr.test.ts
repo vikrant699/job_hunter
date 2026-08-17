@@ -35,8 +35,6 @@ const company: AdapterCompany = {
   apiMeta: { companyUuid: "2615584222" },
 };
 
-// Trimmed real item from GET api.pyjamahr.com/api/career/jobs/?company_uuid=2615584222
-// (captured 2026-07-11).
 const job: PyjamahrJob = {
   id: 375341,
   slug: "manager-senior-manager-finance",
@@ -57,7 +55,6 @@ const listResponse = {
   results: [job],
 };
 
-// Trimmed real detail from GET api.pyjamahr.com/api/career/jobs/375341/?company_uuid=2615584222
 const detailResponse = {
   id: 375341,
   uuid: "501D96BC0F",
@@ -151,11 +148,7 @@ test("normalizePyjamahr flags REMOTE workplace_type", () => {
   assert.equal(p.isRemote, true);
 });
 
-// --- dead company_uuid vs genuinely empty board --------------------------------
-
-// The exact body every bogus company_uuid returned when probed 2026-08-03
-// (ZZZZZZZZZZ, 0000000000, acmewidgetsco, ""), and equally what a live tenant
-// with nothing open returns: HTTP 200, count 0, no rows.
+// Same body a dead company_uuid returns as a live tenant with nothing open: HTTP 200, count 0, no rows.
 const emptyListResponse = { count: 0, next: null, previous: null, results: [] };
 
 /** Board page HTML the way Next.js ships it: one __NEXT_DATA__ JSON island. */
@@ -172,15 +165,13 @@ function boardPage<T>(pageProps: T): string {
   return `<!DOCTYPE html><html><body><div id="__next"></div><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(island)}</script></body></html>`;
 }
 
-// Trimmed from GET app.pyjamahr.com/careers?company=neusort&company_uuid=4E65221EE7
-// (captured 2026-08-03): the SSR resolved the uuid to a company.
+// The SSR resolved the uuid to a company.
 const RESOLVES_HTML = boardPage({
   isBot: false,
   companyDetails: { id: 14442, name: "smallcase", slug: "smallcase", uuid: "2615584222" },
 });
 
-// Verbatim pageProps from GET app.pyjamahr.com/careers?company=zzz&company_uuid=ZZZZZZZZZZ
-// (HTTP 200, captured 2026-08-03): the SSR's own tenant lookup 404ed.
+// The SSR's own tenant lookup 404ed (still HTTP 200).
 const ABSENT_HTML = boardPage({ error: "Request failed with status code 404" });
 
 test("pyjamahrBoardPageUrl builds the board link with BOTH params (the SSR needs ?company= to run)", () => {
@@ -188,8 +179,7 @@ test("pyjamahrBoardPageUrl builds the board link with BOTH params (the SSR needs
     pyjamahrBoardPageUrl(company, "2615584222"),
     "https://app.pyjamahr.com/careers?company=smallcase&company_uuid=2615584222",
   );
-  // bynry's row has no ?company= in careers_url, so the slug fills in — and that
-  // is what the vendor resolved when probed.
+  // bynry's row has no ?company= in careers_url, so the slug fills in.
   const bynry: AdapterCompany = {
     provider: "pyjamahr",
     slug: "bynry",
@@ -240,9 +230,7 @@ test("assertPyjamahrTenantExists throws only for the definitive absent verdict",
 });
 
 test("the dead-uuid error is charged to the company, not written off as infrastructure", async (t) => {
-  // A company_uuid the vendor does not know is a per-company board defect and
-  // MUST count toward the row's consecutive_failures. If any of these flipped
-  // true the scheduler would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   stubFetch(t, fetchSequence(() => htmlResponse(ABSENT_HTML)));
   const err = await assertPyjamahrTenantExists(company, "2615584222").then(
     () => new Error("expected the call to reject, but it resolved"),
@@ -260,8 +248,7 @@ test("assertPyjamahrTenantExists stays silent when the tenant resolves", async (
 });
 
 test("assertPyjamahrTenantExists swallows a failure of its OWN probe", async (t) => {
-  // The list call already succeeded; an outage or a 500 on the confirmation
-  // request is evidence about the probe, not about the tenant.
+  // An outage or 500 on the confirmation request is evidence about the probe, not the tenant.
   stubFetch(t, () => Promise.reject(new Error("fetch failed")));
   await assert.doesNotReject(() => assertPyjamahrTenantExists(company, "2615584222"));
 
@@ -278,8 +265,7 @@ test("pyjamahrAdapter.listPostings rejects a company_uuid the vendor does not kn
 });
 
 test("pyjamahrAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
-  // The distinction the check exists for: identical list response, but the uuid
-  // resolves, so nothing fails.
+  // Identical list response, but the uuid resolves, so nothing fails.
   stubFetch(t, fetchSequence(
     () => jsonResponse(emptyListResponse),
     () => htmlResponse(RESOLVES_HTML),
@@ -288,8 +274,7 @@ test("pyjamahrAdapter.listPostings returns [] for a LIVE tenant whose board has 
 });
 
 test("pyjamahrAdapter.listPostings never spends the extra request on a board that produced rows", async (t) => {
-  // fetchSequence rejects any call past the ones given, so a second fetch here
-  // would fail the test outright.
+  // fetchSequence rejects any call past the ones given, so a second fetch would fail the test outright.
   stubFetch(t, fetchSequence(() => jsonResponse({ ...listResponse, next: null })));
   const postings = await pyjamahrAdapter.listPostings(company);
   assert.equal(postings.length, 1);

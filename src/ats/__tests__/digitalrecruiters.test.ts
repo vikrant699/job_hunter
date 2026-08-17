@@ -64,8 +64,7 @@ test("listPostings returns a single short page as-is", async () => {
 });
 
 test("listPostings paginates across full pages until the count is reached", async () => {
-  // Server honors limit=100, so a full page (100 items) means "more may follow";
-  // pagination stops on the first short page.
+  // Server honors limit=100: a full page means "more may follow"; pagination stops on the first short page.
   const full = Array.from({ length: 100 }, (_, i) => ({ ...item, job_ad_id: i + 1 }));
   const tail = Array.from({ length: 50 }, (_, i) => ({ ...item, job_ad_id: 101 + i }));
   stubFetchSeq([

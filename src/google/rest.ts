@@ -19,19 +19,9 @@ export interface RestDeps {
   retryDelayMs?: number;
 }
 
-/**
- * Authorized fetch-json wrapper shared by the Sheets and Gmail clients:
- * attaches the bearer token for `profileId`, retries once with a short
- * backoff (mirrors src/discord/webhook.ts's retry tone, kept simpler since
- * these are low-volume, interactive-adjacent calls), and returns the raw
- * parsed JSON body for the caller to zod-validate. Throws a plain Error with
- * status + body snippet on a non-retryable or still-failing response.
- *
- * Retry policy: 429 retries for every method (a rate-limited request was
- * rejected before processing), but 5xx retries only idempotent methods —
- * a POST (draft create, row append) may have been processed before the
- * error response, and replaying it would duplicate the draft/row.
- */
+// Authorized fetch-json wrapper shared by Sheets/Gmail clients; returns raw JSON for the caller to zod-validate.
+// Retry policy: 429 retries for every method, but 5xx retries only idempotent methods (a POST may have
+// already been processed before the error response, and replaying it would duplicate the draft/row).
 export async function googleFetchJson(
   profileId: string,
   url: string,
@@ -45,8 +35,6 @@ export async function googleFetchJson(
   const method = init.method ?? "GET";
   const idempotent = method !== "POST";
   for (let attempt = 0; attempt <= 1; attempt++) {
-    // Sheets/Gmail fail in exactly the same outage as everything else, and losing
-    // the outreach stage is the expensive half of a run to lose.
     await awaitNetwork();
     let res: Response;
     try {

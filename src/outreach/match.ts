@@ -1,25 +1,14 @@
 import type { RecruiterRow } from "../db/recruiters.js";
 
-/**
- * Legal-entity suffixes stripped as TRAILING tokens only (never mid-string).
- * Deliberately does NOT include "company"/"co": that word is too often part of
- * the actual brand name ("Bain & Company", "Daniel P. O'Reilly and Company")
- * rather than a legal suffix, and stripping it would collide unrelated firms
- * that happen to both end in "... and Company". The suffixes below are
- * unambiguous legal-entity markers with no such false-positive risk.
- */
+// Trailing-token-only legal suffixes; deliberately excludes "company"/"co" since that's often
+// part of the actual brand name ("Bain & Company") and would collide unrelated firms.
 const LEGAL_SUFFIXES = new Set([
   "pvt", "private", "ltd", "limited", "inc", "llc", "corp", "corporation",
 ]);
 
-/**
- * Normalizes a company name for matching: lowercase, punctuation -> spaces,
- * trailing legal-suffix tokens stripped (repeatedly, so "Pvt Ltd" strips both),
- * whitespace collapsed. Pure and idempotent.
- */
+/** Normalizes a company name for matching: lowercase, punctuation to spaces, trailing legal suffixes stripped repeatedly. */
 export function normalizeCompanyName(s: string): string {
   const lowered = s.toLowerCase();
-  // Strip all punctuation (anything not a letter/digit/whitespace) to spaces.
   const depunctuated = lowered.replace(/[^\p{L}\p{N}\s]/gu, " ");
   let tokens = depunctuated.split(/\s+/).filter((t) => t.length > 0);
   while (tokens.length > 1 && LEGAL_SUFFIXES.has(tokens[tokens.length - 1] ?? "")) {
@@ -33,8 +22,7 @@ export type IneligibleReason = "cooldown" | "bounced_contact";
 export interface FindContactsInput {
   companyName: string;
   candidates: RecruiterRow[];
-  /** Returns the ISO timestamp of the last draft to this email (for any/all
-   *  profiles the caller wants considered), or null if never drafted. */
+  /** ISO timestamp of the last draft to this email, or null if never drafted. */
   lastDraftedAt: (email: string) => string | null;
   nowMs: number;
   cooldownDays: number;
@@ -45,8 +33,7 @@ export interface FindContactsResult {
   ineligible: Array<{ recruiter: RecruiterRow; reason: IneligibleReason }>;
 }
 
-/** Registrable label extracted from an email's domain (part before the first
- *  dot), lowercased. "hr@adda247.com" -> "adda247". */
+/** Domain label before the first dot, lowercased. "hr@adda247.com" -> "adda247". */
 function domainLabel(email: string): string | null {
   const at = email.lastIndexOf("@");
   if (at === -1) return null;
@@ -55,34 +42,20 @@ function domainLabel(email: string): string | null {
   return label && label.length > 0 ? label : null;
 }
 
-// Guards the email-domain heuristic against short/common labels ("hr", "app")
-// that would false-positive-match unrelated companies.
+// Guards against short/common labels ("hr", "app") false-positive-matching unrelated companies.
 const MIN_DOMAIN_LABEL_LENGTH = 4;
 
-// EXACT equality only. Substring containment (either direction) was tried and
-// is dangerously loose against real data: a contact at @tech...com would have
-// matched 41 registry companies ("Polygon Tech", "AgNext Technologies", ...),
-// @india... 328, and short names matched the other way ("Axio" inside
-// "axiomconsulting"). A wrong match here addresses a real recruiter about a
-// company they have nothing to do with — worst failure mode this pipeline has —
-// so the heuristic stays strict: "Adda247" <-> hr@adda247.com matches, nothing
-// fuzzier does.
+// EXACT equality only: substring containment was tried and matched dozens of unrelated companies
+// (e.g. @tech...com to 41 registry rows). Misaddressing a recruiter is the worst failure mode here.
 function domainHeuristicMatch(companyNormCollapsed: string, email: string): boolean {
   const label = domainLabel(email);
   if (!label || label.length < MIN_DOMAIN_LABEL_LENGTH) return false;
   return label === companyNormCollapsed;
 }
 
-/**
- * Finds recruiter contacts for a company name, trying match tiers in priority
- * order and stopping at the first tier that yields any matches:
- *   a) exact normalized company name match
- *   b) normalized alt-name match (';'-joined on the candidate row)
- *   c) email-domain heuristic (collapsed name === domain label, exact)
- * Matches are then split into eligible / ineligible (bounced contact status,
- * or drafted within the cooldown window) and eligible ones are ordered
- * verified-first, then least-recently-drafted first (never-drafted = first).
- */
+// Match tiers in priority order, stopping at the first with any matches: (a) exact normalized
+// name, (b) normalized alt-name, (c) domain heuristic. Then splits eligible/ineligible (bounced,
+// or drafted within cooldown) and sorts eligible verified-first, then least-recently-drafted first.
 export function findContacts(input: FindContactsInput): FindContactsResult {
   const { companyName, candidates, lastDraftedAt, nowMs, cooldownDays } = input;
   const targetNorm = normalizeCompanyName(companyName);

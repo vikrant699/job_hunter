@@ -1,30 +1,9 @@
-// src/ats/dronahq.ts — DronaHQ careers, a single-company WordPress site
-// exposing its jobs as a custom post type ("career") on the standard WP
-// REST API:
-//
-//   GET https://www.dronahq.com/wp-json/wp/v2/career?per_page=100&page=<N>
-//   -> a JSON ARRAY of WP posts, no auth. Confirmed live 2026-07-15 (4 open
-//   roles, 1 page).
-//
-// This does NOT reuse the generic `wpjobs` adapter: DronaHQ's post body is
-// built from WPBakery/`vc_*` shortcodes (`[vc_row][vc_column]...[/vc_column]
-// [/vc_row]`) wrapping hand-authored HTML — `wpjobs`'s plain `htmlToText`
-// would leave the literal `[vc_row]`/`[/vc_column]` tokens in the JD text.
-// DronaHQ also has no `acf`/taxonomy location data (acf is always `[]` on
-// this tenant); the only location signal is a fixed HTML fragment embedded
-// in the post body itself:
-//   <span class="location">Location</span>
-//     <span><span> Mumbai, Maharashtra, India </span>
-//       <span class="wokr-type"> Hybrid </span></span>
-// — a shape `wpjobs`'s generic location chain (embedded terms / class_list /
-// acf / meta / "Location:" body text) doesn't match either.
-//
-// Pagination: `atsFetchJson` only returns the parsed body, not response
-// headers, so `X-WP-Total`/`X-WP-TotalPages` aren't readable here (same
-// constraint documented in wpjobs.ts). Falls back to the same short/empty
-// page convention as the other simple list APIs: a page shorter than
-// `per_page` (including empty) ends pagination. Never truncates — every
-// page is fetched until a short page or the runaway backstop.
+// src/ats/dronahq.ts — DronaHQ careers, single-company WordPress site exposing jobs as a "career" custom post type
+// on the standard WP REST API: GET /wp-json/wp/v2/career?per_page=100&page=<N>, no auth.
+// Doesn't reuse the generic `wpjobs` adapter: the post body is wrapped in WPBakery/`vc_*` shortcode tokens that
+// plain `htmlToText` would leave in the JD text, and location is a fixed HTML fragment in the body itself
+// (`wpjobs`'s generic acf/taxonomy/meta location chain doesn't match this shape).
+// Pagination: atsFetchJson exposes no response headers (no X-WP-Total), so a short/empty page ends it instead.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -48,23 +27,18 @@ export type DronahqJob = z.infer<typeof DronahqJobSchema>;
 
 const DronahqListSchema = z.array(DronahqJobSchema);
 
-/** Paged list URL for the `career` custom post type. */
 export function dronahqListUrl(page: number): string {
   return `${API_ORIGIN}/wp-json/wp/v2/${POST_TYPE}?per_page=${PER_PAGE}&page=${page}`;
 }
 
-// WPBakery/vc_* (and any other WP page-builder) shortcode tokens, e.g.
-// "[vc_row]", "[/vc_column_text]", "[vc_row css=\"...\"]". These wrap plain
-// HTML rather than replacing it, so removing the bracketed tokens (and
-// nothing else) leaves the underlying markup for htmlToText to handle.
+// WPBakery/vc_* shortcode tokens wrap plain HTML rather than replacing it, so stripping just the bracketed
+// tokens leaves the underlying markup for htmlToText to handle.
 const SHORTCODE_RE = /\[[^\]]*\]/g;
 
-/** Strip WPBakery/page-builder shortcode tokens, leaving the wrapped HTML intact. */
 export function stripDronahqShortcodes(html: string): string {
   return html.replace(SHORTCODE_RE, "");
 }
 
-/** Build the plain-text JD: strip shortcode tokens, then strip HTML. */
 export function buildDronahqJd(contentHtml: string | null | undefined): string {
   if (!contentHtml) return "";
   return htmlToText(stripDronahqShortcodes(contentHtml));
@@ -74,9 +48,7 @@ export function buildDronahqJd(contentHtml: string | null | undefined): string {
 //   <span class="location">Location</span><span><span> Mumbai, ... </span>
 const LOCATION_RE = /<span class="location">Location<\/span>\s*<span>\s*<span>\s*([^<]+?)\s*<\/span>/i;
 
-/** Best-effort location, parsed from the fixed job-header markup in the post
- *  body. Null if the markup isn't found — the pipeline's own location gate
- *  still runs against jdText regardless. */
+/** Null if the markup isn't found - the pipeline's own location gate still runs against jdText regardless. */
 export function dronahqLocationFromContent(html: string | null | undefined): string | null {
   if (!html) return null;
   const m = LOCATION_RE.exec(html);
@@ -84,12 +56,9 @@ export function dronahqLocationFromContent(html: string | null | undefined): str
   return found ? found : null;
 }
 
-// Same header banner also carries a work-type span, e.g.
-//   <span class="wokr-type"> Hybrid </span> (sic — "wokr-type" typo is DronaHQ's own).
+// Same header banner carries a work-type span too ("wokr-type" typo is DronaHQ's own).
 const WORK_TYPE_RE = /class="wokr-type"\s*>\s*([^<]+?)\s*<\/span>/i;
 
-/** Best-effort work-type ("Hybrid"/"Remote"/"On-site"/...), parsed from the
- *  same job-header markup as the location. Null if not found. */
 export function dronahqWorkTypeFromContent(html: string | null | undefined): string | null {
   if (!html) return null;
   const m = WORK_TYPE_RE.exec(html);
@@ -97,9 +66,7 @@ export function dronahqWorkTypeFromContent(html: string | null | undefined): str
   return found ? found : null;
 }
 
-/** Prefer date_gmt (true UTC) over the site-local `date` field; null if
- *  neither parses. date_gmt has no zone designator of its own (same WP
- *  convention documented in wpjobs.ts), so "Z" is appended before parsing. */
+/** Prefers date_gmt (true UTC); "Z" is appended since WP's date_gmt has no zone designator of its own. */
 function dronahqPostedAt(job: DronahqJob): string | null {
   return dateToIso(job.date_gmt ? `${job.date_gmt}Z` : null) ?? dateToIso(job.date);
 }

@@ -1,18 +1,8 @@
-// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io),
-// a server-rendered Next.js page. The board's own data ships inline as a
-// `<script id="__NEXT_DATA__">` JSON island:
-//   props.pageProps = { companyData, careersList, jobData, embed, isCustomDomain }
-// `careersList` is the board's postings; `jobData` is populated only on a
-// single job's own page (null on the board index). Confirmed live
-// 2026-07-12 on careers.peerlist.io/ itself: the island parses cleanly, but
-// `careersList` is `[]` — the board is live and has zero open postings today.
-//
-// Since there's no non-empty board to observe live, the per-item shape is
-// designed TOLERANTLY (per integrator brief) rather than pinned to one exact
-// field set: accepts id/jobId/slug for identity, title/role/jobTitle for the
-// job name, a string OR {city,country} OR an array of those for location,
-// and description/jobDescription for the JD body. Extra/unknown keys on the
-// item are ignored (.passthrough()), not rejected.
+// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io), a server-rendered
+// Next.js page whose `<script id="__NEXT_DATA__">` island carries props.pageProps.careersList
+// (board postings) and jobData (populated only on a single job's own page). No live board has ever
+// had postings to observe, so the per-item schema is deliberately tolerant: multiple candidate keys
+// for id/title/location, and .passthrough() for unknown fields.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -57,7 +47,6 @@ const NextDataSchema = z.object({
   props: z.object({ pageProps: PagePropsSchema }),
 });
 
-/** Extract the `__NEXT_DATA__` JSON island. Null when absent/unparseable. */
 export function extractPeerlistNextData(html: string): JsonValue | null {
   const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
   if (!m) return null;
@@ -69,7 +58,6 @@ export interface PeerlistPageProps {
   jobData: PeerlistJobLike | null;
 }
 
-/** Validate + unwrap `props.pageProps`. Throws a labeled error on shape mismatch. */
 export function parsePeerlistPageProps(nextData: JsonValue, slug: string): PeerlistPageProps {
   const parsed = parseOrThrow(NextDataSchema, nextData, { provider: "peerlist", slug, what: "__NEXT_DATA__" });
   return {
@@ -82,9 +70,7 @@ export function peerlistItemTitle(item: PeerlistJobLike): string {
   return item.title ?? item.role ?? item.jobTitle ?? "";
 }
 
-/** Stable identity for one item: explicit id, then jobId, then slug, then a
- *  slugified title as a last resort (this is a tolerant, small-board schema —
- *  there is no guaranteed key). */
+// Stable identity: explicit id, then jobId, then slug, then a slugified title as a last resort.
 export function peerlistExternalId(item: PeerlistJobLike): string {
   if (item.id != null) return String(item.id);
   if (item.jobId != null) return String(item.jobId);
@@ -92,7 +78,6 @@ export function peerlistExternalId(item: PeerlistJobLike): string {
   return kebabCase(peerlistItemTitle(item));
 }
 
-/** Path segment for the job's own page under the board's origin. Slug preferred over id. */
 function peerlistSlugOrId(item: PeerlistJobLike): string | null {
   if (item.slug) return item.slug;
   if (item.id != null) return String(item.id);

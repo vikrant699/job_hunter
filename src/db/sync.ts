@@ -1,16 +1,7 @@
-// src/db/sync.ts - keeps data/job_hunter.db in step across machines via Drive.
-//
-// Why this exists: the bot runs by hand on more than one machine. Starting a run
-// against a stale DB is not a mild problem - postingExists() would return false
-// for postings the other machine already processed, so the gate re-scores them
-// and outreach drafts a SECOND email to recruiters who were already contacted.
-// The staleness comparison below is the guard against that.
-//
-// Two rules this file is built around, both learned the hard way:
-//  1. A pull may only run while NOTHING holds the DB open (see openState.ts).
-//  2. mtime alone cannot tell a fresh machine from an up-to-date one, because
-//     db.ts CREATES the file on import - so a brand-new empty DB looks "newer"
-//     than the real backup. Row counts settle that; see decideBeforeRun.
+// Keeps data/job_hunter.db in step across machines via Drive: a stale local DB makes postingExists() miss postings
+// another machine already processed, redrafting emails to already-contacted recruiters. Two rules: (1) a pull may only
+// run while nothing holds the DB open (openState.ts); (2) mtime alone can't distinguish a fresh machine from an
+// up-to-date one, since db.ts creates the file on import - row counts settle that (decideBeforeRun).
 import {
   readFileSync,
   writeFileSync,
@@ -35,12 +26,7 @@ export type SyncVerdict = "in-sync" | "remote-newer" | "local-newer" | "no-remot
 /** Clock skew between two machines shouldn't read as a real difference. */
 const SKEW_TOLERANCE_MS = 5_000;
 
-/**
- * A push whose local file is below this fraction of the remote is refused: that
- * shape means "this machine has less data than the backup", which is data loss
- * rather than progress. A deliberate shrink (the jd_text drop shed 92% of the
- * file) is exactly what --force is for.
- */
+/** A push below this fraction of the remote's size is refused as data loss rather than progress; --force overrides a deliberate shrink. */
 const SHRINK_REFUSE_RATIO = 0.5;
 
 export interface SyncDeps extends DriveDeps {
@@ -55,10 +41,7 @@ function dbPathOf(deps: SyncDeps): string {
   return deps.dbPath ?? config.storage.dbPath;
 }
 
-/**
- * Pure decision: given the two modified times, who is ahead? Kept separate from
- * all I/O so the interesting logic is unit-testable.
- */
+/** Pure decision: given the two modified times, who is ahead? Kept separate from I/O so it's unit-testable. */
 export function compareState(
   localMtimeMs: number | null,
   remoteMtimeMs: number | null,
@@ -73,11 +56,7 @@ export function compareState(
 export interface LocalDbState {
   mtimeMs: number | null;
   bytes: number;
-  /**
-   * Rows in `postings`. null when there is no file or no such table; 0 when the
-   * file exists but has never been used - which db.ts produces on every fresh
-   * machine, since importing it creates the database.
-   */
+  /** Rows in `postings`; null if no file/table, 0 if the file exists but was never used (db.ts creates it on import). */
   postings: number | null;
 }
 
@@ -96,31 +75,20 @@ export function readLocalState(dbPath: string): LocalDbState {
       handle.close();
     }
   } catch (err) {
-    // No postings table yet, or an unreadable file. Either way it is not a
-    // database worth pushing over the backup, which is what the caller asks.
+    // No postings table yet, or an unreadable file - either way, not worth pushing over the backup.
     logger.debug({ err: String(err).slice(0, 120) }, "db sync: could not count local postings");
   }
   return { mtimeMs: stat.mtimeMs, bytes: stat.size, postings };
 }
 
-/**
- * Pure: what should happen before a run. This is compareState plus the one thing
- * timestamps cannot express - a local file that exists but holds no postings is a
- * fresh machine, not a machine that is ahead. Without this the automatic path
- * warned "local is newer", ran against an empty DB, and pushed it over the good
- * backup.
- */
+/** compareState plus the one thing timestamps can't express: a local file with no postings is a fresh machine, not one that's ahead. */
 export function decideBeforeRun(local: LocalDbState, remoteMtimeMs: number | null): SyncVerdict {
   if (remoteMtimeMs === null) return "no-remote";
   if (local.postings === null || local.postings === 0) return "no-local";
   return compareState(local.mtimeMs, remoteMtimeMs);
 }
 
-/**
- * Pure: may this local file replace the remote one? Refuses the two shapes that
- * mean loss rather than progress. Throws (rather than returning a boolean) so no
- * caller can forget to check the answer.
- */
+/** May this local file replace the remote one? Throws (not a boolean) so no caller can forget to check. */
 export function assertPushSafe(
   local: LocalDbState,
   remoteBytes: number | null,
@@ -150,15 +118,7 @@ function remoteBytesOf(remote: DriveFileMeta | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * Stamp the local file with the remote's modified time after a successful
- * transfer, so the next comparison reads "in-sync".
- *
- * Without this the two clocks never line up: a push records the remote time at
- * upload COMPLETION while the local file was last written before it started, and
- * for a ~50 MB upload that gap exceeds the skew tolerance - so every run would
- * see "remote-newer" and re-download the file it had just uploaded.
- */
+/** Stamp the local file with the remote's mtime after a transfer, or the upload-duration gap would exceed skew tolerance and every run would re-download what it just uploaded. */
 function alignMtimeToRemote(dbPath: string, remote: DriveFileMeta): void {
   const ms = Date.parse(remote.modifiedTime);
   if (!Number.isFinite(ms)) return;
@@ -180,11 +140,7 @@ const CheckpointSchema = z.object({
 /** How long to keep waiting for another connection to let go. */
 const CHECKPOINT_TIMEOUT_MS = 30_000;
 const CHECKPOINT_RETRY_DELAY_MS = 1_000;
-/**
- * Per-attempt lock wait. Deliberately short: SQLite honours busy_timeout inside the
- * checkpoint, and node:sqlite is synchronous, so a 30s value here would freeze the
- * whole process for 30s. The waiting is done between attempts instead.
- */
+/** Deliberately short: node:sqlite is synchronous, so a longer value here would freeze the process; waiting happens between attempts instead. */
 const CHECKPOINT_BUSY_TIMEOUT_MS = 1_000;
 
 export interface CheckpointOpts {
@@ -205,24 +161,9 @@ function attemptCheckpoint(dbPath: string, busyTimeoutMs: number): z.infer<typeo
   }
 }
 
-/**
- * Fold the WAL back into the main file so the .db on disk is complete on its own.
- * Without this the newest commits can still be sitting in job_hunter.db-wal and
- * the uploaded file would be silently behind.
- *
- * A TRUNCATE checkpoint cannot finish while another connection holds the database,
- * and SQLite reports that as busy=1 rather than failing. Busy is a normal, passing
- * condition though - a stray `npm run health`, an editor with the file open - so it
- * is RETRIED for 30s rather than treated as a failed push.
- *
- * What matters after that window is not busy itself but whether the data made it
- * across, which `log` vs `checkpointed` answers:
- *  - all frames copied: the .db is complete and only the WAL file survives
- *    untruncated. Harmless - warn and let the push proceed.
- *  - frames left over (a reader pinning an OLD snapshot blocks copying): the file on
- *    disk is genuinely missing committed rows, and uploading it would lose them. That
- *    is the only case worth failing.
- */
+/** Folds the WAL into the main file before upload, or newest commits stay in -wal and the upload is silently behind. A TRUNCATE
+ *  checkpoint reports busy=1 (not a failure) while another connection holds the DB, so it's retried for 30s; only frames left
+ *  uncopied after that (data genuinely missing from disk) fails the push - all-frames-copied-but-untruncated is harmless. */
 export async function checkpointWal(dbPath: string, opts: CheckpointOpts = {}): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? CHECKPOINT_TIMEOUT_MS;
   const retryDelayMs = opts.retryDelayMs ?? CHECKPOINT_RETRY_DELAY_MS;
@@ -301,17 +242,10 @@ export async function pushDb(profileId: string, deps: SyncDeps = {}): Promise<Sy
   return { verdict: "local-newer", action: "uploaded", bytes: bytes.byteLength, remote };
 }
 
-/**
- * Pull the remote DB over the local one. Downloads to a sibling temp file,
- * integrity-checks it, and only then swaps - so a half-finished or corrupt
- * download can never clobber a working database.
- */
+/** Downloads to a sibling temp file, integrity-checks it, then swaps - a half-finished or corrupt download can never clobber a working database. */
 export async function pullDb(profileId: string, deps: SyncDeps = {}): Promise<SyncResult> {
   const dbPath = dbPathOf(deps);
-  // The whole swap is only safe while nothing holds the file open. Checked here
-  // rather than trusted, because the two platforms fail differently and only one
-  // of them fails loudly: Windows rejects the rename with EPERM, while Linux
-  // accepts it and leaves the open handle reading the file we just replaced.
+  // Swap is only safe while nothing holds the file open: Windows rejects the rename with EPERM, Linux silently keeps reading the replaced file.
   if (isDbOpen()) {
     throw new Error(
       "refusing to pull: the SQLite connection in db/db.ts is already open, so replacing " +
@@ -358,32 +292,16 @@ export async function checkState(
   return { verdict: decideBeforeRun(local, remoteMs), remote, local };
 }
 
-/**
- * Why a run might legitimately not sync at all: the backup lives in ONE Google
- * account's Drive, and profiles are separate accounts (drive.file only ever sees
- * files the app created under the signed-in account). Running an unpinned second
- * profile would therefore create a second, independent backup and pull it over the
- * shared local DB. DB_SYNC_PROFILE names the profile that owns the backup; other
- * profiles skip sync instead of forking it.
- */
+/** Profiles are separate Google accounts; an unpinned second profile would fork its own backup and pull it over the shared local DB, so DB_SYNC_PROFILE pins the owning profile and others skip sync. */
 export function syncSkipReason(profileId: string): string | null {
   const pinned = config.google.driveSyncProfile;
   if (pinned === "" || pinned === profileId) return null;
   return `DB sync is pinned to profile '${pinned}' via DB_SYNC_PROFILE; '${profileId}' uses a different Google account, so its Drive holds a different backup.`;
 }
 
-/**
- * Pre-flight for `npm run once`: pull when Drive is ahead (the "sat down at the
- * other machine" case) or when this machine has no real database yet, and shout
- * when the local copy is ahead, because that means an earlier run never pushed.
- *
- * A Drive failure while *deciding* is survivable and only logs - losing sync must
- * not abort a scrape that would otherwise succeed. A failure while *pulling* is
- * not: it means we know the local DB is stale, and running stale is what produces
- * duplicate recruiter emails. So that one propagates and stops the run.
- *
- * MUST be called before anything imports db/db.ts; pullDb enforces it.
- */
+/** Pulls when Drive is ahead or local has no real DB yet; warns (doesn't pull) when local is ahead. A failure while deciding only
+ *  logs (sync loss shouldn't abort a scrape), but a failure while pulling propagates - a known-stale local DB must stop the run.
+ *  Must be called before anything imports db/db.ts; pullDb enforces it. */
 export async function syncBeforeRun(profileId: string, deps: SyncDeps = {}): Promise<void> {
   const skip = syncSkipReason(profileId);
   if (skip !== null) {

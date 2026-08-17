@@ -215,8 +215,7 @@ test("setRecruiterStatus sets verified_at only when status is verified", () => {
   assert.equal(row.status, "verified");
   assert.equal(row.verifiedAt, verifiedAt);
 
-  // Transition to bounced: verified_at should NOT be touched by this call's atIso
-  // being irrelevant to bounced; the function only stamps verified_at for 'verified'.
+  // Transition to bounced: verified_at is untouched since the function only stamps it for 'verified'.
   setRecruiterStatus(email, "bounced", new Date().toISOString());
   row = selectAllRecruiters().find((r) => r.email === email);
   assert.ok(row);

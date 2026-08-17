@@ -1,22 +1,9 @@
 // src/ats/pyjamahr.ts — PyjamaHR career boards (app.pyjamahr.com/careers?company=<slug>
-// &company_uuid=<uuid>), e.g. smallcase, Increff, Zinance. The board SPA is backed by
-// a public, unauthenticated DRF API keyed by the tenant's company_uuid
-// (registry: api_meta.companyUuid):
-//
-//   list: GET https://api.pyjamahr.com/api/career/jobs/?company_uuid=<uuid>&page=<N>&is_careers_page=true
-//         -> { count, next, previous, results: [{ id, slug, title, location,
-//              other_locations, country, workplace_type, ... }] }
-//         10 per page; paginate by following `next` until null (NEVER truncate).
-//
-//   jd:   GET https://api.pyjamahr.com/api/career/jobs/<id>/?company_uuid=<uuid>
-//         -> { id, uuid, title, job_type, description: "<p>...HTML..." }
-//         The list payload has no description, so the JD comes from fetchJd.
-//
-// company_uuid is a FILTER on a shared API, not a tenant address, and an unknown
-// value is not rejected — it just matches nothing, so a dead tenant answers
-// exactly like a live board with nothing open. The one endpoint that resolves the
-// tenant itself is the board page's own SSR payload, consulted only on that
-// zero-row path — see assertPyjamahrTenantExists.
+// &company_uuid=<uuid>), backed by a public unauthenticated DRF API keyed by company_uuid
+// (registry: api_meta.companyUuid). List paginates via `next` (10/page); the JD comes from a
+// separate per-job GET. company_uuid is a filter on a shared API, not a tenant address — an unknown
+// value matches nothing rather than erroring, so a dead tenant looks like an empty live board; see
+// assertPyjamahrTenantExists for how that's disambiguated.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -65,25 +52,22 @@ const PyjamahrDetailSchema = z.object({
   description: z.string().nullable().optional(),
 });
 
-/** Tenant identity: api_meta.companyUuid. Throws when unset — the API is unusable without it. */
 export function pyjamahrCompanyUuid(company: AdapterCompany): string {
   const uuid = company.apiMeta?.["companyUuid"];
   if (!uuid) throw new Error(`pyjamahr requires api_meta.companyUuid for ${company.slug}`);
   return uuid;
 }
 
-/** Listing page URL (1-based). */
+// 1-based page.
 export function pyjamahrListUrl(uuid: string, page: number): string {
   return `${API_ORIGIN}/api/career/jobs/?company_uuid=${encodeURIComponent(uuid)}&page=${page}&is_careers_page=true`;
 }
 
-/** Detail (JD) URL for one job id. */
 export function pyjamahrJdUrl(uuid: string, jobId: string): string {
   return `${API_ORIGIN}/api/career/jobs/${encodeURIComponent(jobId)}/?company_uuid=${encodeURIComponent(uuid)}`;
 }
 
-/** The board's ?company= display slug — taken from the registry careersUrl when
- *  present (it's part of the canonical board link), else the company slug. */
+// The board's ?company= display slug — taken from the registry careersUrl when present, else the slug.
 export function pyjamahrBoardParam(company: AdapterCompany): string {
   try {
     const fromUrl = new URL(company.careersUrl).searchParams.get("company");
@@ -94,7 +78,6 @@ export function pyjamahrBoardParam(company: AdapterCompany): string {
   return company.slug;
 }
 
-/** Human-facing deep link into the board SPA for one job. */
 export function pyjamahrJobUrl(company: AdapterCompany, j: PyjamahrJob): string {
   const uuid = pyjamahrCompanyUuid(company);
   const seg = j.slug ?? String(j.id);
@@ -125,20 +108,15 @@ export function parsePyjamahrList(json: JsonValue): PyjamahrList {
   return PyjamahrListSchema.parse(json);
 }
 
-// --- tenant existence ---------------------------------------------------------
-
-/** The board page whose getServerSideProps resolves company_uuid to a tenant.
- *  The ?company= display param has to be present for the SSR to run at all (with
- *  company_uuid alone the page ships no __NEXT_DATA__), though its VALUE is not
- *  checked — a live uuid resolves under a deliberately wrong name. */
+// ?company= must be present for the SSR to run at all (company_uuid alone ships no __NEXT_DATA__),
+// though its value isn't checked — a live uuid resolves under a deliberately wrong name.
 export function pyjamahrBoardPageUrl(company: AdapterCompany, uuid: string): string {
   const params = `company=${encodeURIComponent(pyjamahrBoardParam(company))}&company_uuid=${encodeURIComponent(uuid)}`;
   return `${BOARD_ORIGIN}/careers?${params}`;
 }
 
-// Either the tenant resolved (companyDetails, with its name) or the SSR's own
-// lookup failed (error). Both keys optional: any other shape is inconclusive and
-// must not fail the company.
+// Either the tenant resolved (companyDetails) or the SSR's own lookup failed (error); any other
+// shape is inconclusive and must not fail the company.
 const BoardPagePropsSchema = z.object({
   props: z.object({
     pageProps: z.object({
@@ -148,20 +126,11 @@ const BoardPagePropsSchema = z.object({
   }),
 });
 
-/** Three-valued: the tenant resolves, the vendor says it does not exist, or the
- *  probe told us nothing (and must therefore change nothing). */
 export type PyjamahrTenantVerdict = "resolves" | "absent" | "inconclusive";
 
-/**
- * Read the board page's `__NEXT_DATA__` island and say whether company_uuid
- * resolved to a tenant.
- *
- * "absent" is reserved for the one shape a nonexistent tenant produces: no
- * companyDetails AND an error from the SSR's own lookup. Anything else — a
- * missing island, unparseable JSON, an unexpected shape — is "inconclusive",
- * because the list call already succeeded and an oddity here says nothing about
- * the tenant.
- */
+// "absent" is reserved for the one shape a nonexistent tenant produces: no companyDetails AND an
+// error from the SSR's own lookup. Anything else (missing island, bad JSON, odd shape) is
+// "inconclusive" — the list call already succeeded, so an oddity here says nothing about the tenant.
 export function pyjamahrTenantVerdict(html: string): PyjamahrTenantVerdict {
   const island = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
   if (island === undefined) return "inconclusive";
@@ -172,43 +141,18 @@ export function pyjamahrTenantVerdict(html: string): PyjamahrTenantVerdict {
   return pageProps.error ? "absent" : "inconclusive";
 }
 
-/**
- * Throw when the tenant behind api_meta.companyUuid does not exist.
- *
- * company_uuid is a filter on a shared API rather than a tenant address, and the
- * list endpoint does not reject an unknown value: probed 2026-08-03,
- * ZZZZZZZZZZ, 0000000000, acmewidgetsco and "" each returned HTTP 200
- * {"count":0,"next":null,"previous":null,"results":[]} — byte-identical to a live
- * tenant whose board is empty. So a dead uuid sat green forever, and no amount of
- * inspecting the list response could tell the two apart.
- *
- * The board page can, because its getServerSideProps resolves the uuid to a
- * company: all 7 live rows come back with props.pageProps.companyDetails naming
- * the employer (Zinance, Bynry, F Jobs by Fashion TV India, Kuku FM, Masai,
- * Neusort, smallcase), while every bogus uuid comes back with
- * props.pageProps.error and no companyDetails.
- *
- * Consulted ONLY when page 1 returned zero rows, so a board that produced
- * postings never pays for the extra request and can never be failed by it. And
- * only a definitive "the vendor's own lookup 404ed" verdict fails the company —
- * a transport failure, an HTTP error or an unrecognised payload leaves the empty
- * result standing, exactly as it does today. A tenant whose board empties out
- * still resolves, so it keeps returning [].
- *
- * The cheaper JSON candidate was rejected: /api/career/jobs/departments is a
- * tenant master list (fashiontv returns 89 departments against 20 open jobs) and
- * so looks independent of the board, but it is still derived data — neusort has
- * exactly one department — and a tenant that never named one would be
- * indistinguishable from a dead uuid.
- */
+// company_uuid is a filter on a shared API, not a tenant address: an unknown value returns HTTP 200
+// {"count":0,...} byte-identical to a live empty board, so the list response alone can't tell a dead
+// uuid from a real empty one. The board page's own SSR can, since it resolves the uuid to a company
+// name. Consulted only when page 1 returned zero rows, and only a definitive "vendor lookup 404ed"
+// verdict fails the company — a transport failure or unrecognised payload leaves the empty result as-is.
 export async function assertPyjamahrTenantExists(company: AdapterCompany, uuid: string): Promise<void> {
   let verdict: PyjamahrTenantVerdict;
   try {
     const html = await atsFetchText(pyjamahrBoardPageUrl(company, uuid), { provider: "pyjamahr" });
     verdict = pyjamahrTenantVerdict(html);
   } catch (err) {
-    // The list call already succeeded; a failure on this confirmation probe is
-    // evidence about the probe, not about the tenant.
+    // A failure on this confirmation probe is evidence about the probe, not about the tenant.
     logger.warn({ slug: company.slug, err: String(err) }, "pyjamahr tenant-existence probe failed - leaving the empty board as-is");
     return;
   }
@@ -272,9 +216,7 @@ export const pyjamahrAdapter: AtsAdapter = {
       }
     }
 
-    // The loop only exits with url still non-null by exhausting MAX_PAGES
-    // (the natural-completion path sets url to null via parsed.next first) —
-    // this is the runaway-cap-truncation case, worth a loud warning.
+    // url still non-null here means the loop exhausted MAX_PAGES rather than completing naturally.
     if (url !== null && page === MAX_PAGES) {
       logger.warn(
         { slug: company.slug, maxPages: MAX_PAGES },
@@ -282,8 +224,6 @@ export const pyjamahrAdapter: AtsAdapter = {
       );
     }
 
-    // Zero rows is the one outcome an unknown company_uuid also produces, so it
-    // is the only one worth a second request — see assertPyjamahrTenantExists.
     if (out.length === 0) await assertPyjamahrTenantExists(company, uuid);
 
     return out;

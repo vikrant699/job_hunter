@@ -28,8 +28,7 @@ test("atsHttpError builds 404 and generic errors", () => {
 });
 
 test("atsFetchHtml returns the response body, falling back to the requested URL when res.url is empty", async (t) => {
-  // The Response constructor can't set a synthetic .url (it's read-only,
-  // populated by a real fetch), so this exercises the `res.url || url` fallback.
+  // Response's .url is read-only (populated by real fetch), so this exercises the res.url || url fallback.
   stubFetch(t, async () => new Response("<html>hi</html>", { status: 200 }));
   const { html, finalUrl } = await atsFetchHtml("https://example.com/careers", { provider: "phenom" });
   assert.equal(html, "<html>hi</html>");
@@ -46,11 +45,7 @@ test("atsFetchHtml throws atsHttpError on a non-OK response", async (t) => {
   });
 });
 
-// Run 37 (2026-08-15): qualcomm + hsbc answered 403 with CloudFront's block page,
-// but atsHttpError keeps only 200 chars of body — which truncates BEFORE every
-// marker that proves the page is a WAF's, so the scheduler charged both rows a
-// consecutive failure for what was an edge refusing the moment. The full body has
-// to be scanned for challenge evidence BEFORE the snippet is cut.
+// atsHttpError keeps only 200 chars of body, truncating before WAF markers - the full body must be scanned for challenge evidence before the snippet is cut.
 test("a non-OK response whose body is a WAF block page throws an edge-refusal error, not a board defect", async (t) => {
   const cloudFrontBody =
     `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n` +
@@ -85,10 +80,7 @@ test("atsFetchText is a thin wrapper that discards finalUrl", async (t) => {
   assert.equal(text, "plain text body");
 });
 
-// withAtsTimeout builds the signal via AbortSignal.timeout(timeoutMs ?? config.fetch.timeoutMs)
-// — the default duration itself is untestable without config injection (out of scope), but
-// the two tests below pin what is pinnable: the signal reaches fetch, and an abort
-// rejection propagates out of atsFetchJson rather than being swallowed.
+// withAtsTimeout's default duration is untestable without config injection; these two tests pin what is pinnable: the signal reaches fetch, and abort propagates.
 test("atsFetchJson passes an abortable timeout signal to fetch", async (t) => {
   let sawSignal = false;
   stubFetch(t, (_url, init) => {
@@ -118,11 +110,7 @@ test("parseOrNull returns null on mismatch", () => {
   assert.equal(parseOrNull(S, { a: "no" }, { provider: "x", slug: "acme" }), null);
 });
 
-/* ===== the connectivity gate, at the level that actually matters ===== */
-
-// The behaviour the whole gate exists for: during an outage a board fetch must WAIT,
-// not fail and let the run march on to the next company. Run 29 skipped hundreds of
-// boards in an ~8-minute drop precisely because this call returned instead of waiting.
+// The whole gate exists so a board fetch WAITS out an outage instead of failing and letting the run march on.
 test("atsFetchJson waits out a network outage instead of failing the board", async (t) => {
   let online = false;
   t.after(stopConnectivityMonitor);
@@ -151,8 +139,7 @@ test("atsFetchJson waits out a network outage instead of failing the board", asy
   assert.deepEqual(result, { ok: true });
 });
 
-// A board that answers - even with a block page - proves the connection is fine, so
-// one hostile host must never pause everything else.
+// A board that answers, even with a block page, proves the connection is fine, so one hostile host must never pause everything else.
 test("a blocked board reports success to the monitor and does not pause the run", async (t) => {
   t.after(stopConnectivityMonitor);
   startConnectivityMonitor({ intervalMs: 10_000, downIntervalMs: 10_000, probe: async () => true });

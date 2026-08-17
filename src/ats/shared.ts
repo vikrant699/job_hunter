@@ -9,8 +9,7 @@ export const INTER_PAGE_DELAY_MS = 150;
 
 export { sleep };
 
-// 100+ pages usually means either a termination bug or a genuinely huge board —
-// either way worth a log line. Warn, don't stop.
+// 100+ pages usually means a termination bug or a genuinely huge board - either way worth a log line. Warn, don't stop.
 const PAGE_WARN_INTERVAL = 100;
 
 export function warnDeepPagination(provider: string, slug: string, pagesDone: number, jobsSoFar: number): void {
@@ -19,46 +18,20 @@ export function warnDeepPagination(provider: string, slug: string, pagesDone: nu
   }
 }
 
-// Backstop against a tenant whose `total` is unreliable AND never returns a
-// short/empty page (would otherwise loop forever). Set high enough that no real
-// board is ever truncated — completeness matters more than the safety margin,
-// so we fetch every page and only this runaway guard can stop us early (it
-// logs loudly via warnDeepPagination well before here, and once more if the
-// cap itself is what ends the loop — see `paginate`).
+// Backstop against a tenant whose `total` is unreliable and never returns a short/empty page; set high so completeness wins and no real board is ever truncated (warnDeepPagination logs loudly well before this, and once more if the cap itself ends the loop).
 export const DEFAULT_MAX_PAGES = 5000;
 
-/**
- * How to report an exact-repeat pagination stall: which level, and a message
- * that claims only what the numbers support.
- */
+/** How to report an exact-repeat pagination stall: which level, and a message that claims only what the numbers support. */
 export interface PaginationStallReport {
   level: "warn" | "info";
   message: string;
 }
 
-/**
- * Decide how loudly to report an exact-repeat stall, given the total the board
- * reported (null if it exposes none) and how many items we ended up with.
- *
- * Split out as a pure function because the level is the whole point of the log
- * line and there is no injection point for the global logger — this is the part
- * worth pinning in tests.
- *
- * Only a collection that fell SHORT of a reported total is evidence that rows
- * were lost; that is the one case worth a warning. Otherwise the board simply
- * re-served its last page instead of returning an empty one (5 of 6 gohire
- * boards did exactly this on 2026-08-01, all of them complete), and shouting
- * every run would train us to ignore the line that finally matters.
- */
+/** Warn only when the collected total fell short of a reported total (proof rows were lost); otherwise info - a board re-serving its last page instead of an empty one is usually complete, and warning on that too would train us to ignore the line that matters. */
 export function describePaginationStall(state: {
   total: number | null;
   collected: number;
-  /**
-   * True only when the response itself PROVED the board has no pagination
-   * control — e.g. gohire renders no pager element at all below one page, so
-   * its absence means the single page we fetched is the whole board. Absent or
-   * false means "unknown", which is not the same claim.
-   */
+  /** True only when the response itself proved the board has no pagination control (e.g. gohire renders no pager below one page); absent/false means "unknown", not "has one". */
   noPaginationControl?: boolean;
 }): PaginationStallReport {
   const { total, collected } = state;
@@ -68,11 +41,7 @@ export function describePaginationStall(state: {
       message: `pagination stalled short of the reported total - collected ${collected} of ${total} (board re-served the previous page instead of advancing)`,
     };
   }
-  // Checked before the total===null hedge below because it is strictly better
-  // evidence: a board with no pagination control cannot have a second page, so
-  // calling completeness "unverifiable" here would be false. Checked AFTER the
-  // shortfall warn so a contradiction between the two signals still resolves
-  // loudly — a missed warning is a silently truncated board.
+  // Checked before the null-total hedge below (stronger evidence: no pager means no second page) but after the shortfall warn, so a contradiction between the two signals still resolves loudly.
   if (state.noPaginationControl === true) {
     return {
       level: "info",
@@ -82,8 +51,7 @@ export function describePaginationStall(state: {
   if (total === null) {
     return {
       level: "info",
-      // No total means no way to check: absence of evidence of loss, not
-      // evidence of completeness. Say that rather than implying "all good".
+      // No total means no way to check - say completeness is unverifiable rather than implying "all good".
       message: `pagination ended: board re-served the last page instead of returning empty - collected ${collected}, and with no total exposed completeness is unverifiable`,
     };
   }
@@ -93,25 +61,12 @@ export function describePaginationStall(state: {
   };
 }
 
-/**
- * Result of fetching one page: its items and, if known, the total item count
- * reported by the API. `rawCount`, if given, is the number of records the
- * server actually returned before any adapter-side filtering (e.g. Phenom
- * drops postings with no stable id) — pagination advances and short-page
- * detection use this instead of `items.length` so filtered-out records don't
- * cause the next page to be re-fetched at the wrong offset. Defaults to
- * `items.length`.
- */
+/** One page's items and, if known, the API's total item count. `rawCount`, if given, is the record count before adapter-side filtering (e.g. Phenom drops postings with no stable id) - offset advance and short-page detection use this instead of `items.length` so filtered-out records don't shift the next offset. Defaults to `items.length`. */
 export interface PaginatePage<T> {
   items: T[];
   total: number | null;
   rawCount?: number;
-  /**
-   * Set true only when this response proved the board has no pagination
-   * control (gohire omits the pager element entirely below one page). Purely a
-   * reporting signal: it upgrades the stall log from "completeness is
-   * unverifiable" to a positive statement, and never affects termination.
-   */
+  /** True only when this response proved the board has no pagination control (gohire omits the pager below one page); upgrades the stall log to a positive statement, never affects termination. */
   noPaginationControl?: boolean;
 }
 
@@ -120,61 +75,21 @@ export interface PaginateOpts<T> {
   provider: string;
   /** Company slug, used only for the deep-pagination warn log line. */
   company: string;
-  /**
-   * Expected page size — a page shorter than this ends the loop. Pass "infer"
-   * when the size is a property of the TENANT rather than of the engine: the
-   * first page's own row count is taken as the page size instead of a guessed
-   * constant. SuccessFactors serves 10 rows to one tenant and 25 to the next,
-   * and declaring 25 truncated the 10-row tenants at page 1.
-   */
+  /** Expected page size - a shorter page ends the loop. Pass "infer" when it's a per-TENANT property rather than an engine constant (e.g. SuccessFactors serves 10 rows to one tenant, 25 to another) - the first page's own count becomes the size. */
   pageSize: number | "infer";
-  /** Runaway backstop on page count, for a tenant whose `total` is unreliable
-   *  and never returns a short/empty page. Default 5000 — high enough never to
-   *  truncate a real board. */
+  /** Runaway backstop on page count, for a tenant whose `total` is unreliable and never returns a short/empty page. Default 5000 - high enough never to truncate a real board. */
   maxPages?: number;
-  /**
-   * Whether a page shorter than `pageSize` (but non-empty) ends pagination.
-   * True for tenants whose page size is authoritative (Workday, SmartRecruiters,
-   * Eightfold, Oracle). Some tenants (e.g. Phenom) may serve fewer items than
-   * requested without that meaning "last page" — those pass `false` and rely
-   * on a zero-item page or reaching `total` to terminate instead. Default true.
-   */
+  /** Whether a page shorter than `pageSize` (but non-empty) ends pagination. True for tenants whose page size is authoritative (Workday, SmartRecruiters, Eightfold, Oracle); some (e.g. Phenom) may serve fewer items without meaning "last page" - those pass `false` and rely on a zero-item page or reaching `total`. Default true. */
   shortPageEndsPagination?: boolean;
-  /**
-   * Delay between page fetches, in ms. Defaults to `INTER_PAGE_DELAY_MS`.
-   * Tests pass 0 to avoid paying the real politeness delay; adapters should
-   * leave this unset so production behavior is unchanged.
-   */
+  /** Delay between page fetches, in ms. Defaults to `INTER_PAGE_DELAY_MS`; tests pass 0. */
   interPageDelayMs?: number;
-  /**
-   * Fetch one page at the given offset (0-based, page-th call). Return its
-   * items and, if known, the total item count reported by the API. See
-   * `PaginatePage` for field semantics.
-   */
+  /** Fetch one page at the given offset (0-based, page-th call). See `PaginatePage` for field semantics. */
   fetchPage: (offset: number, page: number) => Promise<PaginatePage<T>>;
-  /**
-   * When given, drops any item whose key (per this function) was already
-   * accumulated on an earlier page — for tenants whose pages can overlap
-   * (e.g. a job moves between two pages while the crawl is in flight).
-   * Purely a filter on what's ACCUMULATED: `rawCount`/`items.length` (and
-   * therefore the offset advance and short-page/total termination checks)
-   * are computed from the page exactly as fetched, so duplicates never shift
-   * later offsets.
-   */
+  /** Drops any item whose key was already accumulated on an earlier page (for tenants whose pages can overlap). Purely a filter on what's accumulated - `rawCount`/`items.length` (and so the offset advance and termination checks) are computed from the page as fetched, so duplicates never shift later offsets. */
   dedupeBy?: (item: T) => string;
 }
 
-/**
- * Shared offset-pagination loop for the ATS adapters (Workday, SmartRecruiters,
- * Eightfold, Oracle, Phenom). All five fetch a page, accumulate items, and stop
- * on the first of: a zero-item page, (usually) a short page, a first-seen
- * `total` being reached, or a hard page cap. The offset always advances by the
- * number of items actually received (not a fixed page size) — equivalent to
- * advancing by `pageSize` for full pages, but also correct for tenants whose
- * server may return fewer items than requested for a given call. Reaching the
- * hard page cap (as opposed to any of the other stop conditions) logs a
- * runaway-cap warning, since it means the board may have been truncated.
- */
+// Shared offset-pagination loop for Workday, SmartRecruiters, Eightfold, Oracle, Phenom and others: fetch a page, accumulate, stop on a zero-item page, (usually) a short page, a first-seen `total` reached, or the hard page cap. Offset advances by items actually received (not a fixed size), so it's also correct when a server returns fewer than requested. Hitting the hard cap (vs. any other stop condition) logs a runaway warning, since the board may have been truncated.
 export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
   const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
   const shortPageEndsPagination = opts.shortPageEndsPagination ?? true;
@@ -208,34 +123,16 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     }
     const count = rawCount ?? items.length;
 
-    // Latched before the stall check below so that check can report the total,
-    // including a total this page is the first to expose. Nothing else reads
-    // `total` earlier in the iteration, so the loop behaves identically.
+    // Latched before the stall check below so it can report a total this page is the first to expose; nothing else reads `total` earlier, so the loop behaves identically.
     if (total === null && typeof pageTotal === "number") {
       total = pageTotal;
     }
 
-    // A board that ignores the offset parameter serves page 0 forever, so we
-    // would walk all the way to `total` re-fetching identical rows:
-    // godrej-agrovet (2026-07-26) returned the same 10 jobs across 32 pages,
-    // turning 3 real postings into 96 JD fetches.
-    //
-    // The stop condition is an EXACT repeat of the previous page, not merely a
-    // page whose rows have all been seen before. Boards with unstable ordering
-    // legitimately re-serve rows from earlier pages while still having more to
-    // give: idfcfirst (1530 hits) hands back a fully-duplicate page around
-    // page 8 and then keeps yielding new ids for another ~1200. Treating that
-    // as a stall truncated it to 324 — never truncate on a weaker signal.
-    //
-    // The same repeat also happens benignly: a board that CLAMPS at its last
-    // page (gohire) re-serves it instead of returning empty, so stopping here
-    // loses nothing. The two are indistinguishable from the response alone, so
-    // only the counts decide how loud the log is — see describePaginationStall.
+    // Stop only on an EXACT repeat of the prior page (not just previously-seen rows): ignoring the offset param would serve page 0 forever, but some boards legitimately re-serve earlier rows mid-crawl while more pages remain, so a weaker signal would truncate them.
+    // The same exact-repeat also happens benignly when a board clamps at its last page and re-serves it; indistinguishable from the response alone, so only the counts decide how loud describePaginationStall logs.
     const signature = dedupeBy ? items.map(dedupeBy).join("\u0000") : null;
     if (signature !== null && items.length > 0 && added === 0 && signature === prevSignature) {
-      // Read off the page we stalled ON: it is a byte-for-byte repeat of the
-      // previous one, so its own evidence about the board's pager is the
-      // evidence for the repeat.
+      // The page we stalled ON is a byte-for-byte repeat of the previous one, so its own evidence about the board's pager is the evidence for the repeat.
       const stall = describePaginationStall({
         total,
         collected: out.length,
@@ -257,10 +154,7 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
     prevSignature = signature;
 
     if (count === 0) break;
-    // Under "infer" the first page IS the page size, so it can never be judged
-    // short against itself — the only safe direction, since guessing high
-    // truncates the board on page 1 while guessing low costs at most one extra
-    // fetch before an empty page (or the total) ends the loop.
+    // Under "infer" the first page IS the page size, so it can never be judged short against itself - the safe direction, since guessing high truncates page 1 while guessing low costs at most one extra fetch.
     pageSize ??= count;
     if (shortPageEndsPagination && count < pageSize) break;
     offset += count;
@@ -291,9 +185,7 @@ export function collapseWs(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-/** Slice out a bracket-balanced literal starting at the first `open` bracket
- *  after `startMarker`. Tracks string state so brackets inside quoted values
- *  (incl. backtick strings) don't miscount. Returns null if unbalanced. */
+/** Slice out a bracket-balanced literal starting at the first `open` bracket after `startMarker`; tracks string state so brackets inside quoted values don't miscount. Null if unbalanced. */
 export function extractBalanced(text: string, startMarker: string, open: "[" | "{"): string | null {
   const markerAt = text.indexOf(startMarker);
   if (markerAt < 0) return null;
@@ -338,14 +230,12 @@ export function epochMsToIso(ms: number | null | undefined): string | null {
   return new Date(ms).toISOString();
 }
 
-/** Origin of the tenant's board: tenant_url wins, else careers_url. Throws on
- *  an unparseable URL (config error worth failing the company). */
+/** Origin of the tenant's board: tenant_url wins, else careers_url. Throws on an unparseable URL (config error worth failing the company). */
 export function tenantOrigin(c: Pick<AdapterCompany, "tenantUrl" | "careersUrl">): string {
   return new URL(c.tenantUrl ?? c.careersUrl).origin;
 }
 
-/** Like tenantOrigin but an unparseable/absent URL falls back to a
- *  slug-derived host. */
+/** Like tenantOrigin but an unparseable/absent URL falls back to a slug-derived host. */
 export function tenantOriginOr(
   c: Pick<AdapterCompany, "tenantUrl" | "careersUrl" | "slug">,
   fallback: (slug: string) => string,

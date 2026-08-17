@@ -9,13 +9,12 @@ import type { JsonValue } from "../util/json.js";
 
 
 export const GateResultSchema = z.object({
-  // v2 fields — optional so v1 output still validates and downstream is unaffected.
+  // v2 fields, optional so v1 output still validates.
   analysis: z.string().optional(),
   skillsMatch: z.number().min(0).max(1).optional(),
   domainFit: z.number().min(0).max(1).optional(),
   seniorityFit: z.number().min(0).max(1).optional(),
   roleTypeMatch: z.number().min(0).max(1).optional(),
-  // contract consumed by verdict.ts — unchanged.
   matchScore: z.number().min(0).max(1),
   dealBreakerHit: z.string().nullable(),
   dealBreakerSeverity: z.enum(["hard", "soft"]).nullable(),
@@ -30,39 +29,31 @@ export interface GateInput {
 }
 
 export interface RunGateOptions {
-  /** Override the prompt template (defaults to config.prompts.gate). Used by the eval harness. */
+  /** Override the prompt template (defaults to config.prompts.gate); used by the eval harness. */
   promptTemplate?: string;
-  /** Sampling temperature. undefined → the client default (0.2). Set 0 for
-   *  deterministic, repeatable scoring in the eval harness. */
+  /** Sampling temperature; undefined uses the client default (0.2), 0 for deterministic eval-harness scoring. */
   temperature?: number | undefined;
 }
 
-/**
- * Turn a raw model response into a validated GateResult. Throws on malformed
- * JSON or schema violations (and logs the offending payload before throwing).
- */
+/** Turn a raw model response into a validated GateResult; throws on malformed JSON or schema violations. */
 export function parseGateResponse(raw: string): GateResult {
   let parsed: JsonValue = parseJsonOrThrow(raw, "gate");
 
   if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
     const p: { [k: string]: JsonValue } = parsed;
-    // Treat absent (undefined) / empty / "none" / "null" as null — the model
-    // (esp. on the frontend prompt) sometimes OMITS these keys entirely, which
-    // would fail the required-but-nullable schema.
+    // Model sometimes omits these keys entirely; treat absent/empty/"none"/"null" as null.
     if (p["dealBreakerHit"] === undefined || p["dealBreakerHit"] === "" || p["dealBreakerHit"] === "none" || p["dealBreakerHit"] === "null") {
       p["dealBreakerHit"] = null;
     }
     if (p["dealBreakerSeverity"] === undefined || p["dealBreakerSeverity"] === "" || p["dealBreakerSeverity"] === "none" || p["dealBreakerSeverity"] === "null") {
       p["dealBreakerSeverity"] = null;
     }
-    // If hit is null, severity must be null (model sometimes inverts this).
+    // Model sometimes inverts hit/severity nullness; normalize both directions.
     if (p["dealBreakerHit"] === null) p["dealBreakerSeverity"] = null;
-    // If severity is null but a hit is set, fall back to "soft" (don't silently drop).
     if (p["dealBreakerHit"] !== null && p["dealBreakerSeverity"] === null) {
       p["dealBreakerSeverity"] = "soft";
     }
-    // reason is display-only; the model sometimes omits it. Backfill from the
-    // analysis or a score string so a missing reason never fails validation.
+    // reason is display-only and sometimes omitted; backfill so a missing reason never fails validation.
     if (typeof p["reason"] !== "string" || p["reason"] === "") {
       const analysis = typeof p["analysis"] === "string" ? p["analysis"] : "";
       const score = typeof p["matchScore"] === "number" ? p["matchScore"].toFixed(2) : "?";
@@ -80,8 +71,7 @@ export function parseGateResponse(raw: string): GateResult {
 }
 
 export async function runGate(input: GateInput, opts: RunGateOptions = {}): Promise<GateResult> {
-  // Per-profile rubric (e.g. a frontend-engineer screen) overrides the global
-  // default (a data-analyst screen). Eval-harness override wins over both.
+  // Precedence: eval-harness override > per-profile rubric > global default.
   const template = opts.promptTemplate ?? profile.gatePrompt ?? config.prompts.gate;
   const prompt = render(template, {
     resume: profile.resumeText ?? "",
@@ -92,15 +82,8 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
     jdText: input.jdText.slice(0, config.llm.jdMaxChars),
   });
 
-  // Up to 2 re-asks on parse failure: the model occasionally emits malformed
-  // JSON (a wrapper key or a token runaway). A fresh generation usually fixes
-  // it, and a dropped posting is a recall risk we can't afford.
-  //
-  // Worst case call count: the first attempt goes through generate(), which
-  // itself retries transport errors (config.llm.maxRetries=2 -> up to 3 HTTP
-  // calls). Each re-ask after a *parse* failure uses generateOnce() (exactly
-  // 1 HTTP call each) instead of another full transport-retry cascade, so the
-  // worst case here is 3 + 1 + 1 = 5 HTTP calls, not 9.
+  // Up to 2 re-asks on parse failure (malformed JSON); each re-ask uses generateOnce() (1 HTTP call)
+  // instead of another full transport-retry cascade, so worst case is 3 + 1 + 1 = 5 calls, not 9.
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 2; attempt++) {

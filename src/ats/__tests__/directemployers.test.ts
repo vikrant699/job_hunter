@@ -1,4 +1,3 @@
-// src/ats/directemployers.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { directemployersAdapter, normalizeDeJob } from "../directemployers.js";
@@ -23,8 +22,6 @@ const job: DeJob = {
   url: "https://deerecareers.jobs/job/123",
 };
 
-// --- normalizeDeJob: externalId fallback chain -----------------------------
-
 test("externalId prefers guid when present", () => {
   assert.equal(normalizeDeJob(company, job)?.externalId, "guid-123");
 });
@@ -40,8 +37,6 @@ test("externalId falls back to reqid when guid and id are both absent", () => {
 test("externalId falls back to the title when guid/id/reqid are all absent", () => {
   assert.equal(normalizeDeJob(company, { ...job, guid: null, id: null, reqid: null })?.externalId, "Software Engineer");
 });
-
-// --- normalizeDeJob: Task-16 location contract -----------------------------
 
 test("location_exact wins over the city/country join when present", () => {
   assert.equal(normalizeDeJob(company, job)?.location, "Bengaluru, Karnataka, India");
@@ -62,8 +57,6 @@ test("no location_exact/city/country maps location to null", () => {
   assert.equal(p?.location, null);
   assert.equal(p.isRemote, false);
 });
-
-// --- listPostings: x-origin header + pagination ----------------------------
 
 test("listPostings sends x-origin from apiMeta.origin", async (t) => {
   let originHeader: string | null = null;

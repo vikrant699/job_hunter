@@ -1,9 +1,4 @@
-/**
- * Per-run notification dedup key. Two postings with the same company, normalized
- * title, and normalized location are treated as the same role (a repost or
- * re-listed requisition with a fresh id) and notified only once. Location is part
- * of the key so a genuinely multi-city opening is NOT collapsed.
- */
+/** Per-run notification dedup key; location is included so multi-city openings aren't collapsed. */
 export function notifyKey(
   company: string,
   title: string | null,

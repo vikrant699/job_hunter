@@ -1,13 +1,4 @@
-/**
- * The relevance-gate prompt. Reason-first, decomposed sub-scores, granular rubric,
- * an anti-hedge instruction, and worked examples drawn from the candidate's own
- * reviewed history (analyst roles = good; data-science / ML / engineering = not).
- *
- * Placeholders are filled by render(): resume, hardDealBreakers, softDealBreakers,
- * jobTitle, companyName, jdText. The model returns JSON validated by GateResultSchema
- * (analysis and the four sub-scores are optional; matchScore, the dealBreaker fields,
- * and reason are required).
- */
+// Relevance-gate prompt. Placeholders filled by render(); output validated by GateResultSchema.
 export const GATE_PROMPT = `You are screening job postings for ONE specific candidate, described by the resume below. Score so the candidate sees real matches first and isn't buried in noise — but missing a genuine match is worse than showing a borderline one.
 
 # Candidate's resume

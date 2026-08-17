@@ -1,7 +1,5 @@
 // src/ats/amazonjobs.ts — Amazon's public jobs search API (www.amazon.jobs).
-// Clean JSON search endpoint: GET /en/search.json?country=<cc>&result_limit=N&offset=M&sort=recent
-// returns { hits: <total>, jobs: [...] } with the FULL job description inline
-// (no per-job fetch needed). result_limit maxes out at 100 on this API.
+// GET /en/search.json?country=<cc>&result_limit=N&offset=M&sort=recent; full JD inline; result_limit caps at 100.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -13,7 +11,7 @@ import type { JsonValue } from "../util/json.js";
 
 const BASE = "https://www.amazon.jobs";
 const RESULT_LIMIT = 100; // server max for result_limit
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const MAX_PAGES = 5000; // runaway backstop only, never truncate
 
 export const AmazonJobSchema = z.object({
   id_icims: z.string(),
@@ -25,10 +23,7 @@ export const AmazonJobSchema = z.object({
   posted_date: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
   description_short: z.string().nullable().optional(),
-  // Amazon returns the qualifications as their OWN fields, not inside
-  // `description`. Dropping them cost every Amazon posting its experience
-  // requirement: the gate never saw "1+ years", extract returned null YOE, and
-  // the profile's "minimum 7+ years" hard deal-breaker could never fire.
+  // Qualifications are separate fields, not part of description - needed for the YOE gate.
   basic_qualifications: z.string().nullable().optional(),
   preferred_qualifications: z.string().nullable().optional(),
 });
@@ -45,21 +40,12 @@ export function amazonJobsApiUrl(company: AdapterCompany, offset: number): strin
   return `${BASE}/en/search.json?country=${encodeURIComponent(country)}&result_limit=${RESULT_LIMIT}&offset=${offset}&sort=recent`;
 }
 
-/** Parse one search.json page into its jobs and the reported total (`hits`). */
 export function amazonJobsPageJobs(pageJson: JsonValue): { jobs: AmazonJob[]; total: number | null } {
   const parsed = AmazonJobsPageSchema.parse(pageJson);
   return { jobs: parsed.jobs, total: parsed.hits ?? null };
 }
 
-/**
- * Assemble the full JD from Amazon's three separate fields.
- *
- * The qualifications are where the experience bar lives ("1+ years", "3+ years")
- * and they are NOT part of `description`, so a description-only jdText left every
- * Amazon posting looking seniority-less to the gate, to extract, and to the
- * pre-gate YOE check. Sections are labelled because that is how the JD reads on
- * the site, and the labels give the reader an anchor for what follows.
- */
+/** Assemble the full JD from description + labelled qualifications sections. */
 export function amazonJdText(j: AmazonJob): string {
   const sections: string[] = [htmlToText(j.description ?? j.description_short ?? "")];
   const basic = htmlToText(j.basic_qualifications ?? "");

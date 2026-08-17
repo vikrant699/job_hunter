@@ -1,4 +1,3 @@
-// src/ats/__tests__/google.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { googleListUrl, googleDetailUrl, parseGoogleList, parseGoogleJd } from "../google.js";
@@ -28,7 +27,6 @@ test("googleDetailUrl strips the query and absolutizes a relative results href",
   );
 });
 
-// Each job card is an <li> with a jobs/results/<id>-<slug> link and an <h3> title.
 const LIST_HTML = `<html><body><ul>
   <li><a href="jobs/results/107018346561446598-software-engineer-phd-early-career-2026?location=India&page=1"></a>
       <h3>Software Engineer, PhD, Early Career, 2026</h3></li>
@@ -64,8 +62,7 @@ test("parseGoogleList returns [] on a page past the end (no job cards)", () => {
   assert.deepEqual(parseGoogleList(company, "<html><body><p>No results</p></body></html>"), []);
 });
 
-// JD extraction keys on STABLE <h3> heading TEXT (About the job / Minimum
-// qualifications / Responsibilities), not on Google's rotating CSS classes.
+// JD extraction keys on stable <h3> heading text, not on Google's rotating CSS classes.
 const DETAIL_HTML = `<html><body>
   <header><a>share link</a><a>Copy link</a></header>
   <div class="X">

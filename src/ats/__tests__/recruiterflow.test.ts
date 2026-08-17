@@ -22,12 +22,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup shape from GET https://recruiterflow.com/coinswitch/jobs
-// (captured 2026-07-12) — two department groups, one duplicate job_id across
-// "department" and "location" groupings (we only read "department", so the
-// duplicate in "location" must never surface), plus a semicolon inside a job
-// name to prove the balanced-brace scan (not a naive non-greedy regex) finds
-// the true end of the literal.
+// Two dept groups with a duplicate job_id (only "department" should surface) and a semicolon in a job name to exercise the balanced-brace scan.
 const LIST_HTML = `<!doctype html><html><body>
   <div id="rf-jobs-list"></div>
   <script src="/static/js/manual/careers/careers.js?v=0.11"></script>

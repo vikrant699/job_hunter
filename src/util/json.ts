@@ -20,12 +20,7 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   ]),
 );
 
-/**
- * Parse a raw LLM response as JSON and validate it against JsonValueSchema.
- * On failure, logs the offending payload (capped to 500 chars, the most
- * informative of the call sites this replaces) and throws a labeled error
- * so callers/logs can tell which LLM call produced the bad output.
- */
+/** Parses a raw LLM response as JSON against JsonValueSchema; on failure logs the payload and throws a labeled error. */
 export function parseJsonOrThrow(raw: string, label: string): JsonValue {
   try {
     return JsonValueSchema.parse(JSON.parse(raw));
@@ -35,14 +30,7 @@ export function parseJsonOrThrow(raw: string, label: string): JsonValue {
   }
 }
 
-/**
- * JSON.parse that returns a validated JsonValue, or null on ANY failure
- * (malformed JSON text, or — vanishingly rarely, since valid JSON only ever
- * produces JsonValue-shaped values — a JsonValueSchema mismatch). Kills the
- * `let parsed: unknown; try { parsed = JSON.parse(...) } catch { ... }`
- * idiom repeated across the ATS adapters (rule 3: library-returned unknown
- * flows straight into zod on one expression, no hand-annotated variable).
- */
+/** JSON.parse that returns a validated JsonValue, or null on any failure (malformed JSON, or a schema mismatch). */
 export function tryParseJson(text: string): JsonValue | null {
   try {
     return JsonValueSchema.parse(JSON.parse(text));
@@ -51,14 +39,7 @@ export function tryParseJson(text: string): JsonValue | null {
   }
 }
 
-/**
- * Return the value at `key` if it is a plain JSON object (not an array or
- * null), else null. Omit `key` to narrow `node` itself instead of a property
- * of it — call as `getObj(x)` (no key) to re-narrow `x` itself, used after
- * pulling a value out of a JsonValue. Used to narrow nested ATS API responses
- * one level at a time without repeating the typeof/Array.isArray dance at
- * every level.
- */
+/** Returns the value at `key` if it's a plain JSON object, else null; omit `key` to re-narrow `node` itself. Narrows nested ATS API responses one level at a time. */
 export function getObj(node: JsonValue | undefined | null, key?: string): Record<string, JsonValue> | null {
   const target = key === undefined ? node : (typeof node === "object" && node !== null && !Array.isArray(node) ? node[key] : undefined);
   if (typeof target !== "object" || target === null || Array.isArray(target)) return null;

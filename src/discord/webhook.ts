@@ -6,11 +6,7 @@ import type { JsonValue } from "../util/json.js";
 const WEBHOOK_TIMEOUT_MS = 15_000;
 const WEBHOOK_MAX_429_RETRIES = 3;
 
-/**
- * POST a JSON body to a Discord webhook with timeout + 429/transient retry.
- * Shared by the match/summary notifier and the progress heartbeat so the retry
- * behavior stays in one place. Throws on a non-retryable failure.
- */
+/** POST a JSON body to a Discord webhook with timeout + 429/transient retry; throws on a non-retryable failure. */
 export async function postWebhookJson(url: string, body: JsonValue): Promise<void> {
   for (let attempt = 0; attempt <= WEBHOOK_MAX_429_RETRIES; attempt++) {
     let res: Response;
@@ -22,8 +18,7 @@ export async function postWebhookJson(url: string, body: JsonValue): Promise<voi
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       });
     } catch (err) {
-      // Timeout abort or transient network failure — retry like a 429 rather
-      // than losing the notification to a single blip.
+      // Timeout/network failure retries like a 429 rather than losing the notification to a blip.
       if (attempt < WEBHOOK_MAX_429_RETRIES) {
         logger.warn({ attempt, err: String(err).slice(0, 120) }, "Discord webhook fetch failed; retrying");
         await sleep(1000 * (attempt + 1));

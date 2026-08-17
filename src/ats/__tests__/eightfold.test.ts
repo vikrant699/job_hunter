@@ -28,10 +28,7 @@ test("normalizeEightfold maps list metadata (JD fetched separately)", () => {
   assert.equal(p.postedAt, new Date(1780531200 * 1000).toISOString());
 });
 
-// HSBC's tenant (portal.careers.hsbc.com) clamps every response to 10 positions
-// regardless of the num= we ask for. With a hardcoded pageSize the first page
-// read as "short" and pagination stopped at 10 of 1,563 — the adapter must
-// infer the page size from what the server actually serves and keep going.
+// HSBC's tenant clamps every response to 10 positions regardless of num=; the adapter must infer page size from what the server actually serves.
 test("listPostings pages through a server that clamps num= below the requested page size", async (t) => {
   const { eightfoldAdapter } = await import("../eightfold.js");
   const { stubFetch, fetchSequence, jsonResponse } = await import("./testHelpers.js");

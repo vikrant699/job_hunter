@@ -13,8 +13,7 @@ test("parseExtractResponse coerces numeric strings", () => {
 });
 
 test("parseExtractResponse maps empty/placeholder strings to null, never 0", () => {
-  // "" must NOT become 0 — a 0 would make verdict.ts treat the YOE as known
-  // and skip the unknown-YOE yellow safeguard.
+  // "" must not become 0, or verdict.ts would treat the YOE as known.
   assert.deepEqual(parseExtractResponse('{"yoeMin": "", "yoeMax": " "}'), { yoeMin: null, yoeMax: null });
   assert.deepEqual(parseExtractResponse('{"yoeMin": "null", "yoeMax": "None"}'), { yoeMin: null, yoeMax: null });
 });

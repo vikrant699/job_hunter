@@ -158,8 +158,7 @@ test("projectToSheet appends Undrafted rows for THIS runId only, never rewrites"
   const { deps, appends, rewrites } = harness();
   const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const runDate = "2026-07-06";
-  // Two runs on the SAME day: earlier run's rows must not re-append (that was
-  // the same-day duplication bug — scoping by runDate instead of runId).
+  // Two runs on the same day: earlier run's rows must not re-append (scoping is by runId, not runDate).
   const earlierRunId = 900_000 + Math.floor(Math.random() * 50_000);
   const thisRunId = earlierRunId + 1;
   const mkRow = (runId: number, company: string) => ({

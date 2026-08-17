@@ -1,25 +1,9 @@
-// src/ats/bmw.ts — BMW Group careers (bmwgroup.jobs), an Adobe AEM "grpw-web"
-// job-finder. The whole domain is behind Akamai Bot Manager at the TLS level:
-// plain Node fetch (any headers) is refused before any HTTP response, so this
-// adapter runs through the shared headless browser, which clears the WAF.
-//
-// Once the page loads, its own JS fetches an HTML fragment for the job table:
-//   GET <origin>/<locale-path>/jobs/_jcr_content/main/<container>/jobfinder30
-//       .jobfinder_table.content.html?filterSearch=location_IN&rowIndex=<N>&blockCount=<B>
-// The country is baked into the page URL (/in/en/jobs.html is pre-filtered to
-// India via filterSearch=location_IN), so we don't construct the fragment URL
-// ourselves — we capture the exact one the page requests (container id and
-// filter included) and then page it by bumping rowIndex.
-//
-// The fragment is fully structured HTML (NO LLM needed): each
-// `.grp-jobfinder__wrapper[data-job-id]` holds a `.grp-jobfinder-cell-refno`
-// with data-job-title / data-job-location / data-job-legal-entity /
-// data-posting-date, plus a detail link `/…/job-description-copy.<id>.html`.
-// `data-counter` on the table is the true India total. JD lives in
-// `.grp-jobdescription__content` on the detail page; because the board is
-// tiny (India routinely has a handful of roles) we fetch every JD inside the
-// same WAF-cleared browser session during listing, so location AND JD are
-// both exact and there's no second WAF handshake per posting.
+// src/ats/bmw.ts — BMW Group careers (bmwgroup.jobs), Adobe AEM "grpw-web" job-finder behind Akamai Bot Manager
+// (plain Node fetch is TLS-refused, so this runs through the shared headless browser to clear the WAF).
+// The page's own JS fetches an HTML fragment for the job table; we capture the exact URL it requests (container id
+// + India filter baked in) and page it by bumping rowIndex. Fragment is structured HTML keyed by
+// `.grp-jobfinder__wrapper[data-job-id]`; `data-counter` is the true total. Because the board is tiny, every JD is
+// fetched inside the same WAF-cleared session during listing, avoiding a second handshake per posting.
 import * as cheerio from "cheerio";
 import type { Page } from "playwright";
 import { logger } from "../logger.js";
@@ -30,13 +14,8 @@ import { htmlToText } from "./htmlText.js";
 import { REMOTE_RE } from "./shared.js";
 
 const FRAG_RE = /jobfinder\d*\.jobfinder_table\.content\.html/i;
-// Safety cap on fragment pages (blockCount rows each) — India never
-// approaches this; it's a runaway backstop only.
-const MAX_FRAG_PAGES = 200;
-// Cap inline JD fetches so a pathologically large India board can't stall the
-// tick; postings beyond this keep title+location and get their JD on a later
-// run. Comfortably above any real BMW-India vacancy count.
-const MAX_JD_FETCHES = 60;
+const MAX_FRAG_PAGES = 200; // runaway backstop, India never approaches this
+const MAX_JD_FETCHES = 60; // cap so a pathologically large board can't stall the tick; rest keep title+location only
 
 export interface BmwTile {
   externalId: string;
@@ -80,7 +59,6 @@ export function parseBmwFragment(html: string, origin: string): { tiles: BmwTile
   return { tiles, total };
 }
 
-/** Extract the JD text from a detail page's HTML. */
 export function extractBmwJd(html: string): string {
   const $ = cheerio.load(html);
   const el = $(".grp-jobdescription__content").first();
@@ -89,7 +67,6 @@ export function extractBmwJd(html: string): string {
   return htmlToText(main.length > 0 ? (main.html() ?? "") : $("body").html() ?? "");
 }
 
-/** Set rowIndex on a captured fragment URL. */
 export function bmwFragmentPageUrl(fragUrl: string, rowIndex: number): string {
   const u = new URL(fragUrl);
   u.searchParams.set("rowIndex", String(rowIndex));
@@ -111,12 +88,7 @@ export const bmwAdapter: AtsAdapter = {
     const pageUrl = company.tenantUrl ?? company.careersUrl;
     const origin = new URL(pageUrl).origin;
 
-    // Capture the exact jobfinder fragment URL the page's own JS requests
-    // (carries the container id + India filter); blockCount comes from it.
-    // Registered from `beforeGoto` (before navigation) since the request can
-    // fire during the initial load — a listener attached after `goto` could
-    // miss it. Placeholder is overwritten synchronously by `beforeGoto`
-    // before `run` ever reads it.
+    // Registered from beforeGoto (pre-navigation) since the fragment request can fire during initial load.
     let fragUrlPromise: Promise<string | null> = Promise.resolve(null);
 
     return withBrowserPage(
@@ -130,8 +102,6 @@ export const bmwAdapter: AtsAdapter = {
 
         const blockCount = Number(new URL(fragUrl).searchParams.get("blockCount") ?? "5") || 5;
 
-        // Page the fragment by rowIndex until we've collected the reported
-        // total (or an empty page).
         const tiles: BmwTile[] = [];
         const seen = new Set<string>();
         let total: number | null = null;
@@ -178,15 +148,10 @@ export const bmwAdapter: AtsAdapter = {
       },
       {
         navTimeoutMs: 45_000,
-        waitUntil: "networkidle", // Akamai interstitial / slow settle is swallowed (default); the fragment may still fire
+        waitUntil: "networkidle", // Akamai interstitial / slow settle is swallowed; the fragment may still fire
         settleMs: 0, // captureFirstRequest's own timeout below replaces the fixed settle wait
         blockHeavyAssets: false,
-        // Original budget was "up to navTimeoutMs inside goto (interstitial/slow
-        // networkidle), THEN up to 6000ms more of polling" — i.e. ~51s worst
-        // case measured from listener-registration. captureFirstRequest's
-        // timer starts at that same instant (beforeGoto runs pre-goto), so it
-        // must cover the full 45_000 + 6_000 to not cut the window short while
-        // goto itself is still settling.
+        // 51_000 = navTimeoutMs (45_000) + ~6_000 polling margin, timed from listener registration (pre-goto).
         beforeGoto: (page) => { fragUrlPromise = captureFirstRequest(page, FRAG_RE, 51_000); },
       },
     );

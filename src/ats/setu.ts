@@ -1,14 +1,5 @@
-// src/ats/setu.ts — Setu (setu.co, Pine Labs group), single-company adapter.
-// Setu's careers SPA is fed by a public CSV in a GitHub content repo:
-//   GET raw.githubusercontent.com/SetuHQ/website-content/main/careers/
-//       Setu%20Website%20-%20CurrentOpenings.csv
-// Header: Role,Description,Link,Category,Sub-category. `Description` is a
-// login-walled Google Doc link — never used. `Link` is the public TurboHire
-// job page (https://pinelabsgroup.turbohire.co/get/<code>); <code> is our
-// externalId. The CSV carries no location, so we use a fixed HQ string (Setu
-// is Bangalore-HQ'd; every JD confirms this) to keep the India location gate
-// working. JD text comes from the job page's server-rendered schema.org
-// JobPosting JSON-LD block, which holds the full plain-text description.
+// src/ats/setu.ts — Setu (setu.co, Pine Labs group) careers SPA, fed by a public CSV in a GitHub content repo (SetuHQ/website-content). `Link` is the public TurboHire job page; `Description` is a login-walled Google Doc, never used.
+// The CSV carries no location (fixed HQ string used instead); JD comes from the TurboHire page's schema.org JobPosting JSON-LD block.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -26,13 +17,7 @@ export const SETU_CSV_URL =
 // Setu HQ (Bangalore); the CSV has no per-role location field.
 export const SETU_LOCATION = "Bengaluru, India";
 
-// ---------------------------------------------------------------------------
-// CSV parsing — small hand-rolled parser (no new dependency). Handles quoted
-// fields (which may contain commas or embedded quotes doubled as ""), CRLF or
-// LF line endings, and blank lines.
-// ---------------------------------------------------------------------------
-
-/** Parse CSV text into rows of raw string cells. Pure, dependency-free. */
+// Hand-rolled CSV parser (no new dependency); handles quoted fields (commas or doubled "" quotes), CRLF/LF, and blank lines.
 export function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -79,7 +64,7 @@ export function parseCsvRows(text: string): string[][] {
       continue;
     }
     if (c === "\r") {
-      // Swallow bare \r; \n (whether it follows or not) ends the row.
+      // Swallow bare \r; \n ends the row regardless.
       i += 1;
       continue;
     }
@@ -115,9 +100,7 @@ const HEADER_KEYS: Record<string, keyof SetuRow> = {
   "sub-category": "subCategory",
 };
 
-/** Parse the full CSV text into typed rows, mapping by header name (not
- * position) so column reordering in the source doesn't silently corrupt
- * data. Throws if the header is missing an expected column. */
+/** Maps columns by header name (not position) so reordering upstream can't silently corrupt data; throws if a column is missing. */
 export function parseSetuCsv(text: string): SetuRow[] {
   const rows = parseCsvRows(text);
   if (rows.length === 0) throw new Error("setu: empty CSV");
@@ -128,8 +111,7 @@ export function parseSetuCsv(text: string): SetuRow[] {
     if (idx === -1) throw new Error(`setu: CSV missing expected column "${headerKey}"`);
     colIndex[field] = idx;
   }
-  // Every SetuRow field was assigned an index above (or the loop threw), so
-  // this can never actually throw — it just gives TS a non-undefined number.
+  // Every field was assigned an index above (or the loop threw) - this never actually throws, it just gives TS a non-undefined number.
   const col = (field: keyof SetuRow): number => {
     const idx = colIndex[field];
     if (idx === undefined) throw new Error(`setu: internal: column index for "${field}" not resolved`);
@@ -138,7 +120,7 @@ export function parseSetuCsv(text: string): SetuRow[] {
 
   const out: SetuRow[] = [];
   for (const cells of rows.slice(1)) {
-    if (cells.every((c) => c.trim() === "")) continue; // skip blank lines
+    if (cells.every((c) => c.trim() === "")) continue;
     const record = {
       role: (cells[col("role")] ?? "").trim(),
       description: (cells[col("description")] ?? "").trim(),
@@ -152,16 +134,9 @@ export function parseSetuCsv(text: string): SetuRow[] {
   return out;
 }
 
-// ---------------------------------------------------------------------------
-// externalId / slugify
-// ---------------------------------------------------------------------------
-
 const TURBOHIRE_CODE_RE = /\/get\/([^/?#]+)/;
 
-/** externalId is the TurboHire job code embedded in the Link URL
- * (…/get/<code>); falls back to a slugified role if the URL doesn't match.
- * (The fallback slug is exactly `kebabCase` — its leading/trailing-hyphen
- * strip makes a separate pre-trim of `role` redundant.) */
+/** TurboHire job code from the Link URL (…/get/<code>); falls back to a kebab-cased role when the URL doesn't match. */
 export function setuExternalId(row: SetuRow): string {
   return matchGroup(TURBOHIRE_CODE_RE, row.link) ?? kebabCase(row.role);
 }
@@ -181,16 +156,7 @@ export function normalizeSetuRow(company: AdapterCompany, row: SetuRow): Normali
   };
 }
 
-// ---------------------------------------------------------------------------
-// JD extraction — the TurboHire job page server-renders a schema.org
-// JobPosting as a JSON-LD <script> island; its `description` field is
-// already plain text (no HTML tags observed live). Fall back to stripping
-// the whole page if that island is absent or malformed.
-// ---------------------------------------------------------------------------
-
-/** Extract the JD body from a TurboHire job page's HTML (shared JSON-LD
- *  extractor). Falls back to stripping the whole page when the island is
- *  absent, malformed, or has no JobPosting with both a title and description. */
+// TurboHire job pages server-render a schema.org JobPosting JSON-LD island whose `description` is already plain text; falls back to stripping the whole page if it's absent/malformed.
 export function extractSetuJdText(html: string): string {
   const [job] = extractJsonLdJobs(html);
   if (job?.description) return htmlToText(job.description);
@@ -200,8 +166,6 @@ export function extractSetuJdText(html: string): string {
 export const setuAdapter: AtsAdapter = {
   provider: "setu",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Plain text off GitHub; the default bot UA is fine for this host
-    // (verified live).
     const csv = await atsFetchText(SETU_CSV_URL, { provider: "setu" });
     if (!csv.trim()) throw new Error("setu: CSV response was empty");
     const rows = parseSetuCsv(csv);
@@ -211,8 +175,7 @@ export const setuAdapter: AtsAdapter = {
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-    // The job page is served off a WAF-fronted TurboHire tenant that expects
-    // a browser UA (verified live) — override the default bot UA here.
+    // WAF-fronted TurboHire tenant expects a browser UA, not the default bot UA.
     const html = await atsFetchText(posting.jobUrl, { provider: "setu", userAgent: BROWSER_UA });
     return extractSetuJdText(html);
   },

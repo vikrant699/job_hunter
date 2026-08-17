@@ -26,17 +26,13 @@ const scbCompany: AdapterCompany = {
   apiMeta: { locale: "en_GB", location: "India" },
 };
 
-// HCLTech's tenant ignores the flat `location` field entirely (returns 0
-// results for ANY non-empty value, confirmed live) but honors the same
-// country facet under `facetFilters.custCountryRegion`.
+// HCLTech's tenant ignores the flat 'location' field entirely but honors the same country facet under facetFilters.custCountryRegion.
 const hclCompany: AdapterCompany = {
   ...company, slug: "hcltech", name: "HCLTech",
   tenantUrl: "https://careers.hcltech.com",
   apiMeta: { location: "India", locationFacetField: "custCountryRegion" },
 };
 
-// Trimmed real response shape captured live from
-// POST https://careers.skyworksinc.com/services/recruiting/v1/jobs
 const listFixture = {
   jobSearchResult: [
     {
@@ -155,8 +151,7 @@ test("normalizeSfunify falls back to null location when jobLocationShort is abse
   assert.equal(p.isRemote, false);
 });
 
-// HCLTech's tenant has no jobLocationShort field at all — location lives in
-// separate custom fields (custprimecity + custCountryRegion) instead.
+// HCLTech's tenant has no jobLocationShort field at all - location lives in custprimecity + custCountryRegion instead.
 test("sfunifyLocation falls back to custprimecity + custCountryRegion when jobLocationShort is absent (HCLTech)", () => {
   const job = SfunifyJobSchema.parse({
     id: "54163", unifiedStandardTitle: "Analyst",
@@ -181,11 +176,7 @@ test("sfunifyLocation prefers jobLocationShort over the custom fields when both 
   assert.equal(sfunifyLocation(job), "Bangalore, KA, IND");
 });
 
-// Trimmed real HTML captured live from
-// https://careers.wipro.com/job/IT-Project-Manager-2/77719-en_US style detail pages
-// (SF Unify renders the JD server-side inside one or more
-// <span itemprop="description">...</span> blocks — intro boilerplate, the
-// actual "Job Description:" section, and sometimes a closing EEO statement).
+// SF Unify renders the JD server-side across multiple <span itemprop="description"> blocks (intro, actual description, closing EEO statement).
 const jdHtml = `
 <div class="joblayouttoken">
   <div class="inner">
@@ -231,10 +222,7 @@ test("extractSfunifyJd returns empty string when no description span is present"
   assert.equal(extractSfunifyJd("<html><body>nothing here</body></html>"), "");
 });
 
-// Real shape seen live on Standard Chartered postings: an inline
-// <span style="font-family:..."> nested INSIDE the itemprop=description
-// span for text-run styling. A naive non-greedy match against the next
-// </span> stops at the inner tag and truncates the JD — regression guard.
+// Standard Chartered nests an inline <span style=...> inside itemprop=description; a naive non-greedy match would stop at it and truncate the JD.
 const nestedSpanHtml = `
 <span itemprop="description" class="rtltextaligneligible"><div><div style="padding:10px"><h2><b>Job Summary</b></h2></div><div><p><span style="font-family:arial, helvetica, sans-serif;font-size:10pt">Achieve NTB target for the region and drive portfolio growth across the assigned book of clients, ensuring adherence to compliance and risk policies while building long-term relationships with key stakeholders across the business.</span></p>
 <p><span style="font-family:arial, helvetica, sans-serif;font-size:10pt">Partner with product and credit teams to structure financing solutions, coordinate onboarding, and monitor portfolio health on an ongoing basis throughout the relationship lifecycle.</span></p></div></div></span>

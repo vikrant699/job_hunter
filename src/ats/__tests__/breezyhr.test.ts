@@ -87,7 +87,6 @@ test("normalizeBreezyhr leaves location null when the field is absent", () => {
   assert.equal(p.isRemote, false);
 });
 
-// "simple" theme (e.g. talentmovers): <div class="job-description"><div class="description">...
 const SIMPLE_THEME_HTML = `
 <html><body class="breezy-portal breezy-portal-simple">
 <div class="position-header"><h1>Auto Body Technician (EN)</h1></div>
@@ -99,8 +98,7 @@ const SIMPLE_THEME_HTML = `
 <div class="apply-container"><a href="/apply">Apply now</a></div>
 </body></html>`;
 
-// "bold" theme (e.g. fairsquare): #description.position-description wraps
-// breadcrumbs/sidebar/links as SIBLINGS of the real .description div.
+// "bold" theme (e.g. fairsquare): sidebar/breadcrumb links are siblings of the real .description div.
 const BOLD_THEME_HTML = `
 <html><body class="breezy-portal breezy-portal-bold">
 <div id="description" class="container position-description">

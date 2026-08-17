@@ -76,9 +76,7 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
   const all = selectAllCompanies();
   assert.ok(all.some((c) => c.slug === `${tag}-good`));
 
-  // The cache snapshot is skipped too: the offline fallback trusts the cache
-  // with prune enabled, so a partial snapshot would prune quarantined-row
-  // companies on a later offline run.
+  // Cache snapshot skipped too, so a later offline run can't prune quarantined-row companies.
   assert.ok(!existsSync(cachePath), "cache must NOT be written when rows were quarantined");
 });
 
@@ -90,8 +88,7 @@ test("syncRegistryFromSheet: a zero-row sheet read never prunes and never overwr
     cachePath: tmpCache(),
   });
 
-  // Header-only tab (e.g. data rows cleared, or the API returned no values):
-  // must be treated as a suspect read, not as "delete everything".
+  // Header-only tab must be treated as a suspect read, not "delete everything".
   const emptyCachePath = tmpCache();
   const result = await syncRegistryFromSheet("default", {
     readTab: async () => [[...REGISTRY_COLUMNS]],

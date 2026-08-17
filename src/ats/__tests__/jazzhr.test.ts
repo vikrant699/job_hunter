@@ -28,9 +28,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Smule's registry row: the JazzHR subdomain (smuleinc) is NOT the slug
-// (smule-india), so the expected host can only come from the row's URL — a
-// slug-derived host would be smule-india.applytojob.com, which is nobody's board.
+// Smule's JazzHR subdomain (smuleinc) is NOT the slug (smule-india), so the expected host can only come from the row's URL.
 const overrideCompany: AdapterCompany = {
   provider: "jazzhr",
   slug: "smule-india",
@@ -40,7 +38,6 @@ const overrideCompany: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed from a live capture (hackerearth.applytojob.com/apply).
 const LIST_HTML = `<!DOCTYPE html>
 <html><head><title>HackerEarth - Career Page</title></head>
 <body>
@@ -69,7 +66,6 @@ const LIST_HTML = `<!DOCTYPE html>
 </div>
 </body></html>`;
 
-// Trimmed from a live capture (smuleinc.applytojob.com/apply) — zero open roles.
 const EMPTY_HTML = `<!DOCTYPE html>
 <html><head><title>Smule - Career Page</title></head>
 <body>
@@ -78,8 +74,7 @@ const EMPTY_HTML = `<!DOCTYPE html>
 </div>
 </body></html>`;
 
-// A row missing the detail link and a row with no heading text — both must
-// be skipped rather than crashing the parse.
+// A row missing the detail link and a row with no heading text - both must be skipped rather than crashing the parse.
 const MALFORMED_HTML = `<!DOCTYPE html>
 <html><body>
 <ul class='list-group'>
@@ -101,10 +96,7 @@ const MALFORMED_HTML = `<!DOCTYPE html>
 </ul>
 </body></html>`;
 
-// Trimmed from GET https://zzz-no-such-tenant-9x.applytojob.com/apply (HTTP 200,
-// two redirects, 46,936 bytes, captured 2026-08-03). A slug JazzHR does not host
-// lands here — the vendor's own job-seeker marketing page, on www.jazzhr.com. No
-// list-group items, so it used to parse as a board with zero openings.
+// A slug JazzHR does not host lands on the vendor's own job-seeker marketing page (www.jazzhr.com), with no list-group items, so it used to parse as a board with zero openings.
 const MARKETING_HTML = `<!DOCTYPE html>
 <html><head>
 <title>For Job Seekers | JazzHR</title>
@@ -115,7 +107,6 @@ const MARKETING_HTML = `<!DOCTYPE html>
 <p>JazzHR is recruiting software used by thousands of small businesses.</p>
 </body></html>`;
 
-// Trimmed from a live capture of the detail page's #job-description div.
 const JD_HTML = `<!DOCTYPE html>
 <html><body>
 <div class="job-attributes-container">
@@ -176,8 +167,6 @@ test("parseJazzhrList returns [] for HTML with no list-group at all", () => {
   assert.deepEqual(parseJazzhrList("<html><body>Nothing here</body></html>", "https://x.applytojob.com/apply"), []);
 });
 
-// --- dead tenant (redirected off-host) vs genuinely empty board ----------------
-
 /** Run `fn` and hand back whatever it threw, failing the test if it returned. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function thrownBy(fn: () => unknown): unknown {
@@ -204,9 +193,7 @@ test("assertJazzhrOnTenantHost throws when the board answered from another host,
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // A slug JazzHR does not host is a real per-company defect and MUST count
-  // toward the row's consecutive_failures. If any of these flipped true the
-  // scheduler would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler would retry the board forever and never quarantine it.
   const err = thrownBy(() =>
     assertJazzhrOnTenantHost(
       "https://hackerearth.applytojob.com",
@@ -268,14 +255,12 @@ test("jazzhrAdapter.listPostings rejects a dead tenant that landed on JazzHR's m
 });
 
 test("jazzhrAdapter.listPostings rejects an off-host response even when its HTML parses", async (t) => {
-  // The host is the whole signal: postings served from somewhere other than the
-  // tenant are not this company's, so a parseable body must not excuse them.
+  // The host is the whole signal; a parseable body from the wrong tenant must not excuse it.
   stubFetch(t, fetchSequence(() => htmlResponseFrom("https://www.jazzhr.com/job-seekers", LIST_HTML)));
   await assert.rejects(() => jazzhrAdapter.listPostings(company), /jazzhr: tenant does not exist/);
 });
 
 test("jazzhrAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
-  // The distinction the check exists for: same host, nothing open, no error.
   stubFetch(t, fetchSequence(() => htmlResponseFrom("https://smuleinc.applytojob.com/apply", EMPTY_HTML)));
   assert.deepEqual(await jazzhrAdapter.listPostings(overrideCompany), []);
 });
@@ -290,8 +275,7 @@ test("jazzhrAdapter.listPostings still lists a populated board unchanged", async
 });
 
 test("jazzhrAdapter.listPostings accepts a tenant_url override's host on a populated board", async (t) => {
-  // No res.url at all (the fetch never redirected): finalUrl falls back to the
-  // requested URL, which is the override host — the check must pass, not fire.
+  // No res.url at all: finalUrl falls back to the requested URL, which is the override host - the check must pass, not fire.
   stubFetch(t, fetchSequence(() => htmlResponseFrom("", LIST_HTML)));
   const postings = await jazzhrAdapter.listPostings(overrideCompany);
   assert.equal(postings.length, 2);

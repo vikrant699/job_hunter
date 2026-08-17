@@ -5,17 +5,14 @@ import { normalizeCompanyName } from "./match.js";
 import { RECRUITERS_LIST_COLS, RAW_DATA_COLS } from "./tabs.js";
 
 export interface SyncContactsDeps {
-  /** Injectable in tests to avoid a real Sheets fetch. Defaults to the real
-   *  Google Sheets client's readTab. */
+  /** Injectable in tests to avoid a real Sheets fetch. */
   readTab?: (profileId: string, tab: string) => Promise<string[][]>;
 }
 
-/** Very small validity check: something@something.something. Good enough to
- *  drop obvious junk cells without pulling in a full RFC5322 validator. */
+/** Loose email check, good enough to drop junk cells without a full RFC5322 validator. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Splits a cell that may hold multiple emails on '/' or ',', trims, lowercases,
- *  and drops anything that doesn't look like an email. */
+/** Splits a cell that may hold multiple emails on '/' or ',', normalizes, drops non-emails. */
 function splitEmails(cell: string): string[] {
   return cell
     .split(/[/,]/)
@@ -27,17 +24,9 @@ function cellAt(row: string[], index: number): string {
   return (row[index] ?? "").trim();
 }
 
-/**
- * Syncs recruiter contacts into the DB from the two Google Sheet tabs that
- * feed outreach: the manually-maintained "Recruiters List" tab (grandfathered
- * as verified) and the bot-owned "Raw Data" tab (unverified until a real
- * outreach round-trip proves the address). Upsert order is raw-csv FIRST,
- * manual-sheet SECOND, so a contact present in both tabs ends up verified with
- * the manual sheet's company/name/phone winning (upsertRecruiter's no-downgrade
- * rule guarantees this never un-verifies or wipes verified_at on a later
- * re-sync, since a plain re-import always proposes 'unverified' or 'verified',
- * never 'bounced').
- */
+// Syncs recruiter contacts from two sheet tabs: "Raw Data" (unverified) synced first, then the
+// manual "Recruiters List" (verified) so a contact in both ends up verified with the manual
+// sheet's fields winning; upsertRecruiter's no-downgrade rule keeps a later re-sync from un-verifying.
 export async function syncContactsFromSheet(
   profileId: string,
   deps: SyncContactsDeps = {},

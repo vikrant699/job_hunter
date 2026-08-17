@@ -1,12 +1,7 @@
-// src/ats/darwinbox.ts
-//
-// Darwinbox career portals come in two generations:
-//  - legacy: /ms/candidate/careers + /ms/candidateapi/job?page=N&companyId=main
-//  - candidatev2: /ms/candidatev2/<token>/careers/... (the SPA rewrite; token
-//    is a per-tenant id, sometimes literally "main"). Its job list API
-//    (/ms/candidateapi/job/alljobs, POST) returns the FULL jd inline per job —
-//    no separate detail fetch needed, like jibe.ts. Detected purely from the
-//    registered careers/tenant URL so existing legacy rows are unaffected.
+// src/ats/darwinbox.ts — Darwinbox career portals, two generations:
+// legacy: /ms/candidate/careers + /ms/candidateapi/job?page=N&companyId=main (per-job detail fetch needed).
+// candidatev2: /ms/candidatev2/<token>/careers/... (SPA rewrite); its POST /ms/candidateapi/job/alljobs returns the
+// full JD inline per job, like jibe.ts. Generation is detected from the registered careers/tenant URL.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -32,39 +27,23 @@ const ListSchema = z.object({
   message: z.object({ jobscount: z.number().nullable().optional(), jobs: z.array(JobSchema) }),
 });
 
-/** Origin (https://<tenant>.darwinbox.in) from the careers/tenant URL. */
 export function darwinboxTenantBase(company: AdapterCompany): string {
   const u = new URL(company.tenantUrl ?? company.careersUrl);
   return `${u.protocol}//${u.host}`;
 }
 
-// ---- generation detection: legacy vs candidatev2 ----
-
 const CANDIDATEV2_RE = /\/ms\/candidatev2\/([^/]+)\//i;
 
-/**
- * The per-tenant token from a `/ms/candidatev2/<token>/...` careers URL
- * (sometimes literally "main"), or null if this company's registered URL is
- * the legacy `/ms/candidate/careers` generation.
- */
+/** The per-tenant token from a candidatev2 careers URL, or null for the legacy generation. */
 export function darwinboxV2Token(company: AdapterCompany): string | null {
   const raw = company.tenantUrl ?? company.careersUrl;
   return matchGroup(CANDIDATEV2_RE, raw);
 }
 
-/**
- * Darwinbox writes the literal placeholder `"Multiple locations"` into
- * `officelocation_show_arr` for multi-city requisitions — 569 postings across
- * 41 of 70 live tenants (swept 2026-07-25), e.g. 139/267 of Kotak Securities'
- * board. It carries no geo signal, so passing it through as a location makes
- * the pipeline's strict `checkLocation()` drop the posting as out-of-region
- * before the JD is ever fetched. Returning null instead routes it to the
- * recall-safe title/JD/URL filter, which is exactly the no-metadata case.
- *
- * Only an EXACT match is a placeholder: a value that merely contains the
- * phrase alongside real cities ("Multiple locations - Mumbai, Pune") still
- * carries usable signal and is kept.
- */
+// Darwinbox writes the literal placeholder "Multiple locations" for multi-city requisitions; it carries no geo
+// signal, so passing it through would make checkLocation() wrongly drop the posting as out-of-region - null routes
+// it to the recall-safe title/JD/URL filter instead. Only an EXACT match is a placeholder (a value containing the
+// phrase alongside real cities still carries usable signal).
 const PLACEHOLDER_LOCATION_RE = /^multiple locations?$/i;
 
 export function darwinboxLocation(raw: string | null | undefined): string | null {
@@ -91,10 +70,8 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
 }
 
 const CAREERS_PATH = "/ms/candidate/careers";
-/** Legacy tenants can carry a per-tenant token in the careers path
- *  (`/ms/candidate/<token>/careers`); most use the bare path, whose implicit
- *  companyId is "main". Hardcoding "main" returned 0 jobs for token tenants
- *  (pwhr: 0 with "main", 126 with its real token — verified 2026-08-13). */
+// Some legacy tenants carry a per-tenant token in the careers path; hardcoding companyId="main" returns 0 jobs
+// for those tenants, so it must be extracted when present.
 const LEGACY_TOKEN_RE = /\/ms\/candidate\/(?!careers)([^/]+)\/careers/i;
 export function legacyCompanyId(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
@@ -102,26 +79,15 @@ export function legacyCompanyId(company: AdapterCompany): string {
 }
 const API = (page: number, companyId: string) => `/ms/candidateapi/job?page=${page}&companyId=${encodeURIComponent(companyId)}`;
 
-// Runaway backstop only — fetch every page, never truncate (matches turbohire).
-// The legacy list API serves 10 jobs/page, so the previous cap of 100 was a
-// silent 1000-job-per-tenant ceiling; the biggest live tenant (Yes Bank, 684)
-// sat close enough to it to be worth removing.
-const MAX_LIST_PAGES = 5000;
+const MAX_LIST_PAGES = 5000; // runaway backstop only, never truncate
 
-/** Pages required to cover `total` items at `pageSize` per page. `pageSize` is
- *  derived from the live page-1 length, so guard a zero/absent value. */
+/** `pageSize` is derived from the live page-1 length, so guard a zero/absent value. */
 export function darwinboxPagesNeeded(total: number, pageSize: number): number {
   return Math.min(Math.ceil(total / (pageSize || 1)), MAX_LIST_PAGES);
 }
 
-/**
- * Accumulate already-fetched darwinbox list pages (page 2+) into `out`,
- * mutating it in place. Stops early on an empty page or once `total` is
- * reached. Throws — rather than warning and truncating — on a schema
- * mismatch, since a silent `break` here would return a partial list that
- * looks complete (page 1 already throws loudly on the same mismatch, so a
- * mid-stream one must too).
- */
+/** Mutates `out` in place; throws (rather than truncating) on a schema mismatch, since a silent break would return
+ *  a partial list that looks complete. */
 export function mergeDarwinboxPages(
   company: AdapterCompany,
   out: NormalizedPosting[],
@@ -150,8 +116,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
-  // If more pages are needed, fetch them ALL in one browserFetchJson call
-  // (one navigation → multiple in-page XHR fetches), instead of N navigations.
+  // Fetch remaining pages ALL in one browserFetchJson call (one navigation, multiple in-page XHRs).
   if (out.length < total) {
     const pageSize = parsed0.message.jobs.length;
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
@@ -168,8 +133,7 @@ async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting
   const base = darwinboxTenantBase(company);
   const careersUrl = `${base}${CAREERS_PATH}`;
   const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=${encodeURIComponent(legacyCompanyId(company))}`]);
-  // Confirmed live: detail.message = { job: [{...fields, jd: "<html>"}], isSaved: bool }
-  // "jd" is the primary key; tolerate flat-object fallback for other tenants.
+  // detail.message = { job: [{...fields, jd}], isSaved }; tolerate a flat-object fallback for other tenants.
   const parseResult = JsonValueSchema.safeParse(raw);
   const rawVal: JsonValue | null = parseResult.success ? parseResult.data : null;
   const rawObj = getObj(rawVal);
@@ -179,27 +143,19 @@ async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting
   const jobObj = getObj(jobArrItem) ?? msgObj;
   const jdRaw = jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "";
   const jd = typeof jdRaw === "string" ? jdRaw : "";
-  // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;).
-  // Decode entities once to get real HTML, then strip tags to plain text.
+  // Darwinbox double HTML-encodes the JD (e.g. &lt;p&gt;) - decode once to get real HTML, then strip tags.
   return cleanDarwinboxJd(htmlToText(htmlToText(jd)));
 }
 
-/** Darwinbox's rich-text editor saves its own hint text as the JD when the
- *  recruiter never typed one (bigbasket, unacademy — verified live
- *  2026-08-13). Null it so the posting takes the honest no-jd path. */
+// Darwinbox's rich-text editor saves its own hint text as the JD when the recruiter never typed one; null it so
+// the posting takes the honest no-jd path.
 const PLACEHOLDER_JD_RE = /^please enter job description\.?$/i;
 export function cleanDarwinboxJd(jd: string): string {
   return PLACEHOLDER_JD_RE.test(jd.trim()) ? "" : jd;
 }
 
-// ---- candidatev2 (SPA rewrite) ----
-//
-// Confirmed live against LG Soft India (lgsihrms.darwinbox.in, token
-// a6914476a29263): POST /ms/candidateapi/job/alljobs?companyId=<token> with
-// body {companyId, page, sort_option: "new", limit: 10} returns
-// {status, data: [...jobs], job_counts: <total>}. Each job already carries
-// the full HTML-encoded `jd` — no per-job detail call, same as jibe.ts.
-
+// candidatev2: POST /ms/candidateapi/job/alljobs?companyId=<token>, body {companyId, page, sort_option, limit}
+// returns {status, data: [...jobs], job_counts}; each job carries the full HTML-encoded jd (no per-job detail call).
 const V2_PAGE_SIZE = 10;
 const V2_CAREERS_PATH = (token: string) => `/ms/candidatev2/${token}/careers/allJobs`;
 const V2_API_PATH = (token: string) => `/ms/candidateapi/job/alljobs?companyId=${encodeURIComponent(token)}`;
@@ -225,9 +181,7 @@ const V2ListSchema = z.object({
 export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: DarwinboxV2Job): NormalizedPosting {
   const location = darwinboxLocation(j.officelocation_show_arr);
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
-  // Darwinbox's API returns HTML-encoded HTML (e.g. &lt;p&gt;...&lt;/p&gt;);
-  // decode entities once to get real HTML, then strip tags to plain text.
-  const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : "";
+  const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : ""; // double HTML-encoded, see fetchJdLegacy
   return {
     provider: "darwinbox",
     externalId: String(j.id),
@@ -242,12 +196,7 @@ export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: 
   };
 }
 
-/**
- * Accumulate already-fetched candidatev2 list pages (page 2+) into `out`,
- * mirroring `mergeDarwinboxPages`'s stop/throw semantics for the legacy
- * shape: a schema mismatch throws (rather than silently truncating) since
- * page 1 already throws loudly on the same mismatch.
- */
+/** Mirrors `mergeDarwinboxPages`'s stop/throw semantics: a schema mismatch throws rather than silently truncating. */
 export function mergeDarwinboxV2Pages(
   company: AdapterCompany,
   token: string,
@@ -277,8 +226,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, token, j));
   const total = parsed0.job_counts ?? out.length;
   if (out.length < total) {
-    // Page-1 length over the requested limit: the API honors `limit` (verified
-    // live on lgsihrms), but deriving it keeps a limit-ignoring tenant correct.
+    // Deriving page size from the actual response (rather than trusting `limit`) keeps a limit-ignoring tenant correct.
     const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.length || V2_PAGE_SIZE);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
@@ -291,12 +239,8 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   return out;
 }
 
-/**
- * Fallback only: candidatev2's list already embeds the full `jd` (see
- * `normalizeDarwinboxV2`), so the pipeline's `!posting.jdText` guard means
- * this normally never runs. Re-walks the paginated list — bounded the same
- * as `listPostingsV2` — to recover a JD if it was ever empty in the listing.
- */
+// Fallback only: candidatev2's list already embeds the full jd, so the pipeline's !jdText guard means this
+// normally never runs.
 async function fetchJdV2(company: AdapterCompany, token: string, posting: NormalizedPosting): Promise<string> {
   const postings = await listPostingsV2(company, token);
   const match = postings.find((p) => p.externalId === posting.externalId);

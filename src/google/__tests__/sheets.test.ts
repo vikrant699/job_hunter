@@ -28,9 +28,7 @@ beforeEach(() => {
   __resetTokenCacheForTests();
 });
 
-// getAccessToken() with no injected deps reads real files off disk, which the
-// repo law forbids in tests. Sheets tests therefore need a token deps stand-in
-// too; sheets.ts accepts an optional authDeps override for exactly this.
+// sheets.ts accepts an optional authDeps override so tests never read real files off disk.
 function fakeAuthDeps(): {
   fetchFn: typeof fetch;
   tokenPath: string;

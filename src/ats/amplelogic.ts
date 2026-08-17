@@ -1,14 +1,5 @@
-// src/ats/amplelogic.ts — AmpleLogic careers (www.amplelogic.com), a Next.js
-// site whose jobs come from its own headless-CMS-backed API:
-//
-//   GET https://www.amplelogic.com/api/careers?locale=en
-//     -> { data: [{ id: <slug>, publish: bool, translations: { en: {
-//          title, department, location, type, experience, description,
-//          responsibilities: [], requirements: [], niceToHave: [] } } }] }
-//
-// Verified live (2026-07-18, plain curl, no headers): single call, all
-// postings (8, all "Hyderabad, India"), full JD fields inline, no
-// pagination params observed. Only publish:true rows are surfaced.
+// src/ats/amplelogic.ts — AmpleLogic careers (www.amplelogic.com), Next.js site backed by its own headless-CMS API.
+// GET /api/careers?locale=en, single call, no pagination, full JD fields inline; only publish:true rows are surfaced.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { makeJsonListAdapter } from "./jsonList.js";

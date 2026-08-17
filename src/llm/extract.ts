@@ -18,8 +18,7 @@ function normalize(parsed: JsonValue): JsonValue {
   for (const key of ["yoeMin", "yoeMax"]) {
     const val = p[key];
     if (typeof val === "string") {
-      // Empty/placeholder strings mean "unspecified" — they must become null,
-      // not 0 (Number("") === 0), or verdict.ts would treat the YOE as known.
+      // Empty/placeholder strings mean "unspecified"; must become null, not 0 (Number("") === 0).
       const s = val.trim().toLowerCase();
       if (s === "" || s === "null" || s === "none") {
         p[key] = null;
@@ -50,11 +49,7 @@ export function parseExtractResponse(raw: string): ExtractResult {
 export async function runExtract(jdText: string): Promise<ExtractResult> {
   const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
 
-  // One re-ask on parse failure, mirroring runGate: a fresh generation usually
-  // fixes malformed JSON, and a failed extract degrades YOE classification.
-  //
-  // Worst case: 3 HTTP calls from the first attempt's generate() (transport
-  // retries) + 1 from the generateOnce() re-ask = 4, not 6.
+  // One re-ask on parse failure, mirroring runGate; worst case 3 + 1 = 4 HTTP calls, not 6.
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 1; attempt++) {

@@ -1,32 +1,5 @@
-// src/ats/sage.ts — Sage Group careers (sage.com), which now also carries the
-// ex-Fyle Bangalore roles (Fyle was acquired by Sage in July 2025 and
-// rebranded "Sage Expense Management"; fylehq.com/company/team/join is a
-// static marketing page with zero embedded job listings — no board there,
-// and the old fyle-team.freshteam.com tenant 500s).
-//
-// List: GET https://www.sage.com/api/sagedotcom/CareerSearch/GetCareerSearchData/
-//   -> { vacancies: { TotalSize: number, Records: [{ Id, Name, Function,
-//        Description (plain text, no HTML), Url, OfficeLocation, Country,
-//        ActiveDate }] } }
-//   This is Sage's own bespoke Kentico-Xperience-backed endpoint (not
-//   Workday/Greenhouse/Lever/etc — confirmed by fingerprinting sage.com's
-//   careers page network calls; the "Apply" link opens a Salesforce
-//   fRecruit page, but that's not the listing/search channel). The call
-//   takes no query params and always returns the FULL global vacancy list —
-//   captured live: TotalSize == Records.length (163 == 163) — so there is no
-//   pagination to drive; filtering by country/department happens client-side
-//   in the browser only. The adapter replicates that client-side India filter
-//   here so the one "sage" company row only yields India postings.
-//
-//   Ex-Fyle roles are identifiable within the shared list by their JD body
-//   explicitly naming Fyle (e.g. "About Fyle (now part of Sage)" /
-//   "Fyle is now part of Sage") — confirmed live on 2 of 6 India roles
-//   (Frontend Architect, Principal Engineer, both Product Delivery/Bangalore).
-//   No separate Fyle-only board exists, so this single "sage" adapter is the
-//   one channel for both regular Sage India hiring and ex-Fyle hiring.
-//
-// JD: Description is already plain text (verified: 0/163 records contain any
-//   HTML tags) — no fetchJd needed.
+// src/ats/sage.ts — Sage Group careers (sage.com); also carries ex-Fyle roles (Fyle was acquired by Sage, no separate board exists for them).
+// GET .../GetCareerSearchData/ returns the full global vacancy list with no pagination; India filtering happens client-side in the browser, replicated here.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

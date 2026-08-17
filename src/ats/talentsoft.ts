@@ -1,46 +1,12 @@
-// src/ats/talentsoft.ts — TalentSoft (Cegid), a shared French HR/recruiting
-// SaaS. Career sites (e.g. jobs.ca-cib.com for Crédit Agricole CIB) fully
-// server-render their job listings and detail pages as plain HTML — no JS
-// needed, no auth.
-//
-//   list: GET <listing-url> where <listing-url> is the tenant's stored
-//         careersUrl/tenantUrl, e.g.
-//         https://jobs.ca-cib.com/pages/offre/listeoffre.aspx?mode=list&lcid=2057&facet_Country=96
-//         The `lcid` (locale) and `facet_Country` (country filter) query
-//         params live entirely in that stored URL — never hardcoded here,
-//         since they're tenant-specific registry configuration. We DO force
-//         `mode=list` on every request (overwriting whatever is stored):
-//         TalentSoft renders the same data as three different markups
-//         depending on `mode` (list / card / map), and only `mode=list`
-//         produces the `.ts-offer-list-item` shape this adapter parses;
-//         verified live that a request without it (or with a stale `page=N`
-//         from a previous list view) can fall back to a `.ts-offer-card`
-//         layout instead.
-//
-//         Each `<li class="ts-offer-list-item ...">` holds the title/link
-//         (`.ts-offer-list-item__title-link`, href `/job/job-<slug>_<id>.aspx`)
-//         and a 3-item description list
-//         (`.ts-offer-list-item__description li`): contract type, country,
-//         city — in that order, verified live and consistent across the
-//         full 388-job unfiltered board and the 10-job India-filtered one.
-//
-//         Pagination: TalentSoft appends `&page=N` (1-based; page 1 is the
-//         bare URL) to the SAME listing URL. The result count lives in
-//         `.ts-ol-pagination__title.resultat .gras` (e.g. "388 vacancy(s)")
-//         — a CSS-class selector, not the localized page `<title>` text, so
-//         this keeps working on non-English tenants. We page until the
-//         running total reaches that count, AND independently stop on the
-//         first zero-item page (defensive backstop in case the count is
-//         missing/wrong on some tenant) — completeness over trusting either
-//         signal alone.
-//
-//   jd:   GET the job detail page. The JD body is every element between
-//         `<h2 class="JobDescription">` and the next `<h2>` sibling (both
-//         live as direct children of `#contenu-ficheoffre`) — this
-//         deliberately excludes the "General information" block above it
-//         (company-boilerplate entity description, reference, update date)
-//         and the "Position location"/"Candidate criteria" sections below
-//         it, verified live on a Crédit Agricole CIB posting.
+// src/ats/talentsoft.ts — TalentSoft (Cegid) career sites server-render listing and
+// detail pages as plain HTML, no auth. `mode=list` is forced on every list request
+// (overwriting whatever is stored): TalentSoft renders the same data as three different
+// markups depending on `mode` (list/card/map), and only `mode=list` produces the
+// `.ts-offer-list-item` shape this adapter parses. Pagination appends `&page=N` to the
+// same URL; we page until the running total (`.ts-ol-pagination__title.resultat .gras`)
+// is reached AND stop on the first zero-item page as a backstop. JD is every element
+// between `<h2 class="JobDescription">` and the next `<h2>` sibling under
+// `#contenu-ficheoffre`, excluding the surrounding boilerplate sections.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -48,10 +14,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, collapseWs } from "./shared.js";
 
-// The tenant's actual per-page item count isn't evidenced anywhere in this
-// file (no page-size query param exists to confirm it); pagination doesn't
-// rely on it (see shortPageEndsPagination below) so this placeholder value
-// is harmless either way.
+// No page-size query param exists to confirm the real per-page count; pagination doesn't
+// rely on it (see shortPageEndsPagination below), so this placeholder is harmless.
 const NOMINAL_PAGE_SIZE = 20;
 
 const ID_RE = /_(\d+)\.aspx(?:[?#]|$)/i;
@@ -66,15 +30,11 @@ export interface TalentsoftListItem {
 
 export interface TalentsoftListingPage {
   items: TalentsoftListItem[];
-  /** Total vacancy count reported by the listing chrome, if parseable. */
   total: number | null;
 }
 
-/**
- * Base listing URL for a tenant: the stored tenantUrl if set, else the
- * stored careersUrl — either way carrying whatever lcid/facet_Country the
- * registry configured. `mode=list` is always forced on top (see file header).
- */
+// Base listing URL for a tenant: stored tenantUrl or careersUrl, carrying whatever
+// lcid/facet_Country the registry configured; `mode=list` is always forced on top.
 export function talentsoftListingUrl(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
   const u = new URL(raw);
@@ -82,7 +42,7 @@ export function talentsoftListingUrl(company: AdapterCompany): string {
   return u.toString();
 }
 
-/** The same listing URL for page N (1-based). Page 1 is the bare URL, unmodified. */
+// The same listing URL for page N (1-based). Page 1 is the bare URL, unmodified.
 export function talentsoftPageUrl(baseUrl: string, page: number): string {
   if (page <= 1) return baseUrl;
   const u = new URL(baseUrl);
@@ -90,22 +50,16 @@ export function talentsoftPageUrl(baseUrl: string, page: number): string {
   return u.toString();
 }
 
-/** externalId from a job detail URL: the trailing numeric id before `.aspx`,
- *  e.g. ".../job-caspl-head-of-trade-finance_114086.aspx" -> "114086". Null
- *  if the URL doesn't match that shape (never a fallback id to collide on
- *  the dedup key). */
+// externalId from a job detail URL, e.g. ".../job-..._114086.aspx" -> "114086". Null if
+// the URL doesn't match (never a fallback id to collide on the dedup key).
 export function talentsoftIdFromUrl(url: string): string | null {
   const path = url.split(/[?#]/)[0] ?? "";
   const m = path.match(ID_RE);
   return m ? (m[1] ?? null) : null;
 }
 
-/**
- * Build a location string from a listing card's description `<li>` texts
- * (contract type, country, city — in that order, see file header). Takes
- * the last two entries as "<city>, <country>"; degrades gracefully to
- * whatever is present for the rare tenant that renders fewer/more fields.
- */
+// Location from a listing card's description `<li>` texts (contract type, country, city
+// — in that order). Takes the last two entries as "<city>, <country>".
 export function talentsoftLocationFromDescItems(descItems: string[]): string | null {
   const items = descItems.map((s) => s.trim()).filter(Boolean);
   if (items.length === 0) return null;
@@ -115,11 +69,7 @@ export function talentsoftLocationFromDescItems(descItems: string[]): string | n
   return `${city}, ${country}`;
 }
 
-/**
- * Parse one listing page's job cards + the reported total vacancy count.
- * Pure — unit tested directly. Dedups by externalId within the page as a
- * defensive backstop.
- */
+// Parses one listing page's job cards + the reported total vacancy count. Pure.
 export function parseTalentsoftListingHtml(html: string, baseUrl: string): TalentsoftListingPage {
   const $ = cheerio.load(html);
   const origin = new URL(baseUrl).origin;
@@ -175,11 +125,7 @@ export function normalizeTalentsoftItem(company: AdapterCompany, item: Talentsof
   };
 }
 
-// ---------------------------------------------------------------------------
 // JD extraction — see file header for the section boundary rationale.
-// ---------------------------------------------------------------------------
-
-/** Extract the JD body's plain text from a job detail page. */
 export function extractTalentsoftJdHtml(html: string): string {
   const $ = cheerio.load(html);
   const heading = $("h2.JobDescription").first();
@@ -205,9 +151,7 @@ export const talentsoftAdapter: AtsAdapter = {
       provider: "talentsoft",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // Termination is zero-item-page or reaching the running total, NOT a
-      // short page - there is no page-size query param, so a "short page"
-      // was never a stop signal in the original loop either.
+      // No page-size param exists, so termination is zero-item-page or reaching the running total.
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,

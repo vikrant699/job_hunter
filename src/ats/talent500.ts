@@ -1,33 +1,13 @@
 // src/ats/talent500.ts — Talent500 (by ANSR), a shared JSON REST job-board
-// aggregator hosting many India GCCs (Global Capability Centers) on one host:
-//
-//   list:   GET https://prod-warmachine.talent500.co/api/v3/jobs/search/
-//                ?company_slug=<slug>&offset=<N>&size=<SIZE>
-//           -> { total: <int>, data: [ <job>, ... ] }
-//           Paginate offset += size while offset < total (and the page still
-//           returns rows). No auth; company_slug is the registry source_slug.
-//
-//   detail: GET https://prod-warmachine.talent500.co/api/jobs/<job.slug>/
-//           -> { role_summary, description, responsibilities,
-//                what_you_need_to_succeed, typical_workday, what_you_offer }
-//           (all optional HTML strings). The JD is built by concatenating,
-//           in order, whichever of [role_summary, description,
-//           responsibilities, what_you_need_to_succeed] are present and
-//           non-empty, then stripping HTML.
-//
-//   public job URL: https://talent500.com/jobs/<job.slug> (no auth, used both
-//   as jobUrl and as the source of the slug fetchJd needs — the API's `id` is
-//   a uuid, not usable against the detail endpoint).
-//
-// Listed jobs are filtered to is_job_displayable !== false, is_active !==
-// false, and status !== "closed" — undisplayable/inactive/closed rows are
-// dropped. No country filter here: the board is already India-scoped and the
-// pipeline's own location gate handles the rest.
-//
-// DEAD TENANTS: company_slug is a filter on a shared aggregator, and an unknown
-// value is silently DROPPED rather than rejected — the response is then every
-// employer's jobs at HTTP 200. Page 1 is therefore audited two ways before the
-// crawl is trusted; see talent500FilterWasIgnored and assertTalent500TenantExists.
+// aggregator hosting many India GCCs on one host. list: GET prod-warmachine.talent500.co
+// /api/v3/jobs/search/?company_slug=<slug>&offset=<N>&size=<SIZE>, paginated via the
+// response's search_after cursor (offset is accepted but ignored). detail: GET
+// .../api/jobs/<job.slug>/ — JD built by concatenating role_summary/description/
+// responsibilities/what_you_need_to_succeed, then stripping HTML. Public job URL
+// talent500.com/jobs/<job.slug> is also the source of the detail slug (the API's
+// `id` is a uuid, not usable against the detail endpoint).
+// An unknown company_slug is silently dropped and the endpoint answers with the
+// WHOLE aggregator at HTTP 200 — see talent500FilterWasIgnored / assertTalent500TenantExists.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -46,8 +26,7 @@ const TalentCountrySchema = z.object({
   country_code: z.string().nullable().optional(),
 });
 
-// The employer each job belongs to. Only `slug` is read, and only to verify the
-// server honored our company_slug filter — see talent500FilterWasIgnored.
+// Only `slug` is read, to verify the server honored our company_slug filter.
 const TalentJobCompanySchema = z.object({
   slug: z.string().nullable().optional(),
 });
@@ -71,10 +50,7 @@ export type Talent500Job = z.infer<typeof TalentJobSchema>;
 const TalentListSchema = z.object({
   total: z.number().nullable().optional(),
   data: z.array(TalentJobSchema),
-  /** Elasticsearch-style cursor for the NEXT page. The server IGNORES the
-   *  offset param (verified 2026-08-13: every offset re-serves page 1, which
-   *  silently truncated eight GCC boards to their first 50 rows), so this is
-   *  the only real pagination mechanism. */
+  // The server ignores `offset` (every value re-serves page 1); this cursor is the only real pagination mechanism.
   search_after: z.array(z.union([z.number(), z.string()])).nullable().optional(),
 });
 
@@ -88,10 +64,7 @@ const TalentDetailSchema = z.object({
 });
 export type Talent500Detail = z.infer<typeof TalentDetailSchema>;
 
-/** Build the paged list-search URL for one company. Pages after the first
- *  paginate via the server's `search_after` cursor (JSON array, URL-encoded);
- *  the `offset` param is kept for the first call's shape but the server
- *  ignores it, so the cursor is what actually advances. */
+// Builds the paged list-search URL; pages after the first use the server's search_after cursor (offset is kept for shape but ignored).
 export function talent500ListUrl(
   companySlug: string,
   offset: number,
@@ -102,54 +75,32 @@ export function talent500ListUrl(
   return searchAfter === null ? base : `${base}&search_after=${encodeURIComponent(JSON.stringify(searchAfter))}`;
 }
 
-/** Build the job-detail URL from a job's slug (NOT its uuid `id`). */
+// Job-detail URL from a job's slug (NOT its uuid `id`).
 export function talent500DetailUrl(jobSlug: string): string {
   return `${API_ORIGIN}/api/jobs/${encodeURIComponent(jobSlug)}/`;
 }
 
-/** The company-profile endpoint, used solely as an existence oracle. */
+// The company-profile endpoint, used solely as an existence oracle.
 export function talent500CompanyUrl(companySlug: string): string {
   return `${API_ORIGIN}/api/companies/${encodeURIComponent(companySlug)}/`;
 }
 
-/**
- * True when the server plainly did NOT apply our `company_slug` filter.
- *
- * The list endpoint does not reject an unknown company_slug — it silently drops
- * the filter and serves the whole aggregator. Probed 2026-08-02, every one of
- * `zzz-no-such-tenant-9x`, `acmewidgetsco`, `nokia-india-gcc` and `""` returned
- * HTTP 200 with total=6190 and rows from aatechhubindia / albertsonsindia /
- * summit-consulting. So a dead slug does not merely under-report: it would
- * attribute ~6,000 other employers' postings to this company. `nokia` returned
- * total=73, matching its own open_jobs_count, so a LIVE slug really is filtered.
- *
- * Every row carries the employer it belongs to, so the response audits itself:
- * we require at least one row to actually be this company's. Rows that carry no
- * company object at all (a payload change) leave the question unanswerable, and
- * this deliberately returns false there rather than failing a working board.
- */
+// True when the server plainly did NOT apply our company_slug filter: an unknown slug 200s with the whole
+// aggregator instead of rejecting, so we require at least one returned row to actually belong to this company.
+// Rows carrying no company object leave the question unanswerable and deliberately return false there.
 export function talent500FilterWasIgnored(rows: readonly Talent500Job[], companySlug: string): boolean {
   const rowSlugs = rows.map((r) => r.company?.slug).filter((s): s is string => typeof s === "string" && s !== "");
   if (rowSlugs.length === 0) return false;
   return !rowSlugs.includes(companySlug);
 }
 
-/**
- * Throw if the company-profile endpoint says this slug does not exist.
- *
- * Only a definitive 404 counts. That endpoint also answers 400 "Not Published"
- * for companies that exist but have no public profile — 15 of the 85 live rows
- * (aramco, bp, zillow, kaspersky, …) on 2026-08-02 — so treating anything other
- * than 404 as non-existence would quarantine those healthy boards. A transport
- * failure or a 5xx on this secondary probe is likewise ignored: the list call
- * already succeeded, and an outage here says nothing about the tenant.
- */
+// Throws only on a definitive 404; a 400 "Not Published" means the company exists but has no public profile
+// (a healthy board), and a transport failure here says nothing about the tenant.
 export async function assertTalent500TenantExists(companySlug: string): Promise<void> {
   const url = talent500CompanyUrl(companySlug);
   let status: number;
   try {
-    // Raw fetch (not atsFetchJson): the status IS the signal here, and
-    // atsFetchJson turns every non-2xx into a throw before we can read it.
+    // Raw fetch (not atsFetchJson): the status IS the signal, and atsFetchJson throws before we can read it.
     const res = await withAtsTimeout((signal) =>
       fetch(url, { headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" }, signal }),
     );
@@ -166,12 +117,12 @@ export async function assertTalent500TenantExists(companySlug: string): Promise<
   }
 }
 
-/** Public job page URL — also what fetchJd derives the detail slug from. */
+// Public job page URL — also what fetchJd derives the detail slug from.
 export function talent500JobUrl(jobSlug: string): string {
   return `${PUBLIC_JOB_ORIGIN}/jobs/${jobSlug}`;
 }
 
-/** Keep a job only if it's displayable, active, and not closed. */
+// Keep a job only if it's displayable, active, and not closed.
 export function talent500ShouldKeep(j: Talent500Job): boolean {
   if (j.is_job_displayable === false) return false;
   if (j.is_active === false) return false;
@@ -191,15 +142,12 @@ export function normalizeTalent500Job(company: AdapterCompany, j: Talent500Job):
     location,
     isRemote: j.is_remote === true || REMOTE_RE.test(location ?? ""),
     jdText: "",
-    // created_at ("2026-06-24T14:51:54.811468+05:30") is the only reliable
-    // timestamp field; `posted_on` is a relative string like "19 days ago"
-    // and is intentionally never used.
+    // created_at is the only reliable timestamp; posted_on ("19 days ago") is intentionally never used.
     postedAt: dateToIso(j.created_at),
   };
 }
 
-/** Derive the job-detail slug from a posting's public jobUrl
- *  (…talent500.com/jobs/<slug>) — the last non-empty path segment. */
+// Derives the job-detail slug from a posting's public jobUrl — the last non-empty path segment.
 export function talent500SlugFromUrl(jobUrl: string): string {
   const parts = new URL(jobUrl).pathname.split("/").filter(Boolean);
   const slug = parts[parts.length - 1];
@@ -207,9 +155,7 @@ export function talent500SlugFromUrl(jobUrl: string): string {
   return slug;
 }
 
-/** Build the plain-text JD by concatenating, in order, whichever of
- *  [role_summary, description, responsibilities, what_you_need_to_succeed]
- *  are present and non-empty, then stripping HTML. Throws if none yield text. */
+// Builds the plain-text JD by concatenating whichever of the JD-bearing fields are present, then stripping HTML.
 export function buildTalent500Jd(detail: Talent500Detail): string {
   const parts = [detail.role_summary, detail.description, detail.responsibilities, detail.what_you_need_to_succeed]
     .filter((s): s is string => typeof s === "string" && s.trim() !== "");
@@ -221,17 +167,13 @@ export const talent500Adapter: AtsAdapter = {
   provider: "talent500",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Boxed cursor state: fetchPage closes over it because paginate() only
-    // hands us (offset, page) and the server ignores the offset entirely.
+    // Boxed cursor state: fetchPage closes over it since paginate() only hands us (offset, page).
     let cursor: ReadonlyArray<number | string> | null = null;
     return paginate<NormalizedPosting>({
       provider: "talent500",
       company: company.slug,
       pageSize: PAGE_SIZE,
       maxPages: MAX_PAGES,
-      // Safety net: if the vendor ever stops returning search_after we fall
-      // back to the (ignored) offset walk, and the exact-repeat stall check
-      // ends pagination honestly instead of double-counting page 1.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
         const raw = await atsFetchJson(talent500ListUrl(company.slug, offset, PAGE_SIZE, cursor), { provider: "talent500" });
@@ -240,10 +182,7 @@ export const talent500Adapter: AtsAdapter = {
           slug: company.slug,
           what: `list (offset ${offset})`,
         });
-        // Dead-tenant checks, page 1 only: once page 1 has proven the filter is
-        // being applied, the tenant exists, and no later page can revoke that.
-        // Keeping them off pages 2+ also means a board that produced postings
-        // can never be failed by a hiccup deep in the crawl.
+        // Dead-tenant checks run on page 1 only: once proven, a later hiccup can't revoke it.
         if (page === 0) {
           if (talent500FilterWasIgnored(parsed.data, company.slug)) {
             throw new Error(
@@ -253,21 +192,14 @@ export const talent500Adapter: AtsAdapter = {
                 `Slug "${company.slug}" is dead, not the board empty.`,
             );
           }
-          // Zero rows is the ONE shape a dead slug has never produced, so it
-          // normally means a real board with nothing open (ciena, zinnia, aveva,
-          // alfa-laval, vip-india and csgi all sat at total=0 on 2026-08-02).
-          // Confirm against the company profile anyway, so the day the vendor
-          // starts answering an unknown slug with an honest empty page we fail
-          // instead of going quietly green.
+          // Zero rows is the one shape a dead slug never produces; confirm via the company profile anyway.
           if (parsed.data.length === 0) await assertTalent500TenantExists(company.slug);
         }
         cursor = parsed.search_after ?? null;
         const items = parsed.data
           .filter(talent500ShouldKeep)
           .map((j) => normalizeTalent500Job(company, j));
-        // Advance by the raw record count, not the filtered count, so
-        // closed/undisplayable rows dropped above don't shorten the page and
-        // cause the next page to be fetched at the wrong offset.
+        // Advance by the raw record count, not the filtered count, so dropped rows don't shift the next offset.
         return { items, total: parsed.total ?? null, rawCount: parsed.data.length };
       },
     });

@@ -1,26 +1,8 @@
-// src/ats/rippling.ts — Rippling ATS (ats.rippling.com), a shared public
-// no-auth job-board API used by many companies on Rippling's recruiting
-// product. One tenant per company, keyed by the registry source_slug:
-//
-//   list:   GET https://api.rippling.com/platform/api/ats/v1/board/<slug>/jobs
-//           -> JSON array of
-//              { uuid, name, department: {id,label} | null,
-//                url, workLocation: {id,label} }
-//           No pagination observed live (single flat array); a company with
-//           openings in multiple locations gets one array entry per
-//           (job, location) pair, all sharing the same uuid. No auth, no
-//           pagination params.
-//
-//   detail: GET https://api.rippling.com/platform/api/ats/v1/board/<slug>/jobs/<uuid>
-//           -> { uuid, name, description: { company, role }, workLocations,
-//                department, url, ... }
-//           `description.company` and `description.role` are HTML strings
-//           (verified live against slug "centricity-research"): `company` is
-//           the "why join us" blurb, `role` is the "about the role" body.
-//           The JD is built by concatenating whichever of [company, role]
-//           are present and non-empty (in that order), then stripping HTML.
-//           The list response carries no date field, so postedAt is always
-//           null.
+// src/ats/rippling.ts — Rippling ATS (ats.rippling.com), a shared public no-auth job-board API. One
+// tenant per company, keyed by the registry source_slug. List is a single flat array (no pagination);
+// a company with openings in multiple locations gets one entry per (job, location) pair sharing the
+// same uuid. Detail's description.company (why-join-us) and description.role (about-the-role) are
+// HTML strings concatenated for the JD. The list carries no date field, so postedAt is always null.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -57,12 +39,10 @@ const RipplingDetailSchema = z.object({
 });
 export type RipplingDetail = z.infer<typeof RipplingDetailSchema>;
 
-/** Build the job-board list URL for one company (registry source_slug). */
 export function ripplingListUrl(companySlug: string): string {
   return `${API_ORIGIN}/platform/api/ats/v1/board/${encodeURIComponent(companySlug)}/jobs`;
 }
 
-/** Build the job-detail URL for one posting. */
 export function ripplingDetailUrl(companySlug: string, uuid: string): string {
   return `${API_ORIGIN}/platform/api/ats/v1/board/${encodeURIComponent(companySlug)}/jobs/${encodeURIComponent(uuid)}`;
 }
@@ -83,9 +63,7 @@ export function normalizeRipplingJob(company: AdapterCompany, j: RipplingJob): N
   };
 }
 
-/** Build the plain-text JD by concatenating, in order, whichever of
- *  [description.company, description.role] are present and non-empty, then
- *  stripping HTML. Throws if neither yields text. */
+// Throws if neither description.company nor description.role yields text.
 export function buildRipplingJd(detail: RipplingDetail): string {
   const description = detail.description;
   const parts = [description?.company, description?.role].filter(

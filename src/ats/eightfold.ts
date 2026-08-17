@@ -6,11 +6,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 
-// Eightfold public API:
-//   list:   GET <host>/api/apply/v2/jobs?domain=<domain>&start=&num=   -> {positions[],count}
-//   detail: GET <host>/api/apply/v2/jobs/<id>?domain=<domain>          -> position w/ job_description
-// host stored in tenant_url, jobs domain in api_meta.domain. Two-phase
-// (job_description is empty in the list response).
+// Eightfold public API: list GET <host>/api/apply/v2/jobs?domain=&start=&num=, detail GET .../jobs/<id>?domain=.
+// host in tenant_url, domain in apiMeta.domain; two-phase (job_description is empty in the list response).
 const PositionSchema = z.object({
   id: z.union([z.number(), z.string()]),
   name: z.string(),
@@ -47,9 +44,7 @@ export const eightfoldAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "eightfold",
       company: company.slug,
-      // "infer", not PAGE: some tenants clamp num= server-side (HSBC serves 10
-      // per page whatever we request), and judging that first page short
-      // against the requested size stopped pagination at 10 of 1,563.
+      // "infer": some tenants clamp num= server-side and always serve fewer than requested.
       pageSize: "infer",
       fetchPage: async (start) => {
         const url = `https://${host}/api/apply/v2/jobs?domain=${encodeURIComponent(domain)}&start=${start}&num=${PAGE}&sort_by=relevance`;

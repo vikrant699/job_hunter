@@ -36,11 +36,7 @@ const intuitCompany: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup from GET on the Ford Chennai location landing —
-// captured live. Two rows from the actual `#search-results` results list,
-// plus one row from Ford's separate same-page "similar jobs" widget
-// (`.job-list__list`) that must NOT be picked up (it holds unrelated
-// non-India jobs and lacks "search-results" in its container id/class).
+// Real markup: two rows in `#search-results`, plus one row from a same-page "similar jobs" widget (`.job-list__list`) that must NOT be picked up.
 const FORD_LIST_HTML = `
 <html><body>
     <section id="search-results" class="search-results" data-total-results="15" data-total-pages="1" data-records-per-page="15">
@@ -89,10 +85,7 @@ const FORD_LIST_HTML = `
 </body></html>
 `;
 
-// Trimmed real markup from GET jobs.intuit.com/search-jobs — captured live.
-// Intuit's location is a <span> INSIDE the anchor (unlike Ford's, which is a
-// sibling outside it), proving the "subtract location text from the
-// anchor's text" title rule.
+// Intuit's location is a <span> INSIDE the anchor (unlike Ford's, a sibling outside it) - proves the "subtract location from anchor text" title rule.
 const INTUIT_LIST_HTML = `
 <html><body>
     <section id="search-results" class="search-results" data-total-results="357" data-total-pages="24" data-records-per-page="15">
@@ -163,7 +156,7 @@ test("radancyListUrl leaves page 1 unchanged and appends ?p=N / &p=N depending o
     radancyListUrl("https://jobs.intuit.com/search-jobs?location=India", 3),
     "https://jobs.intuit.com/search-jobs?location=India&p=3",
   );
-  // Location-scoped landing base (Ford) — no hardcoded /search-jobs path.
+  // Location-scoped landing base (Ford) - no hardcoded /search-jobs path.
   assert.equal(radancyListUrl(fordCompany.careersUrl, 2), `${fordCompany.careersUrl}?p=2`);
 });
 
@@ -205,7 +198,6 @@ test("parseRadancyList (Ford): scopes to the real search-results container, excl
   assert.equal(de?.externalId, "97602976592");
   assert.equal(de.jobTitle, "Data Engineer");
 
-  // The .job-list__list widget's "Contract Recruiter" (Palo Alto) must not appear.
   assert.ok(!postings.some((p) => p.externalId === "97634112848"));
   assert.ok(!postings.some((p) => p.jobTitle === "Contract Recruiter"));
 });
@@ -272,12 +264,7 @@ test("parseRadancyJd returns '' when no known JD class tier matches (malformed/c
   assert.equal(parseRadancyJd("<html><body>Not found</body></html>"), "");
 });
 
-// --- board no longer served vs genuinely empty search --------------------------
-
-// Trimmed real markup from GET https://careers.cargill.com/en/search-jobs/India
-// (HTTP 200, captured 2026-08-03). Cargill is a LIVE Radancy board that currently
-// matches nothing for India: the engine still emits its full pager state on the
-// results section, with the count simply 0, and renders no job cards.
+// Cargill is a LIVE Radancy board that matches nothing for India: full pager state, count 0, no job cards.
 const CARGILL_EMPTY_HTML = `
 <html><body>
 <div role="region" aria-label="Search Results" aria-live="polite">
@@ -290,11 +277,7 @@ const CARGILL_EMPTY_HTML = `
 </body></html>
 `;
 
-// Trimmed real markup from GET https://careers.arm.com/ (HTTP 200, captured
-// 2026-08-03) — the tenant's own careers home rather than its search page, and the
-// shape a re-pointed or parked careers domain takes: no #search-results section,
-// so no pager state at all. careers.arm.com's 404 page and www.arm.com both look
-// the same way.
+// The tenant's careers home rather than its search page - the shape a re-pointed or parked careers domain takes: no #search-results section, no pager state.
 const NOT_A_BOARD_HTML = `
 <html><head><title>Working at Arm | Jobs &amp; Careers</title></head><body>
 <div class="hero"><h1>Working at Arm</h1></div>
@@ -325,7 +308,7 @@ function thrownBy(fn: () => unknown): unknown {
 }
 
 test("assertRadancyBoardServed throws only when the pager state is absent entirely", () => {
-  // 0 results IS a Radancy search page — Cargill's live board looks exactly so.
+  // 0 results IS a Radancy search page - Cargill's live board looks exactly so.
   assert.doesNotThrow(() =>
     assertRadancyBoardServed(0, "https://careers.cargill.com/en/search-jobs/India", CARGILL_EMPTY_HTML),
   );
@@ -343,9 +326,7 @@ test("assertRadancyBoardServed throws only when the pager state is absent entire
 });
 
 test("the dead-board error is charged to the company, not written off as infrastructure", () => {
-  // A careers domain that stopped serving Radancy is a per-company board defect
-  // and MUST count toward the row's consecutive_failures. If any of these flipped
-  // true the scheduler would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler would retry the board forever and never quarantine it.
   const err = thrownBy(() =>
     assertRadancyBoardServed(null, "https://careers.arm.com/search-jobs/India", NOT_A_BOARD_HTML),
   );
@@ -354,10 +335,7 @@ test("the dead-board error is charged to the company, not written off as infrast
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// All 12 live radancy rows are WAF-fronted, and a challenge page carries no
-// data-total-results either — so before this the guard read a blocked request as a
-// dead board, and five blocked runs would have quarantined AstraZeneca India Ops
-// (4,681 postings seen), Amgen (2,014), Optum (1,719) and nine more.
+// A challenge page carries no data-total-results either, so the guard used to read a blocked request as a dead board.
 test("a WAF challenge page is an edge refusal, NOT a dead board", () => {
   const err = thrownBy(() =>
     assertRadancyBoardServed(null, "https://careers.astrazeneca.com/search-jobs", CHALLENGE_PAGE_HTML),
@@ -390,15 +368,12 @@ test("radancyAdapter.listPostings rejects a careers domain that no longer serves
 });
 
 test("radancyAdapter.listPostings returns [] for a LIVE board whose search matches nothing", async (t) => {
-  // The distinction the check exists for: zero cards, but the engine's pager
-  // state is there saying the count is genuinely 0.
   stubFetch(t, fetchSequence(() => htmlResponse(CARGILL_EMPTY_HTML)));
   assert.deepEqual(await radancyAdapter.listPostings(cargillCompany), []);
 });
 
 test("radancyAdapter.listPostings still lists a populated board unchanged", async (t) => {
-  // Ford's page 1 declares 15 results but serves 2 cards, so the pager asks for
-  // page 2; a card-less page ends the loop.
+  // Ford's page 1 declares 15 results but serves 2 cards, so the pager asks for page 2; a card-less page ends the loop.
   stubFetch(t, fetchSequence(
     () => htmlResponse(FORD_LIST_HTML),
     () => htmlResponse(CARGILL_EMPTY_HTML),
@@ -413,9 +388,7 @@ test("radancyAdapter.listPostings still lists a populated board unchanged", asyn
 });
 
 test("radancyAdapter.listPostings lets a LATER page with no cards end pagination instead of failing", async (t) => {
-  // Ford's page 1 declares 15 results but serves 2 cards, so the pager keeps
-  // going; page 2 has neither cards nor pager state, which past page 1 means
-  // "run off the end", not "board is dead".
+  // Page 2 has neither cards nor pager state, which past page 1 means "run off the end", not "board is dead".
   stubFetch(t, fetchSequence(
     () => htmlResponse(FORD_LIST_HTML),
     () => htmlResponse(NOT_A_BOARD_HTML),

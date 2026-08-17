@@ -1,8 +1,4 @@
-/**
- * Header contracts for the bot-managed outreach tabs. Shared by the bootstrap
- * script (writes headers into empty tabs) and sheet-sync (rewrites Drafts/Sent
- * with the same headers every run) so the two can never drift.
- */
+// Header contracts for the bot-managed outreach tabs, shared by the bootstrap script and sheet-sync.
 export const RAW_DATA_HEADER = ["company", "email", "contact_name", "alt_names", "flags", "seen"] as const;
 
 export const DRAFTS_HEADER = [
@@ -23,9 +19,7 @@ export const UNDRAFTED_HEADER = [
 /** Columns the bot appends to the manually-maintained Recruiters List tab (E:G). */
 export const RECRUITERS_EXTRA_HEADER = ["Source", "Verified On", "Registry Slug"] as const;
 
-/** Manually-maintained Recruiters List tab layout (columns A-D are human-owned;
- *  E-G are the bot's RECRUITERS_EXTRA_HEADER). Kept here so contacts.ts (reader)
- *  and verify.ts (promoter) can never disagree on which column is which. */
+/** Recruiters List tab layout (A-D human-owned, E-G are RECRUITERS_EXTRA_HEADER); shared by contacts.ts and verify.ts. */
 export const RECRUITERS_LIST_COLS = { company: 0, name: 1, phone: 2, email: 3 } as const;
 
 /** Must agree with RAW_DATA_HEADER's column order (company, email, contact_name, alt_names, ...). */

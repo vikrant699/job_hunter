@@ -24,9 +24,7 @@ const job: AmazonJob = {
   description_short: "Build the future of human-technology interaction.",
 };
 
-// The real PayUI payload shape: Amazon keeps the experience bar in its OWN
-// field, so a description-only jdText showed the gate a role with no seniority
-// at all — and left extract with nothing to read.
+// Amazon keeps the experience bar in its own field; a description-only jdText showed the gate a role with no seniority signal at all.
 const payUiJob: AmazonJob = {
   id_icims: "10472171",
   title: "Software Development Engineer I, Amazon Payments",
@@ -77,8 +75,7 @@ test("amazonJobsPageJobs parses the jobs array and surfaces hits as total", () =
 });
 
 test("amazonJobsPageJobs: pagination-stop arithmetic — a page reaching hits ends the loop", () => {
-  // A page whose offset + returned jobs meets/exceeds hits is the last page;
-  // paginate() (src/ats/shared.ts) uses this exact `total` to decide that.
+  // A page whose offset + returned jobs meets/exceeds hits is the last page; paginate() (src/ats/shared.ts) uses this exact total to decide that.
   const lastPage = amazonJobsPageJobs(asJson({ hits: 2, jobs: [job, virtualJob] }));
   assert.equal(0 + lastPage.jobs.length >= (lastPage.total ?? 0), true);
 
@@ -134,10 +131,7 @@ test("normalizeAmazonJobs: missing posted_date maps to null", () => {
   assert.equal(p.postedAt, null);
 });
 
-// Regression for the defect that made every Amazon posting look seniority-less:
-// basic/preferred qualifications are separate API fields, and jdText took only
-// `description`. The gate never saw "1+ years", extract returned null YOE, and
-// the profile's "minimum 7+ years" hard deal-breaker could not fire.
+// Regression: basic/preferred qualifications are separate API fields, and jdText took only description, so the gate never saw seniority signals like "1+ years".
 test("normalizeAmazonJobs includes the qualification fields in jdText", () => {
   const p = normalizeAmazonJobs(company, payUiJob);
   assert.match(p.jdText, /greenfield initiative/, "description still present");

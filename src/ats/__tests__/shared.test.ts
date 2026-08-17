@@ -17,7 +17,6 @@ import {
 } from "../shared.js";
 import type { AdapterCompany } from "../../types.js";
 
-// helper: days between a past ISO string and now
 function dayDelta(iso: string | null): number {
   assert.ok(iso !== null, "expected non-null ISO string");
   return Math.round((Date.now() - Date.parse(iso)) / 86_400_000);
@@ -212,7 +211,7 @@ describe("paginate", () => {
   it("stops on a short page and accumulates items in order", async () => {
     const pages: Array<{ items: number[]; total: number | null }> = [
       { items: [1, 2], total: null },
-      { items: [3], total: null }, // short page (< pageSize 2) -> stop
+      { items: [3], total: null },
     ];
     let calls = 0;
     const result = await paginate<number>({
@@ -240,8 +239,7 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
-        // Every page is "full" (length === pageSize) so only the total check
-        // can terminate the loop.
+        // Every page is "full" so only the total check can terminate the loop.
         if (calls === 1) return { items: [1, 2], total: 3 };
         if (calls === 2) return { items: [3, 4], total: 999 }; // ignored: total already latched at 3
         throw new Error("should not be called a third time");
@@ -289,14 +287,12 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 5,
-      // Phenom-style: server may cap a page below pageSize without that
-      // meaning "last page" — only a zero-item page or reaching total stops it.
+      // Phenom-style: a page can be capped below pageSize without that meaning "last page".
       shortPageEndsPagination: false,
       interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
-        // server caps each page at 3 items even though pageSize is 5 —
-        // termination must rely on total, since 3 < 5 would otherwise stop early
+        // Server caps each page at 3 despite pageSize 5, so termination must rely on total.
         if (offset === 0) return { items: [1, 2, 3], total: 6 };
         if (offset === 3) return { items: [4, 5, 6], total: 6 };
         throw new Error("should not be called again");
@@ -315,9 +311,7 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
-        // Server returns 3 raw records each page, but one per page gets
-        // filtered out by the adapter (e.g. missing stable id) -> items.length
-        // is 2 even though the page was "full" at pageSize 3.
+        // 3 raw records per page, but one is filtered out (e.g. missing stable id), so items.length < rawCount.
         if (offset === 0) return { items: [1, 2], total: null, rawCount: 3 };
         if (offset === 3) return { items: [4], total: null, rawCount: 2 }; // short raw page -> stop
         throw new Error("should not be called again");
@@ -328,9 +322,7 @@ describe("paginate", () => {
   });
 
   it("stops when a board ignores the offset and re-serves the identical page", async () => {
-    // The godrej-agrovet failure mode (2026-07-26): the tenant ignored `from`,
-    // so every page returned the same rows and pagination walked to `total`
-    // re-fetching them. 314 totalHits / 10 per page = 32 identical pages.
+    // Mirrors a tenant that ignores the offset and re-serves identical rows every page.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -344,16 +336,12 @@ describe("paginate", () => {
         return { items: [1, 2, 3], total: 314, rawCount: 10 };
       },
     });
-    // Page 0 keeps the rows; page 1 is an exact repeat -> stop immediately.
     assert.deepEqual(result, [1, 2, 3]);
     assert.equal(calls, 2, "must not walk all 32 pages");
   });
 
   it("does NOT truncate a board that re-serves seen rows but still has more", async () => {
-    // idfcfirst (1530 hits): unstable ordering hands back a fully-duplicate
-    // page mid-run and then keeps yielding new ids. An earlier version of the
-    // stall guard stopped on any all-seen page and cut it to 324 — a board
-    // must never be truncated on that weaker signal.
+    // Unstable ordering can re-serve a fully-duplicate page mid-run then resume with new ids; must not truncate on an all-seen page alone.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -373,8 +361,6 @@ describe("paginate", () => {
         return { items: [9, 10], total: 12, rawCount: 2 };
       },
     });
-    // Kept going past the duplicate page at call 3 and collected the tail;
-    // pagination ends on the offset>=total bound, not on the stall guard.
     assert.deepEqual(result, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "must keep going past a duplicate page");
     assert.equal(calls, 6);
   });
@@ -440,8 +426,7 @@ describe("paginate", () => {
       pageSize: 2,
       fetchPage: async (_offset) => {
         calls++;
-        // total=0 reported on a full first page: offset(0) >= total(0) must stop
-        // immediately after this page rather than treating 0 as "not yet known".
+        // total=0 on a full first page must stop immediately, not be treated as "not yet known".
         return { items: [1, 2], total: 0 };
       },
     });
@@ -460,13 +445,10 @@ describe("paginate", () => {
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
         if (offset === 0) return { items: [{ id: "a", n: 1 }, { id: "b", n: 2 }], total: null };
-        // "b" repeats here (e.g. a tenant re-listing a job that moved between
-        // pages while crawling) - it must be dropped from the result...
+        // "b" repeats (e.g. a job that moved pages while crawling) and must be dropped from the result.
         if (offset === 2) return { items: [{ id: "b", n: 2 }, { id: "c", n: 3 }], total: null };
-        // ...but the offset still advances by the RAW page size (2 items
-        // received), not the deduped output count, so this page is fetched
-        // at offset 4, not 3 - a duplicate never shifts later offsets.
-        if (offset === 4) return { items: [{ id: "d", n: 4 }], total: null }; // short page -> stop
+        // Offset still advances by the raw page size (2), not the deduped count, so a duplicate never shifts later offsets.
+        if (offset === 4) return { items: [{ id: "d", n: 4 }], total: null };
         throw new Error("should not be called again");
       },
     });
@@ -484,13 +466,7 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
-        // Every page is full-size (never short) and total stays unknown, so
-        // nothing inside the loop body ever breaks - the ONLY way this loop
-        // ends is by exhausting maxPages, which is the branch that also logs
-        // "pagination hit the runaway cap" via the global logger (not spied
-        // on here - shared.ts has no injection point for it; this test pins
-        // the functional half of the contract: the return is exactly the
-        // maxPages worth of items, no more, no less).
+        // Every page is full and total stays unknown, so only maxPages ends the loop (the runaway-cap log line isn't spied on here).
         return { items: [calls], total: null };
       },
     });
@@ -499,8 +475,7 @@ describe("paginate", () => {
   });
 
   it("pageSize 'infer' learns the tenant's page size from its first page", async () => {
-    // jobs.mahindracareers.com: 608 postings served 10 rows at a time. Declaring
-    // a constant 25 made page 1 look short and truncated the board to 10.
+    // A real tenant serves 608 postings at 10 rows per page; a declared pageSize of 25 would look short and truncate it.
     const TOTAL = 608;
     const PER_PAGE = 10;
     const offsetsSeen: number[] = [];
@@ -542,8 +517,7 @@ describe("paginate", () => {
   });
 
   it("pageSize 'infer' does not treat a board smaller than one page as a short page", async () => {
-    // The first page DEFINES the page size, so it can never be "short" - a
-    // one-page board ends on the empty page after it instead.
+    // The first page DEFINES the page size, so it can never be "short"; a one-page board ends on the empty page after it.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -578,11 +552,7 @@ describe("paginate", () => {
   });
 
   it("the stall guard is inert without dedupeBy: a repeating board is then bounded only by the cap", async () => {
-    // Documents why every adapter that publishes no total must pass dedupeBy.
-    // The signature the stall guard compares is built FROM dedupeBy, so with
-    // no per-item key an offset-ignoring board is caught by nothing but
-    // maxPages — and under "infer" that now includes a board smaller than one
-    // page, since page 1 can never be judged short against itself.
+    // Without dedupeBy the stall guard has no per-item key, so an offset-ignoring board is bounded only by maxPages.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -621,9 +591,7 @@ describe("paginate", () => {
     assert.equal(INTER_PAGE_DELAY_MS, 150);
     let calls = 0;
     const start = Date.now();
-    // Deliberately omits interPageDelayMs to exercise the real default — the
-    // only test in this suite that pays the actual politeness delay (one
-    // inter-page sleep), so it stays a single short page pair.
+    // Deliberately omits interPageDelayMs to exercise the real default; kept to a single short page pair since it pays the actual delay.
     const result = await paginate<number>({
       provider: "test",
       company: "acme",
@@ -643,10 +611,7 @@ describe("paginate", () => {
     );
   });
 
-  // The three stall shapes below differ ONLY in what the board reported as its
-  // total, which is what decides the log level (see describePaginationStall).
-  // Each also pins the fetch count, because the break itself must be identical
-  // in all three - the level is the only thing that varies.
+  // These three stall shapes differ only in the reported total, which decides the log level; the break (fetch count) stays identical.
   it("a stall short of the reported total stops on the repeat and is a warning", async () => {
     let calls = 0;
     const result = await paginate<number>({
@@ -671,8 +636,7 @@ describe("paginate", () => {
   });
 
   it("a stall on a board that exposes no total still stops, and is not a warning", async () => {
-    // The gohire shape: a small board clamps at its last page, so asking beyond
-    // the end re-serves it. Nothing suggests loss, so this must not shout.
+    // A small board can clamp at its last page, re-serving it if asked beyond the end; nothing suggests loss here.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -702,9 +666,7 @@ describe("paginate", () => {
       dedupeBy: (n) => String(n),
       fetchPage: async () => {
         calls++;
-        // total=3 is reached by page 0's rows, but the offset advance uses the
-        // raw count (2), so the loop asks for one more page and gets the last
-        // one back again.
+        // total=3 is reached by page 0's rows, but offset advances by rawCount (2), so one more page is fetched and repeats the last.
         if (calls === 1) return { items: [1, 2, 3], total: 3, rawCount: 2 };
         return { items: [1, 2, 3], total: 3, rawCount: 2 };
       },
@@ -715,8 +677,7 @@ describe("paginate", () => {
   });
 
   it("a page declaring no pagination control changes the log line, never the break", async () => {
-    // The flag is reporting-only. It must not become a fourth stop condition:
-    // this board stalls at exactly the same page with or without it.
+    // The flag is reporting-only; it must not become a fourth stop condition.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -747,8 +708,7 @@ describe("describePaginationStall", () => {
     const { level, message } = describePaginationStall({ total: null, collected: 3 });
     assert.equal(level, "info");
     assert.match(message, /unverifiable/);
-    // The old wording asserted a cause we cannot observe: re-serving the last
-    // page is indistinguishable from ignoring the offset when only one page exists.
+    // Re-serving the last page is indistinguishable from ignoring the offset when only one page exists, so no cause is asserted.
     assert.doesNotMatch(message, /ignores the offset/);
   });
 
@@ -760,8 +720,7 @@ describe("describePaginationStall", () => {
   });
 
   it("does not warn when more was collected than the reported total", () => {
-    // Boards under-report (a stale count, or a facet the total ignores); having
-    // MORE than promised is not a truncation.
+    // Boards under-report (a stale count, or a facet the total ignores); more than promised is not a truncation.
     assert.equal(describePaginationStall({ total: 5, collected: 9 }).level, "info");
   });
 
@@ -770,9 +729,7 @@ describe("describePaginationStall", () => {
   });
 
   it("states plainly that a board with no pagination control is complete in one page", () => {
-    // Not a hedge: gohire renders no pager element below one page, so its
-    // absence PROVES the single page we got is the whole board. Saying
-    // "completeness is unverifiable" here would be strictly false.
+    // Not a hedge: absence of a pager element PROVES the single page is the whole board.
     const { level, message } = describePaginationStall({
       total: null,
       collected: 3,
@@ -785,8 +742,7 @@ describe("describePaginationStall", () => {
   });
 
   it("keeps hedging when nothing proved the board lacks a pagination control", () => {
-    // The flag is positive evidence only. False (or absent) means "unknown",
-    // which is the pre-existing, deliberately non-committal line.
+    // The flag is positive evidence only; false (or absent) means "unknown".
     const { level, message } = describePaginationStall({
       total: null,
       collected: 3,
@@ -798,9 +754,7 @@ describe("describePaginationStall", () => {
   });
 
   it("still warns about a shortfall even if the board also claims no pagination control", () => {
-    // Contradictory inputs (a total exists, yet supposedly no pager rendered)
-    // mean one of the two signals is wrong. Resolve toward the loud branch:
-    // a missed warning is a silently truncated board, the costlier mistake.
+    // Contradictory inputs resolve toward the loud branch: a missed warning is the costlier mistake.
     const { level, message } = describePaginationStall({
       total: 40,
       collected: 10,

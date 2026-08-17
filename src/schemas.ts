@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { UserProfile } from "./types.js"; // type-only: no runtime cycle (types.ts only imports types from schemas.ts)
 
-/**
- * Lower bound below which we treat the gate's match score as noise and silently
- * drop the posting (see classifyVerdict in filter/verdict.ts). Lives here (a
- * neutral, import-free module) rather than in verdict.ts so profile.ts can
- * validate `filters.matchThreshold` against it at load time without creating a
- * profile.ts <-> verdict.ts import cycle (verdict.ts imports profile.ts for
- * filter config). verdict.ts re-exports this constant for back-compat.
- */
+/** Below this, the gate's match score is noise and the posting is silently dropped (see verdict.ts). Lives here, not verdict.ts, to avoid a profile.ts<->verdict.ts import cycle. */
 export const SILENT_SCORE_FLOOR = 0.65;
 
 export const ProviderSchema = z.enum([
@@ -59,8 +52,7 @@ export const UndraftedReasonSchema = z.enum([
 ]);
 export type UndraftedReason = z.infer<typeof UndraftedReasonSchema>;
 
-/** Outreach-relevant posting severity (the only two tiers a notified posting
- *  can carry: drop_stage NULL -> green, drop_stage 'yellow' -> yellow). */
+/** The only two tiers a notified posting can carry: drop_stage NULL -> green, 'yellow' -> yellow. */
 export const SeveritySchema = z.enum(["green", "yellow"]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
@@ -83,9 +75,9 @@ export const RegistryEntrySchema = z.object({
   tenant_url: z.string().url().optional(),
   /** Adapter-specific tokens persisted as JSON (keka orgGuid, eightfold domain, oracle siteNumber). */
   api_meta: ApiMetaSchema.optional(),
-  /** Sector taxonomy (Phase 3 categorization, 2026-06-19). Curated; reporting + gate domain context. */
+  /** Curated sector taxonomy; used for reporting + gate domain context. */
   category: z.string().optional(),
-  /** product (kept) vs service (staffing/consultancy/IT-services — excluded). */
+  /** product (kept) vs service (staffing/consultancy/IT-services - excluded). */
   employer_type: z.enum(["product", "service"]).optional(),
 });
 export type RegistryEntry = z.infer<typeof RegistryEntrySchema>;

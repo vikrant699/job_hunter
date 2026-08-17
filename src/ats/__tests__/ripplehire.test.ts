@@ -1,4 +1,3 @@
-// src/ats/ripplehire.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
@@ -157,7 +156,6 @@ test("RipplehireListSchema parses the wrapper and totalJobCount pagination math"
   assert.ok(parsed.success);
   assert.equal(parsed.data.totalJobCount, 1355);
   assert.equal(parsed.data.jobVoList?.length, 2);
-  // 1355 records at page size 100 -> 14 pages.
   const total = parsed.data.totalJobCount;
   assert(typeof total === "number");
   assert.equal(Math.ceil(total / 100), 14);

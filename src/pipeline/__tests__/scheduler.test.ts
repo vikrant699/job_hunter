@@ -21,8 +21,7 @@ test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("Error: something weird happened"), "other");
 });
 
-// Fast policy: real backoff and deferred pacing are seconds, which tests must
-// not wait for. Tests that assert pacing override deferredPaceMs with a few ms.
+// Fast policy: real backoff/deferred pacing are seconds. Tests that assert pacing override deferredPaceMs with a few ms.
 const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 let seq = 0;
@@ -126,7 +125,7 @@ test("a transport fault does NOT count against the board and is deferred", async
   // The board never answered, so it must not be moved toward the cf>=5 quarantine.
   assert.equal(failureRow(slug).consecutive_failures, 0, "transport fault must not increment cf");
   assert.equal(failureRow(slug).status, "active");
-  // Nor counted as an error/issue yet — it gets a second chance.
+  // Nor counted as an error/issue yet - it gets a second chance.
   assert.equal(stats.failedCompanies.length, 0);
   assert.equal(stats.errors.length, 0);
   assert.equal(stats.transportDeferred.length, 1);
@@ -155,12 +154,7 @@ test("a board-shaped failure still counts against the board", async () => {
   assert.equal(stats.transportRetried, 0);
 });
 
-/**
- * What undici's res.json() throws when a JSON endpoint answers with an HTML
- * challenge/error page. Verbatim from run 31 (2026-08-01), where 17 Workday
- * boards hit in a 24-second window all failed with this and every one served
- * HTTP 200 application/json when probed individually minutes later.
- */
+/** What undici's res.json() throws when a JSON endpoint answers with an HTML challenge/error page instead. */
 function edgeInterstitialError(): Error {
   return new SyntaxError(`Unexpected token '<', "<!DOCTYPE "... is not valid JSON`);
 }
@@ -191,8 +185,7 @@ test("the deferred pass recovers a board that was only being throttled", async (
     provider: "greenhouse",
     listPostings: (): Promise<NormalizedPosting[]> => {
       attempts++;
-      // Interstitial for the whole first pass (1 try + 1 retry), then the edge
-      // relents once the burst is over.
+      // Interstitial for the whole first pass (1 try + 1 retry), then the edge relents once the burst is over.
       if (attempts <= 2) return Promise.reject(edgeInterstitialError());
       return Promise.resolve([]);
     },
@@ -253,9 +246,7 @@ test("a WAF challenge page does NOT count against the board and is deferred", as
 
   await processBucket("greenhouse", failingAdapter(challengePageError), [company], stats, FAST);
 
-  // An edge refused us, so the board's application never spoke: the 12 WAF-fronted
-  // radancy rows (AstraZeneca 4,681 postings, Amgen 2,014, Optum 1,719, ...) must
-  // not walk toward the cf>=5 quarantine on five blocked runs.
+  // An edge refused us, so the board's application never spoke - WAF-fronted boards must not walk toward the cf>=5 quarantine.
   assert.equal(failureRow(slug).consecutive_failures, 0, "a block page is not a board defect");
   assert.equal(failureRow(slug).status, "active");
   assert.equal(stats.failedCompanies.length, 0);
@@ -393,10 +384,7 @@ test("the deferred pass works boards one at a time, not at provider concurrency"
 
   await runDeferredTransportPass(stats, FAST);
 
-  // Run 31 deferred 17 Workday tenants together because the vendor's edge
-  // throttled a burst of them. Replaying that at concurrencyPerProvider is the
-  // same burst again: the boards stay unquarantined but the run still loses the
-  // 909 postings they were holding.
+  // Replaying a throttled group at concurrencyPerProvider is the same burst again, even if the boards stay unquarantined.
   assert.equal(log.peakInFlight, 1, "deferred boards must not be replayed concurrently");
   assert.equal(log.slugs.length, 6);
   assert.equal(stats.transportRecovered, 6);
@@ -421,8 +409,7 @@ test("the deferred pass sleeps between boards, at the injected pace", async () =
   // 3 boards leave 2 gaps; asserting only one full gap keeps the bound clear of
   // timer resolution while still failing outright if the pace is ignored.
   assert.ok(elapsed >= paceMs, `expected the pass to be paced, took ${elapsed}ms`);
-  // ...and the production pace must be at least as wide as the hand re-probe
-  // that recovered 17 of 19 run-31 Workday boards (2.5s apart, 909 postings).
+  // ...and the production pace must be at least as wide as the spacing verified to work against edge throttles.
   assert.ok(defaultRetryPolicy().deferredPaceMs >= 2500);
 });
 

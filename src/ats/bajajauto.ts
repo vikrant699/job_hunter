@@ -1,10 +1,5 @@
-// src/ats/bajajauto.ts — Bajaj Auto careers, a custom in-house ASP.NET handler
-// on the corporate site (no auth):
-//   GET https://www.bajajauto.com/handlers/careers/get-requisitions.ashx
-//     -> { jobRequisitions: [{ jobReqId, jobTitle, jobUrl (slug),
-//          jobDescription (HTML JD), country, State, location, custCity }] }
-// One GET returns all ~207 requisitions (India). JD inline. Verified live
-// 2026-07-18.
+// src/ats/bajajauto.ts — Bajaj Auto careers, custom ASP.NET handler on the corporate site, no auth.
+// GET /handlers/careers/get-requisitions.ashx returns all requisitions in one call, JD inline.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/userAgent.js";

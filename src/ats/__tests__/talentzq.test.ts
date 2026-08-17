@@ -1,4 +1,3 @@
-// src/ats/talentzq.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -21,9 +20,7 @@ const company: AdapterCompany = {
   apiMeta: { tenantId: "1009" },
 };
 
-// Trimmed from the real https://pratilipi.talentzq.io/api/1009/jd response
-// (verified live 2026-08-01). The API double-JSON-encodes: the HTTP body is
-// itself a JSON string containing the array's JSON text.
+// The API double-JSON-encodes: the HTTP body is itself a JSON string wrapping the array's JSON text.
 const publishedRecord = {
   Id: "6e18b9a0-92fd-4468-a7e0-98942c1fa843", Type: "jd", Tenantid: "1009",
   Title: "Bengali Content Operations Manager", Jdcode: "BOM-03-06",

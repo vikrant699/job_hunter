@@ -1,9 +1,6 @@
-// src/blast/render.ts
-//
-// Variant rotation + company-mention personalization for blast emails.
-// Subject/opener text is per-profile, user-approved verbatim, and lives in
-// config/profiles/<profile>/blast-content.json (gitignored). Hard rule from
-// the user: NO em dashes in outgoing mail.
+// Variant rotation + company-mention personalization for blast emails. Subject/opener text is
+// per-profile, user-approved verbatim, in config/profiles/<profile>/blast-content.json (gitignored).
+// Hard rule: no em dashes in outgoing mail.
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import type { JsonValue } from "../util/json.js";
@@ -25,9 +22,8 @@ export const BlastContentSchema = z.object({
 });
 export type BlastContent = z.infer<typeof BlastContentSchema>;
 
-/** Load + validate a profile's outgoing-content config. Throws actionable
- *  errors on structural problems, a missing {company} token, or any em dash
- *  (banned in outgoing mail). */
+/** Load + validate a profile's outgoing-content config; throws on structural problems, a missing
+ *  {company} token, or any em dash (banned in outgoing mail). */
 export function loadBlastContent(path: string): BlastContent {
   let parsed: JsonValue;
   try {
@@ -53,11 +49,7 @@ export function loadBlastContent(path: string): BlastContent {
   return content;
 }
 
-/** Sanity-gate a Raw Data company cell before weaving it into a sentence.
- *  Returns the cleaned name, or null (use the opener's fallback). Calibrated
- *  against the live tab (2026-07-09): kills "(unknown)", "C"/"CC"/"SS",
- *  "a prestigious European-based client", 60+-char org descriptions, and
- *  trims "| Leading IT Solutions Company" marketing tails. */
+/** Sanity-gates a company cell before weaving it into a sentence; returns the cleaned name or null (use the fallback). */
 export function companyForMention(raw: string): string | null {
   const name = (raw.split("|")[0] ?? "").trim();
   if (name.length < 3 || name.length > 60) return null;
@@ -94,9 +86,8 @@ export interface RenderInput {
   content: BlastContent;
   company: string;
   contactName: string | null;
-  /** Global 0-based index over every address ever drafted; drives rotation
-   *  (subject cycles every draft, opener every subjects.length drafts, so all
-   *  subject x opener combos appear before any repeats). */
+  /** Global 0-based index over every address ever drafted; drives rotation so subject x opener
+   *  combos all appear before any repeats. */
   rotationIndex: number;
 }
 
@@ -124,8 +115,7 @@ export function renderBlast(input: RenderInput): RenderedBlast {
   }
 
   const company = companyForMention(input.company);
-  // Function replacers so `$&`/`$$` in names or companies insert literally
-  // instead of being treated as replacement patterns.
+  // Function replacers so `$&`/`$$` in names or companies insert literally, not as replacement patterns.
   const openerBody =
     company === null ? opener.fallback : opener.withCompany.replace("{company}", () => company);
   const openerText = `${opener.hello}\n\n${openerBody}`;

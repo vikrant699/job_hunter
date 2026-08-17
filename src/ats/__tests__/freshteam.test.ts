@@ -35,7 +35,6 @@ const deadCompany: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup shape from GET /jobs (two rows: onsite + remote-tagged).
 const LIST_HTML = `
 <html><body>
   <div data-portal-id="jobs_list">
@@ -83,10 +82,7 @@ const JD_HTML = `
 </body></html>
 `;
 
-// Verbatim GET https://niki-talent.freshteam.com/jobs (HTTP 200, 889 bytes,
-// captured 2026-08-01). Freshteam's own "no such subdomain" page. The tenant
-// name is NOT in the served markup — the trailing script injects it from
-// document.domain — so a reader of the body alone cannot name the tenant.
+// Freshteam's "no such subdomain" page - the tenant name isn't in the markup itself, only injected via a trailing script from document.domain.
 const INVALID_DOMAIN_HTML = `<!DOCTYPE html>
 <html>
   <head>
@@ -116,10 +112,7 @@ const INVALID_DOMAIN_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-// A LIVE tenant with nothing open. Real Freshteam portal chrome (filter bar,
-// jobs_list wrapper, the template's own `no_data` empty state, footer) taken
-// from a served board with its single job row removed. This is the case the
-// dead-tenant check must not swallow.
+// A LIVE tenant with nothing open (real portal chrome minus the one job row) - the case the dead-tenant check must not swallow.
 const EMPTY_BOARD_HTML = `<!DOCTYPE html>
 <html>
   <head>
@@ -195,8 +188,7 @@ test("parseFreshteamList maps both rows: title (from .job-title, not the slugged
   assert.equal(se?.externalId, "YrRrYuwyxPAH");
   assert.equal(se.jobTitle, "Software Engineer - L1 (Hybrid)");
   assert.equal(se.location, "Mumbai, India");
-  // data-portal-remote-location=true wins even though the raw location string
-  // itself ("Mumbai, India") wouldn't match REMOTE_RE.
+  // data-portal-remote-location=true wins even though "Mumbai, India" wouldn't match REMOTE_RE.
   assert.equal(se.isRemote, true);
 });
 
@@ -239,17 +231,14 @@ function thrownBy(fn: () => unknown): unknown {
 test("parseFreshteamList throws on Freshteam's invalid-domain page instead of reporting an empty board", () => {
   const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
   assert.ok(err instanceof Error);
-  // The URL has to come from the company row: the page itself never names the
-  // tenant, so an operator reading the stored error needs us to say which one.
+  // The URL must come from the company row - the page itself never names the tenant.
   assert.match(err.message, /niki-talent\.freshteam\.com\/jobs/);
   assert.match(err.message, /tenant does not exist/);
   assert.match(err.message, /claim it now/);
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // A dead subdomain is a real per-company defect and MUST count toward the
-  // row's consecutive_failures. If any of these flipped true the scheduler
-  // would retry the board forever and never quarantine it.
+  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
@@ -284,10 +273,7 @@ test("parseFreshteamJd returns '' when .job-details-content is absent (malformed
   assert.equal(parseFreshteamJd("<html><body>Not found</body></html>"), "");
 });
 
-// --- legacy (pre data-portal) board template, live on ninjacart 2026-08-12 ---
-// No [data-portal-id="jobs_list"] wrapper and no data-portal-* attributes:
-// each row is li.heading > .row > .job-list-info with bare anchor classes, and
-// the location lives in a sibling .job-location block before a <br/>.
+// Legacy (pre data-portal) board template, live on ninjacart - no data-portal-* attributes; location lives in a sibling .job-location block.
 const LEGACY_TEMPLATE_HTML = `<html><body><ul>
   <li class="heading"><div class="row">
     <div class="job-list-info">

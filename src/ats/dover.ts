@@ -1,20 +1,8 @@
-// src/ats/dover.ts — Dover (app.dover.com) public career boards, e.g. Codingal, SALT.
-// Every tenant lives under the SAME shared host (no per-tenant subdomain), keyed
-// by an opaque client id rather than the human-readable slug. Three-call shape:
-//   resolve: GET /api/v1/careers-page-slug/<slug>              -> { id, name, ... }
-//   list:    GET /api/v1/careers-page/<clientId>/jobs?limit=&offset=
-//            -> DRF LimitOffsetPagination { count, next, previous, results[] }
-//            (no description field — two-phase, fetchJd is mandatory)
-//   detail:  GET /api/v1/jobs/<jobId>/get_job_description
-//            -> { user_facing_description, user_provided_description,
-//                 generated_description: {about_the_role, job_mandates,
-//                 qualifications, about_the_company, additional_information},
-//                 external_url }
-// Plain fetch works fine (no WAF in front of the JSON API; confirmed live
-// against codingal/salt with the default bot UA). clientId is cached in
-// apiMeta.clientId when known (set at conversion time); resolved on demand via
-// the slug endpoint otherwise, so the adapter also works with apiMeta: null
-// (used by ats-validate's live probe).
+// src/ats/dover.ts — Dover (app.dover.com) public career boards, e.g. Codingal, SALT. Every tenant lives under the
+// same shared host, keyed by an opaque client id rather than the slug. Three-call shape: resolve slug -> clientId
+// (GET /api/v1/careers-page-slug/<slug>), list (GET /api/v1/careers-page/<clientId>/jobs, no description field, so
+// fetchJd is mandatory), detail (GET /api/v1/jobs/<jobId>/get_job_description). No WAF, plain fetch works.
+// clientId is cached in apiMeta.clientId when known, else resolved live via the slug endpoint.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -90,9 +78,6 @@ export function doverJobUrl(slug: string, jobId: string): string {
   return `${DOVER_HOST}/apply/${encodeURIComponent(slug)}/${encodeURIComponent(jobId)}`;
 }
 
-/** Resolve the client id needed by the jobs endpoint: prefer the cached
- *  `apiMeta.clientId` (set at conversion time), else look it up live from the
- *  slug — cheap and needs no scraping, unlike e.g. Keka's org GUID. */
 export async function resolveDoverClientId(company: AdapterCompany): Promise<string> {
   const cached = company.apiMeta?.clientId;
   if (cached) return cached;
@@ -137,9 +122,7 @@ export function normalizeDover(company: AdapterCompany, j: DoverJob): Normalized
   };
 }
 
-/** Pick the JD body Dover would actually render to a candidate: the finished
- *  user-facing copy if set, else the employer's raw HTML, else — for boards
- *  using Dover's AI-generated JD — assemble the structured sections. */
+/** Prefers the finished user-facing copy, then raw employer HTML, then Dover's AI-generated structured sections. */
 export function extractDoverJd(detail: DoverJobDescription): string {
   const facing = (detail.user_facing_description ?? "").trim();
   if (facing) return htmlToText(facing);

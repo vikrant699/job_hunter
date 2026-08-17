@@ -49,9 +49,7 @@ test("fetchJd prefers the JD page's JSON-LD description over stripped main text"
   assert.doesNotMatch(jd, /<p>/); // html stripped
 });
 
-// YC company pages embed job links for OTHER YC companies ("similar jobs",
-// footer rails). Scraping DrDroid's page must not attribute Confido's or
-// BoldVoice's openings to DrDroid.
+// YC company pages embed job links for OTHER YC companies ("similar jobs" rails) that must not be attributed to this company.
 test("dropCrossCompanyYcLinks drops other YC companies' job links, keeps own + external", () => {
   const items = [
     { url: "https://www.ycombinator.com/companies/drdroid/jobs/abc-backend-engineer", text: "Backend Engineer" },

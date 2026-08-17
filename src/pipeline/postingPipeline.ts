@@ -51,13 +51,7 @@ function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatc
   });
 }
 
-/**
- * A posting dropped before or during LLM scoring: llmRelevant is always 0,
- * yoeMin/yoeMax are null unless an extract result is supplied, and it was
- * never notified. Covers the no-jd, gate-error, hard-deal-breaker, and silent
- * drop stages, which all share this shape and differ only in reason/
- * confidence/dropStage/yoe.
- */
+/** A posting dropped before or during LLM scoring: llmRelevant always 0, never notified. Shared shape for no-jd, gate-error, hard-deal-breaker, and silent drop stages. */
 export function droppedResult(
   llmReason: string,
   dropStage: string,
@@ -74,11 +68,7 @@ export function droppedResult(
   };
 }
 
-/**
- * A posting that reached a verdict (green/yellow) and either got deduped
- * against an already-notified role this run, or was itself notified (or
- * attempted-and-failed to notify). llmRelevant is 1 only for green.
- */
+/** A posting that reached a verdict (green/yellow): deduped, notified, or attempted-and-failed. llmRelevant is 1 only for green. */
 export function verdictResult(
   severity: "green" | "yellow",
   llmReason: string,
@@ -96,16 +86,8 @@ export function verdictResult(
   };
 }
 
-/**
- * The location verdict for a posting once its JD has been fetched.
- *
- * An adapter may resolve `location` during `fetchJd` when only the detail page
- * carries it (ralphlauren: Avature's list API gives lat/lon and leaves many
- * jobs ungeocoded). A location learned that late must still face the STRICT
- * metadata check — `checkLocationFromText` is the no-metadata fallback and
- * deliberately defers when it finds no signal, so routing resolved metadata
- * through it would let a foreign role reach the LLM gate.
- */
+/** Location verdict once the JD is fetched. An adapter may resolve `location` late (e.g. ralphlauren, from the detail page);
+ *  that must still hit the strict metadata check, not the no-metadata fallback, or a foreign role could slip past. */
 export function lateLocationCheck(posting: NormalizedPosting): LocationCheck {
   if (posting.location !== null && posting.location !== "") {
     return checkLocation(posting.location, posting.isRemote);
@@ -149,13 +131,8 @@ export async function processOnePosting(
 
   if (!posting.jdText && adapter.fetchJd) {
     const fetchJd = adapter.fetchJd;
-    // Retry infrastructure failures: a JD lost to a network blip — or to an edge
-    // page served in place of the JD — costs the whole posting, since it is
-    // skipped before insertPostingIfNew and only reappears on the next run. Run 29
-    // lost 833 postings this way inside one 8-minute outage. The budget is the
-    // listing path's, unchanged: widening WHICH errors qualify must not multiply
-    // request volume across thousands of postings.
-    // Board-shaped errors (404/403/schema) are NOT retried — the host answered.
+    // Retry infrastructure failures: a JD lost to a network blip is skipped before insertPostingIfNew and only reappears
+    // next run. Board-shaped errors (404/403/schema) are not retried - the host answered.
     // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     let jdErr: unknown;
     for (let attempt = 0; attempt <= retry.retries; attempt++) {
@@ -192,9 +169,7 @@ export async function processOnePosting(
     return;
   }
 
-  // Non-empty but content-free (vendor placeholder, dots-only): same outcome
-  // as no-jd, but with the junk preserved in the reason so the drop stays
-  // auditable per-tenant.
+  // Non-empty but content-free (vendor placeholder, dots-only): same outcome as no-jd, but junk preserved in the reason for auditability.
   if (isJunkJd(posting.jdText)) {
     writePostingResult(
       posting,
@@ -204,10 +179,7 @@ export async function processOnePosting(
     return;
   }
 
-  // The profile's "minimum N+ years" hard deal-breaker, applied deterministically
-  // before spending a gate call. Only fires on an explicitly stated bar — an
-  // unstated requirement is never a rejection, so the gate still sees anything
-  // ambiguous. Stored (not silently discarded) so the drop stays auditable.
+  // Hard YOE deal-breaker, applied deterministically before a gate call. Only fires on an explicitly stated bar; ambiguous cases still reach the gate.
   const statedYoeMin = parseStatedYoeMin(posting.jdText);
   if (statedYoeMin !== null && statedYoeMin >= profile.filters.hardYoeCap) {
     stats.postingsYoeDenied++;
@@ -231,14 +203,9 @@ export async function processOnePosting(
       jdText: posting.jdText,
     });
   } catch (err) {
-    // Backend down (not a per-posting failure) — abort the whole run rather
-    // than storing this and the next several thousand postings as gate-errors.
+    // Backend down (not a per-posting failure) - abort the whole run rather than storing thousands of postings as gate-errors.
     if (err instanceof LlmUnavailableError) throw err;
-    // Couldn't score even after the gate's retry (malformed model output). A
-    // score-less posting is treated as 0 and NOT sent to Discord — surfacing
-    // every unparseable result would flood the feed with noise. We still store
-    // it with dropStage "gate-error" so the error rate stays auditable (e.g.
-    // the qwen "missing reason field" retries), without notifying anyone.
+    // Malformed model output even after the gate's retry: store as dropStage "gate-error" (auditable) without notifying anyone.
     logger.warn(
       { company: company.name, title: posting.jobTitle, err: describeError(err).slice(0, 120) },
       "gate-error → stored, not notified",
@@ -262,10 +229,7 @@ export async function processOnePosting(
     return;
   }
 
-  // Below the silent floor, classifyVerdict drops the posting before YOE is
-  // ever consulted — running extract would be a wasted LLM call AND would
-  // evict the gate prompt's KV prefix cache (the resume) between gate calls.
-  // Last full run this skipped ~4k of ~4.6k extract calls.
+  // Below the silent floor, skip extract entirely: it would be a wasted LLM call and would evict the gate prompt's KV prefix cache between gate calls.
   let extractResult: ExtractResult | null = null;
   if (gateResult.matchScore >= (profile.filters.silentFloor ?? SILENT_SCORE_FLOOR)) {
     try {

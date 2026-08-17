@@ -1,21 +1,5 @@
-// src/ats/sfcsb.ts — SAP SuccessFactors "CSB" (Career Site Builder / SAPUI5)
-// recruiting JSON API. DISTINCT from src/ats/successfactors.ts, which scrapes
-// the legacy jobs2web/RMK server-rendered HTML board. CSB tenants serve a clean
-// JSON list but render the job page as SSR HTML (JD in an itemprop span).
-//
-//   list: POST <host>/services/recruiting/v1/jobs
-//         header Content-Type: application/json (nothing else)
-//         body   {"keywords":"","locale":"en_US","pageNumber":<N>}  (N 1-based)
-//         -> { totalJobs, jobSearchResult:[{ response:{ id, unifiedStandardTitle,
-//              urlTitle, unifiedStandardStart, + location(tenant-shaped) } }] }
-//         Page size is server-fixed at 10 (offset/limit are ignored); walk pages
-//         until totalJobs is reached or a page returns no results. There is no
-//         server-side country facet, so the pipeline's location filter does the
-//         India cut. Location is tenant-shaped: `jobLocationShort[]` (an array of
-//         "Country, State, City" strings) OR `custprimecity` + `custCountryRegion[]`.
-//   JD:   GET <host>/job/<slug>/<id>-en_US/   (slug cosmetic; "x" works)
-//         -> SSR HTML; the JD lives in the richest <span itemprop="description">
-//         (there are several — a meta and empty placeholders — so take the longest).
+// src/ats/sfcsb.ts — SAP SuccessFactors CSB (Career Site Builder) JSON API; distinct from successfactors.ts, which scrapes the legacy jobs2web HTML board.
+// List: POST <host>/services/recruiting/v1/jobs (page size fixed at 10, no country facet - India cut done by the pipeline's location filter). JD: GET <host>/job/<slug>/<id>-en_US/, the richest of several itemprop="description" spans.
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
@@ -53,9 +37,7 @@ const SfcsbResponseSchema = z.object({
   jobSearchResult: z.array(z.object({ response: SfcsbJobSchema })).nullable().optional(),
 });
 
-/** The POST body for a 1-based page. Locale defaults to en_US but is a
- *  TENANT setting: indegene's board returns totalJobs=4 under en_US and 73
- *  under en_GB (verified live 2026-08-13) — apiMeta.locale overrides. */
+/** POST body for a 1-based page; locale is a TENANT setting (e.g. indegene needs en_GB, not en_US, to get its full job count) - apiMeta.locale overrides. */
 export function sfcsbSearchBody(pageNumber: number, locale: string = LOCALE): JsonValue {
   return { keywords: "", locale, pageNumber };
 }
@@ -116,13 +98,7 @@ export const sfcsbAdapter: AtsAdapter = {
   provider: "sfcsb",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // CSB pagination is UNSTABLE: the default sort shifts between requests, so
-    // the same job recurs across pages and a page can fully repeat an earlier
-    // one (TUV SUD served 354 rows across 37 pages for ~280 unique jobs, and
-    // reports an inflated totalJobs). We therefore do NOT hand `dedupeBy` to
-    // paginate — its stall guard would break on the first byte-for-byte repeat
-    // page and truncate the board. Instead we walk to the natural empty page
-    // and dedupe the accumulated rows here.
+    // CSB pagination order is unstable (jobs recur, pages can fully repeat, totalJobs can be inflated) - don't hand dedupeBy to paginate since its stall guard would break on the first repeat page; walk to the natural empty page and dedupe here instead.
     const raw = await paginate<NormalizedPosting>({
       provider: "sfcsb",
       company: company.slug,

@@ -1,19 +1,7 @@
-// src/ats/digitalrecruiters.ts
-//
-// Digital Recruiters (api.digitalrecruiters.com) — a shared, multi-tenant
-// careers-site vendor (French ATS; Decathlon, and many EU employers). Every
-// tenant is keyed by its careers-site domain (`domainName`), which lives in
-// api_meta. No auth, no CSRF.
-//
-//   list: POST /public/v1/careers-site/job-ads?domainName=<d>&limit=<n>&page=<p>&locale=<L>
-//     -> { count, items: [{ job_ad_id, title, location, contract, job, url }] }   (JD NOT inline)
-//   JD:   GET  /public/v1/careers-site/job-ads/<job_ad_id>?domainName=<d>&locale=<L>
-//     -> { description, profile, ... }   (both HTML; concatenated)
-//
-// The public job page is `https://<domain>/<localePath>/<jobPathSlug>/<url>`,
-// where jobPathSlug is the tenant's "jobs_link" slug from its careers-site
-// config (Decathlon: "annonces"). localePath/jobPathSlug/locale are cached in
-// api_meta so the adapter stays fetch-only.
+// src/ats/digitalrecruiters.ts — Digital Recruiters (api.digitalrecruiters.com), shared multi-tenant French ATS
+// (Decathlon and other EU employers), keyed by careers-site domain (apiMeta.domainName). No auth, no CSRF.
+// List: POST /public/v1/careers-site/job-ads (JD not inline). JD: GET .../job-ads/<id> (description+profile HTML).
+// Public job URL is https://<domain>/<localePath>/<jobPathSlug>/<url>; those fields are cached in apiMeta.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -118,8 +106,7 @@ export const digitalRecruitersAdapter: AtsAdapter = {
     const raw = await atsFetchJson(url, { provider: "digitalrecruiters" });
     const parsed = parseOrNull(DetailResponseSchema, raw, { provider: "digitalrecruiters", slug: company.slug });
     if (!parsed) return "";
-    // Prefer the root body; fall back to the {item:{...}} envelope only when the
-    // root carries neither field.
+    // Fall back to the {item:{...}} envelope only when the root carries neither field.
     const d = (parsed.description || parsed.profile) ? parsed : (parsed.item ?? parsed);
     return htmlToText([d.description ?? "", d.profile ?? ""].filter(Boolean).join("\n\n"));
   },

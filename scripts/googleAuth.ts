@@ -43,15 +43,7 @@ function requiredEnv(name: string): string {
   return v;
 }
 
-/**
- * How to hand a URL to the desktop's default browser, per platform.
- *
- * Explicitly NOT via `cmd /c start`: cmd.exe reads `&` as a command separator, so an
- * OAuth URL arrived truncated at its first parameter and Google rejected the request
- * with "Required parameter is missing: response_type". Quoting around that is
- * fiddly and easy to get wrong again; spawning the handler directly means the URL is
- * one argv entry with no shell left to reinterpret it.
- */
+/** Hands a URL to the desktop's default browser per platform, deliberately not via `cmd /c start` - cmd.exe reads `&` as a separator and truncates the OAuth URL. */
 function browserCommand(url: string): { command: string; args: string[] } {
   if (process.platform === "win32") {
     return { command: "rundll32", args: ["url.dll,FileProtocolHandler", url] };
@@ -62,11 +54,9 @@ function browserCommand(url: string): { command: string; args: string[] } {
 
 function openBrowser(url: string): void {
   const { command, args } = browserCommand(url);
-  // detached+unref so the browser-launcher child never keeps our event loop
-  // alive (a lingering child handle triggers a libuv assert on Windows exit)
+  // detached+unref so the browser-launcher child never keeps our event loop alive.
   const child = spawn(command, args, { detached: true, stdio: "ignore" });
-  // A machine with no handler registered must not take the consent flow down with
-  // it — the URL is printed above precisely so this stays optional.
+  // No handler registered must not take the consent flow down - the URL is printed above so this stays optional.
   child.on("error", (err) => {
     console.log(
       `(couldn't open a browser automatically: ${err.message} — use the URL above)`,
@@ -159,8 +149,7 @@ async function main(): Promise<void> {
     `Verify the account: the drafts for profile "${profileId}" will be created in the`,
   );
   console.log(`Gmail account you just logged in with.`);
-  // no process.exit() — a hard exit races tsx/esbuild's async handles on
-  // Windows (libuv assert in win/async.c); let the drained loop end naturally
+  // No process.exit() - a hard exit races tsx/esbuild's async handles on Windows; let the loop drain.
 }
 
 main().catch((err) => {

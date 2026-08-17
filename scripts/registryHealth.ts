@@ -1,12 +1,7 @@
 /**
- * Registry health report (read-only). The before/after yardstick for the
- * denoise + expansion effort (plan: docs/superpowers/plans/2026-06-19-...).
- *
- * Run: `node --import tsx scripts/registryHealth.ts`
- *
- * NOTE: yield telemetry here is a PRIORITIZATION signal (who to investigate),
- * NOT a removal criterion. Removal requires positive evidence a company is not
- * a tech employer in India (see the plan's §9 noise definition).
+ * Registry health report (read-only).
+ *   node --import tsx scripts/registryHealth.ts
+ * Yield telemetry here is a prioritization signal (who to investigate), not a removal criterion.
  */
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -61,13 +56,9 @@ console.log("  never fetched:", num("SELECT COUNT(*) n FROM companies WHERE last
 console.log("  url_suspect=1:", num("SELECT COUNT(*) n FROM companies WHERE url_suspect=1"));
 console.log("  consecutive_failures>=3:", num("SELECT COUNT(*) n FROM companies WHERE COALESCE(consecutive_failures,0)>=3"));
 
-// Category / employer_type live on the Companies tab (source of truth, Phase 3);
-// Went-quiet detector: a board that once produced postings and has now
-// answered N clean fetches with zero rows is the dead-tenant false-pass
-// signature (the ATS answers 200 with an empty list while the company hires
-// on a NEW board — 77 such rows found in the 2026-08-13 sweep, 17 of them
-// repointable). Surface them for repoint research instead of letting them
-// rot silently.
+// Went-quiet: a board that once produced postings and now answers N clean fetches with zero
+// rows is the dead-tenant false-pass signature (200 + empty list while the company hires
+// elsewhere). Surfaced here for repoint research instead of rotting silently.
 console.log("\n[WENT QUIET]  active, saw postings before, >=3 consecutive zero-yield fetches");
 const quietRow = z.object({ provider: z.string(), slug: z.string(), name: z.string(), zy: z.number(), seen: z.number() });
 const quiet = query(
@@ -82,9 +73,7 @@ for (const r of quiet) {
   console.log(`  ${(r.provider + "/" + r.slug).padEnd(40)} quiet x${r.zy}, ${r.seen} postings seen historically — probably moved boards`);
 }
 
-// this reads the local snapshot (data/registry-cache.json) rather than hitting
-// the sheet, since this report is a point-in-time DB/cache cross-check, not a
-// live sync.
+// Reads the local snapshot rather than the sheet - this report is a point-in-time cross-check, not a live sync.
 const regPath = resolve(process.cwd(), config.storage.registryPath);
 if (existsSync(regPath)) {
   const reg = z

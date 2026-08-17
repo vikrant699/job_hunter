@@ -1,11 +1,6 @@
-// src/google/drive.ts - minimal Drive client for syncing the SQLite file
-// between machines. Reuses getAccessToken from auth.ts (same OAuth client and
-// per-profile refresh token as Gmail/Sheets); the only extra requirement is the
-// drive.file scope, which grants access to app-created files ONLY.
-//
-// googleFetchJson can't serve here: it JSON-encodes the body and always parses a
-// JSON response, whereas these calls move ~50 MB of binary. The bearer-token and
-// error-shaping conventions are kept identical.
+// Minimal Drive client for syncing the SQLite file between machines. Reuses getAccessToken
+// (needs the drive.file scope: app-created files only). googleFetchJson doesn't fit here since
+// it always JSON-encodes/parses, but these calls move ~50 MB of binary.
 import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -30,24 +25,14 @@ export type DriveFileMeta = z.infer<typeof FileMetaSchema>;
 
 const FileListSchema = z.object({ files: z.array(FileMetaSchema).default([]) });
 
-/**
- * All Drive endpoints return only a DEFAULT field set (id, name, mimeType, kind)
- * unless `fields` asks for more - so the upload response carries no modifiedTime or
- * size, and parsing it as a full FileMeta would fail on the first real push. The id
- * is all we take from it; the metadata the sync actually needs is read back
- * explicitly below.
- */
+// Drive returns only a default field set unless `fields` asks for more, so the upload response has
+// no modifiedTime/size; we take only the id and read the rest back explicitly.
 const UploadedIdSchema = z.object({ id: z.string() });
 
 const META_FIELDS = "id,name,size,modifiedTime";
 
-/**
- * Google reports "the Drive API is switched off for this project" as a 403 whose
- * body carries the console URL that fixes it — about 250 characters in, i.e. past
- * the snippet limit. Worth pulling out by hand: it is a one-time setup step that is
- * easy to mistake for the permission problem it is NOT (consent grants the scope;
- * enabling the API is a separate switch), and the answer is a single link.
- */
+// "API disabled" 403s carry the fix URL past the snippet slice limit, so it's pulled out by hand below;
+// this is a separate one-time switch from consent/scope, easy to mistake for a permission problem.
 const API_DISABLED_RE = /has not been used in project|accessNotConfigured|it is disabled/i;
 
 function driveError(what: string, status: number, body: string): Error {
@@ -67,11 +52,7 @@ async function authHeader(profileId: string, deps: DriveDeps): Promise<string> {
   return `Bearer ${await getAccessToken(profileId, deps.authDeps)}`;
 }
 
-/**
- * Look up the backup by name. Returns null when it does not exist yet (first
- * ever push). With drive.file scope this search can only ever match a file this
- * app created, so a plain name query is safe and needs no stored file id.
- */
+/** Look up the backup by name; null if it doesn't exist yet. drive.file scope guarantees this only matches an app-created file. */
 export async function findDbFile(
   profileId: string,
   deps: DriveDeps = {},
@@ -85,12 +66,7 @@ export async function findDbFile(
   return list.files[0] ?? null;
 }
 
-/**
- * Create-or-replace the backup using a resumable upload. Drive's simple and
- * multipart uploads cap at 5 MB, and the DB is ~50 MB, so resumable is the only
- * option - but the payload still goes in a single PUT, so it is two round trips,
- * not a chunking loop.
- */
+/** Create-or-replace the backup via resumable upload (simple/multipart cap at 5MB, DB is ~50MB); one PUT, not a chunking loop. */
 export async function uploadDbFile(
   profileId: string,
   bytes: Uint8Array,
@@ -129,9 +105,7 @@ export async function uploadDbFile(
   });
   if (!putRes.ok) throw driveError("upload", putRes.status, await putRes.text());
   const { id } = UploadedIdSchema.parse(await putRes.json());
-  // db/sync.ts stamps the local file with the returned modifiedTime, so it has to
-  // be Drive's authoritative value — read it back rather than inferred from a
-  // response whose field set we do not control.
+  // db/sync.ts needs Drive's authoritative modifiedTime, so read it back rather than infer it.
   return getFileMeta(profileId, id, deps);
 }
 

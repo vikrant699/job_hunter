@@ -41,7 +41,6 @@ export function buildIssueList(
     const shown: string[] = [];
     let extra = 0;
     for (const s of slugs) {
-      // keep each group's inline list from blowing the whole budget
       if (shown.join(", ").length < 220) shown.push(s);
       else extra++;
     }
@@ -53,9 +52,7 @@ export function buildIssueList(
   return out;
 }
 
-// Type aliases (not interfaces): postWebhookJson's JsonValue parameter needs
-// the implicit index signature TS infers for object type literals, which
-// interfaces don't get.
+// Type aliases, not interfaces: postWebhookJson's JsonValue param needs the implicit index signature.
 type StatusEmbedField = { name: string; value: string; inline: boolean };
 export type StatusEmbed = {
   title: string;
@@ -67,7 +64,7 @@ function spreadsheetUrl(): string {
   return `https://docs.google.com/spreadsheets/d/${config.google.spreadsheetId}`;
 }
 
-/** Pure builder for the single end-of-run status embed — no I/O, unit-testable. */
+/** Pure builder for the single end-of-run status embed, no I/O. */
 export function buildStatusEmbed(input: StatusInput): StatusEmbed {
   const { stats } = input;
 
@@ -82,9 +79,7 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     { name: "Errors", value: String(stats.errors.length), inline: true },
   ];
 
-  // Surfaced separately from "Errors" on purpose: a network outage that trips N
-  // boards is ONE event, and reading it as N broken boards sends you chasing
-  // vendors instead of the network (run 29, 2026-07-26).
+  // Separate from "Errors": a network outage tripping N boards is one event, not N broken vendors.
   if (stats.transportRetried > 0 || stats.transportRecovered > 0) {
     fields.push({
       name: "Transport faults",
@@ -139,8 +134,7 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
   };
 }
 
-/** Post the single end-of-run status embed to the shared progress webhook.
- *  Mock-logs when the webhook is unset (mirrors the old notify.ts pattern). */
+/** Post the single end-of-run status embed to the shared progress webhook; mock-logs when unset. */
 export async function postRunStatus(input: StatusInput): Promise<void> {
   const embed = buildStatusEmbed(input);
   const url = config.discord.progressWebhookUrl;

@@ -5,17 +5,9 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { tenantOriginOr } from "./shared.js";
 
-// greytHR public recruitment board ("careerbuild" SPA). Each tenant is a
-// subdomain: <slug>.greythr.com. The board is a JS app backed by a JSON API:
-//
-//   list: POST https://<slug>.greythr.com/hire/api/career/published_jobs/
-//         body {} -> { "data": [ { id, title, slug, description(HTML),
-//                                  apply_url, is_remote, created_at, ... } ] }
-//
-// The list endpoint already returns the full HTML JD, so jdText is populated
-// here and no fetchJd is needed. Locations come back as opaque numeric IDs with
-// no public id->name map, so `location` is left null and the pipeline's
-// text-based location filter (title + JD) decides; `is_remote` is honored.
+// greytHR public recruitment board ("careerbuild" SPA), tenant subdomain <slug>.greythr.com.
+// list: POST /hire/api/career/published_jobs/, JD inline (no fetchJd needed); location IDs have no
+// public id->name map, so location falls back to a JD-text regex (see JD_LOCATION_RE below).
 
 export const GreythrJobSchema = z.object({
   id: z.string(),
@@ -50,10 +42,9 @@ export const greythrAdapter: AtsAdapter = {
   },
 };
 
-// The API's `locations` array is opaque ids with no lookup endpoint, but most
-// tenants write the human location INTO the JD ("<strong>Location:</strong>
-// Bangalore" — verified live firstclub 2026-08-13). Same fallback pattern as
-// wpjobs. Stops at tag/line boundaries so it never swallows the next field.
+// locations[] are opaque ids with no lookup endpoint; most tenants write the human location into the JD
+// text instead ("Location: Bangalore"), so it's regexed out there. Stops at tag/line boundaries so it
+// doesn't swallow the next field.
 const JD_LOCATION_RE = /\blocation\s*:\s*([^\n<,;|]{2,60})/i;
 export function greythrLocationFromJd(jdText: string): string | null {
   const m = JD_LOCATION_RE.exec(jdText);

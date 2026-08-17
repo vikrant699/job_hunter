@@ -124,8 +124,7 @@ test("checkLocationFromText still defers when the URL carries no geo signal", ()
 });
 
 test("checkLocationFromText rejects an explicit reject phrase ANYWHERE in the JD, not just the head", () => {
-  // Visa/work-authorization boilerplate usually sits at the BOTTOM of a JD,
-  // past the 2000-char head window the region scan uses.
+  // Visa/work-authorization boilerplate usually sits past the 2000-char head window the region scan uses.
   const jd = "Great frontend role. " + "We ship fast. ".repeat(200) + "\nApplicants: US only.";
   assert.ok(jd.length > 2500);
   assert.equal(checkLocationFromText("Engineer", jd, cfg).accept, false);

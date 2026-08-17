@@ -1,13 +1,6 @@
-// src/ats/lohum.ts — Lohum careers (battery recycling, Greater Noida), a
-// plain in-house JSON endpoint:
-//   GET https://lohum.com/api/Currentopening/getlist
-//     -> [ { id, designation, experience, jobtype, location, jobdescription,
-//            languagetype }, ... ]
-// One GET returns every opening (no pagination, no envelope — a bare array).
-// jobdescription is inline HTML, so the JD is available straight off the
-// list call; no fetchJd needed. The API gives no per-job URL, so jobUrl
-// falls back to the company's careers page. Verified live 2026-08-01: 4
-// openings, all Greater Noida.
+// src/ats/lohum.ts — Lohum careers (battery recycling, Greater Noida), plain in-house JSON endpoint.
+// GET https://lohum.com/api/Currentopening/getlist -> bare array, no pagination/envelope; JD inline
+// (jobdescription), no per-job URL so jobUrl falls back to the careers page.
 import { z } from "zod";
 import { makeJsonListAdapter } from "./jsonList.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

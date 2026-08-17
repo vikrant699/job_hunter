@@ -48,12 +48,7 @@ test("normalizeReliance falls back to a title slug id when no id field", () => {
   assert.equal(p.externalId, "area-sales-lead-west-");
 });
 
-// A bare ISO country code is what the jobSearch filter itself sends
-// (`{match:{Country:"IN"}}`), so it is the most likely country value to come
-// back. Emitting the raw "IN" as the location made the pipeline's strict
-// checkLocation() drop the posting — the profile's country hints are "india" /
-// "in," and neither matches "in" — so an India-only req would be discarded as
-// out-of-region. Expanding the code keeps it in.
+// Raw "IN" location fails the pipeline's strict checkLocation() match against country hints "india"/"in,"; expanding the code keeps the posting in.
 test("normalizeReliance expands a bare country code so it carries geo signal", () => {
   const p = normalizeReliance(company, { title: "Buyer", Country: "IN" });
   assert(p);

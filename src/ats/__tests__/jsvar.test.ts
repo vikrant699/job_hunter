@@ -15,10 +15,7 @@ test("parseLiteral cannot reach host globals (sandboxed)", () => {
   assert.throws(() => parseLiteral("[process.pid]", false));
 });
 
-// A scraped JS literal is JavaScript, not JSON, so it can hold values JsonValue
-// cannot represent. parseLiteral normalises through JSON rather than validating
-// the raw eval result — validating it directly threw on all four of these, which
-// would have broken the jsvar boards that ship them.
+// parseLiteral normalises through JSON rather than validating the raw eval result, since JS literals can hold values JsonValue can't represent.
 test("parseLiteral tolerates JS-only values that JSON cannot represent", () => {
   const undef = z.array(z.object({ title: z.string(), deadline: z.string().optional() }))
     .parse(parseLiteral("[{ title: 'A', deadline: undefined }]", false));
@@ -116,8 +113,7 @@ test("jsVarPostings unescapes and JSON-parses a flight-style blob", () => {
   assert.equal(p0.externalId, "1");
 });
 
-// slugField: {slug} in urlTemplate resolves via a configurable dot-path
-// (ofbcareers.com stores the job path in "link-jobs-jobTitle", not "slug").
+// slugField resolves {slug} in urlTemplate via a configurable dot-path (ofbcareers.com uses "link-jobs-jobTitle", not "slug").
 test("jsVarPostings resolves {slug} from apiMeta.slugField when set", () => {
   const company: AdapterCompany = {
     ...arrayCompany,

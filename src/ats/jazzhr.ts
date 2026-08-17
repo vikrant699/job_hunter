@@ -1,20 +1,7 @@
-// src/ats/jazzhr.ts — JazzHR (ApplyToJob) career boards, e.g.
-// hackerearth.applytojob.com. Server-rendered HTML, no auth, no pagination
-// (every posting is on the single /apply page):
-//
-//   list:   GET https://<tenant>.applytojob.com/apply
-//           -> <ul class="list-group"><li class="list-group-item">
-//                <h3 class="list-group-item-heading"><a href="{detailUrl}">{title}</a></h3>
-//                <ul class="list-inline list-group-item-text"><li>{location}</li>...
-//           An empty board renders "There are no open positions at this
-//           time." with no list-group items — parses to []. A slug JazzHR does
-//           NOT host also answers 200 with no list-group items, but only after
-//           redirecting off the tenant host — see assertJazzhrOnTenantHost.
-//   detail: GET {detailUrl} (https://<tenant>.applytojob.com/apply/<jobId>/<slug>)
-//           -> full JD HTML in <div id="job-description">.
-//
-// Tenant = the subdomain, an arbitrary JazzHR account slug (the registry's
-// source_slug) — not derivable from the company name.
+// src/ats/jazzhr.ts — JazzHR (ApplyToJob) career boards (<tenant>.applytojob.com), server-rendered HTML,
+// no auth, no pagination (all postings on one /apply page).
+// A nonexistent tenant slug answers HTTP 200 but redirects off-host to JazzHR's own marketing page — see
+// assertJazzhrOnTenantHost. detail: GET /apply/<id>/<slug> -> #job-description.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -30,13 +17,10 @@ export function jazzhrBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.applytojob.com`);
 }
 
-/** Host of an absolute URL plus the form to compare on: a leading `www.` is
- *  cosmetic on these tenants, so `canonical` drops it while `host` keeps what was
- *  actually served for the error message. Null when `url` isn't parseable. */
+/** Host of a URL plus a www.-stripped canonical form for comparison; null when unparseable. */
 function hostOf(url: string): { host: string; canonical: string } | null {
   try {
-    // URL already lowercases the host and drops the path/query, so comparing
-    // `canonical` is inherently insensitive to a trailing slash or a ?src=.
+    // URL already lowercases the host and drops the path/query, so `canonical` is insensitive to a trailing slash or a ?src=.
     const { host } = new URL(url);
     return { host, canonical: host.replace(/^www\./, "") };
   } catch {
@@ -44,30 +28,15 @@ function hostOf(url: string): { host: string; canonical: string } | null {
   }
 }
 
-/**
- * Throw when the board answered from a host other than the tenant's.
- *
- * A JazzHR slug that does not exist does NOT 404: applytojob.com answers HTTP 200
- * and redirects twice to https://www.jazzhr.com/job-seekers, JazzHR's own
- * marketing page. That page has no list-group items, so parseJazzhrList returned
- * [] and listPostings resolved with zero postings — indistinguishable from a board
- * with nothing open. Nothing failed, so consecutive_failures never moved and the
- * row stayed green forever while producing nothing.
- *
- * Keying on the host rather than on page copy means the check cannot rot when the
- * vendor rewrites its wording, and it never has to guess which page it is looking
- * at. Probed 2026-08-03 across all 8 live rows: every one stays on
- * <slug>.applytojob.com — including smuleinc, whose board is genuinely empty — and
- * only a bogus slug leaves. `base` comes from jazzhrBase so a tenant_url/api_meta
- * override sets the expected host (Smule's subdomain, smuleinc, is not its slug).
- */
+/** Throw when the board answered off the tenant host: a dead JazzHR slug doesn't 404, it 200s and
+ *  redirects to JazzHR's own marketing page (no list-group items), which used to read as a healthy empty
+ *  board forever. Keyed on host rather than page copy so it can't rot when the vendor rewrites wording;
+ *  `base` comes from jazzhrBase so a tenant_url/apiMeta override sets the expected host. */
 export function assertJazzhrOnTenantHost(base: string, finalUrl: string): void {
   const expected = hostOf(base);
   const actual = hostOf(finalUrl);
-  // An unparseable URL on either side says nothing about the board, so stay quiet
-  // rather than turn a URL-shape oddity into a company failure. (A response that
-  // never redirected reports no url at all; atsFetchHtml already substitutes the
-  // requested URL there, which is this same tenant.)
+  // An unparseable URL on either side says nothing about the board, so stay quiet rather than turn a
+  // URL-shape oddity into a company failure.
   if (expected === null || actual === null) return;
   if (expected.canonical === actual.canonical) return;
 
@@ -85,16 +54,12 @@ export interface JazzhrListing {
   location: string | null;
 }
 
-/** The job id is the first path segment after /apply/ on a detail URL
- *  (/apply/<id>/<slug>). Null for URLs with no such shape (e.g. the board
- *  index itself). */
+/** The job id is the first path segment after /apply/ on a detail URL (/apply/<id>/<slug>); null otherwise. */
 export function parseJazzhrJobId(url: string): string | null {
   return matchGroup(/\/apply\/([^/]+)\/[^/]+/, url);
 }
 
-/** Parse the /apply board page into raw listings. Pure — unit tested.
- *  Tolerates rows with a missing href or blank title by skipping them,
- *  rather than throwing on one malformed row. */
+/** Parse the /apply board page into raw listings; skips rows with a missing href or blank title. */
 export function parseJazzhrList(html: string, baseUrl: string): JazzhrListing[] {
   const $ = cheerio.load(html);
   const out: JazzhrListing[] = [];
@@ -144,8 +109,7 @@ export function normalizeJazzhr(company: AdapterCompany, j: JazzhrListing): Norm
   };
 }
 
-/** Extract the plain-text JD from a detail page's #job-description div.
- *  Pure — unit tested. Empty string when the div is missing. */
+/** Extract the plain-text JD from a detail page's #job-description div; "" when the div is missing. */
 export function extractJazzhrJd(html: string): string {
   const $ = cheerio.load(html);
   const body = $("#job-description").first().html();
@@ -158,8 +122,7 @@ export const jazzhrAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = jazzhrBase(company);
     const { html, finalUrl } = await atsFetchHtml(`${base}/apply`, { provider: "jazzhr" });
-    // Before parsing, not only when the parse comes up empty: a response from
-    // another host is not this tenant's board whatever it happens to contain.
+    // Before parsing, not only when empty: a response from another host is not this tenant's board.
     assertJazzhrOnTenantHost(base, finalUrl);
     return parseJazzhrList(html, finalUrl).map((j) => normalizeJazzhr(company, j));
   },

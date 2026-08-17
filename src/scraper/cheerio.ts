@@ -33,11 +33,7 @@ export interface CandidateLink {
 const JOB_URL_RE = /\/(jobs?|careers?|positions?|openings?|opportunit|apply|posting|listings?|hiring|roles?|vacanc)\b/i;
 export const ROLE_TEXT_RE = /\b(analyst|engineer|manager|developer|designer|specialist|lead|director|associate|intern(?:ship)?|consultant|scientist|architect|coordinator|administrator|representative|executive|officer|head\b|principal|staff)\b/i;
 
-/**
- * Same-origin link shortlist from a careers page. URL-shape OR text-shape
- * match; the downstream LLM picks the real postings. Returns empty when
- * the page is likely an SPA we can't read without a browser.
- */
+/** Same-origin link shortlist (URL-shape OR text-shape match) from a careers page; downstream LLM picks the real postings. */
 export function extractLinkShortlist(html: string, baseUrl: string): CandidateLink[] {
   const $ = cheerio.load(html);
   const out: CandidateLink[] = [];
@@ -68,7 +64,7 @@ export function extractLinkShortlist(html: string, baseUrl: string): CandidateLi
     const normalizeHost = (h: string) => h.replace(/^www\./, "");
     if (normalizeHost(abs.host) !== normalizeHost(basePage.host)) return;
 
-    const absStr = abs.toString().split("#")[0]; // strip fragments
+    const absStr = abs.toString().split("#")[0];
     if (!absStr || seen.has(absStr)) return;
 
     const pathAndQuery = (abs.pathname + abs.search).toLowerCase();
@@ -86,10 +82,7 @@ export function extractLinkShortlist(html: string, baseUrl: string): CandidateLi
   return out;
 }
 
-/**
- * Look for an "actual openings" link when the top-level careers page is a
- * marketing landing with a "View all jobs"-style CTA. Same-origin only.
- */
+/** Looks for an "actual openings" link when the top-level careers page is a marketing landing with a "View all jobs"-style CTA. Same-origin only. */
 export function findOpeningsRecursionLink(html: string, baseUrl: string): string | null {
   const $ = cheerio.load(html);
   let basePage: URL;
@@ -144,8 +137,7 @@ export function findOpeningsRecursionLink(html: string, baseUrl: string): string
     }
   });
 
-  // Require at least a text OR URL match (score >= 2) to recurse — otherwise
-  // we might follow a random nav link.
+  // Require at least a text OR URL match (score >= 2), otherwise we might follow a random nav link.
   return bestScore >= 2 ? bestUrl : null;
 }
 
@@ -173,7 +165,6 @@ export function extractMainText(html: string): string {
   const $ = cheerio.load(html);
   $("script, style, noscript, nav, header, footer, aside, form, iframe").remove();
 
-  // Prefer <main> / role=main when present.
   const main = $("main, [role='main']").first();
   const root = main.length ? main : $("body");
 

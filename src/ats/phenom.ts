@@ -12,9 +12,7 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import { logger } from "../logger.js";
 import { describeError } from "../util/errorCause.js";
 
-/** Eager-load boards at/above this size get the India-filtered widgets probe
- *  instead of a full walk (Lowe's walked 3854 rows for 0 India). Well above
- *  any India-focused tenant's board size. */
+// Eager-load boards at/above this size get the India-filtered widgets probe instead of a full walk.
 const WIDGETS_PREFER_THRESHOLD = 600;
 const PAGE = 50;
 
@@ -32,9 +30,7 @@ export const PhenomJobSchema = z.object({
 });
 export type PhenomJob = z.infer<typeof PhenomJobSchema>;
 
-/** Extract the `phApp.ddo = {...};` JSON island from a Phenom search page.
- * Anchored at the closing </script> so a literal `};` inside a string value
- * (e.g. a job teaser) can't truncate the blob; falls back to the lazy match. */
+// Anchored at the closing </script> so a literal `};` inside a string value can't truncate the blob.
 export function extractPhenomDdo(html: string): JsonValue | null {
   const raw = matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});\s*<\/script>/, html)
     ?? matchGroup(/phApp\.ddo\s*=\s*(\{[\s\S]*?\});/, html);
@@ -42,11 +38,8 @@ export function extractPhenomDdo(html: string): JsonValue | null {
   return tryParseJson(raw);
 }
 
-/** Canonical Phenom job page for one posting: `<origin>/<locale>/job/<jobId>`.
- * The locale prefix is the first two path segments of the tenant's search URL
- * (/us/en, /global/en, /in/en, ...). This page is server-rendered with its own
- * phApp.ddo island carrying the FULL description — the search ddo only has a
- * ~300-char descriptionTeaser. */
+// The locale prefix is the first two path segments of the tenant's search URL. This page carries
+// the FULL description in its own phApp.ddo island — the search ddo only has a ~300-char teaser.
 export function phenomJobPageUrl(tenantUrl: string, jobId: string): string {
   const u = new URL(tenantUrl);
   const segs = u.pathname.split("/").filter(Boolean);
@@ -54,20 +47,12 @@ export function phenomJobPageUrl(tenantUrl: string, jobId: string): string {
   return `${u.protocol}//${u.host}/${locale ? `${locale}/` : ""}job/${encodeURIComponent(jobId)}`;
 }
 
-/**
- * True when a tenant search URL carries the two-segment locale prefix
- * (/in/en, /us/en, ...) that phenomJobPageUrl needs to build a JD page URL.
- *
- * A bare host passes every other check and then fails on EVERY posting: the
- * locale-less `/job/<id>` page serves no `jobDetail` ddo, so a misconfigured
- * tenant URL looks like a per-company JD defect instead of a config error
- * (godrej-agrovet, 2026-07-26 — 96 JD failures, zero postings ever recorded).
- */
+// True when the tenant search URL carries the two-segment locale prefix (/in/en, /us/en, ...) that
+// phenomJobPageUrl needs; without it every posting's JD page 404s (looks like a per-job defect).
 export function phenomTenantHasLocale(tenantUrl: string): boolean {
   return new URL(tenantUrl).pathname.split("/").filter(Boolean).length >= 2;
 }
 
-/** Full JD from a job page's ddo: `jobDetail.data.job.description`. */
 export function phenomJobDescriptionFrom(ddo: JsonValue): string | null {
   const parseResult = JsonValueSchema.safeParse(ddo);
   const d: JsonValue | null = parseResult.success ? parseResult.data : null;
@@ -76,7 +61,6 @@ export function phenomJobDescriptionFrom(ddo: JsonValue): string | null {
   return typeof description === "string" && description.length > 0 ? description : null;
 }
 
-/** Pull jobs[] + totalHits from a parsed ddo (tolerant of both key shapes). */
 export function phenomJobsFrom(ddo: JsonValue): { jobs: JsonValue[]; totalHits: number } {
   const parseResult = JsonValueSchema.safeParse(ddo);
   const d: JsonValue | null = parseResult.success ? parseResult.data : null;
@@ -92,11 +76,8 @@ export function phenomJobsFrom(ddo: JsonValue): { jobs: JsonValue[]; totalHits: 
 export function normalizePhenom(company: AdapterCompany, j: PhenomJob): NormalizedPosting {
   const location = j.cityStateCountry ?? j.cityState ?? j.location ?? null;
   const externalId = String(j.jobId ?? j.reqId ?? "");
-  // Some tenants (idfcfirst, conduent, godrej*) serve applyUrl as "" or null
-  // on every job; falling back to tenantUrl there linked whole boards to
-  // their search-results page. The canonical /<locale>/job/<id> page (the
-  // same one fetchJd reads) is always a real per-job page, so prefer it as
-  // the fallback; careersUrl remains only for a tenantUrl-less company.
+  // Some tenants serve applyUrl as "" or null on every job; fall back to the canonical per-job
+  // page (not tenantUrl, which would link the whole board to its search-results page).
   const jobPage = company.tenantUrl !== null && externalId !== ""
     ? phenomJobPageUrl(company.tenantUrl, externalId)
     : null;
@@ -109,28 +90,15 @@ export function normalizePhenom(company: AdapterCompany, j: PhenomJob): Normaliz
     jobUrl: (j.applyUrl !== null && j.applyUrl !== undefined && j.applyUrl !== "" ? j.applyUrl : null) ?? jobPage ?? company.careersUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    // Left empty on purpose: the search ddo only carries a ~300-char teaser,
-    // which starved the relevance gate. fetchJd pulls the full JD from the
-    // posting's canonical job page instead.
+    // Left empty: the search ddo only carries a ~300-char teaser. fetchJd pulls the full JD.
     jdText: "",
     postedAt: j.postedDate ?? j.dateCreated ?? null,
   };
 }
 
-/**
- * Phenom's widget XHR — the search API the SPA itself calls.
- *
- * Most tenants server-render the first page into `phApp.ddo`, which is why the
- * HTML path above works. Some (careers.cisco.com, careers.dhl.com,
- * careers.merckgroup.com) ship an EMPTY `eagerLoadRefineSearch` and load every
- * job through this endpoint instead, so scraping their HTML yields nothing.
- *
- * The response is shaped `{refineSearch: {totalHits, data: {jobs: [...]}}}`,
- * which `phenomJobsFrom` already understands — the same parser serves both
- * paths. `country: ["India"]` is applied server-side: DHL is 8027 jobs
- * globally but 337 in India, so filtering here avoids fetching 7690 rows the
- * location filter would only throw away.
- */
+// Phenom's widget XHR — the search API the SPA itself calls. Some tenants ship an empty
+// eagerLoadRefineSearch and load every job through this endpoint instead, so scraping their HTML
+// yields nothing. `country: ["India"]` filters server-side, avoiding a fetch of the full global board.
 export function phenomWidgetsUrl(tenantUrl: string): string {
   const u = new URL(tenantUrl);
   return `${u.protocol}//${u.host}/widgets`;
@@ -179,8 +147,7 @@ export const phenomAdapter: AtsAdapter = {
       const items: NormalizedPosting[] = [];
       for (const raw of jobs) {
         const parsed = PhenomJobSchema.safeParse(raw);
-        // Skip postings with no stable id — they'd collide on the
-        // (provider, external_id) dedup key as empty strings.
+        // Skip postings with no stable id — they'd collide on the dedup key as empty strings.
         if (parsed.success && (parsed.data.jobId != null || parsed.data.reqId != null)) {
           items.push(normalizePhenom(company, parsed.data));
         }
@@ -201,20 +168,17 @@ export const phenomAdapter: AtsAdapter = {
     const fetchWidgetsPage = async (from: number): Promise<{ jobs: JsonValue[]; totalHits: number }> =>
       fetchWidgetsPage2(from, true);
 
-    // Tenants whose eager-load is empty serve jobs only from the widget XHR.
-    // Decided once on page 0 and reused for the rest of the run.
+    // Decided once on page 0 (tenants whose eager-load is empty serve jobs only from the widget XHR).
     let useWidgets = false;
 
     return paginate<NormalizedPosting>({
       provider: "phenom",
       company: company.slug,
       pageSize: PAGE,
-      // The server may cap a page below `size` without that meaning "last
-      // page" — only a zero-item page or reaching `totalHits` ends pagination.
+      // The server may cap a page below `size` without meaning "last page" — only a zero-item page
+      // or reaching totalHits ends pagination.
       shortPageEndsPagination: false,
-      // Opt into dedup + the stalled-pagination guard: some Phenom tenants
-      // ignore `from` and serve page 0 repeatedly, and several (cisco, merck)
-      // return overlapping pages that dedup must absorb.
+      // Some tenants ignore `from` and repeat page 0, or return overlapping pages — dedup absorbs both.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (from, page) => {
         if (useWidgets) {
@@ -232,9 +196,7 @@ export const phenomAdapter: AtsAdapter = {
         }
         const { jobs, totalHits } = phenomJobsFrom(ddo);
 
-        // Empty eager-load on the FIRST page means this tenant renders its
-        // board client-side. Switch to the widget API rather than reporting a
-        // board with zero jobs.
+        // Empty eager-load on page 0 means this tenant renders client-side — switch to the widget API.
         if (page === 0 && jobs.length === 0) {
           const widget = await fetchWidgetsPage(from);
           if (widget.jobs.length > 0) {
@@ -247,12 +209,9 @@ export const phenomAdapter: AtsAdapter = {
           }
         }
 
-        // Large global board: the widget XHR takes a server-side India filter
-        // (selected_fields.country), so prefer it over walking thousands of
-        // eager-load pages (Lowe's: 3854 rows for 0 India). A zero-hit India
-        // answer is only trusted after the UNFILTERED widget call proves the
-        // endpoint itself is live for this tenant — a tenant tagging countries
-        // differently must fall back to the complete eager-load walk.
+        // Large global board: prefer the India-filtered widget XHR over walking thousands of
+        // eager-load pages. A zero-hit India answer is trusted only once the unfiltered widget call
+        // confirms the endpoint is live for this tenant; otherwise fall back to the full eager-load walk.
         if (page === 0 && totalHits >= WIDGETS_PREFER_THRESHOLD) {
           try {
             const india = await fetchWidgetsPage(from);

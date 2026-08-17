@@ -16,12 +16,10 @@ import type { JsonValue } from "../util/json.js";
 const TRPC_PATH = "/api/trpc/job.getJobs";
 const PAGE_LIMIT = 100;
 
-/** India city codes verified live (2026-07-13): Bangalore, Noida, Mumbai. */
+// India city codes: Bangalore, Noida, Mumbai.
 export const DEFAULT_MEDIATEK_CITY_CODES = ["0000168800", "0000009297", "9021"];
 
-/** Human label for the queried city — used to tag postings since the API's
- *  job objects carry no usable location field. Falls back to the raw code
- *  for any city code not in this table. */
+// Job objects carry no usable location field; tag postings with the queried city instead.
 const CITY_LABELS: Record<string, string> = {
   "0000168800": "Bangalore",
   "0000009297": "Noida",
@@ -32,8 +30,7 @@ function cityLabel(code: string): string {
   return CITY_LABELS[code] ?? code;
 }
 
-/** apiMeta.cityCodes is a comma-separated list (Record<string,string> can't
- *  hold an array); falls back to the verified India codes when absent. */
+// apiMeta.cityCodes is a comma-separated list (Record<string,string> can't hold an array).
 export function mediatekCityCodes(company: AdapterCompany): string[] {
   const raw = company.apiMeta?.cityCodes;
   if (!raw) return DEFAULT_MEDIATEK_CITY_CODES;
@@ -69,7 +66,6 @@ const MediatekResponseSchema = z.array(
   }),
 );
 
-/** Builds the batched tRPC GET URL for one city's page. */
 export function mediatekApiUrl(company: AdapterCompany, cityCode: string, page: number, limit = PAGE_LIMIT): string {
   const input = {
     "0": {
@@ -87,7 +83,6 @@ export function mediatekApiUrl(company: AdapterCompany, cityCode: string, page: 
   return `${tenantOrigin(company)}${TRPC_PATH}?batch=1&input=${encodeURIComponent(JSON.stringify(input))}`;
 }
 
-/** Unwraps the tRPC batch envelope down to `{ jobs, pagination }`. */
 export function mediatekPageJobs(pageJson: JsonValue): { jobs: MediatekJob[]; totalItems: number | null } {
   const parsed = MediatekResponseSchema.parse(pageJson);
   const first = parsed[0];

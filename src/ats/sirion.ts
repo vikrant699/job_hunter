@@ -1,24 +1,5 @@
-// src/ats/sirion.ts — SirionLabs careers (sirion.ai), a self-hosted WordPress
-// "jobs" board fronted by Akamai. Not an external ATS (no Greenhouse tenant
-// despite the theme's gh_* taxonomy class names).
-//
-// Akamai blocks non-browser clients AND datacenter IPs, but a real Microsoft
-// Edge browser (playwright channel:"msedge") from a residential IP passes — the
-// same approach src/ats/icims.ts uses for its AWS-WAF portal. We warm one Edge
-// context per origin (clears the WAF), then fetch pages through that context.
-//
-//   list: GET /careers/  (page 1) and /careers/page/<n>/  -> WP archive of the
-//         "jobs" CPT; each card links to a /jobs/<slug>/ permalink with the title.
-//         Paginate until a page has no job links.
-//   job:  GET /jobs/<slug>/  -> <h1> title; JD in the .gh-job-single /
-//         .entry-content block; the office/location is encoded in the WP body
-//         class "gh_office-<city>". location is resolved HERE (list defers with
-//         null) so lateLocationCheck can drop the non-India offices (Gurugram/
-//         Hyderabad are India; the board also lists US/Australia roles).
-//
-// NOTE: built against the documented WP structure; validate on a residential
-// run (Akamai blocks this build environment's IP entirely). Selectors have
-// defensive fallbacks so a minor theme difference degrades rather than empties.
+// src/ats/sirion.ts — SirionLabs careers (sirion.ai), a self-hosted WordPress "jobs" CPT board fronted by Akamai (not an external ATS, despite gh_* theme class names).
+// Akamai blocks non-browser/datacenter clients, so we warm one Edge (playwright channel:"msedge") context per origin first, same approach as icims.ts. List paginates /careers/page/<n>/ until empty; JD is in .gh-job-single/.entry-content, and location (resolved in fetchJd, not the list) comes from the WP body class "gh_office-<city>" so lateLocationCheck can drop non-India offices.
 import type { Browser, BrowserContext } from "playwright";
 import { chromium } from "playwright";
 import * as cheerio from "cheerio";
@@ -86,8 +67,7 @@ export function parseSirionJobTitle(html: string): string {
   return t.split(/\s+[-|]\s+/)[0]?.trim() ?? "";
 }
 
-/** Office/location from the WP body/article class "gh_office-<city>", title-cased
- *  ("gh_office-san_francisco" -> "San Francisco"). null when absent. */
+/** Office/location from the WP body class "gh_office-<city>", title-cased ("gh_office-san_francisco" -> "San Francisco"). Null when absent. */
 export function parseSirionJobLocation(html: string): string | null {
   const m = html.match(/gh_office-([a-z0-9_]+)/i);
   const raw = m?.[1];
@@ -108,8 +88,6 @@ export function parseSirionJd(html: string): string {
   }
   return "";
 }
-
-// ---- Edge-channel browser + per-origin warmed context (mirrors icims.ts) ----
 
 let edgeBrowser: Browser | null = null;
 let edgeBoot: Promise<Browser> | null = null;

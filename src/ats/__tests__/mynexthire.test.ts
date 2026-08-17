@@ -1,4 +1,3 @@
-// src/ats/mynexthire.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeMyNextHire, mynexthireBase, mynexthireJobUrl, mynexthireAdapter, MyNextHireJobSchema } from "../mynexthire.js";
@@ -30,7 +29,7 @@ const openJob: MyNextHireJob = {
 
 const closedJob: MyNextHireJob = {
   reqId: 11111,
-  statusId: 5, // not the public-open status — must be filtered out
+  statusId: 5, // not the public-open status - must be filtered out
   reqTitle: "Old Closed Req",
   location: "Bangalore",
   locationAddress: "Bangalore",
@@ -66,8 +65,7 @@ test("mynexthireJobUrl builds a link the vendor's own SPA can decode", () => {
   const url = mynexthireJobUrl(company, 27890);
   assert.match(url, /^https:\/\/swiggy\.mynexthire\.com\/employer\/jobs\/careers\?/);
 
-  // Reproduce careers.js's own parsing: decodeURIComponent(query).split("&"),
-  // each pair split on "=" (see basePageClass ctor in careers.js).
+  // Reproduces careers.js's own parsing (basePageClass ctor).
   const query = at(url.split("?"), 1);
   const decoded = decodeURIComponent(query);
   const params: Record<string, string> = {};

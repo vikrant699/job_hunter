@@ -107,10 +107,7 @@ test("parseHtmlBoardListing extracts inline-JD blocks with location regex", () =
   assert.equal(item0.externalId, "solar-design-lead");
 });
 
-// --- boardSelector: dead page vs empty board ----------------------------------
-
-// A LIVE board with every role filled: the wrapper and the vendor's own empty
-// state are still there, only the cards are gone. This must keep returning [].
+// A LIVE board with every role filled - wrapper and vendor's empty state remain, only the cards are gone. Must keep returning [].
 const EMPTY_BOARD_HTML = `
 <html><body>
   <section id="jobs">
@@ -120,9 +117,7 @@ const EMPTY_BOARD_HTML = `
   </section>
 </body></html>`;
 
-// What a lapsed careers domain actually serves at HTTP 200 — a registrar park
-// page. No board wrapper, and no items either, so it used to parse as "healthy,
-// nothing open" forever.
+// A lapsed domain's registrar park page at HTTP 200 - no wrapper, no items, so it used to parse as "healthy, nothing open" forever.
 const PARKED_HTML = `
 <html><head><title>acme.example</title></head><body>
   <h1>acme.example</h1>
@@ -143,14 +138,12 @@ test("assertHtmlBoardRendered accepts a genuinely empty board that still rendere
 });
 
 test("assertHtmlBoardRendered never fires on a page that produced items", () => {
-  // A board that yielded rows is live whatever its markup calls things, so a
-  // stale or mistyped boardSelector can never fail it.
+  // A board that yielded rows is live regardless of markup, so a stale/mistyped boardSelector can never fail it.
   const cfg = htmlBoardConfig(company({ ...boardMeta, boardSelector: "#selector-that-is-gone" }));
   assert.doesNotThrow(() => assertHtmlBoardRendered(LINKED_HTML, cfg, 2, "acme"));
 });
 
 test("assertHtmlBoardRendered is inert for the rows that configure no boardSelector", () => {
-  // The 34 pre-existing rows must behave exactly as before opting in.
   const cfg = htmlBoardConfig(company({ itemSelector: "li.card" }));
   assert.equal(cfg.boardSelector, null);
   assert.doesNotThrow(() => assertHtmlBoardRendered(PARKED_HTML, cfg, 0, "acme"));
@@ -177,8 +170,7 @@ test("a boardSelector-less row is unaffected by a page with no board at all", as
 });
 
 test("a paged board is only audited on page 1", async (t) => {
-  // Page 2 is where a pager runs out; whatever it serves must end the loop
-  // quietly rather than quarantine a board that already produced postings.
+  // Page 2 is where a pager runs out; whatever it serves must end the loop quietly, not quarantine a board that already produced postings.
   stubFetch(t, fetchSequence(() => htmlResponse(LINKED_HTML), () => htmlResponse(PARKED_HTML)));
   const postings = await htmlboardAdapter.listPostings(
     company({ ...boardMeta, boardSelector: "ul", pageParam: "page" }),
@@ -198,8 +190,7 @@ test("the dead-page error is charged to the company, not written off as infrastr
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A block page has no items and no boardSelector match either, so it used to read
-// as "this page is not this board" — true, but charged to the company.
+// A block page has no items or boardSelector match, so it used to read as "not this board" - true, but charged to the company.
 test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await htmlboardAdapter
@@ -212,9 +203,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
 });
 
 test("a boardSelector-less row also refuses to read a block page as an empty board", async (t) => {
-  // The opt-in exists so an unverified per-row marker cannot fail a board. A bot
-  // block is not that: it is not this board's response at all, whatever the row
-  // configured — and reporting it as zero openings is its own kind of wrong.
+  // The opt-in exists so an unverified marker cannot fail a board - a bot block isn't this board's response at all, so reporting zero openings would be wrong too.
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await htmlboardAdapter
     .listPostings(company({ itemSelector: "li.card" }))

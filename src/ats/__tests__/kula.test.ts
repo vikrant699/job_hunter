@@ -14,8 +14,6 @@ const company: AdapterCompany = {
   careersUrl: "https://careers.kula.ai/avoma", tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed live fixture — captured 2026-07-11 from
-// https://careers.kula.ai/api/internal/ats_job_posts?accountName=avoma&page=1&type=ats_job_post.index&items=99
 const indiaJob = {
   id: 2941,
   account_id: 1278,
@@ -107,17 +105,7 @@ test("kulaAdapter.listPostings filters listed:false and stops on a short page", 
   }
 });
 
-// --- dead account vs empty board ----------------------------------------------
-//
-// Kula needs no dead-tenant marker, unlike its shared-host peers: `accountName`
-// is a filter on the shared careers.kula.ai, but an unknown value is REJECTED
-// rather than silently dropped. Probed 2026-08-02 — zzznosuchtenant9x,
-// acmewidgets and digantara-old each returned HTTP 404
-// {"errors":["err_account_not_found"]}, while Digantara and cashfree returned
-// 200 with rows. These two tests pin that safety in place: it is a property of
-// the vendor's response, not of anything this adapter does, so nothing here
-// would otherwise stop a future refactor from swallowing it.
-
+// Kula needs no dead-tenant marker, unlike its shared-host peers: an unknown accountName is REJECTED (404) rather than silently dropped.
 test("a dead account rejects rather than reporting an empty board", async () => {
   stubFetch(async () => Response.json({ errors: ["err_account_not_found"] }, { status: 404 }));
   try {
@@ -126,8 +114,7 @@ test("a dead account rejects rather than reporting an empty board", async () => 
       // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
       .then(() => null, (e: unknown) => e);
     assert.ok(err instanceof Error, "a 404 account-not-found must not resolve to []");
-    // Charged to the company: a dead account is a per-company defect, so it has
-    // to count toward consecutive_failures rather than be retried as an outage.
+    // Must count toward consecutive_failures rather than be retried as an outage.
     assert.equal(isTransportError(err), false);
     assert.equal(isEdgeInterstitialError(err), false);
     assert.equal(isInfrastructureFault(err), false);

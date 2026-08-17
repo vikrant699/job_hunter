@@ -1,22 +1,8 @@
-// src/ats/ongig.ts — Ongig-powered careers sites (e.g. jobs.yum.com for Yum!
-// Brands India). Ongig proxies Elastic App Search behind a Laravel front end
-// that pins the search call to a per-session XSRF token:
-//
-//   1. GET  <origin>/            -> Set-Cookie: XSRF-TOKEN (+ session cookie)
-//   2. POST <origin>/api/appSearch
-//        headers: x-xsrf-token: <decoded XSRF-TOKEN cookie>, cookie: <jar>
-//        body:   { query, result_fields, page:{size,current},
-//                  filters:{ all:[ {any:[{group_id}]}, {any:[{live:1}]},
-//                                  {any:[{pcu:0}]}, {any:[{country_filter}]} ] } }
-//     -> { meta:{ page:{ current,total_pages,total_results } },
-//          results:[{ title:{raw}, location:{raw}, req_id:{raw}, url:{raw},
-//                     country_filter:{raw}, content:{raw} }] }
-//
-// apiMeta.groupId selects the tenant board; apiMeta.countryFilter (default
-// "india") scopes to India — verified live on Yum (group_id 1583, 16 India
-// jobs, full JD inline in content.raw). Paged by page.current until
-// total_pages. Requesting content.raw (not the truncated snippet) yields the
-// full JD.
+// src/ats/ongig.ts — Ongig-powered careers sites (e.g. jobs.yum.com), proxying Elastic App Search
+// behind a Laravel front end that pins the search call to a per-session XSRF token: GET the origin
+// for the XSRF-TOKEN cookie, then POST /api/appSearch with x-xsrf-token + cookie headers.
+// apiMeta.groupId selects the tenant board; apiMeta.countryFilter (default "india") scopes results.
+// Requesting content.raw (not the truncated snippet field) yields the full JD.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -111,12 +97,9 @@ export function normalizeOngig(company: AdapterCompany, org: string, r: OngigRes
   };
 }
 
-/** GET the board root to obtain the XSRF-TOKEN cookie; returns { token, cookie }. */
+// Raw fetch (not atsFetchJson/atsFetchHtml): needs the actual Response to read getSetCookie().
 async function ongigSession(org: string): Promise<{ token: string; cookie: string }> {
-  // Raw fetch (not atsFetchJson/atsFetchHtml): needs the actual Response to
-  // read getSetCookie(), which those JSON/text-returning helpers discard.
   const res = await withAtsTimeout((signal) => fetch(`${org}/`, { headers: { "user-agent": BROWSER_UA }, signal }));
-  // Node fetch folds multiple Set-Cookie into getSetCookie().
   const setCookies = res.headers.getSetCookie();
   const cookie = setCookies.map((c) => c.split(";")[0]).filter(Boolean).join("; ");
   const xsrf = setCookies.find((c) => c.startsWith("XSRF-TOKEN="));
@@ -138,17 +121,13 @@ export const ongigAdapter: AtsAdapter = {
       provider: "ongig",
       company: company.slug,
       pageSize: PAGE,
-      // No page-length comparison in the original loop either - termination
-      // is a zero-result page or reaching meta.page.total_pages (a PAGE
-      // count, re-read from every response - see below).
+      // Termination is a zero-result page or reaching meta.page.total_pages (re-read every response).
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
         const current = page + 1; // API is 1-based
-        // Raw fetch (not atsFetchJson): needs the bespoke cookie/xsrf-token
-        // headers from the session handshake above, which atsFetchJson has
-        // no option for.
+        // Raw fetch: needs the bespoke cookie/xsrf-token headers from the session handshake above.
         const res = await withAtsTimeout((signal) =>
           fetch(`${org}/api/appSearch`, {
             method: "POST",
@@ -173,12 +152,8 @@ export const ongigAdapter: AtsAdapter = {
         const items = parsed.results
           .map((r) => normalizeOngig(company, org, r))
           .filter((p): p is NormalizedPosting => p !== null);
-        // total_pages is re-read from THIS page's own response (matching the
-        // original, which reassigned it every iteration rather than latching
-        // page 1's value) - translated into paginate()'s item-count `total`
-        // contract the same way directemployers.ts does: report a total
-        // exactly equal to the cumulative offset once this page is the last
-        // one, null otherwise, so the loop stops right after fetching it.
+        // total_pages is re-read from this page's own response; report a total equal to the
+        // cumulative offset once this is the last page, null otherwise, so the loop stops right after.
         const totalPagesNow = parsed.meta.page.total_pages ?? current;
         const isLastPage = current >= totalPagesNow;
         return {

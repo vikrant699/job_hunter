@@ -1,4 +1,3 @@
-// src/ats/eightfoldpcs.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -127,9 +126,7 @@ test("normalizeEightfoldPcs synthesizes the job URL from id when positionUrl is 
   assert.equal(p.jobUrl, "https://careers.qualcomm.com/careers/job/446718579822");
 });
 
-// fetchJd itself just does atsFetchJson + DetailSchema.safeParse + this same
-// extraction; exercise the extraction directly against the real fixture
-// shape rather than mocking the network call.
+// fetchJd just does atsFetchJson + DetailSchema.safeParse + this extraction, so exercise it directly rather than mocking the network call.
 test("position_details jobDescription extraction is html-stripped (mirrors fetchJd)", () => {
   const jd = htmlToText(detailsFixture.data.jobDescription);
   assert.match(jd, /Role Overview/);
