@@ -83,6 +83,24 @@ export function findIndiaFacet(data: JsonValue): DiscoveredFacet | null {
   return null;
 }
 
+/**
+ * Facet pinned explicitly in api_meta: `facetParam` + `facetValueIds`
+ * (comma-separated ids — ApiMeta values are plain strings). For tenants whose
+ * only location facet has city leaves with no "India" token (lowes: a flat
+ * `locations` facet whose India leaf is just "Bengaluru", probed 2026-08-17) —
+ * token-based discovery cannot find those without substring-matching city
+ * names, which is exactly the "Indiana"/"Indianapolis" false-positive
+ * descriptorIsIndia exists to prevent. Null when either key is absent, so
+ * callers fall through to discoverIndiaFacet.
+ */
+export function pinnedFacet(apiMeta: Record<string, string> | null | undefined): DiscoveredFacet | null {
+  const param = apiMeta?.facetParam;
+  const idsRaw = apiMeta?.facetValueIds;
+  if (!param || !idsRaw) return null;
+  const uuids = idsRaw.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  return uuids.length > 0 ? { param, uuids } : null;
+}
+
 export async function discoverIndiaFacet(parts: WorkdayUrlPartsForFacet): Promise<DiscoveredFacet | null> {
   const raw = await atsFetchJson(`${parts.cxsBase}/jobs`, {
     method: "POST",

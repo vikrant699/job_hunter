@@ -5,7 +5,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
-import { discoverIndiaFacet } from "./workdayFacet.js";
+import { discoverIndiaFacet, pinnedFacet } from "./workdayFacet.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
 
@@ -119,11 +119,14 @@ export const workdayAdapter: AtsAdapter = {
     const parts = parseTenantUrl(company.tenantUrl);
     const listUrl = `${parts.cxsBase}/jobs`;
 
-    // Probe for an India country facet. Most tenants expose it; legacy ones may
-    // not — in that case we paginate unfiltered (bounded by the pagination cap
-    // below) and the downstream location filter handles India detection from
-    // the locationsText.
-    const indiaFacet = await discoverIndiaFacet(parts);
+    // An api_meta pin (facetParam + facetValueIds) wins outright — set on
+    // tenants whose location facet has no "India"-token leaves for discovery
+    // to find (lowes: a flat `locations` facet, India leaf just "Bengaluru").
+    // Otherwise probe for an India country facet. Most tenants expose it;
+    // legacy ones may not — in that case we paginate unfiltered (bounded by
+    // the pagination cap below) and the downstream location filter handles
+    // India detection from the locationsText.
+    const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
     const appliedFacets: Record<string, string[]> = indiaFacet
       ? { [indiaFacet.param]: indiaFacet.uuids }
       : {};
