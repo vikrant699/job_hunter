@@ -1,7 +1,7 @@
 // src/ats/workdayFacet.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { discoverIndiaFacet, descriptorIsIndia } from "../workdayFacet.js";
+import { discoverIndiaFacet, descriptorIsIndia, pinnedFacet } from "../workdayFacet.js";
 import { stubFetch, jsonResponse } from "./testHelpers.js";
 
 const CXS = "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External";
@@ -60,4 +60,33 @@ test("returns null when no India leaf exists", async (t) => {
     facets: [{ facetParameter: "locationCountry", values: [{ descriptor: "Germany", id: "de" }] }],
   })));
   assert.equal(await discoverIndiaFacet({ cxsBase: CXS }), null);
+});
+
+// --- api_meta facet pin -------------------------------------------------------
+//
+// Some tenants (lowes LWS_External_CS, probed 2026-08-17) expose ONLY a flat
+// per-city `locations` facet whose India leaves carry no "India" token
+// ("Bengaluru"), so token-based discovery finds nothing and the adapter falls
+// back to crawling the whole 11,823-job board. api_meta can pin the facet
+// explicitly instead: facetParam + facetValueIds (comma-separated — ApiMeta
+// values are strings).
+test("pinnedFacet builds a DiscoveredFacet from api_meta, splitting comma-separated ids", () => {
+  assert.deepEqual(
+    pinnedFacet({ facetParam: "locations", facetValueIds: "aaa, bbb" }),
+    { param: "locations", uuids: ["aaa", "bbb"] },
+  );
+  assert.deepEqual(
+    pinnedFacet({ facetParam: "locations", facetValueIds: "02b0c958653f0132d890316014068cc5" }),
+    { param: "locations", uuids: ["02b0c958653f0132d890316014068cc5"] },
+  );
+});
+
+test("pinnedFacet is null when either key is absent, empty, or api_meta is null", () => {
+  assert.equal(pinnedFacet(null), null);
+  assert.equal(pinnedFacet({}), null);
+  assert.equal(pinnedFacet({ facetParam: "locations" }), null);
+  assert.equal(pinnedFacet({ facetValueIds: "aaa" }), null);
+  assert.equal(pinnedFacet({ facetParam: "locations", facetValueIds: " , " }), null);
+  // Unrelated api_meta keys (workday rows don't usually carry any) stay inert.
+  assert.equal(pinnedFacet({ domain: "x.com" }), null);
 });
