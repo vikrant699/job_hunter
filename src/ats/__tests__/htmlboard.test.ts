@@ -236,3 +236,88 @@ test("detailJdRegex captures a script-payload JD and unescapes it (shopify RSC s
   const cfg = htmlBoardConfig(company({ itemSelector: "li", detailJdRegex: '"descriptionHtml","((?:[^"\\\\]|\\\\.)*)"' }));
   assert.equal(extractHtmlBoardJd(page, cfg), 'Build "commerce" tools.');
 });
+
+// GitBook-style two-level board (wifidabba): root lists section pages, sections list jobs.
+const SECTION_ROOT_HTML = `
+<html><body><nav>
+  <a class="toc" href="/open-positons/engineering">Engineering</a>
+  <a class="toc" href="/open-positons/legal">Legal</a>
+</nav><main>About us</main></body></html>`;
+
+const SECTION_ENG_HTML = `
+<html><body><nav>
+  <a href="/open-positons/engineering/full-stack-engineer">Full Stack Engineer</a>
+  <a href="/open-positons/engineering/embedded-engineer">Embedded Engineer</a>
+</nav></body></html>`;
+
+const SECTION_LEGAL_HTML = `
+<html><body><nav>
+  <a href="/open-positons/legal/legal-associate">Legal Associate</a>
+  <a href="/open-positons/engineering/full-stack-engineer">Full Stack Engineer</a>
+</nav></body></html>`;
+
+test("sectionSelector crawls section pages and dedupes across them", async (t) => {
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(SECTION_ROOT_HTML),
+    () => htmlResponse(SECTION_ENG_HTML),
+    () => htmlResponse(SECTION_LEGAL_HTML),
+  ));
+  const postings = await htmlboardAdapter.listPostings(
+    company({
+      sectionSelector: "a.toc",
+      itemSelector: 'a[href*="/open-positons/"][href*="engineering/"], a[href*="legal/"]',
+      fixedLocation: "Bengaluru, India",
+    }),
+  );
+  assert.equal(postings.length, 3);
+  assert.deepEqual(
+    postings.map((p) => p.jobTitle).sort(),
+    ["Embedded Engineer", "Full Stack Engineer", "Legal Associate"],
+  );
+  assert.equal(at(postings, 0).jobUrl, "https://acme.example/open-positons/engineering/full-stack-engineer");
+  assert.equal(at(postings, 0).location, "Bengaluru, India");
+});
+
+test("sectionSelector with zero items everywhere still validates against the root page", async (t) => {
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(SECTION_ROOT_HTML),
+    () => htmlResponse("<html><body><nav></nav></body></html>"),
+    () => htmlResponse("<html><body><nav></nav></body></html>"),
+  ));
+  await assert.rejects(
+    htmlboardAdapter.listPostings(
+      company({ sectionSelector: "a.toc", itemSelector: "a.job", boardSelector: ".board" }),
+    ),
+    /did not render/,
+  );
+});
+
+test("sectionSelector and pageParam together are a config error", () => {
+  assert.throws(
+    () => htmlBoardConfig(company({ itemSelector: "a", sectionSelector: "a.toc", pageParam: "page" })),
+    /mutually exclusive/,
+  );
+});
+
+test("jdUrlSuffix fetches the JD from jobUrl + suffix (GitBook .md)", async (t) => {
+  const calls: string[] = [];
+  stubFetch(t, (input) => {
+    calls.push(String(input));
+    return Promise.resolve(htmlResponse("Build fiber networks across Bengaluru."));
+  });
+  const cfg = company({ itemSelector: "li.card", jdUrlSuffix: ".md" });
+  const jd = await htmlboardAdapter.fetchJd?.(cfg, {
+    provider: "htmlboard",
+    externalId: "/careers/senior-engineer",
+    companySlug: "acme",
+    companyName: "Acme",
+    jobTitle: "Senior Engineer",
+    jobUrl: "https://acme.example/careers/senior-engineer",
+    location: null,
+    isRemote: false,
+    jdText: "",
+    postedAt: null,
+  });
+  assert.equal(at(calls, 0), "https://acme.example/careers/senior-engineer.md");
+  assert.match(jd ?? "", /fiber networks/);
+});
