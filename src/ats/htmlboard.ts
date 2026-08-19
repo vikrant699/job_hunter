@@ -48,6 +48,10 @@ export interface HtmlBoardConfig {
   idAttr: string | null;
   itemUrlAttr: string | null;
   noItemLinks: boolean;
+  /** Two-level boards (GitBook-style): listUrl page links to section pages; items live on the sections. */
+  sectionSelector: string | null;
+  /** Appended to jobUrl when fetching the JD (GitBook serves clean markdown at <page>.md). */
+  jdUrlSuffix: string | null;
 }
 
 export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
@@ -55,6 +59,9 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
   const itemSelector = meta.itemSelector;
   if (!itemSelector) {
     throw new Error(`htmlboard requires apiMeta.itemSelector for ${company.slug}`);
+  }
+  if (meta.sectionSelector && meta.pageParam) {
+    throw new Error(`htmlboard: sectionSelector and pageParam are mutually exclusive (${company.slug})`);
   }
   const listUrl = meta.listUrl ?? company.tenantUrl ?? company.careersUrl;
   return {
@@ -76,7 +83,26 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
     idAttr: meta.idAttr ?? null,
     itemUrlAttr: meta.itemUrlAttr ?? null,
     noItemLinks: meta.noItemLinks === "true",
+    sectionSelector: meta.sectionSelector ?? null,
+    jdUrlSuffix: meta.jdUrlSuffix ?? null,
   };
+}
+
+/** Unique section-page URLs from the root page, resolved against listUrl. */
+export function sectionUrls(rootHtml: string, cfg: HtmlBoardConfig): string[] {
+  if (!cfg.sectionSelector) return [];
+  const $ = cheerio.load(rootHtml);
+  const urls = new Set<string>();
+  $(cfg.sectionSelector).each((_, el) => {
+    const href = $(el).attr("href");
+    if (!href) return;
+    try {
+      urls.add(new URL(href, cfg.listUrl).toString());
+    } catch {
+      /* skip malformed hrefs */
+    }
+  });
+  return [...urls];
 }
 
 function cleanText($el: { text(): string }): string {
@@ -251,6 +277,23 @@ export const htmlboardAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const cfg = htmlBoardConfig(company);
 
+    // Section crawl: items live on section pages linked from listUrl, deduped globally.
+    if (cfg.sectionSelector) {
+      const rootHtml = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
+      const items: HtmlBoardItem[] = [];
+      const seen = new Set<string>();
+      for (const url of sectionUrls(rootHtml, cfg)) {
+        const html = await atsFetchText(url, { provider: "htmlboard" });
+        for (const item of parseHtmlBoardListing(html, cfg)) {
+          if (seen.has(item.externalId)) continue;
+          seen.add(item.externalId);
+          items.push(item);
+        }
+      }
+      assertHtmlBoardRendered(rootHtml, cfg, items.length, company.slug);
+      return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
+    }
+
     // No pageParam: the whole list renders in one response, fetched directly (never through paginate())
     // so it can't trip the maxPages cap-exit warning.
     if (!cfg.pageParam) {
@@ -292,7 +335,8 @@ export const htmlboardAdapter: AtsAdapter = {
     const cfg = htmlBoardConfig(company);
     // Inline-JD boards never get here (jdText already set); detail boards do.
     if (!posting.jobUrl || posting.jobUrl === cfg.listUrl) return posting.jdText;
-    const html = await atsFetchText(posting.jobUrl, { provider: "htmlboard" });
+    const jdUrl = cfg.jdUrlSuffix ? posting.jobUrl + cfg.jdUrlSuffix : posting.jobUrl;
+    const html = await atsFetchText(jdUrl, { provider: "htmlboard" });
     const jd = extractHtmlBoardJd(html, cfg);
     return jd;
   },

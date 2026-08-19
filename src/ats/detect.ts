@@ -159,6 +159,17 @@ const PATTERNS: PatternDef[] = [
     },
   },
   {
+    provider: "unberry",
+    // Shared host keyed by an opaque company id: app.unberry.com/careers/<companyId>.
+    re: /https?:\/\/app\.unberry\.com\/careers\/[a-f0-9]+/gi,
+    parse(m) {
+      const u = safeUrl(m);
+      if (!u) return null;
+      const id = u.pathname.split("/").filter(Boolean)[1];
+      return id ? { url: `https://app.unberry.com/careers/${id}`, slug: id } : null;
+    },
+  },
+  {
     provider: "ycombinator",
     // YC startup job board; slug is the SECOND path segment (first is "companies").
     re: /https?:\/\/(?:www\.)?ycombinator\.com\/companies\/[a-z0-9-]+(?:\/jobs)?\b/gi,
