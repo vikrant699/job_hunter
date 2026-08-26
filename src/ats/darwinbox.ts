@@ -61,7 +61,7 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: title,
-    jobUrl: `${darwinboxTenantBase(company)}/ms/candidate/careers`,
+    jobUrl: darwinboxJobUrl(company, String(j.id)),
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: "",
@@ -76,6 +76,12 @@ const LEGACY_TOKEN_RE = /\/ms\/candidate\/(?!careers)([^/]+)\/careers/i;
 export function legacyCompanyId(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
   return matchGroup(LEGACY_TOKEN_RE, raw) ?? "main";
+}
+// Server-rendered deep link (og:title carries the job) for both generations; legacy tenants resolve under
+// candidatev2 with their companyId token, `main` when untokened.
+export function darwinboxJobUrl(company: AdapterCompany, externalId: string): string {
+  const token = darwinboxV2Token(company) ?? legacyCompanyId(company);
+  return `${darwinboxTenantBase(company)}/ms/candidatev2/${encodeURIComponent(token)}/careers/jobDetails/${encodeURIComponent(externalId)}`;
 }
 const API = (page: number, companyId: string) => `/ms/candidateapi/job?page=${page}&companyId=${encodeURIComponent(companyId)}`;
 
@@ -178,7 +184,7 @@ const V2ListSchema = z.object({
   job_counts: z.number().nullable().optional(),
 });
 
-export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: DarwinboxV2Job): NormalizedPosting {
+export function normalizeDarwinboxV2(company: AdapterCompany, j: DarwinboxV2Job): NormalizedPosting {
   const location = darwinboxLocation(j.officelocation_show_arr);
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
   const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : ""; // double HTML-encoded, see fetchJdLegacy
@@ -188,7 +194,7 @@ export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: 
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: title,
-    jobUrl: `${darwinboxTenantBase(company)}${V2_CAREERS_PATH(token)}`,
+    jobUrl: darwinboxJobUrl(company, String(j.id)),
     location,
     isRemote: Boolean(j.is_remote) || (location ? REMOTE_RE.test(location) : false),
     jdText,
@@ -199,7 +205,6 @@ export function normalizeDarwinboxV2(company: AdapterCompany, token: string, j: 
 /** Mirrors `mergeDarwinboxPages`'s stop/throw semantics: a schema mismatch throws rather than silently truncating. */
 export function mergeDarwinboxV2Pages(
   company: AdapterCompany,
-  token: string,
   out: NormalizedPosting[],
   results: JsonValue[],
   total: number,
@@ -211,7 +216,7 @@ export function mergeDarwinboxV2Pages(
       what: `v2 page (fetched ${out.length}/${total} so far)`,
     });
     if (parsed.data.length === 0) break;
-    for (const j of parsed.data) out.push(normalizeDarwinboxV2(company, token, j));
+    for (const j of parsed.data) out.push(normalizeDarwinboxV2(company, j));
     if (out.length >= total) break;
   }
 }
@@ -223,7 +228,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
     { path: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
   ]);
   const parsed0 = parseOrThrow(V2ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
-  for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, token, j));
+  for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, j));
   const total = parsed0.job_counts ?? out.length;
   if (out.length < total) {
     // Deriving page size from the actual response (rather than trusting `limit`) keeps a limit-ignoring tenant correct.
@@ -233,7 +238,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
         path: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),
       }));
       const results = await browserFetchJsonRequests(pageUrl, remaining);
-      mergeDarwinboxV2Pages(company, token, out, results, total);
+      mergeDarwinboxV2Pages(company, out, results, total);
     }
   }
   return out;

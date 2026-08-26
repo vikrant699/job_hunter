@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   cleanDarwinboxJd,
+  darwinboxJobUrl,
   legacyCompanyId,
   normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages,
   darwinboxV2Token, normalizeDarwinboxV2, mergeDarwinboxV2Pages,
@@ -51,6 +52,7 @@ test("normalizeDarwinbox maps fields, prefers title, converts epoch", () => {
   assert.equal(p.jobTitle, "Team Leader - Sales");
   assert.equal(p.location, "Mumbai, Maharashtra, India");
   assert.equal(p.postedAt, new Date(1780511400 * 1000).toISOString());
+  assert.equal(p.jobUrl, "https://emeritus.darwinbox.in/ms/candidatev2/main/careers/jobDetails/a66faa21bc4531");
 });
 
 test("normalizeDarwinbox falls back to designation when title empty", () => {
@@ -83,7 +85,7 @@ test("normalizeDarwinbox emits null location for the placeholder", () => {
 });
 
 test("normalizeDarwinboxV2 emits null location for the placeholder", () => {
-  const p = normalizeDarwinboxV2(v2Company, "a6914476a29263", { ...v2Job, officelocation_show_arr: "Multiple locations" });
+  const p = normalizeDarwinboxV2(v2Company, { ...v2Job, officelocation_show_arr: "Multiple locations" });
   assert.equal(p.location, null);
 });
 
@@ -148,24 +150,24 @@ test("darwinboxV2Token returns null for a legacy careers URL", () => {
 });
 
 test("normalizeDarwinboxV2 maps fields, prefers title, and inlines the decoded JD", () => {
-  const p = normalizeDarwinboxV2(v2Company, "a6914476a29263", v2Job);
+  const p = normalizeDarwinboxV2(v2Company, v2Job);
   assert.equal(p.provider, "darwinbox");
   assert.equal(p.externalId, "a6a4cc0c2b4e8d");
   assert.equal(p.jobTitle, "Control EMC Lab In-charge Eco Solution Products");
   assert.equal(p.location, "Noida, Uttar Pradesh, India (LOC_02)");
   assert.equal(p.postedAt, "2026-07-07T09:02:58.000Z");
-  assert.equal(p.jobUrl, "https://lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/allJobs");
+  assert.equal(p.jobUrl, "https://lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/jobDetails/a6a4cc0c2b4e8d");
   // JD arrives already inline — no fetchJd round trip needed for candidatev2.
   assert.equal(p.jdText, "EMC Lab – In Charge");
 });
 
 test("normalizeDarwinboxV2 falls back to designation when title empty", () => {
-  const p = normalizeDarwinboxV2(v2Company, "a6914476a29263", { ...v2Job, title: "" });
+  const p = normalizeDarwinboxV2(v2Company, { ...v2Job, title: "" });
   assert.equal(p.jobTitle, "Deputy Manager");
 });
 
 test("normalizeDarwinboxV2 treats is_remote as authoritative over the location regex", () => {
-  const p = normalizeDarwinboxV2(v2Company, "a6914476a29263", { ...v2Job, is_remote: 1 });
+  const p = normalizeDarwinboxV2(v2Company, { ...v2Job, is_remote: 1 });
   assert.equal(p.isRemote, true);
 });
 
@@ -175,20 +177,20 @@ function v2Page(jobs: DarwinboxV2Job[]): JsonValue {
 
 test("mergeDarwinboxV2Pages accumulates valid pages in order", () => {
   const out: NormalizedPosting[] = [];
-  mergeDarwinboxV2Pages(v2Company, "a6914476a29263", out, [v2Page([v2Job]), v2Page([{ ...v2Job, id: "2" }])], 2);
+  mergeDarwinboxV2Pages(v2Company, out, [v2Page([v2Job]), v2Page([{ ...v2Job, id: "2" }])], 2);
   assert.deepEqual(out.map((p) => p.externalId), ["a6a4cc0c2b4e8d", "2"]);
 });
 
 test("mergeDarwinboxV2Pages stops on an empty page", () => {
   const out: NormalizedPosting[] = [];
-  mergeDarwinboxV2Pages(v2Company, "a6914476a29263", out, [v2Page([]), v2Page([{ ...v2Job, id: "2" }])], 5);
+  mergeDarwinboxV2Pages(v2Company, out, [v2Page([]), v2Page([{ ...v2Job, id: "2" }])], 5);
   assert.deepEqual(out, []);
 });
 
 test("mergeDarwinboxV2Pages throws (not warn+truncate) on a mid-pagination schema mismatch", () => {
-  const out: NormalizedPosting[] = [{ ...normalizeDarwinboxV2(v2Company, "a6914476a29263", v2Job) }];
+  const out: NormalizedPosting[] = [{ ...normalizeDarwinboxV2(v2Company, v2Job) }];
   assert.throws(
-    () => mergeDarwinboxV2Pages(v2Company, "a6914476a29263", out, [{ status: "success", data: "not-an-array" }], 5),
+    () => mergeDarwinboxV2Pages(v2Company, out, [{ status: "success", data: "not-an-array" }], 5),
     /darwinbox v2 page \(fetched \d+\/\d+ so far\) response failed schema for lg-soft-india/,
   );
   assert.equal(out.length, 1);
@@ -205,4 +207,13 @@ test("legacyCompanyId extracts the tenant token from the careers path, defaultin
   assert.equal(legacyCompanyId(mk("https://pwhr.darwinbox.in/ms/candidate/a62d7a6e288992/careers")), "a62d7a6e288992");
   assert.equal(legacyCompanyId(mk("https://acme.darwinbox.in/ms/candidate/careers")), "main");
   assert.equal(legacyCompanyId(mk("https://acme.darwinbox.in")), "main");
+});
+
+test("darwinboxJobUrl deep-links under candidatev2 with the tenant token for both generations", () => {
+  const mk = (url: string): AdapterCompany => ({ ...company, tenantUrl: url });
+  assert.equal(
+    darwinboxJobUrl(mk("https://pwhr.darwinbox.in/ms/candidate/a62d7a6e288992/careers"), "a1"),
+    "https://pwhr.darwinbox.in/ms/candidatev2/a62d7a6e288992/careers/jobDetails/a1",
+  );
+  assert.equal(darwinboxJobUrl(mk("https://acme.darwinbox.in"), "a1"), "https://acme.darwinbox.in/ms/candidatev2/main/careers/jobDetails/a1");
 });
