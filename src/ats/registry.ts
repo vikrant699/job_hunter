@@ -37,6 +37,7 @@ import { zappyhireAdapter } from "./zappyhire.js";
 import { talentRecruitAdapter } from "./talentrecruit.js";
 import { trakstarAdapter } from "./trakstar.js";
 import { unberryAdapter } from "./unberry.js";
+import { recrewAdapter } from "./recrew.js";
 import { sharechatAdapter } from "./sharechat.js";
 import { amazonJobsAdapter } from "./amazonjobs.js";
 import { wpjobsAdapter } from "./wpjobs.js";
@@ -160,6 +161,7 @@ export const ATS_ADAPTERS = {
   talentrecruit: talentRecruitAdapter,
   trakstar: trakstarAdapter,
   unberry: unberryAdapter,
+  recrew: recrewAdapter,
   sharechat: sharechatAdapter,
   amazonjobs: amazonJobsAdapter,
   wpjobs: wpjobsAdapter,

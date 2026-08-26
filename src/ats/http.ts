@@ -158,11 +158,14 @@ export interface AtsFetchedHtml {
 }
 
 /** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom), also capturing the post-redirect URL. */
-export async function atsFetchHtml(url: string, opts: { provider?: string; userAgent?: string } = {}): Promise<AtsFetchedHtml> {
+export async function atsFetchHtml(
+  url: string,
+  opts: { provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
+): Promise<AtsFetchedHtml> {
   const provider = opts.provider ?? "ats";
   return withAtsTimeout(async (signal) => {
     const res = await fetchOk(url, {
-      headers: { "User-Agent": opts.userAgent ?? config.fetch.userAgent, Accept: "text/html,application/json" },
+      headers: { "User-Agent": opts.userAgent ?? config.fetch.userAgent, Accept: "text/html,application/json", ...(opts.headers ?? {}) },
       redirect: "follow",
       signal,
     }, provider);
