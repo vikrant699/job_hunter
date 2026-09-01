@@ -15,10 +15,12 @@ import { postRunStatus } from "./discord/status.js";
 import { closeDb } from "./db/db.js";
 import { config } from "./config.js";
 import { getCacheStats } from "./llm/openrouter.js";
+import type { InstahyreResult } from "./instahyre/autoApply.js";
 
 async function runTickAndOutreach(
   profileId: string,
   registryResult: RegistrySyncResult,
+  instahyre: InstahyreResult | null,
 ): Promise<void> {
   const outcome = await runProductionTick();
 
@@ -59,6 +61,7 @@ async function runTickAndOutreach(
       outreachError,
       verify: verifyResult,
       registry: { source: registryResult.source, invalidRows: registryResult.invalidRows.length },
+      instahyre,
     });
   } catch (err) {
     logger.error({ err: String(err) }, "status post threw");
@@ -76,9 +79,9 @@ function logCacheStats(): void {
 }
 
 /** The whole run, from registry sync to Discord status. Assumes the DB is current. */
-export async function runOnceAfterSync(profileId: string): Promise<void> {
+export async function runOnceAfterSync(profileId: string, instahyre: InstahyreResult | null = null): Promise<void> {
   const registryResult = await syncRegistryFromSheet(profileId);
-  await runTickAndOutreach(profileId, registryResult);
+  await runTickAndOutreach(profileId, registryResult, instahyre);
   logCacheStats();
 }
 

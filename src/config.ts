@@ -108,6 +108,19 @@ export const config = {
     },
   },
 
+  instahyre: {
+    /** Navigation timeout for the opportunities feed. */
+    navTimeoutMs: envInt("INSTAHYRE_NAV_TIMEOUT_MS", 45_000),
+    /** Bound on every login/feed-state wait; also what decides "no matching jobs" vs a real hang. */
+    feedTimeoutMs: envInt("INSTAHYRE_FEED_TIMEOUT_MS", 25_000),
+    /** Sleep between apply/confirm clicks, matching the source bot's pacing. */
+    clickIntervalMs: 3_000,
+    /** Runaway guard, not a target - the loop normally stops when the feed runs out. */
+    maxApplications: envInt("INSTAHYRE_MAX_APPLICATIONS", 300),
+    /** Wall-clock budget for the apply loop so a stuck feed can't block npm run once indefinitely. */
+    stepBudgetMs: envInt("INSTAHYRE_STEP_BUDGET_MS", 15 * 60_000),
+  },
+
   outreach: {
     cooldownDays: 30,
     verifyAfterHours: 24,

@@ -1,0 +1,195 @@
+// Phase 0 of `npm run once`: log into Instahyre and click apply/confirm on every matching opportunity.
+// Ported from D:\Random Code\autoclickInstahyre\instahyre (plain-JS Puppeteer bot); fixes its infinite waits
+// (timeout: 0) with finite timeouts everywhere, and never throws out of the run.
+import { existsSync } from "node:fs";
+import { chromium } from "playwright";
+import type { Browser } from "playwright";
+import { logger } from "../logger.js";
+import { config } from "../config.js";
+import { sleep } from "../util/sleep.js";
+import { awaitNetwork } from "../util/connectivity.js";
+import { JsonValueSchema } from "../util/json.js";
+import { INSTAHYRE_URL, SELECTORS } from "./constants.js";
+
+export interface InstahyreResult {
+  applied: number;
+  confirmed: number;
+  skippedReason: string | null;
+  error: string | null;
+  durationMs: number;
+}
+
+/** Reads INSTAHYRE_EMAIL_<PROFILE>/INSTAHYRE_PASSWORD_<PROFILE> (uppercased); null if either is missing/empty. */
+export function instahyreCredsForProfile(
+  profileId: string,
+  env: NodeJS.ProcessEnv,
+): { email: string; password: string } | null {
+  const upper = profileId.toUpperCase();
+  const email = env[`INSTAHYRE_EMAIL_${upper}`];
+  const password = env[`INSTAHYRE_PASSWORD_${upper}`];
+  if (!email || !password) return null;
+  return { email, password };
+}
+
+function statePathFor(profileId: string): string {
+  return `data/instahyre-state-${profileId}.json`;
+}
+
+function debugScreenshotPathFor(profileId: string): string {
+  return `data/instahyre-debug-${profileId}.png`;
+}
+
+function skip(result: InstahyreResult, reason: string, profileId: string, start: number): InstahyreResult {
+  logger.info({ profileId }, `instahyre: ${reason}, skipping`);
+  result.skippedReason = reason;
+  result.durationMs = Date.now() - start;
+  return result;
+}
+
+export async function runInstahyreAutoApply(profileId: string): Promise<InstahyreResult> {
+  const start = Date.now();
+  const result: InstahyreResult = { applied: 0, confirmed: 0, skippedReason: null, error: null, durationMs: 0 };
+
+  const creds = instahyreCredsForProfile(profileId, process.env);
+  if (!creds) {
+    return skip(result, "no credentials for profile", profileId, start);
+  }
+
+  await awaitNetwork();
+
+  let browser: Browser | null = null;
+  try {
+    browser = await chromium.launch({
+      headless: false,
+      args: ["--disable-blink-features=AutomationControlled", "--start-maximized"],
+    });
+    const statePath = statePathFor(profileId);
+    const context = await browser.newContext({
+      viewport: null,
+      ...(existsSync(statePath) ? { storageState: statePath } : {}),
+    });
+    const page = await context.newPage();
+    await page.goto(INSTAHYRE_URL, { waitUntil: "domcontentloaded", timeout: config.instahyre.navTimeoutMs });
+
+    let loggedIn: boolean;
+    try {
+      await page.waitForSelector(`${SELECTORS.email}, ${SELECTORS.interestedBtn}`, {
+        timeout: config.instahyre.feedTimeoutMs,
+      });
+    } catch {
+      // Union wait itself timed out and the login form never appeared: an exhausted feed never renders #interested-btn.
+      return skip(result, "no matching jobs", profileId, start);
+    }
+
+    const loginVisible = await page.locator(SELECTORS.email).isVisible();
+    if (loginVisible) {
+      await page.locator(SELECTORS.email).pressSequentially(creds.email, { delay: 50 });
+      await page.locator(SELECTORS.password).pressSequentially(creds.password, { delay: 50 });
+      await page.click(SELECTORS.loginSubmit);
+      try {
+        await page.waitForSelector(SELECTORS.interestedBtn, { timeout: config.instahyre.feedTimeoutMs });
+        loggedIn = true;
+      } catch {
+        const stillLoginForm = await page.locator(SELECTORS.email).isVisible();
+        if (stillLoginForm) {
+          result.error = "login failed (still on login form)";
+          try {
+            await page.screenshot({ path: debugScreenshotPathFor(profileId) });
+          } catch {
+            // best-effort debugging aid only
+          }
+          result.durationMs = Date.now() - start;
+          return result;
+        }
+        loggedIn = false;
+      }
+    } else {
+      loggedIn = true; // #interested-btn matched directly: session restored
+    }
+
+    await context.storageState({ path: statePath });
+
+    if (!loggedIn) {
+      return skip(result, "no matching jobs", profileId, start);
+    }
+
+    // Passed as a string (not a typed function) - this repo's tsconfig has no "DOM" lib, matching
+    // scraper/playwright.ts's precedent for in-page evaluate scripts that touch document/window.
+    const clickInterestedScript = `(() => {
+      const buttons = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.interestedBtn)}));
+      const visibleBtn = buttons.find((btn) => {
+        const style = window.getComputedStyle(btn);
+        return style.display !== "none" && style.visibility !== "hidden" && btn.offsetParent !== null;
+      });
+      if (visibleBtn) {
+        visibleBtn.click();
+        return true;
+      }
+      return false;
+    })()`;
+    const clickedInterested = JsonValueSchema.parse(await page.evaluate(clickInterestedScript));
+    if (clickedInterested !== true) {
+      return skip(result, "no matching jobs", profileId, start);
+    }
+    await sleep(1000);
+
+    try {
+      await page.waitForSelector(SELECTORS.applyButton, { timeout: config.instahyre.feedTimeoutMs });
+    } catch {
+      return skip(result, "no matching jobs", profileId, start);
+    }
+
+    const deadline = start + config.instahyre.stepBudgetMs;
+    const applyClickScript = `(() => {
+      function isUsable(el) {
+        if (!el) return false;
+        if (el.disabled) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden" || el.offsetParent === null) return false;
+        return true;
+      }
+      const overlayBtn = document.querySelector(${JSON.stringify(SELECTORS.overlayConfirmButton)});
+      if (isUsable(overlayBtn)) {
+        overlayBtn.click();
+        return "overlay";
+      }
+      const applyBtn = document.querySelector(${JSON.stringify(SELECTORS.applyButton)});
+      if (isUsable(applyBtn)) {
+        applyBtn.click();
+        return "apply";
+      }
+      return null;
+    })()`;
+    for (;;) {
+      if (result.applied + result.confirmed >= config.instahyre.maxApplications) {
+        logger.info({ profileId, applied: result.applied, confirmed: result.confirmed }, "instahyre: application cap hit");
+        break;
+      }
+      if (Date.now() > deadline) {
+        logger.info({ profileId, applied: result.applied, confirmed: result.confirmed }, "instahyre: step budget exhausted");
+        break;
+      }
+      const raw = JsonValueSchema.parse(await page.evaluate(applyClickScript));
+      if (raw === null) break;
+      if (raw === "overlay") result.confirmed++;
+      else if (raw === "apply") result.applied++;
+      logger.debug({ profileId, clicked: raw }, "instahyre: click");
+      await sleep(config.instahyre.clickIntervalMs);
+    }
+
+    logger.info({ profileId, applied: result.applied, confirmed: result.confirmed }, "instahyre auto-apply complete");
+  } catch (err) {
+    result.error = String(err);
+    logger.error({ profileId, err: result.error }, "instahyre auto-apply threw");
+  } finally {
+    if (browser) {
+      try {
+        await browser.close();
+      } catch {
+        // already closed
+      }
+    }
+  }
+  result.durationMs = Date.now() - start;
+  return result;
+}

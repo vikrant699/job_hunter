@@ -25,6 +25,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data and Companies from local files when they exist (both are gitignored), writes headers. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass for one profile's mailbox (sent/discard/bounce/verified), then re-projects the sheet. Runs inside `npm run once` too; this is for checking outside the daily tick. |
+| `npm run instahyre -- --profile <name>` | Standalone Instahyre auto-apply run (phase 0 of `npm run once`): headed browser, logs in (or restores a saved session), clicks apply/confirm until the feed is exhausted. Skips fast when the profile has no `INSTAHYRE_EMAIL_<NAME>`/`INSTAHYRE_PASSWORD_<NAME>`, or when there are no matching jobs. |
 | `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends; own JSON state at `data/blast-state-<name>.json`, projects a Blast Log tab). Flags: `--limit N` (default 100), `--verify-only`, `--force`. Delete `src/blast/`, `scripts/blast.ts`, and this row when the campaign ends. |
 | `npm run health` | Read-only registry health report (status/strategy/provider yield tallies from the local DB + cache). |
 | `npm run db:push -- --profile <name>` | Upload `data/job_hunter.db` to Google Drive (WAL-checkpointed first). Refuses if the Drive copy is newer, if the local DB has no postings, or if it is under half the remote's size; `--force` overrides all three. |
@@ -94,6 +95,9 @@ src/
                  api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers;
                  sync.ts (Drive push/pull + the staleness guard that runs before/after a tick);
                  openState.ts (the one bit sync.ts needs from db.ts without importing it)
+  instahyre/   constants.ts (Instahyre URL + selectors); autoApply.ts (headed-Playwright
+                 auto-apply, phase 0 of npm run once; skips gracefully with no creds or no
+                 matching jobs, never throws)
   filter/      location, title, denylist, verdict
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder),

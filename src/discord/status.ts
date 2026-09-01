@@ -4,6 +4,7 @@ import { postWebhookJson } from "./webhook.js";
 import type { ProductionTickOutcome } from "../pipeline/index.js";
 import type { VerifyResult } from "../outreach/verify.js";
 import type { RunOutreachResult } from "../outreach/run.js";
+import type { InstahyreResult } from "../instahyre/autoApply.js";
 
 const COLOR_GREEN = 0x2ecc71;
 const COLOR_ORANGE = 0xe67e22;
@@ -20,6 +21,7 @@ export interface StatusInput {
   outreachError: string | null;
   verify: VerifyResult | null;
   registry: RegistrySyncSummary | null;
+  instahyre: InstahyreResult | null;
 }
 
 /** Group failed boards by reason tag into a compact, Discord-field-safe string
@@ -124,12 +126,25 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     });
   }
 
+  if (input.instahyre) {
+    const { instahyre } = input;
+    const value = instahyre.error
+      ? `error: ${instahyre.error}`
+      : instahyre.skippedReason
+        ? `skipped: ${instahyre.skippedReason}`
+        : `applied ${instahyre.applied}, confirmed ${instahyre.confirmed}`;
+    fields.push({ name: "Instahyre", value, inline: false });
+  }
+
   fields.push({ name: "Spreadsheet", value: spreadsheetUrl(), inline: false });
 
   const registryStale = input.registry?.source === "cache";
   return {
     title: `${config.discord.titlePrefix} run complete — ${input.profileId}`,
-    color: input.outreachError || stats.errors.length > 0 || registryStale ? COLOR_ORANGE : COLOR_GREEN,
+    color:
+      input.outreachError || stats.errors.length > 0 || registryStale || input.instahyre?.error
+        ? COLOR_ORANGE
+        : COLOR_GREEN,
     fields,
   };
 }

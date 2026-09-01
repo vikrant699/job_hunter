@@ -6,6 +6,8 @@ import { assertGoogleTokenValid, GoogleAuthExpiredError } from "./google/auth.js
 import { syncBeforeRun, syncAfterRun } from "./db/sync.js";
 import { startConnectivityMonitor } from "./util/connectivity.js";
 import { profile } from "./profile.js";
+import { runInstahyreAutoApply } from "./instahyre/autoApply.js";
+import type { InstahyreResult } from "./instahyre/autoApply.js";
 
 // No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces);
 // the run body lives in ./runOnce.ts, reached via dynamic import after the sync. Pinned by indexImportGraph.test.ts.
@@ -44,12 +46,15 @@ async function main(): Promise<void> {
   await assertLlmAvailable();
   await assertGoogleTokenValid(profileId);
 
+  // Phase 0: Instahyre auto-apply (headed browser; skips when no creds or no jobs; never throws).
+  const instahyre: InstahyreResult = await runInstahyreAutoApply(profileId);
+
   // Pull a newer DB from Drive before anything opens it, or a stale DB re-scores postings the other machine already handled.
   await syncBeforeRun(profileId);
 
   // Only now is it safe to load the DB-backed half of the app.
   const { runOnceAfterSync, releaseDbForSync } = await import("./runOnce.js");
-  await runOnceAfterSync(profileId);
+  await runOnceAfterSync(profileId, instahyre);
 
   // Best-effort: a Drive push failure here must not fail an already-completed run.
   releaseDbForSync();

@@ -31,6 +31,7 @@ test("buildStatusEmbed includes the profile id in the title", () => {
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   assert.match(embed.title, /vikrant/);
   assert.match(embed.title, /run complete/);
@@ -44,6 +45,7 @@ test("buildStatusEmbed surfaces companies/postings/green/yellow/jdFetchFailed/er
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Companies scanned"], "100");
@@ -63,6 +65,7 @@ test("buildStatusEmbed surfaces drafts created / undrafted counts and a spreadsh
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Drafts created"], "7");
@@ -80,6 +83,7 @@ test("buildStatusEmbed shows an outreach-error field instead of drafts/undrafted
     outreachError: "Google auth expired",
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Outreach error"], "Google auth expired");
@@ -95,6 +99,7 @@ test("buildStatusEmbed renders a compact Verify field when a verify result is pr
     outreachError: null,
     verify: { checkedDrafts: 3, sent: 1, discarded: 1, bounced: 1, verified: 2 },
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.match(byName["Verify"] ?? "", /checked 3/);
@@ -112,6 +117,7 @@ test("buildStatusEmbed omits the Verify field when verify is null", () => {
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Verify"], undefined);
@@ -125,6 +131,7 @@ test("buildStatusEmbed renders a Registry field with source and invalid-row coun
     outreachError: null,
     verify: null,
     registry: { source: "sheet", invalidRows: 2 },
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.match(byName["Registry"] ?? "", /sheet/);
@@ -139,6 +146,7 @@ test("buildStatusEmbed omits the Registry field when registry is null", () => {
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Registry"], undefined);
@@ -152,8 +160,68 @@ test("buildStatusEmbed marks the embed orange when the registry sync fell back t
     outreachError: null,
     verify: null,
     registry: { source: "cache", invalidRows: 0 },
+    instahyre: null,
   });
   assert.equal(embed.color, 0xe67e22);
+});
+
+test("buildStatusEmbed renders applied/confirmed counts in an Instahyre field", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+    instahyre: { applied: 5, confirmed: 2, skippedReason: null, error: null, durationMs: 1000 },
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Instahyre"], "applied 5, confirmed 2");
+  assert.equal(embed.color, 0x2ecc71);
+});
+
+test("buildStatusEmbed renders a skipped reason in the Instahyre field", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+    instahyre: { applied: 0, confirmed: 0, skippedReason: "no matching jobs", error: null, durationMs: 1000 },
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Instahyre"], "skipped: no matching jobs");
+  assert.equal(embed.color, 0x2ecc71);
+});
+
+test("buildStatusEmbed renders an error in the Instahyre field and flips the embed orange", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+    instahyre: { applied: 0, confirmed: 0, skippedReason: null, error: "login failed (still on login form)", durationMs: 1000 },
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Instahyre"], "error: login failed (still on login form)");
+  assert.equal(embed.color, 0xe67e22);
+});
+
+test("buildStatusEmbed omits the Instahyre field when instahyre is null", () => {
+  const embed = buildStatusEmbed({
+    profileId: "default",
+    stats: mkStats(),
+    outreach: null,
+    outreachError: null,
+    verify: null,
+    registry: null,
+    instahyre: null,
+  });
+  const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Instahyre"], undefined);
 });
 
 test("buildStatusEmbed lists companies with issues, grouped by reason", () => {
@@ -170,6 +238,7 @@ test("buildStatusEmbed lists companies with issues, grouped by reason", () => {
     outreachError: null,
     verify: null,
     registry: null,
+    instahyre: null,
   });
   const byName = Object.fromEntries(embed.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Boards with issues"], "3");
