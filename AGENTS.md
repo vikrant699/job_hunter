@@ -286,6 +286,13 @@ change.
     hit-rate is logged every 100 calls plus a total at the end of the run; watch it, since
     cached vs uncached input is roughly a 4x cost difference.
   - Both override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS`.
+  - **Embedding shadow mode (experimental, off by default):** `OLLAMA_EMBED_MODEL` /
+    `OPENROUTER_EMBED_MODEL` enable per-backend embedding of gated postings + the resume
+    anchor (cosine stored as `postings.embed_sim`, vectors in `posting_vectors`, both
+    stamped with a `backend:model` tag so spaces never mix). Shares the LLM semaphore
+    (`acquireLlmSlot`). Shadow-only: it must never change gate/verdict behavior; using
+    the scores to skip the gate is a separate, owner-gated change. Every `src/llm/`
+    feature must work identically on both backends - never build for only one.
 - The relevance "gate" judges each posting against the full resume text from
   `config/resume.txt` (generated once from `config/resume.pdf`; the bot stops if neither
   exists).
