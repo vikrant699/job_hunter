@@ -6,8 +6,10 @@ import {
   selectPartitionFacet,
   crawlWorkdayPostings,
   parseWorkdayListPage,
+  parseWorkdaySites,
+  workdayAdapter,
 } from "../workday.js";
-import { asJson } from "./testHelpers.js";
+import { asJson, stubFetch, jsonResponse, htmlResponse, mkAdapterCompany, at } from "./testHelpers.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
 import type { JsonValue } from "../../util/json.js";
 
@@ -314,4 +316,197 @@ test("parseWorkdayListPage passes an empty page through (end of pagination, not 
 
 test("parseWorkdayListPage still throws when the envelope itself is wrong", () => {
   assert.throws(() => parseWorkdayListPage(asJson({ error: "nope" }), "barclays"), /schema/);
+});
+
+// --- parseWorkdaySites ------------------------------------------------------
+
+test("parseWorkdaySites extracts sites from a mix of Allow and Sitemap lines, deduped in order", () => {
+  const robots = [
+    "User-agent: *",
+    "Allow: /wday/",
+    "Allow: /External/",
+    "Allow: /External/", // duplicate, must not repeat in output
+    "Sitemap: https://acme.wd1.myworkdayjobs.com/wday/sitemap/External/siteMap.xml",
+    "Sitemap: https://acme.wd1.myworkdayjobs.com/wday/sitemap/Campus/siteMap.xml",
+  ].join("\n");
+  assert.deepEqual(parseWorkdaySites(robots), ["External", "Campus"]);
+});
+
+test("parseWorkdaySites reads a sitemap-only robots.txt", () => {
+  const robots = "Sitemap: https://acme.wd1.myworkdayjobs.com/wday/sitemap/Careers/siteMap.xml\r\n";
+  assert.deepEqual(parseWorkdaySites(robots), ["Careers"]);
+});
+
+test("parseWorkdaySites returns [] for garbage text with no Allow/Sitemap directives", () => {
+  assert.deepEqual(parseWorkdaySites("User-agent: *\nDisallow: /admin/\n\nnot a directive at all"), []);
+});
+
+test("parseWorkdaySites excludes wday/refreshFacet/events and dotted names, case-insensitively", () => {
+  const robots = [
+    "allow: /wday/",
+    "ALLOW: /refreshFacet/",
+    "Allow: /events/",
+    "Allow: /sitemap.External/", // dotted, excluded
+    "Allow: /External/",
+  ].join("\r\n");
+  assert.deepEqual(parseWorkdaySites(robots), ["External"]);
+});
+
+test("parseWorkdaySites tolerates \\r\\n line endings", () => {
+  const robots = "Allow: /wday/\r\nAllow: /External/\r\nAllow: /Campus\r\n";
+  assert.deepEqual(parseWorkdaySites(robots), ["External", "Campus"]);
+});
+
+// --- workdayAdapter.listPostings: site-drift fallback ----------------------
+
+const driftCompany: AdapterCompany = mkAdapterCompany(
+  {
+    provider: "workday",
+    slug: "acme",
+    name: "Acme",
+    careersUrl: "https://acme.wd1.myworkdayjobs.com/External",
+  },
+  {
+    tenantUrl: "https://acme.wd1.myworkdayjobs.com/External",
+    // Pinned facet so discoverIndiaFacet's own probe request never runs - keeps the fetch
+    // sequence in these tests down to exactly the listing calls being exercised.
+    apiMeta: { facetParam: "locationCountry", facetValueIds: "in-1" },
+  },
+);
+
+function driftListResponse(site: string) {
+  return {
+    total: 1,
+    jobPostings: [
+      {
+        title: `Engineer at ${site}`,
+        externalPath: "/job/Pune/Engineer_R1",
+        locationsText: "Pune, India",
+        postedOn: "Posted Today",
+        bulletFields: ["R1"],
+        jobPostingId: "R1",
+        shortId: null,
+      },
+    ],
+  };
+}
+
+/** Routes each fetch call by matching the end of its URL, in the given order; records every URL seen. */
+function routeFetch(routes: Array<[suffix: string, make: () => Response]>, calls: string[]): typeof globalThis.fetch {
+  return (input) => {
+    const url = typeof input === "string" ? input : input.toString();
+    calls.push(url);
+    const hit = routes.find(([suffix]) => url.endsWith(suffix));
+    if (!hit) return Promise.reject(new Error(`workday drift test: unexpected fetch ${url}`));
+    return Promise.resolve(hit[1]());
+  };
+}
+
+test("workday listPostings recovers from a stale site name: 404 -> robots.txt names one other site -> retry succeeds", async (t) => {
+  const calls: string[] = [];
+  stubFetch(
+    t,
+    routeFetch(
+      [
+        ["/wday/cxs/acme/External/jobs", () => new Response("not found", { status: 404 })],
+        [
+          "/robots.txt",
+          () => new Response("User-agent: *\nAllow: /wday/\nAllow: /External2/\n", { status: 200 }),
+        ],
+        ["/wday/cxs/acme/External2/jobs", () => jsonResponse(driftListResponse("External2"))],
+      ],
+      calls,
+    ),
+  );
+
+  const items = await workdayAdapter.listPostings(driftCompany);
+  assert.equal(items.length, 1);
+  assert.equal(at(items, 0).jobUrl, "https://acme.wd1.myworkdayjobs.com/en-US/External2/job/Pune/Engineer_R1");
+  assert.deepEqual(calls, [
+    "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External/jobs",
+    "https://acme.wd1.myworkdayjobs.com/robots.txt",
+    "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External2/jobs",
+  ]);
+});
+
+test("workday listPostings recovers from an HTML-instead-of-JSON response the same way as a 404", async (t) => {
+  const calls: string[] = [];
+  stubFetch(
+    t,
+    routeFetch(
+      [
+        ["/wday/cxs/acme/External/jobs", () => htmlResponse("<!DOCTYPE html><html><body>gone</body></html>")],
+        ["/robots.txt", () => new Response("Allow: /External2/\n", { status: 200 })],
+        ["/wday/cxs/acme/External2/jobs", () => jsonResponse(driftListResponse("External2"))],
+      ],
+      calls,
+    ),
+  );
+
+  const items = await workdayAdapter.listPostings(driftCompany);
+  assert.equal(items.length, 1);
+  assert.equal(calls.length, 3);
+});
+
+test("workday listPostings rethrows the original 404 when robots.txt lists multiple candidate sites", async (t) => {
+  const calls: string[] = [];
+  stubFetch(
+    t,
+    routeFetch(
+      [
+        ["/wday/cxs/acme/External/jobs", () => new Response("not found", { status: 404 })],
+        ["/robots.txt", () => new Response("Allow: /External2/\nAllow: /External3/\n", { status: 200 })],
+      ],
+      calls,
+    ),
+  );
+
+  await assert.rejects(workdayAdapter.listPostings(driftCompany), /workday 404/);
+  assert.deepEqual(calls, [
+    "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External/jobs",
+    "https://acme.wd1.myworkdayjobs.com/robots.txt",
+  ]);
+});
+
+test("workday listPostings rethrows the original 404 when robots.txt still lists the configured site (not drift)", async (t) => {
+  const calls: string[] = [];
+  stubFetch(
+    t,
+    routeFetch(
+      [
+        ["/wday/cxs/acme/External/jobs", () => new Response("not found", { status: 404 })],
+        ["/robots.txt", () => new Response("Allow: /wday/\nAllow: /External/\n", { status: 200 })],
+      ],
+      calls,
+    ),
+  );
+
+  await assert.rejects(workdayAdapter.listPostings(driftCompany), /workday 404/);
+  assert.deepEqual(calls, [
+    "https://acme.wd1.myworkdayjobs.com/wday/cxs/acme/External/jobs",
+    "https://acme.wd1.myworkdayjobs.com/robots.txt",
+  ]);
+});
+
+test("workday listPostings never fetches robots.txt on a 429 (throttle, not drift)", async (t) => {
+  // fetchOk itself retries a 429 (transient status) a few times before giving up - every one of
+  // those retries must still land on the listing URL, never robots.txt.
+  const calls: string[] = [];
+  stubFetch(
+    t,
+    routeFetch(
+      [
+        [
+          "/wday/cxs/acme/External/jobs",
+          () => new Response("slow down", { status: 429, headers: { "Retry-After": "0" } }),
+        ],
+      ],
+      calls,
+    ),
+  );
+
+  await assert.rejects(workdayAdapter.listPostings(driftCompany), /HTTP 429/);
+  assert.ok(calls.length > 0);
+  assert.ok(calls.every((u) => u.endsWith("/wday/cxs/acme/External/jobs")));
+  assert.ok(!calls.some((u) => u.endsWith("/robots.txt")));
 });
