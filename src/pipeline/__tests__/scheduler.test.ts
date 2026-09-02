@@ -16,6 +16,7 @@ import type { Company, NormalizedPosting } from "../../types.js";
 import { upsertCompany, insertPostingIfNew, db } from "../../db/index.js";
 import { sleep } from "../../util/sleep.js";
 import { assertNotEdgeChallenge } from "../../util/errorCause.js";
+import { logger } from "../../logger.js";
 
 const RemovedAtRowSchema = z.object({ removed_at: z.string().nullable() });
 function removedAt(provider: string, externalId: string, profileId: string): string | null {
@@ -638,4 +639,70 @@ test("a board that never answers on either pass still gets an error board_runs r
   assert.equal(run.removed, 0);
   assert.equal(run.unchanged, 0);
   assert.match(run.error ?? "", /both passes/);
+});
+
+// ---- aggregator-board warning (log-only, no behavior change) ----
+
+interface LogCall {
+  level: "warn";
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
+  fields: unknown;
+  message: string | undefined;
+}
+
+/** Runs `fn` with the shared logger's warn swapped for a recorder, since scheduler.ts logs via the module-scoped pino instance with no injection point. */
+async function captureWarnLogs(fn: () => Promise<void>): Promise<LogCall[]> {
+  const calls: LogCall[] = [];
+  const realWarn = logger.warn;
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
+  logger.warn = (fields: unknown, message?: string) => { calls.push({ level: "warn", fields, message }); };
+  try {
+    await fn();
+  } finally {
+    logger.warn = realWarn;
+  }
+  return calls;
+}
+
+function aggregatorLogs(calls: LogCall[]): LogCall[] {
+  return calls.filter((c) => c.message === "board looks like an aggregator");
+}
+
+test("a listing spanning >10 distinct companyNames logs exactly one 'aggregator' warn", async () => {
+  const slug = `agency-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () =>
+      Array.from({ length: 12 }, (_, i) => mkPosting("greenhouse", `agency-${Date.now()}-${i}`, slug, `Org ${i}`)),
+  };
+
+  const calls = await captureWarnLogs(() => processBucket("greenhouse", adapter, [company], stats, FAST));
+
+  const hits = aggregatorLogs(calls);
+  assert.equal(hits.length, 1, `expected exactly one aggregator warn, got ${JSON.stringify(calls)}`);
+  const fields = z
+    .object({ provider: z.string(), slug: z.string(), distinctOrgs: z.number(), sample: z.array(z.string()) })
+    .parse(hits[0]?.fields);
+  assert.equal(fields.provider, "greenhouse");
+  assert.equal(fields.slug, slug);
+  assert.equal(fields.distinctOrgs, 12);
+  assert.deepEqual(fields.sample, ["Org 0", "Org 1", "Org 2"]);
+});
+
+test("a normal single-company listing does not log an aggregator warn", async () => {
+  const slug = `normal-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [mkPosting("greenhouse", `normal-${Date.now()}`, slug, company.name)],
+  };
+
+  const calls = await captureWarnLogs(() => processBucket("greenhouse", adapter, [company], stats, FAST));
+
+  assert.equal(aggregatorLogs(calls).length, 0);
 });

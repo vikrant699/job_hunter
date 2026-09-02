@@ -21,6 +21,7 @@ import type { DeferredBoard, RunContext } from "./index.js";
 import { processOnePosting } from "./postingPipeline.js";
 import { sleep } from "../util/sleep.js";
 import { makeSemaphore } from "../util/semaphore.js";
+import { aggregatorWarning } from "../util/aggregatorGuard.js";
 
 /** Collapse a raw fetch error into a short tag for the Discord issue list. */
 export function classifyFetchError(msg: string): string {
@@ -319,6 +320,10 @@ async function processOneCompany(
   // Only a successful fetch counts as scanned — errored/skipped boards don't.
   stats.companiesScanned++;
   markFetchSuccess(company.provider, company.slug, postings.length);
+
+  // Log-only signal, no behavior change: an agency/aggregator board lists many different hiring companies' roles.
+  const aggWarning = aggregatorWarning(company.provider, company.slug, postings);
+  if (aggWarning) logger.warn(aggWarning, "board looks like an aggregator");
 
   // A listed posting is "seen" regardless of relevance, so this covers the FULL listing, including
   // postings the filters below will drop — bump last_seen_at (and revive, clearing removed_at) for all of them.
