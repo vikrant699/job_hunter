@@ -6,7 +6,7 @@ import type { NormalizedPosting, Company } from "../../types.js";
 import type { AtsAdapter } from "../../ats/types.js";
 import type { RunContext } from "../index.js";
 import type { TransportRetryPolicy } from "../scheduler.js";
-import { postingExists } from "../../db/index.js";
+import { postingExists, getPostingSalary } from "../../db/index.js";
 import { notifyKey } from "../../filter/dedup.js";
 import { mkAdapterCompany } from "../../ats/__tests__/testHelpers.js";
 
@@ -302,6 +302,51 @@ test("a board-shaped JD failure is not retried", async () => {
   assert.equal(calls, 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
+});
+
+// ---- salary storage: mechanical extraction, no LLM call needed ----
+
+test("processOnePosting stores annualized salary columns for a posting with a stated LPA range", async () => {
+  // 8+ years trips the yoe-deny hard cap (profile.example.ts hardYoeCap=6) before any gate/extract
+  // LLM call, so this stays a fast deterministic test while still exercising the write path.
+  const p = mkNormalizedPosting({
+    location: "Bengaluru, India",
+    jdText: "We need 8+ years of experience. CTC: 10-12 LPA.",
+  });
+  const stats = mkRunContext();
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => { throw new Error("must not be called: jdText already set"); },
+  };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  assert.equal(stats.postingsYoeDenied, 1);
+  const salary = getPostingSalary(p.provider, p.externalId, stats.profileId);
+  assert.ok(salary);
+  assert.equal(salary.salaryCurrency, "INR");
+  assert.equal(salary.salaryPeriod, "year");
+  assert.equal(salary.salaryMin, 1_000_000);
+  assert.equal(salary.salaryMax, 1_200_000);
+});
+
+test("processOnePosting leaves salary columns null when the JD states no salary", async () => {
+  const p = mkNormalizedPosting({
+    location: "Bengaluru, India",
+    jdText: "We need 8+ years of experience. No compensation details are listed.",
+  });
+  const stats = mkRunContext();
+  const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  const salary = getPostingSalary(p.provider, p.externalId, stats.profileId);
+  assert.ok(salary);
+  assert.equal(salary.salaryMin, null);
+  assert.equal(salary.salaryMax, null);
+  assert.equal(salary.salaryCurrency, null);
+  assert.equal(salary.salaryPeriod, null);
 });
 
 test("an edge interstitial that never clears still gives up inside the retry budget", async () => {

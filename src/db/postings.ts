@@ -161,13 +161,17 @@ export function selectNotifiedRoleKeys(profileId: string): Array<{
 
 const updatePostingResultStmt = db.prepare(`
   UPDATE postings SET
-    llm_relevant   = :llmRelevant,
-    llm_reason     = :llmReason,
-    llm_confidence = :llmConfidence,
-    yoe_min        = :yoeMin,
-    yoe_max        = :yoeMax,
-    drop_stage     = :dropStage,
-    notified_at    = :notifiedAt
+    llm_relevant     = :llmRelevant,
+    llm_reason       = :llmReason,
+    llm_confidence   = :llmConfidence,
+    yoe_min          = :yoeMin,
+    yoe_max          = :yoeMax,
+    drop_stage       = :dropStage,
+    notified_at      = :notifiedAt,
+    salary_min       = :salaryMin,
+    salary_max       = :salaryMax,
+    salary_currency  = :salaryCurrency,
+    salary_period    = :salaryPeriod
   WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
 `);
 
@@ -183,10 +187,55 @@ export interface PostingResultUpdate {
   yoeMax: number | null;
   dropStage: string | null;
   notifiedAt: string | null;
+  // Annualized (src/filter/salary.ts); optional (defaults to null) so pre-existing callers compile unchanged.
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string | null;
+  salaryPeriod?: string | null;
 }
 
 export function updatePostingResult(update: PostingResultUpdate): void {
-  updatePostingResultStmt.run(update);
+  updatePostingResultStmt.run({
+    ...update,
+    salaryMin: update.salaryMin ?? null,
+    salaryMax: update.salaryMax ?? null,
+    salaryCurrency: update.salaryCurrency ?? null,
+    salaryPeriod: update.salaryPeriod ?? null,
+  });
+}
+
+/* ===== getPostingSalary (audit/test read-back) ===== */
+
+const PostingSalarySchema = z.object({
+  salary_min: z.number().nullable(),
+  salary_max: z.number().nullable(),
+  salary_currency: z.string().nullable(),
+  salary_period: z.string().nullable(),
+});
+
+export interface PostingSalary {
+  salaryMin: number | null;
+  salaryMax: number | null;
+  salaryCurrency: string | null;
+  salaryPeriod: string | null;
+}
+
+const getPostingSalaryStmt = db.prepare(`
+  SELECT salary_min, salary_max, salary_currency, salary_period
+  FROM postings WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
+`);
+
+/** The stored (annualized) salary columns for one posting - audit/test read-back; nothing in the
+ *  pipeline itself reads this back. */
+export function getPostingSalary(provider: Provider, externalId: string, profileId: string): PostingSalary | undefined {
+  const row = queryOne(getPostingSalaryStmt, PostingSalarySchema, { provider, externalId, profileId });
+  if (!row) return undefined;
+  return {
+    salaryMin: row.salary_min,
+    salaryMax: row.salary_max,
+    salaryCurrency: row.salary_currency,
+    salaryPeriod: row.salary_period,
+  };
 }
 
 /* ===== selectNotifiedPostingsSince ===== */

@@ -108,6 +108,15 @@ db.exec(schema);
 
   // brave_quota is a leftover from the removed discovery pipeline; idempotent drop cleans up old local DBs.
   db.exec("DROP TABLE IF EXISTS brave_quota");
+
+  // postings.salary_* — mechanical (no-LLM) stated-salary extraction (src/filter/salary.ts); nullable, annualized min/max.
+  const postingColsSalary = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
+  if (!postingColsSalary.some((c) => c.name === "salary_min")) {
+    db.exec("ALTER TABLE postings ADD COLUMN salary_min REAL");
+    db.exec("ALTER TABLE postings ADD COLUMN salary_max REAL");
+    db.exec("ALTER TABLE postings ADD COLUMN salary_currency TEXT");
+    db.exec("ALTER TABLE postings ADD COLUMN salary_period TEXT");
+  }
 }
 
 logger.info({ path: dbPath }, "sqlite initialized");
