@@ -125,6 +125,13 @@ DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` - 
 that are floored to yellow instead of silenced even at a low score (for a rare
 sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
 
+Postings also carry a lifecycle. Every successful company fetch bumps `last_seen_at`
+for each posting the board still lists; a posting missing from the snapshot gets
+`removed_at` stamped (and cleared again if it reappears). Outreach never drafts
+against a posting the board has taken down, and each company fetch writes an
+added/removed/unchanged diff row (kept for the last 60 fetches per board) that
+`npm run health` reads to surface churn and removal trends.
+
 Every run ends with a single Discord message: a "run complete" embed (companies
 scanned, postings seen, new postings, green/yellow counts, duration, and any errors).
 The matched postings themselves live in the Google Sheet (one row per match with job

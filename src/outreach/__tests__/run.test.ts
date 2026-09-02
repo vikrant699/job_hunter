@@ -63,6 +63,7 @@ function harness(opts: {
   const deps: RunOutreachDeps = {
     syncContacts: async () => ({ manual: 0, raw: 0 }),
     selectNotifiedPostingsSince: () => opts.postings ?? [],
+    countRemovedNotifiedSince: () => 0,
     selectAllRecruiters: () => opts.recruiters ?? [],
     selectLastDraftedAt: (email: string) => (opts.lastDraftedAt ? opts.lastDraftedAt(email) : null),
     loadTemplate: () => ({

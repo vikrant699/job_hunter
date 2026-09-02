@@ -11,7 +11,7 @@ import { buildDraftMime } from "../google/mime.js";
 import { createDraft as createDraftDefault } from "../google/gmail.js";
 import type { CreatedDraft } from "../google/gmail.js";
 import { GoogleAuthExpiredError } from "../google/auth.js";
-import { selectNotifiedPostingsSince } from "../db/postings.js";
+import { selectNotifiedPostingsSince, countRemovedNotifiedSince } from "../db/postings.js";
 import type { OutreachNotifiedPosting } from "../db/postings.js";
 import { selectAllRecruiters } from "../db/recruiters.js";
 import type { RecruiterRow } from "../db/recruiters.js";
@@ -32,6 +32,7 @@ function readResumeDefault(path: string): Buffer | null {
 export interface RunOutreachDeps {
   syncContacts: (profileId: string) => Promise<{ manual: number; raw: number }>;
   selectNotifiedPostingsSince: (sinceIso: string, profileId: string) => OutreachNotifiedPosting[];
+  countRemovedNotifiedSince: (sinceIso: string, profileId: string) => number;
   selectAllRecruiters: () => RecruiterRow[];
   selectLastDraftedAt: (email: string, profileId: string) => string | null;
   loadTemplate: (path: string) => OutreachTemplate;
@@ -47,6 +48,7 @@ function defaultDeps(): RunOutreachDeps {
   return {
     syncContacts: (profileId: string) => syncContactsFromSheet(profileId),
     selectNotifiedPostingsSince,
+    countRemovedNotifiedSince,
     selectAllRecruiters,
     selectLastDraftedAt,
     loadTemplate: loadTemplateDefault,
@@ -117,6 +119,10 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   await deps.syncContacts(profileId);
 
   const allNotified = deps.selectNotifiedPostingsSince(sinceIso, profileId);
+  const excludedRemoved = deps.countRemovedNotifiedSince(sinceIso, profileId);
+  if (excludedRemoved > 0) {
+    logger.info({ excludedRemoved, profileId }, "outreach: excluded postings the board no longer lists");
+  }
   const draftSeverities = new Set(config.outreach.draftSeverities);
   const eligiblePostings = allNotified.filter((p) => draftSeverities.has(p.severity));
 

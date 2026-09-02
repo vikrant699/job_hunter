@@ -43,11 +43,27 @@ CREATE TABLE IF NOT EXISTS postings (
   yoe_max        REAL,
   drop_stage     TEXT,
   notified_at    TEXT,
+  last_seen_at   TEXT,    -- bumped every successful company fetch that still lists this posting
+  removed_at     TEXT,    -- set when a successful fetch no longer lists it; cleared if it reappears
   PRIMARY KEY (provider, external_id, profile_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_postings_company ON postings(provider, company_slug);
 CREATE INDEX IF NOT EXISTS idx_postings_discovered ON postings(discovered_at);
+
+CREATE TABLE IF NOT EXISTS board_runs (
+  provider     TEXT    NOT NULL,
+  company_slug TEXT    NOT NULL,
+  profile_id   TEXT    NOT NULL,
+  run_at       TEXT    NOT NULL,
+  status       TEXT    NOT NULL,  -- 'ok' | 'error'
+  added        INTEGER NOT NULL,
+  removed      INTEGER NOT NULL,
+  unchanged    INTEGER NOT NULL,
+  error        TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_runs_board ON board_runs(provider, company_slug, run_at);
 
 CREATE TABLE IF NOT EXISTS link_cache (
   provider    TEXT NOT NULL,

@@ -94,6 +94,18 @@ db.exec(schema);
     logger.info("migration: VACUUM complete");
   }
 
+  // postings.last_seen_at / removed_at — the posting-lifecycle columns; runs after the profile_id rebuild so a
+  // pre-profile_id DB gets them added to the rebuilt table, not the dropped one.
+  const postingColsLifecycle = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
+  if (!postingColsLifecycle.some((c) => c.name === "last_seen_at")) {
+    db.exec("ALTER TABLE postings ADD COLUMN last_seen_at TEXT");
+  }
+  if (!postingColsLifecycle.some((c) => c.name === "removed_at")) {
+    db.exec("ALTER TABLE postings ADD COLUMN removed_at TEXT");
+  }
+  // Idempotent backfill: a no-op once every row has last_seen_at, so safe to run on every startup.
+  db.exec("UPDATE postings SET last_seen_at = discovered_at WHERE last_seen_at IS NULL");
+
   // brave_quota is a leftover from the removed discovery pipeline; idempotent drop cleans up old local DBs.
   db.exec("DROP TABLE IF EXISTS brave_quota");
 }

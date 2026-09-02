@@ -5,10 +5,15 @@ import {
   markFetchSuccess,
   markFetchFailure,
   markTransportFailure,
+  markSeen,
+  markRemoved,
+  countInsertedSince,
+  insertBoardRun,
 } from "../db/index.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
+import type { Provider } from "../schemas.js";
 import { isDeniedCompany } from "../filter/denylist.js";
 import { LlmUnavailableError } from "../llm/errors.js";
 import { toAdapterCompany } from "./index.js";
@@ -27,6 +32,28 @@ export function classifyFetchError(msg: string): string {
   if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|EAI_AGAIN|fetch failed|cert/i.test(msg)) return "network";
   if (/requires tenant_url|missing .* segment|missing tenant/i.test(msg)) return "config";
   return "other";
+}
+
+/** Writes a board_runs 'error' row wherever a fetch is recorded as a genuine board failure (markFetchFailure's
+ *  two call sites) — a transient defer that hasn't yet given up gets no row of its own. */
+function recordBoardRunFailure(
+  provider: Provider,
+  slug: string,
+  profileId: string,
+  runAt: string,
+  err: string,
+): void {
+  insertBoardRun({
+    provider,
+    companySlug: slug,
+    profileId,
+    runAt,
+    status: "error",
+    added: 0,
+    removed: 0,
+    unchanged: 0,
+    error: err.slice(0, 300),
+  });
 }
 
 /** Timing for infrastructure faults (inline backoff + deferred-pass pace); injected so tests skip real waits. */
@@ -193,6 +220,7 @@ export async function runDeferredTransportPass(
       slug: d.company.slug,
       reason: classifyFetchError(d.err),
     });
+    recordBoardRunFailure(d.company.provider, d.company.slug, stats.profileId, new Date().toISOString(), msg);
   }
 
   logger.info(
@@ -250,6 +278,9 @@ async function processOneCompany(
   }
 
   const adapterCompany = toAdapterCompany(company);
+  // Bounds markRemoved below: any row this company already had, whose last_seen_at predates this moment,
+  // wasn't in THIS fetch's listing. Captured before the fetch so it can't clip a posting this same fetch inserts.
+  const fetchStartedAt = new Date().toISOString();
 
   let postings: NormalizedPosting[];
   try {
@@ -280,12 +311,25 @@ async function processOneCompany(
       slug: company.slug,
       reason: classifyFetchError(msg),
     });
+    // A failed listing fetch never touches lifecycle columns — we don't know what the board currently has.
+    recordBoardRunFailure(company.provider, company.slug, stats.profileId, fetchStartedAt, msg);
     return;
   }
 
   // Only a successful fetch counts as scanned — errored/skipped boards don't.
   stats.companiesScanned++;
   markFetchSuccess(company.provider, company.slug, postings.length);
+
+  // A listed posting is "seen" regardless of relevance, so this covers the FULL listing, including
+  // postings the filters below will drop — bump last_seen_at (and revive, clearing removed_at) for all of them.
+  const seenAt = new Date().toISOString();
+  markSeen(
+    company.provider,
+    company.slug,
+    stats.profileId,
+    postings.map((p) => p.externalId),
+    seenAt,
+  );
 
   // Worker pool within the company: HTTP work parallelizes here while Ollama
   // calls serialize inside llm/client.ts via the semaphore.
@@ -311,4 +355,19 @@ async function processOneCompany(
     }
   }
   await Promise.all(Array.from({ length: workers }, () => postingWorker()));
+
+  // Anything of this board's not bumped by markSeen above (last_seen_at still predates this fetch) disappeared.
+  const removed = markRemoved(company.provider, company.slug, stats.profileId, fetchStartedAt, new Date().toISOString());
+  const added = countInsertedSince(company.provider, company.slug, stats.profileId, fetchStartedAt);
+  insertBoardRun({
+    provider: company.provider,
+    companySlug: company.slug,
+    profileId: stats.profileId,
+    runAt: fetchStartedAt,
+    status: "ok",
+    added,
+    removed,
+    unchanged: postings.length - added,
+    error: null,
+  });
 }
