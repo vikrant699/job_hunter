@@ -39,8 +39,21 @@ function debugScreenshotPathFor(profileId: string): string {
   return `data/instahyre-debug-${profileId}.png`;
 }
 
-function skip(result: InstahyreResult, reason: string, profileId: string, start: number): InstahyreResult {
-  logger.info({ profileId }, `instahyre: ${reason}, skipping`);
+async function skip(
+  result: InstahyreResult,
+  reason: string,
+  profileId: string,
+  start: number,
+  page: Page | null,
+): Promise<InstahyreResult> {
+  logger.info({ profileId, screenshot: page ? debugScreenshotPathFor(profileId) : undefined }, `instahyre: ${reason}, skipping`);
+  if (page && !page.isClosed()) {
+    try {
+      await page.screenshot({ path: debugScreenshotPathFor(profileId), fullPage: true, timeout: 10_000 });
+    } catch (err) {
+      logger.warn({ profileId, err: String(err) }, "instahyre: debug screenshot failed");
+    }
+  }
   result.skippedReason = reason;
   result.durationMs = Date.now() - start;
   return result;
@@ -64,7 +77,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
 
   const creds = instahyreCredsForProfile(profileId, process.env);
   if (!creds) {
-    return skip(result, "no credentials for profile", profileId, start);
+    return skip(result, "no credentials for profile", profileId, start, null);
   }
 
   await awaitNetwork();
@@ -90,7 +103,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
       });
     } catch {
       // Union wait itself timed out and the login form never appeared: an exhausted feed never renders #interested-btn.
-      return skip(result, "no matching jobs", profileId, start);
+      return skip(result, "feed did not render (no #email or #interested-btn)", profileId, start, page);
     }
 
     const loginVisible = await page.locator(SELECTORS.email).isVisible();
@@ -126,11 +139,12 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
       loggedIn = true; // #interested-btn matched directly: session restored
     }
 
-    await context.storageState({ path: statePath });
-
     if (!loggedIn) {
-      return skip(result, "no matching jobs", profileId, start);
+      return skip(result, "feed empty after login (no #interested-btn)", profileId, start, page);
     }
+
+    // Persist only a confirmed-good session (#interested-btn present); saving a failed login poisons the next run.
+    await context.storageState({ path: statePath });
 
     // Passed as a string (not a typed function) - this repo's tsconfig has no "DOM" lib, matching
     // scraper/playwright.ts's precedent for in-page evaluate scripts that touch document/window.
@@ -148,14 +162,14 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
     })()`;
     const clickedInterested = JsonValueSchema.parse(await page.evaluate(clickInterestedScript));
     if (clickedInterested !== true) {
-      return skip(result, "no matching jobs", profileId, start);
+      return skip(result, "no visible interested button to click", profileId, start, page);
     }
     await sleep(1000);
 
     try {
       await page.waitForSelector(SELECTORS.applyButton, { timeout: config.instahyre.feedTimeoutMs });
     } catch {
-      return skip(result, "no matching jobs", profileId, start);
+      return skip(result, "apply UI did not appear after opening first job", profileId, start, page);
     }
 
     const deadline = start + config.instahyre.stepBudgetMs;
