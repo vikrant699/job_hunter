@@ -90,19 +90,25 @@ npm run lint        # ZERO violations
 src/
   ats/         one file per ATS provider; registry.ts = provider->adapter map;
                  http.ts (shared atsFetchJson/atsFetchText); shared.ts (REMOTE_RE,
-                 unixToIso, parsePostedOn); htmlText.ts; workdayFacet.ts; types.ts (AtsAdapter);
+                 unixToIso, parsePostedOn); htmlText.ts; workdayFacet.ts; sfSitemap.ts
+                 (SuccessFactors /sitemap.xml completeness backstop, shared by sfcsb.ts +
+                 successfactors.ts); types.ts (AtsAdapter);
                  detect.ts (ATS-redirect detection patterns used by llm-scrape)
-  db/          per-table modules (companies, postings, runs, board-runs, recruiters, outreach,
-                 link-cache, api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers;
+  db/          per-table modules (companies, postings, runs, board-runs, posting-vectors,
+                 recruiters, outreach, link-cache, api-meta) behind a barrel index.ts; db.ts has
+                 the singleton + queryAll/queryOne helpers;
                  postings carry a lifecycle (last_seen_at bumped per successful fetch, removed_at
                  set when a posting leaves a snapshot, cleared on revival); board_runs keeps the
                  last 60 per-board fetch diffs (added/removed/unchanged) for health reporting;
-                 sync.ts (Drive push/pull + the staleness guard that runs before/after a tick);
-                 openState.ts (the one bit sync.ts needs from db.ts without importing it)
+                 postingVectors.ts holds the shadow-mode embedding vectors (posting_vectors table,
+                 see llm/embed.ts); sync.ts (Drive push/pull + the staleness guard that runs
+                 before/after a tick); openState.ts (the one bit sync.ts needs from db.ts without
+                 importing it)
   instahyre/   constants.ts (Instahyre URL + selectors); autoApply.ts (headed-Playwright
                  auto-apply, phase 0 of npm run once; skips gracefully with no creds or no
                  matching jobs, never throws)
-  filter/      location, title, denylist, verdict
+  filter/      location, title, denylist, verdict, salary (mechanical stated-salary extraction,
+                 no LLM, see src/filter/salary.ts)
   google/      auth.ts (per-profile token refresh + expiry guard), rest.ts (authorized
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder),
                  drive.ts (resumable upload/download of the DB backup; binary, so it
@@ -111,7 +117,9 @@ src/
                  LOCAL dispatch); ollama.ts + openrouter.ts (the two transports);
                  errors.ts (LlmUnavailableError, its own module so both transports can
                  throw it without importing client.ts); gate.ts, extract.ts, shortlist.ts,
-                 extractTextJobs.ts, render.ts; prompts/ holds the prompt strings
+                 extractTextJobs.ts, render.ts; embed.ts (shadow-mode resume<->posting
+                 cosine similarity, measurement-only, off by default - see Environment);
+                 prompts/ holds the prompt strings
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), postingPipeline.ts
   discord/     webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat),
                  status.ts (single end-of-run status embed; the progress channel is the
@@ -133,7 +141,10 @@ src/
   util/        semaphore, sleep, user-agent, slug, json (JsonValue), csv (parse + build),
                  probe, fs (writeFileAtomic), regex (matchGroup), env (envInt),
                  httpRetry (Retry-After parsing), errorCause (transport vs edge vs board),
-                 connectivity (the outage heartbeat every outbound call waits on)
+                 connectivity (the outage heartbeat every outbound call waits on),
+                 jobUrlResolver (resolves a job URL to provider/slug/externalId, used by
+                 npm run probe-url), aggregatorGuard (log-only warn when one board's
+                 listing spans more than 10 distinct hiring-org names)
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
   config.ts profile.ts logger.ts
@@ -176,9 +187,10 @@ change.
   jsonResponse/mkAdapterCompany). Reuse `atsFetchJson`/`atsFetchText`, `REMOTE_RE`,
   `unixToIso`, and `paginate` from `src/ats/shared.ts`; for WAF/anti-bot hosts use
   `src/ats/browserFetch.ts`.
-  There are just over 100 providers now (see `ProviderSchema`); some are browser-backed, and a few
-  crack an encrypted payload or lift a token from the page bundle (see `icicibank`, `moglix`,
-  `magicpin`, `metacareers`).
+  There are 121 providers now (see `ProviderSchema`); some are browser-backed, a few crack an
+  encrypted payload or lift a token from the page bundle (see `icicibank`, `moglix`, `magicpin`,
+  `metacareers`), and `jsonld` is a generic adapter for bespoke company sites with no real ATS
+  behind them - it discovers job pages via sitemap and reads schema.org JobPosting markup directly.
 - **NEVER truncate a board.** Adapters must page to the end; pagination backstops in
   `src/ats/shared.ts` are runaway guards (5000), not limits. If a board looks capped, find the
   real pagination mechanism.

@@ -6,9 +6,9 @@ the good matches to a Google Sheet, and drafts outreach emails to the matching c
 recruiters (drafts only - you review and send). Discord is used only for run status.
 
 You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
-~1,300-company registry takes several hours - most of it waiting on the local LLM and on
-slow JavaScript-rendered careers pages. Incremental runs (most postings already seen and
-deduped from earlier runs) finish much faster.
+~1,800-company registry (active rows; total rows are higher) takes several hours - most of
+it waiting on the local LLM and on slow JavaScript-rendered careers pages. Incremental runs
+(most postings already seen and deduped from earlier runs) finish much faster.
 
 ## What it looks like
 
@@ -83,6 +83,8 @@ gitignored.
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account; writes `data/google-token-<name>.json`. |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates the bot's tabs and seeds Raw Data/Companies from local files when present. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass over one profile's mailbox, then re-projects the sheet (this also runs automatically inside `npm run once`). |
+| `npm run instahyre -- --profile <name>` | Standalone Instahyre auto-apply run (also runs as phase 0 of `npm run once`): headed browser, logs in (or restores a saved session), clicks apply/confirm until the feed is exhausted. Skips fast with no Instahyre credentials for the profile, or no matching jobs. |
+| `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends). See AGENTS.md for flags and its deletion checklist. |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
 | `npm run probe-url -- <url>` | "Why isn't this posting in my list?" - resolves a job posting URL to its board, then prints everything the bot knows: company health, the posting's lifecycle and gate verdict, and recent per-board fetch diffs. Add `--gate` to fetch the JD and run the real relevance gate on it (one LLM call). |
 | `npm run verify` | Checks every entry in your registry is still reachable (verifies against the local registry cache snapshot, so run it after at least one successful sync). Pass `--suggest` to re-probe failed entries against other ATSes. |
@@ -211,19 +213,25 @@ config/
   resume.txt             extracted resume text the gate judges on    (gitignored)
 data/                    SQLite DB, registry-cache.json, other caches (gitignored)
 scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
-                           scrape-probe
+                           scrape-probe, probe-url
 src/
   ats/                   one file per ATS provider; registry.ts maps provider names
                            to adapters; detect.ts holds the ATS-redirect detection
                            patterns llm-scrape uses; workdayFacet.ts for faceted
-                           Workday search
-  db/                    per-table modules (companies, postings, runs, recruiters,
-                           outreach, link-cache, api-meta) behind a barrel index.ts
-  filter/                location / title / denylist / verdict
+                           Workday search; sfSitemap.ts is the SuccessFactors
+                           /sitemap.xml completeness backstop shared by sfcsb +
+                           successfactors
+  db/                    per-table modules (companies, postings, runs, board-runs,
+                           posting-vectors, recruiters, outreach, link-cache,
+                           api-meta) behind a barrel index.ts
+  filter/                location / title / denylist / verdict / salary
+                           (mechanical stated-salary extraction, no LLM)
   google/                auth.ts (per-profile OAuth token refresh), rest.ts
                            (authorized fetch + retry), sheets.ts, gmail.ts, mime.ts
                            (RFC 5322 draft builder)
-  llm/                   Ollama client; prompts/ holds gate.ts, extract.ts, shortlist.ts
+  llm/                   Ollama client; embed.ts (shadow-mode resume<->posting
+                           similarity, off by default); prompts/ holds gate.ts,
+                           extract.ts, shortlist.ts
   discord/               webhook helper + progress heartbeat + end-of-run status embed
   outreach/              contact sync from the sheet (contacts.ts), the company/contact
                            matcher (match.ts), the email template (template.ts), the
@@ -239,7 +247,10 @@ src/
   blast/                 TEMPORARY weekly cold-email drafter over the Raw Data tab;
                            see AGENTS.md for details and its deletion checklist
   util/                  shared helpers: semaphore, sleep, user-agent, slug, json,
-                           csv, probe, fs, regex, env, registry-file
+                           csv, probe, fs, regex, env, registry-file, jobUrlResolver
+                           (resolves a job URL to provider/slug/externalId, used by
+                           npm run probe-url), aggregatorGuard (log-only warn when a
+                           board's listing spans more than 10 distinct hiring-org names)
   tools/
     extractResume.ts    PDF-to-text extraction (run via npm run extract-resume)
   pipeline/              run lifecycle (index.ts), scheduler.ts, postingPipeline.ts
@@ -284,13 +295,15 @@ a few decrypt an obfuscated payload or lift a token from the page bundle. Reuse 
 shared helpers (`atsFetchJson`/`atsFetchText` in `http.ts`, `paginate`/`REMOTE_RE` in
 `shared.ts`, `htmlToText`) rather than re-rolling them.
 
-There are just over 100 providers today, spanning the big ATSes (greenhouse, lever, ashby,
+There are 121 providers today, spanning the big ATSes (greenhouse, lever, ashby,
 workday, smartrecruiters, oracle, successfactors, darwinbox, phenom, avature, jibe,
 eightfold, ...), India-centric vendors (keka, peoplestrong, ripplehire, turbohire,
 zwayam, sensehq, mynexthire, freshteam, zohorecruit, ...), SMB boards (teamtailor,
-comeet, pyjamahr, goodfit, recruiterflow, bamboohr, trakstar, kula, ...), and bespoke
+comeet, pyjamahr, goodfit, recruiterflow, bamboohr, trakstar, kula, ...), bespoke
 single-company adapters (amazonjobs, metacareers, apple, mercedes, moglix, icicibank,
-reliance, tatacareers, adityabirla, ...) - plus `custom` for llm-scrape /
+reliance, tatacareers, adityabirla, ...), and `jsonld`, a generic adapter for bespoke
+sites with no real ATS behind them - it discovers job pages via sitemap and reads
+schema.org JobPosting markup directly - plus `custom` for llm-scrape /
 playwright-llm-scrape. See `ProviderSchema` in `src/schemas.ts` for the full list.
 
 The bot creates `data/job_hunter.db` on the first run. SQLite WAL files live there too.
