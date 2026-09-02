@@ -33,6 +33,10 @@ let consecutiveConnFailures = 0;
 
 const acquire = makeSemaphore(() => config.llm.maxConcurrent);
 
+/** The same semaphore generate()/generateOnce() use, exposed for llm/embed.ts so an embed call shares the
+ *  concurrency budget (and, on Ollama, the GPU) instead of running alongside gate/extract calls unbounded. */
+export const acquireLlmSlot = acquire;
+
 /** Pre-flight for whichever backend LOCAL selects; throws LlmUnavailableError so a bad backend fails fast instead of flooding gate-errors. */
 export async function assertLlmAvailable(): Promise<void> {
   return config.llm.local ? assertOllamaAvailable() : assertOpenRouterAvailable();

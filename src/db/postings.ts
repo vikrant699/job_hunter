@@ -171,7 +171,8 @@ const updatePostingResultStmt = db.prepare(`
     salary_min       = :salaryMin,
     salary_max       = :salaryMax,
     salary_currency  = :salaryCurrency,
-    salary_period    = :salaryPeriod
+    salary_period    = :salaryPeriod,
+    embed_sim        = :embedSim
   WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
 `);
 
@@ -192,6 +193,9 @@ export interface PostingResultUpdate {
   salaryMax?: number | null;
   salaryCurrency?: string | null;
   salaryPeriod?: string | null;
+  // Shadow-mode cosine similarity vs the run's resume anchor (src/llm/embed.ts); optional (defaults to null)
+  // so pre-existing callers compile unchanged. Never read by filtering/verdict logic.
+  embedSim?: number | null;
 }
 
 export function updatePostingResult(update: PostingResultUpdate): void {
@@ -201,6 +205,7 @@ export function updatePostingResult(update: PostingResultUpdate): void {
     salaryMax: update.salaryMax ?? null,
     salaryCurrency: update.salaryCurrency ?? null,
     salaryPeriod: update.salaryPeriod ?? null,
+    embedSim: update.embedSim ?? null,
   });
 }
 
