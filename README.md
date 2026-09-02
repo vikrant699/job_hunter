@@ -84,6 +84,7 @@ gitignored.
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates the bot's tabs and seeds Raw Data/Companies from local files when present. |
 | `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass over one profile's mailbox, then re-projects the sheet (this also runs automatically inside `npm run once`). |
 | `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
+| `npm run probe-url -- <url>` | "Why isn't this posting in my list?" - resolves a job posting URL to its board, then prints everything the bot knows: company health, the posting's lifecycle and gate verdict, and recent per-board fetch diffs. Add `--gate` to fetch the JD and run the real relevance gate on it (one LLM call). |
 | `npm run verify` | Checks every entry in your registry is still reachable (verifies against the local registry cache snapshot, so run it after at least one successful sync). Pass `--suggest` to re-probe failed entries against other ATSes. |
 | `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
 | `npm run health` | Read-only registry health report: status/strategy/provider yield tallies from the local DB and cache. |
@@ -124,6 +125,11 @@ recorded to the Google Sheet, color-coded by tier. Silent drops are still logged
 DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` - titles
 that are floored to yellow instead of silenced even at a low score (for a rare
 sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
+
+When a JD states pay (Indian forms included: LPA, lakh/crore, ₹ with 2-2-3 digit
+grouping, plus USD/EUR/GBP and friends), a mechanical extractor stores the
+annualized range on the posting - no LLM involved, and never guessed when the JD
+is silent.
 
 Postings also carry a lifecycle. Every successful company fetch bumps `last_seen_at`
 for each posting the board still lists; a posting missing from the snapshot gets

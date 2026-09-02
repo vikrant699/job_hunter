@@ -30,6 +30,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run health` | Read-only registry health report (status/strategy/provider yield tallies from the local DB + cache). |
 | `npm run db:push -- --profile <name>` | Upload `data/job_hunter.db` to Google Drive (WAL-checkpointed first). Refuses if the Drive copy is newer, if the local DB has no postings, or if it is under half the remote's size; `--force` overrides all three. |
 | `npm run db:pull -- --profile <name>` | Download it back, integrity-checked before it replaces the local file. Refuses if the local copy is newer; `--force` overrides. |
+| `npm run probe-url -- <url> [--profile <name>] [--gate]` | "Why isn't this posting in my list?" - resolves a job URL to (provider, board, id), prints the company row, the posting's lifecycle/gate fields, and recent board_runs; if the posting is unknown it checks the live listing. `--gate` additionally fetches the JD and runs the real relevance gate (spends one LLM call). Read-only. |
 | `npm run probe \| verify \| scrape` | Other ops/maintenance CLIs under `scripts/`. |
 
 ## Before you commit (non-negotiable)
