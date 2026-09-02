@@ -3,7 +3,7 @@
 // (timeout: 0) with finite timeouts everywhere, and never throws out of the run.
 import { existsSync } from "node:fs";
 import { chromium } from "playwright";
-import type { Browser } from "playwright";
+import type { Browser, Page } from "playwright";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
 import { sleep } from "../util/sleep.js";
@@ -46,6 +46,18 @@ function skip(result: InstahyreResult, reason: string, profileId: string, start:
   return result;
 }
 
+// fill() is atomic so Angular hydration can't swallow leading keystrokes (pressSequentially right after
+// #email appeared dropped the first chars of the email); verify and fall back to slow typing once.
+async function fillVerified(page: Page, selector: string, value: string): Promise<boolean> {
+  const loc = page.locator(selector);
+  await loc.click();
+  await loc.fill(value);
+  if ((await loc.inputValue()) === value) return true;
+  await loc.fill("");
+  await loc.pressSequentially(value, { delay: 50 });
+  return (await loc.inputValue()) === value;
+}
+
 export async function runInstahyreAutoApply(profileId: string): Promise<InstahyreResult> {
   const start = Date.now();
   const result: InstahyreResult = { applied: 0, confirmed: 0, skippedReason: null, error: null, durationMs: 0 };
@@ -83,8 +95,14 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
 
     const loginVisible = await page.locator(SELECTORS.email).isVisible();
     if (loginVisible) {
-      await page.locator(SELECTORS.email).pressSequentially(creds.email, { delay: 50 });
-      await page.locator(SELECTORS.password).pressSequentially(creds.password, { delay: 50 });
+      const emailOk = await fillVerified(page, SELECTORS.email, creds.email);
+      const passwordOk = await fillVerified(page, SELECTORS.password, creds.password);
+      if (!emailOk || !passwordOk) {
+        result.error = "login form rejected typed credentials (field value mismatch)";
+        logger.error({ profileId }, "instahyre: could not type credentials into login form");
+        result.durationMs = Date.now() - start;
+        return result;
+      }
       await page.click(SELECTORS.loginSubmit);
       try {
         await page.waitForSelector(SELECTORS.interestedBtn, { timeout: config.instahyre.feedTimeoutMs });
@@ -93,6 +111,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
         const stillLoginForm = await page.locator(SELECTORS.email).isVisible();
         if (stillLoginForm) {
           result.error = "login failed (still on login form)";
+          logger.error({ profileId, screenshot: debugScreenshotPathFor(profileId) }, "instahyre: login failed");
           try {
             await page.screenshot({ path: debugScreenshotPathFor(profileId) });
           } catch {
