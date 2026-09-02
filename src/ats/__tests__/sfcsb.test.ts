@@ -122,3 +122,46 @@ test("sfcsbSearchBody honors a locale override (indegene needs en_GB)", () => {
   assert.deepEqual(sfcsbSearchBody(2, "en_GB"), { keywords: "", locale: "en_GB", pageNumber: 2 });
   assert.deepEqual(sfcsbSearchBody(1), { keywords: "", locale: "en_US", pageNumber: 1 });
 });
+
+test("listPostings gap-fills a sitemap id the JSON API missed, keeping the API-returned jobs untouched", async (t) => {
+  const SITEMAP_XML = `<urlset>
+    <url><loc>https://jobs.tuvsud.com/job/QA-Engineer/5161/</loc></url>
+    <url><loc>https://jobs.tuvsud.com/job/Field-Auditor/4262/</loc></url>
+    <url><loc>https://jobs.tuvsud.com/job/Extra-Sitemap-Only-Role/9999/</loc></url>
+  </urlset>`;
+  stubFetch(t, (input, init) => {
+    const url = String(input);
+    if (url === "https://jobs.tuvsud.com/sitemap.xml") return Promise.resolve(htmlResponse(SITEMAP_XML));
+    const body = typeof init?.body === "string" ? init.body : "";
+    const m = /"pageNumber":(\d+)/.exec(body);
+    const page = m ? Number(m[1]) : 0;
+    return Promise.resolve(jsonResponse(page === 1 ? { totalJobs: 2, jobSearchResult: PAGE1.jobSearchResult } : { totalJobs: 2, jobSearchResult: [] }));
+  });
+  const postings = await sfcsbAdapter.listPostings(company);
+  assert.equal(postings.length, 3);
+  const extra = postings.find((p) => p.externalId === "9999");
+  assert.ok(extra);
+  assert.equal(extra.jobUrl, "https://jobs.tuvsud.com/job/Extra-Sitemap-Only-Role/9999/");
+  assert.equal(extra.jobTitle, "Extra Sitemap Only Role");
+  assert.equal(extra.location, null);
+  assert.equal(extra.jdText, "");
+  // Jobs the API already returned are untouched (still their API-sourced jobUrl/title).
+  const apiJob = postings.find((p) => p.externalId === "5161");
+  assert.ok(apiJob);
+  assert.equal(apiJob.jobUrl, "https://jobs.tuvsud.com/job/QA-Engineer/5161-en_US/");
+  assert.equal(apiJob.jobTitle, "QA Engineer");
+});
+
+test("listPostings: a sitemap fetch failure leaves the result identical to the API-only listing", async (t) => {
+  stubFetch(t, (input, init) => {
+    const url = String(input);
+    if (url === "https://jobs.tuvsud.com/sitemap.xml") return Promise.resolve(htmlResponse("not found", 404));
+    const body = typeof init?.body === "string" ? init.body : "";
+    const m = /"pageNumber":(\d+)/.exec(body);
+    const page = m ? Number(m[1]) : 0;
+    return Promise.resolve(jsonResponse(page === 1 ? PAGE1 : PAGE2));
+  });
+  const postings = await sfcsbAdapter.listPostings(company);
+  assert.equal(postings.length, 3);
+  assert.deepEqual(postings.map((p) => p.externalId).sort(), ["4262", "4644", "5161"]);
+});
