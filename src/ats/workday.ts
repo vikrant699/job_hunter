@@ -3,11 +3,12 @@ import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
-import { atsFetchJson, parseOrThrow } from "./http.js";
+import { atsFetchJson, atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
 import { discoverIndiaFacet, pinnedFacet } from "./workdayFacet.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
+import { looksLikeChallengePage } from "../util/errorCause.js";
 
 // Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
 // Two-phase: listPostings (metadata only) then fetchJd (full body), so the per-job HTTP
@@ -20,13 +21,7 @@ interface WorkdayUrlParts {
   uiBase: string;
 }
 
-function parseTenantUrl(tenantUrl: string): WorkdayUrlParts {
-  const u = new URL(tenantUrl);
-  const tenant = u.host.split(".")[0];
-  if (!tenant) throw new Error(`workday tenant URL missing tenant segment: ${tenantUrl}`);
-  const site = u.pathname.replace(/^\/+/, "").replace(/\/+$/, "").split("/")[0];
-  if (!site) throw new Error(`workday tenant URL missing site segment: ${tenantUrl}`);
-  const base = `${u.protocol}//${u.host}`;
+function buildWorkdayParts(base: string, tenant: string, site: string): WorkdayUrlParts {
   return {
     base,
     tenant,
@@ -34,6 +29,108 @@ function parseTenantUrl(tenantUrl: string): WorkdayUrlParts {
     cxsBase: `${base}/wday/cxs/${tenant}/${site}`,
     uiBase: `${base}/en-US/${site}`,
   };
+}
+
+function parseTenantUrl(tenantUrl: string): WorkdayUrlParts {
+  const u = new URL(tenantUrl);
+  const tenant = u.host.split(".")[0];
+  if (!tenant) throw new Error(`workday tenant URL missing tenant segment: ${tenantUrl}`);
+  const site = u.pathname.replace(/^\/+/, "").replace(/\/+$/, "").split("/")[0];
+  if (!site) throw new Error(`workday tenant URL missing site segment: ${tenantUrl}`);
+  const base = `${u.protocol}//${u.host}`;
+  return buildWorkdayParts(base, tenant, site);
+}
+
+// robots.txt names real career-site segments via "Allow: /<site>/" and "Sitemap: .../<site>/siteMap.xml" lines —
+// used to recover from a stale/wrong site name in tenant_url (see discoverDriftedSite below).
+const ALLOW_LINE_RE = /^allow:\s*\/([^/\r\n]+)\/?\s*$/i;
+const SITEMAP_DIRECTIVE_RE = /^sitemap:\s*(\S+)\s*$/i;
+const SITEMAP_SITE_RE = /\/([^/]+)\/sitemap\.xml$/i;
+const NON_SITE_NAMES = new Set(["wday", "refreshfacet", "events"]);
+
+export function parseWorkdaySites(robotsTxt: string): string[] {
+  const seen = new Set<string>();
+  const sites: string[] = [];
+  for (const rawLine of robotsTxt.split(/\r\n|\r|\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    let site: string | null = null;
+    const allowMatch = ALLOW_LINE_RE.exec(line);
+    if (allowMatch) {
+      site = allowMatch[1] ?? null;
+    } else {
+      const sitemapMatch = SITEMAP_DIRECTIVE_RE.exec(line);
+      const sitemapUrl = sitemapMatch?.[1];
+      if (sitemapUrl) {
+        const urlMatch = SITEMAP_SITE_RE.exec(sitemapUrl);
+        site = urlMatch?.[1] ?? null;
+      }
+    }
+    if (!site) continue;
+    if (NON_SITE_NAMES.has(site.toLowerCase())) continue;
+    if (site.includes(".")) continue;
+    if (seen.has(site)) continue;
+    seen.add(site);
+    sites.push(site);
+  }
+  return sites;
+}
+
+// A wrong site name in tenant_url 404s, or (per config.ts's PROVIDER_THROTTLE_TABLE comment) the Workday edge can
+// also serve HTML instead of JSON under unrelated request-burst throttling — so an HTML body alone doesn't prove
+// drift. What does: robots.txt not listing the configured site at all (see discoverDriftedSite's containment
+// check), which a throttled-but-correctly-named tenant will never fail.
+const HTML_NOT_JSON_RE = /Unexpected token '<'|<!doctype\b|<html\b|is not valid JSON|Unexpected end of JSON input/i;
+
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
+function isWorkdayNotFoundError(err: unknown): boolean {
+  return err instanceof Error && err.message === "workday 404";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
+function isWorkdayHtmlBodyError(err: unknown): boolean {
+  if (!(err instanceof SyntaxError)) return false;
+  if (looksLikeChallengePage(err.message)) return false;
+  return HTML_NOT_JSON_RE.test(err.message);
+}
+
+// Runs once, only after the first listing attempt for the configured site fails 404/HTML-not-JSON. Returns the
+// corrected parts to retry with, or null when the original error should propagate unchanged (not drift, or the
+// robots.txt evidence isn't a clean single-site swap — a human repoints the row instead).
+async function discoverDriftedSite(
+  company: AdapterCompany,
+  parts: WorkdayUrlParts,
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
+  err: unknown,
+): Promise<WorkdayUrlParts | null> {
+  if (!isWorkdayNotFoundError(err) && !isWorkdayHtmlBodyError(err)) return null;
+
+  let robotsTxt: string;
+  try {
+    robotsTxt = await atsFetchText(`${parts.base}/robots.txt`, { provider: "workday" });
+  } catch {
+    return null;
+  }
+
+  const sites = parseWorkdaySites(robotsTxt);
+  if (sites.includes(parts.site)) return null; // configured site is valid; the failure wasn't drift
+
+  if (sites.length !== 1) {
+    logger.warn(
+      { company: company.slug, configuredSite: parts.site, sites },
+      "workday: site drift check found zero or multiple candidate sites; leaving as-is",
+    );
+    return null;
+  }
+
+  const discoveredSite = sites[0];
+  if (!discoveredSite) return null;
+  logger.warn(
+    { company: company.slug, configuredSite: parts.site, discoveredSite },
+    "workday site drift",
+  );
+  return buildWorkdayParts(parts.base, parts.tenant, discoveredSite);
 }
 
 const WorkdayJobPostingSchema = z.object({
@@ -101,6 +198,53 @@ const WorkdayJobDetailSchema = z.object({
 
 const PAGE_LIMIT = 20;
 
+// Body of listPostings, factored out so a site-drift retry (see discoverDriftedSite) can rerun it whole
+// against corrected parts — facet discovery included, since it hits the same (possibly wrong) site too.
+async function runWorkdayListing(
+  company: AdapterCompany,
+  parts: WorkdayUrlParts,
+): Promise<NormalizedPosting[]> {
+  const listUrl = `${parts.cxsBase}/jobs`;
+
+  // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location
+  // facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just
+  // "Bengaluru"). Otherwise probe for an India country facet; legacy tenants without one
+  // paginate unfiltered and rely on the downstream location filter.
+  const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
+  const appliedFacets: Record<string, string[]> = indiaFacet
+    ? { [indiaFacet.param]: indiaFacet.uuids }
+    : {};
+  if (!indiaFacet) {
+    logger.warn(
+      { company: company.slug },
+      "workday: no India country facet found; fetching unfiltered (slower)"
+    );
+  } else {
+    logger.debug(
+      { company: company.slug, param: indiaFacet.param },
+      "workday: applying India country facet"
+    );
+  }
+
+  // Some tenants (Caterpillar) report `total` correctly only on the first page;
+  // `paginate` latches the first non-zero value. Separately, some "monster board"
+  // tenants (Genpact) cap `total` at exactly 2000 even when the real board is much
+  // larger — crawlWorkdayPostings detects that latch and, when a flat facet is
+  // available, partitions the crawl by it so each slice stays under the cap.
+  return crawlWorkdayPostings(company, appliedFacets, indiaFacet?.param ?? null, async (offset, facets) => {
+    const data = await atsFetchJson(listUrl, {
+      method: "POST",
+      body: { appliedFacets: facets, limit: PAGE_LIMIT, offset, searchText: "" },
+      provider: "workday",
+    });
+
+    const page = parseWorkdayListPage(data, company.slug);
+
+    const items = page.postings.map((j) => normalizeWorkdayListing(company, j, parts));
+    return { items, total: page.total, facets: page.facets };
+  });
+}
+
 export const workdayAdapter: AtsAdapter = {
   provider: "workday",
 
@@ -109,45 +253,13 @@ export const workdayAdapter: AtsAdapter = {
       throw new Error(`workday adapter requires tenant_url for ${company.slug}`);
     }
     const parts = parseTenantUrl(company.tenantUrl);
-    const listUrl = `${parts.cxsBase}/jobs`;
-
-    // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location
-    // facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just
-    // "Bengaluru"). Otherwise probe for an India country facet; legacy tenants without one
-    // paginate unfiltered and rely on the downstream location filter.
-    const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
-    const appliedFacets: Record<string, string[]> = indiaFacet
-      ? { [indiaFacet.param]: indiaFacet.uuids }
-      : {};
-    if (!indiaFacet) {
-      logger.warn(
-        { company: company.slug },
-        "workday: no India country facet found; fetching unfiltered (slower)"
-      );
-    } else {
-      logger.debug(
-        { company: company.slug, param: indiaFacet.param },
-        "workday: applying India country facet"
-      );
+    try {
+      return await runWorkdayListing(company, parts);
+    } catch (err) {
+      const discovered = await discoverDriftedSite(company, parts, err);
+      if (!discovered) throw err;
+      return runWorkdayListing(company, discovered);
     }
-
-    // Some tenants (Caterpillar) report `total` correctly only on the first page;
-    // `paginate` latches the first non-zero value. Separately, some "monster board"
-    // tenants (Genpact) cap `total` at exactly 2000 even when the real board is much
-    // larger — crawlWorkdayPostings detects that latch and, when a flat facet is
-    // available, partitions the crawl by it so each slice stays under the cap.
-    return crawlWorkdayPostings(company, appliedFacets, indiaFacet?.param ?? null, async (offset, facets) => {
-      const data = await atsFetchJson(listUrl, {
-        method: "POST",
-        body: { appliedFacets: facets, limit: PAGE_LIMIT, offset, searchText: "" },
-        provider: "workday",
-      });
-
-      const page = parseWorkdayListPage(data, company.slug);
-
-      const items = page.postings.map((j) => normalizeWorkdayListing(company, j, parts));
-      return { items, total: page.total, facets: page.facets };
-    });
   },
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
