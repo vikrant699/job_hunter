@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
   classifyFetchError,
   createProviderThrottleState,
@@ -12,9 +13,38 @@ import type { RunContext } from "../index.js";
 import type { AtsAdapter } from "../../ats/types.js";
 import type { Provider } from "../../schemas.js";
 import type { Company, NormalizedPosting } from "../../types.js";
-import { upsertCompany, db } from "../../db/index.js";
+import { upsertCompany, insertPostingIfNew, db } from "../../db/index.js";
 import { sleep } from "../../util/sleep.js";
 import { assertNotEdgeChallenge } from "../../util/errorCause.js";
+
+const RemovedAtRowSchema = z.object({ removed_at: z.string().nullable() });
+function removedAt(provider: string, externalId: string, profileId: string): string | null {
+  const row = db
+    .prepare("SELECT removed_at FROM postings WHERE provider = ? AND external_id = ? AND profile_id = ?")
+    .get(provider, externalId, profileId);
+  return RemovedAtRowSchema.parse(row).removed_at;
+}
+
+const BoardRunRowSchema = z.object({
+  status: z.string(),
+  added: z.number(),
+  removed: z.number(),
+  unchanged: z.number(),
+  error: z.string().nullable(),
+});
+function latestBoardRun(provider: string, slug: string): z.infer<typeof BoardRunRowSchema> {
+  const row = db
+    .prepare("SELECT status, added, removed, unchanged, error FROM board_runs WHERE provider = ? AND company_slug = ? ORDER BY run_at DESC LIMIT 1")
+    .get(provider, slug);
+  return BoardRunRowSchema.parse(row);
+}
+
+function mkPosting(provider: Provider, externalId: string, companySlug: string, companyName: string): NormalizedPosting {
+  return {
+    provider, externalId, companySlug, companyName,
+    jobTitle: "X", jobUrl: "https://x", location: null, isRemote: false, jdText: "", postedAt: null,
+  };
+}
 
 test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("AbortError: This operation was aborted"), "timeout");
@@ -528,4 +558,84 @@ test("un-throttled provider's start() is a pure passthrough", async () => {
   const release = await throttle.start("greenhouse");
   assert.ok(Date.now() - before < 10, "un-throttled start must not wait");
   release();
+});
+
+// ---- posting lifecycle: last_seen_at / removed_at / board_runs ----
+
+test("a listing that shrinks from 3 to 2 marks exactly the missing posting removed and records board_runs {added:0, removed:1, unchanged:2}", async () => {
+  const slug = `shrink-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  const idA = `shrink-a-${Date.now()}`;
+  const idB = `shrink-b-${Date.now()}`;
+  const idC = `shrink-c-${Date.now()}`;
+  for (const id of [idA, idB, idC]) {
+    insertPostingIfNew(mkPosting("greenhouse", id, slug, company.name), stats.profileId);
+  }
+
+  // idA/idB are still listed; both already exist in the DB, so processOnePosting is a no-op for them
+  // (postingExists short-circuits) — the lifecycle bookkeeping lives entirely in processOneCompany.
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [
+      mkPosting("greenhouse", idA, slug, company.name),
+      mkPosting("greenhouse", idB, slug, company.name),
+    ],
+  };
+
+  await processBucket("greenhouse", adapter, [company], stats, FAST);
+
+  assert.equal(removedAt("greenhouse", idA, stats.profileId), null);
+  assert.equal(removedAt("greenhouse", idB, stats.profileId), null);
+  assert.ok(removedAt("greenhouse", idC, stats.profileId) !== null, "the dropped posting must be marked removed");
+
+  const run = latestBoardRun("greenhouse", slug);
+  assert.equal(run.status, "ok");
+  assert.equal(run.added, 0);
+  assert.equal(run.removed, 1);
+  assert.equal(run.unchanged, 2);
+  assert.equal(run.error, null);
+});
+
+test("a board-shaped fetch failure writes an error board_runs row and leaves postings' removed_at untouched", async () => {
+  const slug = `fail-lifecycle-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  const id = `fail-lifecycle-${Date.now()}`;
+  insertPostingIfNew(mkPosting("greenhouse", id, slug, company.name), stats.profileId);
+
+  await processBucket(
+    "greenhouse",
+    failingAdapter(() => new Error("greenhouse 404")),
+    [company],
+    stats,
+    FAST,
+  );
+
+  assert.equal(removedAt("greenhouse", id, stats.profileId), null, "a failed fetch must never touch lifecycle columns");
+
+  const run = latestBoardRun("greenhouse", slug);
+  assert.equal(run.status, "error");
+  assert.equal(run.added, 0);
+  assert.equal(run.removed, 0);
+  assert.equal(run.unchanged, 0);
+  assert.match(run.error ?? "", /404/);
+});
+
+test("a board that never answers on either pass still gets an error board_runs row after the deferred pass gives up", async () => {
+  const slug = `hopeless-lifecycle-${Date.now()}`;
+  const company = seedCompany(slug);
+  const stats = mkRunContext();
+
+  await processBucket("greenhouse", failingAdapter(dnsError), [company], stats, FAST);
+  await runDeferredTransportPass(stats, FAST);
+
+  const run = latestBoardRun("greenhouse", slug);
+  assert.equal(run.status, "error");
+  assert.equal(run.added, 0);
+  assert.equal(run.removed, 0);
+  assert.equal(run.unchanged, 0);
+  assert.match(run.error ?? "", /both passes/);
 });

@@ -91,8 +91,11 @@ src/
                  http.ts (shared atsFetchJson/atsFetchText); shared.ts (REMOTE_RE,
                  unixToIso, parsePostedOn); htmlText.ts; workdayFacet.ts; types.ts (AtsAdapter);
                  detect.ts (ATS-redirect detection patterns used by llm-scrape)
-  db/          per-table modules (companies, postings, runs, recruiters, outreach, link-cache,
-                 api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers;
+  db/          per-table modules (companies, postings, runs, board-runs, recruiters, outreach,
+                 link-cache, api-meta) behind a barrel index.ts; db.ts has the singleton + queryAll/queryOne helpers;
+                 postings carry a lifecycle (last_seen_at bumped per successful fetch, removed_at
+                 set when a posting leaves a snapshot, cleared on revival); board_runs keeps the
+                 last 60 per-board fetch diffs (added/removed/unchanged) for health reporting;
                  sync.ts (Drive push/pull + the staleness guard that runs before/after a tick);
                  openState.ts (the one bit sync.ts needs from db.ts without importing it)
   instahyre/   constants.ts (Instahyre URL + selectors); autoApply.ts (headed-Playwright

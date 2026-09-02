@@ -73,6 +73,37 @@ for (const r of quiet) {
   console.log(`  ${(r.provider + "/" + r.slug).padEnd(40)} quiet x${r.zy}, ${r.seen} postings seen historically — probably moved boards`);
 }
 
+console.log("\n[POSTINGS REMOVED — last 7 days, per profile]");
+const removedCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+const removedRow = z.object({ profile_id: z.string(), n: z.number() });
+const removed = query(
+  `SELECT profile_id, COUNT(*) n FROM postings
+    WHERE removed_at IS NOT NULL AND removed_at >= '${removedCutoff}'
+    GROUP BY profile_id ORDER BY n DESC`,
+  removedRow,
+);
+if (removed.length === 0) console.log("  (none)");
+for (const r of removed) console.log(`  ${r.profile_id.padEnd(16)} ${r.n}`);
+
+console.log("\n[BOARD CHURN]  top 10 boards by added+removed, summed over their last 5 fetches");
+const churnRow = z.object({ provider: z.string(), company_slug: z.string(), churn: z.number() });
+const churn = query(
+  `WITH ranked AS (
+     SELECT provider, company_slug, added, removed,
+            ROW_NUMBER() OVER (PARTITION BY provider, company_slug ORDER BY run_at DESC) rn
+     FROM board_runs
+   )
+   SELECT provider, company_slug, SUM(added + removed) churn
+   FROM ranked
+   WHERE rn <= 5
+   GROUP BY provider, company_slug
+   ORDER BY churn DESC
+   LIMIT 10`,
+  churnRow,
+);
+if (churn.length === 0) console.log("  (none)");
+for (const r of churn) console.log(`  ${(r.provider + "/" + r.company_slug).padEnd(40)} ${r.churn}`);
+
 // Reads the local snapshot rather than the sheet - this report is a point-in-time cross-check, not a live sync.
 const regPath = resolve(process.cwd(), config.storage.registryPath);
 if (existsSync(regPath)) {

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { NormalizedPosting } from "../types.js";
 import type { Provider, Severity } from "../schemas.js";
 import { ProviderSchema } from "../schemas.js";
-import { db, queryAll } from "./db.js";
+import { db, queryAll, queryOne } from "./db.js";
 
 /* ===== Statements ===== */
 
@@ -11,16 +11,17 @@ import { db, queryAll } from "./db.js";
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
     provider, external_id, profile_id, company_slug, job_title, job_url, location,
-    is_remote, posted_at, discovered_at
+    is_remote, posted_at, discovered_at, last_seen_at
   ) VALUES (
     :provider, :externalId, :profileId, :companySlug, :jobTitle, :jobUrl, :location,
-    :isRemote, :postedAt, :discoveredAt
+    :isRemote, :postedAt, :discoveredAt, :lastSeenAt
   )
   ON CONFLICT(provider, external_id, profile_id) DO NOTHING
 `);
 
 /** Returns true if the row was inserted (i.e. a new posting). */
 export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boolean {
+  const discoveredAt = new Date().toISOString();
   const result = insertPostingStmt.run({
     provider: p.provider,
     externalId: p.externalId,
@@ -31,9 +32,92 @@ export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boo
     location: p.location,
     isRemote: p.isRemote ? 1 : 0,
     postedAt: p.postedAt,
-    discoveredAt: new Date().toISOString(),
+    discoveredAt,
+    lastSeenAt: discoveredAt,
   });
   return result.changes > 0;
+}
+
+/* ===== posting lifecycle: last_seen_at / removed_at ===== */
+
+// node:sqlite has no array-bind for IN(...), so the placeholder list is built per call; chunked well under
+// SQLite's ~999-parameter cap (4 fixed params + up to 500 ids per chunk stays comfortably inside it).
+const SEEN_CHUNK_SIZE = 500;
+
+/** Bumps last_seen_at (and revives — clears removed_at) for exactly the externalIds a successful listing fetch
+ *  returned. A posting that is listed is "seen" regardless of relevance, so callers pass the FULL listing. */
+export function markSeen(
+  provider: Provider,
+  companySlug: string,
+  profileId: string,
+  externalIds: string[],
+  seenAt: string,
+): void {
+  for (let i = 0; i < externalIds.length; i += SEEN_CHUNK_SIZE) {
+    const chunk = externalIds.slice(i, i + SEEN_CHUNK_SIZE);
+    const placeholders = chunk.map((_, idx) => `:id${idx}`).join(", ");
+    const stmt = db.prepare(`
+      UPDATE postings SET last_seen_at = :seenAt, removed_at = NULL
+      WHERE provider = :provider AND company_slug = :companySlug AND profile_id = :profileId
+        AND external_id IN (${placeholders})
+    `);
+    const params: Record<string, SQLInputValue> = { seenAt, provider, companySlug, profileId };
+    chunk.forEach((id, idx) => {
+      params[`id${idx}`] = id;
+    });
+    stmt.run(params);
+  }
+}
+
+const markRemovedStmt = db.prepare(`
+  UPDATE postings SET removed_at = :removedAt
+  WHERE provider = :provider AND company_slug = :companySlug AND profile_id = :profileId
+    AND removed_at IS NULL AND last_seen_at < :fetchStartedAt
+`);
+
+/** Marks as removed every not-yet-removed row of this board that a fetch starting at `fetchStartedAt` did not
+ *  see (its last_seen_at predates the fetch). The fetchStartedAt bound is what protects a parallel company's
+ *  freshly-inserted rows — never widen this WHERE. Returns the number of rows removed. */
+export function markRemoved(
+  provider: Provider,
+  companySlug: string,
+  profileId: string,
+  fetchStartedAt: string,
+  removedAt: string,
+): number {
+  const result = markRemovedStmt.run({ provider, companySlug, profileId, fetchStartedAt, removedAt });
+  return Number(result.changes);
+}
+
+const CountSchema = z.object({ n: z.number() });
+
+const countInsertedSinceStmt = db.prepare(`
+  SELECT COUNT(*) AS n FROM postings
+  WHERE provider = :provider AND company_slug = :companySlug AND profile_id = :profileId
+    AND discovered_at >= :sinceIso
+`);
+
+/** How many rows of this board were freshly inserted (discovered_at >= sinceIso) — used to compute a fetch's
+ *  "added" count without threading a counter through the per-posting pipeline. */
+export function countInsertedSince(provider: Provider, companySlug: string, profileId: string, sinceIso: string): number {
+  const row = queryOne(countInsertedSinceStmt, CountSchema, { provider, companySlug, profileId, sinceIso });
+  return row?.n ?? 0;
+}
+
+const countRemovedNotifiedSinceStmt = db.prepare(`
+  SELECT COUNT(*) AS n
+  FROM postings p
+  WHERE p.notified_at IS NOT NULL
+    AND p.notified_at >= :sinceIso
+    AND p.profile_id = :profileId
+    AND p.removed_at IS NOT NULL
+`);
+
+/** Count of notified postings (same window as selectNotifiedPostingsSince) that are excluded because the
+ *  board no longer lists them — feeds the outreach stage's one-line exclusion log. */
+export function countRemovedNotifiedSince(sinceIso: string, profileId: string): number {
+  const row = queryOne(countRemovedNotifiedSinceStmt, CountSchema, { sinceIso, profileId });
+  return row?.n ?? 0;
 }
 
 const postingExistsStmt = db.prepare(`
@@ -130,6 +214,7 @@ export interface OutreachNotifiedPosting {
 }
 
 // drop_stage NULL -> green, 'yellow' -> yellow (the only two values a notified row can carry); company display name comes from a join since postings only stores the slug.
+// removed_at IS NULL: a posting the board no longer lists must never reach a fresh outreach draft.
 const selectNotifiedPostingsSinceStmt = db.prepare(`
   SELECT p.provider, c.name AS company, p.company_slug, p.job_title, p.job_url,
          p.location, p.llm_confidence, p.drop_stage
@@ -138,6 +223,7 @@ const selectNotifiedPostingsSinceStmt = db.prepare(`
   WHERE p.notified_at IS NOT NULL
     AND p.notified_at >= :sinceIso
     AND p.profile_id = :profileId
+    AND p.removed_at IS NULL
 `);
 
 /** Postings notified since `sinceIso` for `profileId`, joined to company display name (falls back to slug). Feeds the outreach draft stage. */
