@@ -20,6 +20,7 @@
     "blast": "tsx scripts/blast.ts",
     "instahyre": "tsx scripts/instahyre.ts",
     "health": "tsx scripts/registryHealth.ts",
+    "probe-url": "tsx scripts/probeUrl.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --import ./test-setup.mjs --import tsx --test \"src/**/*.test.ts\"",
     "lint": "eslint ."
