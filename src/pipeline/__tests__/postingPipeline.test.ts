@@ -1,14 +1,18 @@
 // src/pipeline/postingPipeline.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import { droppedResult, verdictResult, lateLocationCheck, processOnePosting } from "../postingPipeline.js";
 import type { NormalizedPosting, Company } from "../../types.js";
 import type { AtsAdapter } from "../../ats/types.js";
 import type { RunContext } from "../index.js";
 import type { TransportRetryPolicy } from "../scheduler.js";
-import { postingExists, getPostingSalary } from "../../db/index.js";
+import { postingExists, getPostingSalary, getPostingVector } from "../../db/index.js";
+import { db } from "../../db/db.js";
 import { notifyKey } from "../../filter/dedup.js";
-import { mkAdapterCompany } from "../../ats/__tests__/testHelpers.js";
+import { mkAdapterCompany, stubFetch, jsonResponse } from "../../ats/__tests__/testHelpers.js";
+import { config } from "../../config.js";
+import { cosine } from "../../llm/embed.js";
 
 function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
   return {
@@ -368,4 +372,108 @@ test("an edge interstitial that never clears still gives up inside the retry bud
   assert.equal(calls, FAST.retries + 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
+});
+
+// ---- embed shadow mode: measures alongside the gate, never acts on it ----
+
+const EmbedSimRowSchema = z.object({ embed_sim: z.number().nullable() });
+function embedSimFor(provider: string, externalId: string, profileId: string): number | null {
+  const row = db
+    .prepare("SELECT embed_sim FROM postings WHERE provider = ? AND external_id = ? AND profile_id = ?")
+    .get(provider, externalId, profileId);
+  return EmbedSimRowSchema.parse(row).embed_sim;
+}
+
+const GenerateBodySchema = z.object({ prompt: z.string() });
+const EmbedReqBodySchema = z.object({ model: z.string(), input: z.string() });
+
+function gateResponse(matchScore: number): Response {
+  return jsonResponse({
+    response: JSON.stringify({ matchScore, dealBreakerHit: null, dealBreakerSeverity: null, reason: "shadow test" }),
+  });
+}
+
+test("embed shadow mode: a gated posting gets embed_sim + a stored vector, and the gate call is unaffected", async (t) => {
+  const original = config.llm.ollamaEmbedModel;
+  Object.defineProperty(config.llm, "ollamaEmbedModel", { value: "test-embed-model", configurable: true });
+  t.after(() => {
+    Object.defineProperty(config.llm, "ollamaEmbedModel", { value: original, configurable: true });
+  });
+
+  const embedInputs: string[] = [];
+  let generateCalls = 0;
+  let seenGeneratePrompt = "";
+  stubFetch(t, async (url, init) => {
+    const u = String(url);
+    if (u.includes("/api/embed")) {
+      const body = EmbedReqBodySchema.parse(JSON.parse(String(init?.body)));
+      embedInputs.push(body.input);
+      // Call 1 is always the resume anchor (embedded before the posting, see embedShadow); call 2 the posting.
+      return jsonResponse({ embeddings: [embedInputs.length === 1 ? [1, 0] : [1, 1]] });
+    }
+    if (u.includes("/api/generate")) {
+      generateCalls++;
+      seenGeneratePrompt = GenerateBodySchema.parse(JSON.parse(String(init?.body))).prompt;
+      return gateResponse(0.5); // below the example profile's silentFloor - verdict is irrelevant to this test
+    }
+    throw new Error(`unexpected fetch call: ${u}`);
+  });
+
+  const p = mkNormalizedPosting({
+    location: "Bengaluru, India",
+    jobTitle: "Data Analyst",
+    jdText: "SQL dashboards analyst role for shadow-mode embed test.",
+  });
+  const stats = mkRunContext();
+  const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  assert.equal(embedInputs.length, 2, "one anchor embed + one posting embed");
+  assert.ok(!embedInputs[0]?.includes(p.jdText), "the anchor call must embed the resume, not the posting");
+  assert.ok(embedInputs[1]?.includes(p.jobTitle) && embedInputs[1].includes(p.jdText), "posting text carries title + JD");
+
+  // The gate call itself must be byte-identical to what it would be without embedding.
+  assert.equal(generateCalls, 1);
+  assert.ok(seenGeneratePrompt.includes(p.jdText), "gate call still receives the real JD text");
+
+  const expectedSim = cosine([1, 0], [1, 1]);
+  const storedSim = embedSimFor(p.provider, p.externalId, stats.profileId);
+  assert.ok(storedSim !== null);
+  assert.ok(Math.abs(storedSim - expectedSim) < 1e-6);
+
+  const vectorRow = getPostingVector(p.provider, p.externalId, stats.profileId, "ollama:test-embed-model");
+  assert.ok(vectorRow);
+  assert.equal(vectorRow.dims, 2);
+  assert.ok(Math.abs((vectorRow.vector[0] ?? NaN) - 1) < 1e-6);
+  assert.ok(Math.abs((vectorRow.vector[1] ?? NaN) - 1) < 1e-6);
+});
+
+test("embed shadow mode: with the knob unset, no embed call is attempted and embed_sim stays null", async (t) => {
+  assert.equal(config.llm.ollamaEmbedModel, undefined, "test assumes OLLAMA_EMBED_MODEL is unset in the test env");
+
+  let generateCalls = 0;
+  stubFetch(t, async (url) => {
+    const u = String(url);
+    if (u.includes("/api/embed")) throw new Error("embed must not be called when the knob is unset");
+    if (u.includes("/api/generate")) {
+      generateCalls++;
+      return gateResponse(0.5);
+    }
+    throw new Error(`unexpected fetch call: ${u}`);
+  });
+
+  const p = mkNormalizedPosting({
+    location: "Bengaluru, India",
+    jobTitle: "Data Analyst",
+    jdText: "SQL dashboards analyst role, no-embed control case.",
+  });
+  const stats = mkRunContext();
+  const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
+
+  await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
+
+  assert.equal(generateCalls, 1, "the gate must still run normally");
+  assert.equal(embedSimFor(p.provider, p.externalId, stats.profileId), null);
+  assert.equal(getPostingVector(p.provider, p.externalId, stats.profileId, "ollama:test-embed-model"), undefined);
 });

@@ -8,6 +8,7 @@ const OllamaResponseSchema = z.object({ response: z.string().optional() });
 const OllamaTagsSchema = z.object({
   models: z.array(z.object({ name: z.string() })).default([]),
 });
+const OllamaEmbedResponseSchema = z.object({ embeddings: z.array(z.array(z.number())) });
 
 export interface OllamaGenerateOpts {
   format?: "json";
@@ -62,4 +63,24 @@ export async function ollamaGenerate(prompt: string, opts: OllamaGenerateOpts): 
     throw new Error("Ollama returned no 'response' field");
   }
   return data.response;
+}
+
+/** One embedding call against Ollama's POST /api/embed. `model` is resolved by the caller (llm/embed.ts) from OLLAMA_EMBED_MODEL. */
+export async function ollamaEmbed(input: string, model: string): Promise<number[]> {
+  const res = await fetch(`${config.llm.ollamaHost}/api/embed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, input }),
+    signal: AbortSignal.timeout(config.llm.timeoutMs),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Ollama embed HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = OllamaEmbedResponseSchema.parse(await res.json());
+  const vector = data.embeddings[0];
+  if (!vector) {
+    throw new Error("Ollama embed returned no vector");
+  }
+  return vector;
 }

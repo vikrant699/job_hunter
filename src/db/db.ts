@@ -117,6 +117,12 @@ db.exec(schema);
     db.exec("ALTER TABLE postings ADD COLUMN salary_currency TEXT");
     db.exec("ALTER TABLE postings ADD COLUMN salary_period TEXT");
   }
+
+  // postings.embed_sim — shadow-mode cosine similarity vs the run's resume anchor (src/llm/embed.ts); nullable, never read by filtering.
+  const postingColsEmbed = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
+  if (!postingColsEmbed.some((c) => c.name === "embed_sim")) {
+    db.exec("ALTER TABLE postings ADD COLUMN embed_sim REAL");
+  }
 }
 
 logger.info({ path: dbPath }, "sqlite initialized");
