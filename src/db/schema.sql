@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS postings (
   notified_at    TEXT,
   last_seen_at   TEXT,    -- bumped every successful company fetch that still lists this posting
   removed_at     TEXT,    -- set when a successful fetch no longer lists it; cleared if it reappears
+  salary_min       REAL,  -- annualized (see src/filter/salary.ts); null when the JD states nothing
+  salary_max       REAL,
+  salary_currency  TEXT,
+  salary_period    TEXT,  -- the period as stated in the JD (year|month|week|day|hour); salary_min/max are always annualized
   PRIMARY KEY (provider, external_id, profile_id)
 );
 

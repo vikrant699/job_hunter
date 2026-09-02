@@ -17,6 +17,7 @@ import { runExtract } from "../llm/extract.js";
 import type { ExtractResult } from "../llm/extract.js";
 import { LlmUnavailableError } from "../llm/errors.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
+import { extractSalary } from "../filter/salary.js";
 import { profile } from "../profile.js";
 import { sleep } from "../util/sleep.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
@@ -37,6 +38,9 @@ interface PostingResultPatch {
 }
 
 function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch, profileId: string): void {
+  // Mechanical (no-LLM), storage-only: computed for every posting that reaches this point with real JD
+  // text (skipped for no-jd/junk-jd writes, where jdText is empty). Never affects verdict/filtering.
+  const salary = posting.jdText ? extractSalary(posting.jdText) : null;
   updatePostingResult({
     provider: posting.provider,
     externalId: posting.externalId,
@@ -48,6 +52,10 @@ function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatc
     yoeMax: patch.yoeMax,
     dropStage: patch.dropStage,
     notifiedAt: patch.notifiedAt,
+    salaryMin: salary?.annualMin ?? null,
+    salaryMax: salary?.annualMax ?? null,
+    salaryCurrency: salary?.currency ?? null,
+    salaryPeriod: salary?.period ?? null,
   });
 }
 
