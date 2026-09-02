@@ -224,6 +224,12 @@ function startrowOf(input: string): number {
   return Number(new URL(input).searchParams.get("startrow"));
 }
 
+/** A sitemap.xml request the /search/ pagination tests don't care about: 404 it without recording an offset. */
+function stubSitemap404(input: string): Response | null {
+  if (input.includes("/sitemap.xml")) return htmlResponse("not found", 404);
+  return null;
+}
+
 /** Serve a board of `total` jobs `perPage` rows at a time, recording offsets. */
 function stubBoard(
   t: Parameters<typeof stubFetch>[0],
@@ -231,7 +237,10 @@ function stubBoard(
 ): number[] {
   const startrows: number[] = [];
   stubFetch(t, (input) => {
-    const startrow = startrowOf(String(input));
+    const url = String(input);
+    const sitemap = stubSitemap404(url);
+    if (sitemap) return Promise.resolve(sitemap);
+    const startrow = startrowOf(url);
     startrows.push(startrow);
     const count = Math.max(0, Math.min(opts.perPage, opts.total - startrow));
     return Promise.resolve(htmlResponse(searchPageHtml(startrow, count, opts.banner === false ? null : opts.total)));
@@ -271,7 +280,10 @@ test("listPostings: a tenant that clamps an out-of-range startrow terminates", a
   // Some tenants re-serve the last page instead of an empty one, with no banner to bound the loop.
   const startrows: number[] = [];
   stubFetch(t, (input) => {
-    const startrow = startrowOf(String(input));
+    const url = String(input);
+    const sitemap = stubSitemap404(url);
+    if (sitemap) return Promise.resolve(sitemap);
+    const startrow = startrowOf(url);
     startrows.push(startrow);
     // 20 jobs, 10 a page; anything past row 10 is clamped back to the last page.
     const clamped = Math.min(startrow, 10);
@@ -286,7 +298,9 @@ test("listPostings: a tenant that clamps an out-of-range startrow terminates", a
 test("listPostings: a board that ignores startrow entirely stops after the repeat page", async (t) => {
   // A stated total of 608 with a frozen first page must not walk 61 pages.
   let calls = 0;
-  stubFetch(t, () => {
+  stubFetch(t, (input) => {
+    const sitemap = stubSitemap404(String(input));
+    if (sitemap) return Promise.resolve(sitemap);
     calls++;
     return Promise.resolve(htmlResponse(searchPageHtml(0, 10, 608)));
   });
@@ -404,4 +418,36 @@ test("tileLocation: Country/Region fallback (renew shape), then slug city (icici
   const $e = cheerio.load(`<li class="job-tile"></li>`);
   assert.equal(tileLocation($e, $e("li.job-tile"), "NAVI-MUMBAI-Sr_-Manager"), "NAVI MUMBAI");
   assert.equal(tileLocation($e, $e("li.job-tile"), "lowercase-slug"), null);
+});
+
+test("listPostings gap-fills a sitemap id the HTML search missed, keeping parsed rows untouched", async (t) => {
+  const SITEMAP_XML = `<urlset>
+    <url><loc>https://jobs.mahindracareers.com/job/Role-0/0/</loc></url>
+    <url><loc>https://jobs.mahindracareers.com/job/Role-1/1/</loc></url>
+    <url><loc>https://jobs.mahindracareers.com/job/Sitemap-Only-Extra-Role/777/</loc></url>
+  </urlset>`;
+  stubFetch(t, (input) => {
+    const url = String(input);
+    if (url.includes("/sitemap.xml")) return Promise.resolve(htmlResponse(SITEMAP_XML));
+    const startrow = startrowOf(url);
+    // A 2-job board that ends on its first (short) page.
+    return Promise.resolve(htmlResponse(searchPageHtml(startrow, startrow === 0 ? 2 : 0, 2)));
+  });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+  assert.equal(postings.length, 3);
+  const extra = postings.find((p) => p.externalId === "777");
+  assert.ok(extra);
+  assert.equal(extra.jobUrl, "https://jobs.mahindracareers.com/job/Sitemap-Only-Extra-Role/777/");
+  assert.equal(extra.jobTitle, "Sitemap Only Extra Role");
+  assert.equal(extra.location, null);
+  assert.equal(extra.jdText, "");
+  // The rows the HTML search already parsed are untouched.
+  assert.deepEqual(postings.filter((p) => p.externalId !== "777").map((p) => p.externalId).sort(), ["0", "1"]);
+});
+
+test("listPostings: a sitemap fetch failure leaves the HTML-only result unchanged", async (t) => {
+  const startrows = stubBoard(t, { total: 12, perPage: 10 });
+  const postings = await successfactorsAdapter.listPostings(mahindra);
+  assert.equal(postings.length, 12);
+  assert.deepEqual(startrows, [0, 10]);
 });

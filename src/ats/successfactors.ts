@@ -7,6 +7,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
+import { fetchSfSitemapIds, titleFromSitemapUrl, SITEMAP_GAP_FILL_CAP } from "./sfSitemap.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 
@@ -157,6 +158,26 @@ export function parseSuccessfactorsSearch(
   return { postings, rowCount: rows.length, total: parseSuccessfactorsTotal(html) };
 }
 
+/** Build a placeholder posting for a sitemap id the HTML search never surfaced: jobUrl is the sitemap's own
+ *  canonical URL, title is derived from its slug segment (no per-job JSON detail endpoint exists to fetch a
+ *  real one cheaply), location stays null (the pipeline's late location check handles that), jdText is filled
+ *  by fetchJd exactly like every other posting. */
+function successfactorsPostingFromSitemap(company: AdapterCompany, id: string, url: string): NormalizedPosting {
+  const jobTitle = titleFromSitemapUrl(url);
+  return {
+    provider: "successfactors",
+    externalId: id,
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle,
+    jobUrl: url,
+    location: null,
+    isRemote: REMOTE_RE.test(jobTitle),
+    jdText: "",
+    postedAt: null,
+  };
+}
+
 /** Extract the JD body (span.jobdescription) as plain text. */
 export function parseSuccessfactorsJd(html: string): string {
   const $ = cheerio.load(html);
@@ -229,7 +250,29 @@ export const successfactorsAdapter: AtsAdapter = {
       );
     }
 
-    return postings;
+    // Completeness backstop: the paginated HTML walk above can miss rows (unparsed hrefs, a clamped/looping
+    // pager); a job the sitemap knows about but the walk never surfaced is added as a placeholder.
+    const seen = new Set(postings.map((p) => p.externalId));
+    const out = postings.slice();
+    const sitemapIds = await fetchSfSitemapIds(company, "successfactors");
+    let gapFilled = 0;
+    if (sitemapIds) {
+      for (const [id, url] of sitemapIds) {
+        if (seen.has(id)) continue;
+        if (gapFilled >= SITEMAP_GAP_FILL_CAP) {
+          logger.warn({ slug: company.slug, cap: SITEMAP_GAP_FILL_CAP }, "successfactors: sitemap gap-fill cap reached, remaining sitemap-only ids skipped");
+          break;
+        }
+        out.push(successfactorsPostingFromSitemap(company, id, url));
+        seen.add(id);
+        gapFilled++;
+      }
+    }
+    logger.info(
+      { slug: company.slug, api: postings.length, sitemap: sitemapIds?.size ?? 0, gapFilled },
+      `successfactors ${company.slug}: api=${postings.length} sitemap=${sitemapIds?.size ?? 0} gapFilled=${gapFilled}`,
+    );
+    return out;
   },
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {

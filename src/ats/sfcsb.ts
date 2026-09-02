@@ -8,6 +8,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
+import { fetchSfSitemapIds, titleFromSitemapUrl, SITEMAP_GAP_FILL_CAP } from "./sfSitemap.js";
 import type { JsonValue } from "../util/json.js";
 
 const PAGE = 10; // server-fixed
@@ -83,6 +84,26 @@ export function parseSfcsbPage(
   return { jobs, total: page.totalJobs ?? null };
 }
 
+/** Build a placeholder posting for a sitemap id the JSON listing never returned: jobUrl is the sitemap's own
+ *  canonical URL, title is derived from its slug segment (no per-job JSON detail endpoint exists to fetch a
+ *  real one cheaply), location stays null (the pipeline's late location check handles that), jdText is filled
+ *  by fetchJd exactly like every other posting. */
+function sfcsbPostingFromSitemap(company: AdapterCompany, id: string, url: string): NormalizedPosting {
+  const jobTitle = titleFromSitemapUrl(url);
+  return {
+    provider: "sfcsb",
+    externalId: id,
+    companySlug: company.slug,
+    companyName: company.name,
+    jobTitle,
+    jobUrl: url,
+    location: null,
+    isRemote: REMOTE_RE.test(jobTitle),
+    jdText: "",
+    postedAt: null,
+  };
+}
+
 /** Extract the JD from a CSB job page: the richest itemprop="description" span. */
 export function parseSfcsbJd(html: string): string {
   const $ = cheerio.load(html);
@@ -121,6 +142,28 @@ export const sfcsbAdapter: AtsAdapter = {
       seen.add(p.externalId);
       out.push(p);
     }
+    const apiCount = out.length;
+
+    // Completeness backstop: this API's pagination is known-unstable (see the listPostings comment above),
+    // so a job the sitemap knows about but the JSON walk never surfaced is added as a placeholder.
+    const sitemapIds = await fetchSfSitemapIds(company, "sfcsb");
+    let gapFilled = 0;
+    if (sitemapIds) {
+      for (const [id, url] of sitemapIds) {
+        if (seen.has(id)) continue;
+        if (gapFilled >= SITEMAP_GAP_FILL_CAP) {
+          logger.warn({ slug: company.slug, cap: SITEMAP_GAP_FILL_CAP }, "sfcsb: sitemap gap-fill cap reached, remaining sitemap-only ids skipped");
+          break;
+        }
+        out.push(sfcsbPostingFromSitemap(company, id, url));
+        seen.add(id);
+        gapFilled++;
+      }
+    }
+    logger.info(
+      { slug: company.slug, api: apiCount, sitemap: sitemapIds?.size ?? 0, gapFilled },
+      `sfcsb ${company.slug}: api=${apiCount} sitemap=${sitemapIds?.size ?? 0} gapFilled=${gapFilled}`,
+    );
     return out;
   },
 
