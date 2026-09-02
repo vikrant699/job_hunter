@@ -11,6 +11,20 @@ const DEFERRED_PASS_PACE_MS: number = 3_000;
 // Hoisted: envBool returns `boolean`, so `as const` can't narrow config.llm.local to a compile-time constant.
 const LLM_LOCAL = envBool("LOCAL", true);
 
+/** Per-provider start throttle: caps how many of that provider's boards fetch at once and how close together their starts
+ *  may land. Exists because Workday's edge serves HTML instead of JSON when ~17 of its boards are hit in ~24s from one IP,
+ *  which then miscounts healthy boards as failures - see scheduler.ts's ProviderThrottleState. */
+export interface ProviderThrottle {
+  maxConcurrent: number;
+  minSpacingMs: number;
+}
+
+// Values are `as const` (Standard rule 5); the table itself is typed for arbitrary-string lookup (Standard rule 1: no
+// casts) so scheduler.ts can index it by a live `company.provider` without narrowing every provider to a table key.
+const PROVIDER_THROTTLE_TABLE: Partial<Record<string, ProviderThrottle>> = {
+  workday: { maxConcurrent: 2, minSpacingMs: 4000 },
+} as const;
+
 export const config = {
   fetch: {
     /** How many companies of one provider run in parallel. */
@@ -29,6 +43,8 @@ export const config = {
     deferredPassPaceMs: DEFERRED_PASS_PACE_MS,
     /** Identify ourselves to ATS providers; some block default node UA. */
     userAgent: "job-hunter-bot/0.1",
+    /** Providers with a start throttle (see ProviderThrottle above); absent = no throttle, unaffected. */
+    providerThrottle: PROVIDER_THROTTLE_TABLE,
   },
 
   llm: {
@@ -129,3 +145,11 @@ export const config = {
     attachResume: true,
   },
 } as const;
+
+/** Looks up a provider's start throttle, if any; `table` defaults to config's but is injectable for tests. */
+export function throttleFor(
+  provider: string,
+  table: Partial<Record<string, ProviderThrottle>> = config.fetch.providerThrottle,
+): ProviderThrottle | undefined {
+  return table[provider];
+}

@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { classifyFetchError, defaultRetryPolicy, processBucket, runDeferredTransportPass } from "../scheduler.js";
+import {
+  classifyFetchError,
+  createProviderThrottleState,
+  defaultRetryPolicy,
+  processBucket,
+  runDeferredTransportPass,
+} from "../scheduler.js";
 import type { TransportRetryPolicy } from "../scheduler.js";
 import type { RunContext } from "../index.js";
 import type { AtsAdapter } from "../../ats/types.js";
@@ -430,4 +436,96 @@ test("the deferred pass interleaves providers instead of draining one vendor", a
   // so a mixed queue alternates rather than draining greenhouse first.
   assert.deepEqual(log.providers, ["greenhouse", "lever", "greenhouse", "lever"]);
   assert.equal(stats.transportRecovered, 4);
+});
+
+// ---- provider start throttle (Workday edge miscounts a burst as board failures) ----
+
+interface StartLog {
+  provider: string;
+  startedAt: number;
+}
+
+/** Records each fetch's provider + start time and tracks that provider's peak concurrency, so a throttle's two
+ *  guarantees (max concurrent, min spacing) are both directly observable. */
+function throttleProbeAdapter(
+  provider: Provider,
+  delayMs: number,
+  starts: StartLog[],
+  inFlightByProvider: Map<string, number>,
+  peakByProvider: Map<string, number>,
+): AtsAdapter {
+  return {
+    provider,
+    listPostings: async (): Promise<NormalizedPosting[]> => {
+      const now = (inFlightByProvider.get(provider) ?? 0) + 1;
+      inFlightByProvider.set(provider, now);
+      peakByProvider.set(provider, Math.max(peakByProvider.get(provider) ?? 0, now));
+      starts.push({ provider, startedAt: Date.now() });
+      await sleep(delayMs);
+      inFlightByProvider.set(provider, (inFlightByProvider.get(provider) ?? 1) - 1);
+      return [];
+    },
+  };
+}
+
+test("provider throttle caps concurrency and spaces starts, leaving other providers unaffected", async () => {
+  const stats = mkRunContext();
+  const stamp = Date.now();
+  const starts: StartLog[] = [];
+  const inFlight = new Map<string, number>();
+  const peak = new Map<string, number>();
+
+  const minSpacingMs = 30;
+  const throttle = createProviderThrottleState({ workday: { maxConcurrent: 2, minSpacingMs } });
+
+  const workdayCompanies = Array.from({ length: 5 }, (_, i) =>
+    seedCompany(`throttle-wd-${stamp}-${i}`, "workday"),
+  );
+  const greenhouseCompanies = Array.from({ length: 3 }, (_, i) =>
+    seedCompany(`throttle-gh-${stamp}-${i}`, "greenhouse"),
+  );
+
+  await Promise.all([
+    processBucket(
+      "workday",
+      throttleProbeAdapter("workday", 20, starts, inFlight, peak),
+      workdayCompanies,
+      stats,
+      FAST,
+      throttle,
+    ),
+    processBucket(
+      "greenhouse",
+      throttleProbeAdapter("greenhouse", 5, starts, inFlight, peak),
+      greenhouseCompanies,
+      stats,
+      FAST,
+      throttle,
+    ),
+  ]);
+
+  assert.equal(starts.filter((s) => s.provider === "workday").length, 5);
+  assert.equal(starts.filter((s) => s.provider === "greenhouse").length, 3);
+
+  // Never more than maxConcurrent workday fetches in flight at once.
+  assert.ok((peak.get("workday") ?? 0) <= 2, `workday peak concurrency was ${peak.get("workday")}`);
+
+  // Consecutive workday starts are spaced at least minSpacingMs apart.
+  const workdayStarts = starts.filter((s) => s.provider === "workday").map((s) => s.startedAt);
+  for (let i = 1; i < workdayStarts.length; i++) {
+    const gap = (workdayStarts[i] ?? 0) - (workdayStarts[i - 1] ?? 0);
+    assert.ok(gap >= minSpacingMs - 5, `workday starts ${i - 1}->${i} were only ${gap}ms apart`);
+  }
+
+  // Greenhouse has no throttle entry, so its worker pool (concurrencyPerProvider) starts it unconstrained -
+  // all 3 fetches should overlap rather than being serialized like workday.
+  assert.ok((peak.get("greenhouse") ?? 0) > 1, "greenhouse fetches should overlap, not be spaced");
+});
+
+test("un-throttled provider's start() is a pure passthrough", async () => {
+  const throttle = createProviderThrottleState({ workday: { maxConcurrent: 2, minSpacingMs: 4000 } });
+  const before = Date.now();
+  const release = await throttle.start("greenhouse");
+  assert.ok(Date.now() - before < 10, "un-throttled start must not wait");
+  release();
 });
