@@ -94,7 +94,9 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
       ...(existsSync(statePath) ? { storageState: statePath } : {}),
     });
     const page = await context.newPage();
-    await page.goto(INSTAHYRE_URL, { waitUntil: "domcontentloaded", timeout: config.instahyre.navTimeoutMs });
+    // networkidle (not domcontentloaded): the AngularJS app pre-renders the per-job apply modals only once
+    // the feed XHRs settle; interacting before that leaves the apply modal absent. Matches the original bot.
+    await page.goto(INSTAHYRE_URL, { waitUntil: "networkidle", timeout: config.instahyre.navTimeoutMs });
 
     let loggedIn: boolean;
     try {
@@ -103,7 +105,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
       });
     } catch {
       // Union wait itself timed out and the login form never appeared: an exhausted feed never renders #interested-btn.
-      return skip(result, "feed did not render (no #email or #interested-btn)", profileId, start, page);
+      return await skip(result, "feed did not render (no #email or #interested-btn)", profileId, start, page);
     }
 
     const loginVisible = await page.locator(SELECTORS.email).isVisible();
@@ -140,7 +142,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
     }
 
     if (!loggedIn) {
-      return skip(result, "feed empty after login (no #interested-btn)", profileId, start, page);
+      return await skip(result, "feed empty after login (no #interested-btn)", profileId, start, page);
     }
 
     // Persist only a confirmed-good session (#interested-btn present); saving a failed login poisons the next run.
@@ -162,14 +164,14 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
     })()`;
     const clickedInterested = JsonValueSchema.parse(await page.evaluate(clickInterestedScript));
     if (clickedInterested !== true) {
-      return skip(result, "no visible interested button to click", profileId, start, page);
+      return await skip(result, "no visible interested button to click", profileId, start, page);
     }
     await sleep(1000);
 
     try {
       await page.waitForSelector(SELECTORS.applyButton, { timeout: config.instahyre.feedTimeoutMs });
     } catch {
-      return skip(result, "apply UI did not appear after opening first job", profileId, start, page);
+      return await skip(result, "apply UI did not appear after opening first job", profileId, start, page);
     }
 
     const deadline = start + config.instahyre.stepBudgetMs;
