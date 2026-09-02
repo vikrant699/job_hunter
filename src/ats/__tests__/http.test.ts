@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { atsHttpError, atsFetchHtml, atsFetchText, atsFetchJson, parseOrThrow, parseOrNull } from "../http.js";
-import { stubFetch, jsonResponse } from "./testHelpers.js";
+import { stubFetch, jsonResponse, CHALLENGE_PAGE_HTML } from "./testHelpers.js";
 import {
   startConnectivityMonitor,
   stopConnectivityMonitor,
@@ -149,4 +149,59 @@ test("a blocked board reports success to the monitor and does not pause the run"
   await assert.rejects(atsFetchJson("https://waf.example/jobs"));
 
   assert.equal(connectivityStatus().down, false, "a 403 is the board's problem, not the network's");
+});
+
+// Retry-After is clamped to a 250ms floor (util/httpRetry.ts), which is what keeps these fast enough to assert for real.
+test("fetchOk retries a 429 with Retry-After then returns the 200 that follows", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    if (calls === 1) return new Response("rate limited", { status: 429, headers: { "Retry-After": "0.25" } });
+    return jsonResponse({ ok: true });
+  });
+  const result = await atsFetchJson("https://x.example/api", { provider: "acme" });
+  assert.deepEqual(result, { ok: true });
+  assert.equal(calls, 2);
+});
+
+test("fetchOk retries a retryable status up to the attempt cap, then throws with the last body", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return new Response(`server exploded on attempt ${calls}`, { status: 503, headers: { "Retry-After": "0.25" } });
+  });
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
+  await assert.rejects(atsFetchJson("https://x.example/api", { provider: "acme" }), (err: unknown) => {
+    assert.ok(err instanceof Error);
+    assert.match(err.message, /server exploded on attempt 3/);
+    return true;
+  });
+  assert.equal(calls, 3, "one original attempt plus two retries");
+});
+
+test("fetchOk does not retry a non-retryable status like 404", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return new Response("nope", { status: 404 });
+  });
+  await assert.rejects(atsFetchJson("https://x.example/api", { provider: "acme" }), /acme 404/);
+  assert.equal(calls, 1);
+});
+
+// Edge-challenge classification must still fire off the FINAL attempt's body — it is what powers the deferred end-of-run retry pass.
+test("fetchOk still classifies an edge challenge after exhausting retries", async (t) => {
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return new Response(CHALLENGE_PAGE_HTML, { status: 503, headers: { "Retry-After": "0.25" } });
+  });
+  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
+  await assert.rejects(atsFetchJson("https://x.example/api", { provider: "acme" }), (err: unknown) => {
+    assert.ok(err instanceof Error);
+    assert.match(err.message, /an edge refused the request/);
+    assert.ok(isInfrastructureFault(err), "must classify as infrastructure so the row is never charged");
+    return true;
+  });
+  assert.equal(calls, 3);
 });

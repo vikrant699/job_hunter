@@ -71,9 +71,13 @@ test("oracleAdapter.listPostings still lists a populated board unchanged", async
 });
 
 test("oracleAdapter.listPostings refuses to read a dead pod's 503 as an empty board", async (t) => {
-  stubFetch(t, fetchSequence(() =>
-    htmlResponse("<HTML><HEAD><TITLE>Service Unavailable</TITLE></HEAD><BODY>DNS failure</BODY></HTML>", 503),
-  ));
+  // three canned 503s: fetchOk retries retryable statuses before surfacing the error (Retry-After keeps the test fast)
+  const dead = (): Response =>
+    new Response("<HTML><HEAD><TITLE>Service Unavailable</TITLE></HEAD><BODY>DNS failure</BODY></HTML>", {
+      status: 503,
+      headers: { "Content-Type": "text/html", "Retry-After": "0.25" },
+    });
+  stubFetch(t, fetchSequence(dead, dead, dead));
   await assert.rejects(() => oracleAdapter.listPostings(company), /oracle HTTP 503/);
 });
 
