@@ -6,12 +6,17 @@ import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
+import { isRetryableHttpStatus, parseRetryAfterMs } from "../util/httpRetry.js";
+import { sleep } from "../util/sleep.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
   if (status === 404) return new Error(`${provider} 404`);
   return new Error(`${provider} HTTP ${status}: ${bodySnippet.slice(0, 200)}`);
 }
+
+/** Total tries (1 original + 2 retries) for a retryable status (429/5xx). No config knob — this is transport-shaped, not tunable per board. */
+const ATS_RETRY_ATTEMPTS = 3;
 
 /** Run `fn` with an AbortSignal that times out the WHOLE call (headers + body). Exported for adapters
  *  whose fetch shape doesn't fit atsFetchJson/atsFetchText. */
@@ -22,29 +27,52 @@ export async function withAtsTimeout<T>(
   return fn(AbortSignal.timeout(timeoutMs));
 }
 
-/** fetch() that throws `atsHttpError` on non-OK. Every atsFetch* helper funnels through here, which is
- *  why the connectivity gate (park while network is down, report the outcome) lives here too. */
+/** fetch() that throws `atsHttpError` on non-OK, retrying a transient status (429/5xx) up to
+ *  ATS_RETRY_ATTEMPTS total tries with a Retry-After-aware wait between them. Every atsFetch*
+ *  helper funnels through here, which is why the connectivity gate (park while network is down,
+ *  report the outcome) lives here too.
+ *
+ *  `init.signal` is the caller's whole-call timeout (withAtsTimeout wraps the entire retry loop,
+ *  not one attempt), so attempt 0 keeps it as-is; spending it across 3 attempts would starve a
+ *  retry of most of its budget, so a retry attempt gets its own fresh AbortSignal.timeout instead.
+ *  If that caller signal has already fired by the time a retry would start, the retry is skipped
+ *  (its deadline is honored, not overridden by the fresh per-attempt one). */
 async function fetchOk(url: string, init: RequestInit, provider: string): Promise<Response> {
-  await awaitNetwork();
-  let res: Response;
-  try {
-    res = await fetch(url, init);
-  } catch (err) {
-    // Not a verdict, just a request for an immediate probe — if the connection is fine, this host is simply refusing us.
-    reportNetworkFailure();
-    throw err;
+  const callerSignal = init.signal;
+  for (let attempt = 0; attempt < ATS_RETRY_ATTEMPTS; attempt++) {
+    await awaitNetwork();
+    const attemptInit: RequestInit = attempt === 0 ? init : { ...init, signal: AbortSignal.timeout(config.fetch.timeoutMs) };
+    let res: Response;
+    try {
+      res = await fetch(url, attemptInit);
+    } catch (err) {
+      // Not a verdict, just a request for an immediate probe — if the connection is fine, this host is simply refusing us.
+      reportNetworkFailure();
+      throw err;
+    }
+    // ANY response proves the connection works, including a 403 from a bot-blocker — that's about the board, not the network.
+    reportNetworkSuccess();
+    if (res.ok) return res;
+
+    const lastAttempt = attempt === ATS_RETRY_ATTEMPTS - 1;
+    const willRetry = !lastAttempt && isRetryableHttpStatus(res.status) && callerSignal?.aborted !== true;
+    if (!willRetry) {
+      const body = await res.text();
+      // Scan the FULL body for a WAF/block-page signature before atsHttpError truncates to 200 chars
+      // (CloudFront/Akamai markers land past that cut). An edge-challenge classifies as an infrastructure
+      // fault: retried inline, deferred to end-of-run, never charged to the row.
+      assertNotEdgeChallenge(provider, url, body);
+      throw atsHttpError(provider, res.status, body);
+    }
+
+    // Abandoning this attempt's response — free the socket before sleeping.
+    await res.body?.cancel();
+    const retryAfter = res.headers.get("retry-after");
+    const waitMs = retryAfter !== null ? parseRetryAfterMs(retryAfter) : 1000 * 2 ** attempt;
+    await sleep(waitMs);
   }
-  // ANY response proves the connection works, including a 403 from a bot-blocker — that's about the board, not the network.
-  reportNetworkSuccess();
-  if (!res.ok) {
-    const body = await res.text();
-    // Scan the FULL body for a WAF/block-page signature before atsHttpError truncates to 200 chars
-    // (CloudFront/Akamai markers land past that cut). An edge-challenge classifies as an infrastructure
-    // fault: retried inline, deferred to end-of-run, never charged to the row.
-    assertNotEdgeChallenge(provider, url, body);
-    throw atsHttpError(provider, res.status, body);
-  }
-  return res;
+  // Unreachable: every loop iteration above either returns or throws by its final pass.
+  throw new Error(`${provider}: retry loop exited without resolving`);
 }
 
 /** Fetch JSON with the standard ATS timeout + UA. Sends a JSON body (and POST) when `body` is provided. */
