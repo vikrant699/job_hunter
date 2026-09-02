@@ -1,5 +1,6 @@
 import { logger } from "../logger.js";
-import { config } from "../config.js";
+import { config, throttleFor } from "../config.js";
+import type { ProviderThrottle } from "../config.js";
 import {
   markFetchSuccess,
   markFetchFailure,
@@ -14,6 +15,7 @@ import { toAdapterCompany } from "./index.js";
 import type { DeferredBoard, RunContext } from "./index.js";
 import { processOnePosting } from "./postingPipeline.js";
 import { sleep } from "../util/sleep.js";
+import { makeSemaphore } from "../util/semaphore.js";
 
 /** Collapse a raw fetch error into a short tag for the Discord issue list. */
 export function classifyFetchError(msg: string): string {
@@ -43,12 +45,66 @@ export function defaultRetryPolicy(): TransportRetryPolicy {
   };
 }
 
+/** Per-provider start throttle, live across a whole processBucket call (or several, if injected in): caps how many of
+ *  that provider's boards fetch concurrently and spaces successive starts apart. Un-throttled providers pass through
+ *  with no wait at all - same code path as before this existed. */
+export interface ProviderThrottleState {
+  /** Waits out this provider's throttle (if it has one), then returns the release to call once the fetch is done. */
+  start(provider: string): Promise<() => void>;
+}
+
+interface ThrottleEntry {
+  /** Bounds concurrent in-flight fetches for this provider to maxConcurrent. */
+  acquireSlot: () => Promise<() => void>;
+  /** Mutex serializing the "wait out the spacing, then stamp lastStartAt" step, so two starts racing on the same
+   *  provider can't both read a stale lastStartAt and land within minSpacingMs of each other. Held only for that
+   *  brief step, never for the fetch itself, so it can't stall other providers or even other in-flight fetches of
+   *  its own provider. */
+  claimStart: () => Promise<() => void>;
+  minSpacingMs: number;
+  lastStartAt: number;
+}
+
+/** Builds a fresh throttle registry; `table` defaults to config's but is injectable so tests can use a tiny minSpacingMs. */
+export function createProviderThrottleState(
+  table: Partial<Record<string, ProviderThrottle>> = config.fetch.providerThrottle,
+): ProviderThrottleState {
+  const entries = new Map<string, ThrottleEntry>();
+  function entryFor(provider: string, cfg: ProviderThrottle): ThrottleEntry {
+    const existing = entries.get(provider);
+    if (existing) return existing;
+    const created: ThrottleEntry = {
+      acquireSlot: makeSemaphore(() => cfg.maxConcurrent),
+      claimStart: makeSemaphore(() => 1),
+      minSpacingMs: cfg.minSpacingMs,
+      lastStartAt: 0,
+    };
+    entries.set(provider, created);
+    return created;
+  }
+  return {
+    async start(provider: string): Promise<() => void> {
+      const cfg = throttleFor(provider, table);
+      if (!cfg) return () => {};
+      const entry = entryFor(provider, cfg);
+      const releaseSlot = await entry.acquireSlot();
+      const releaseClaim = await entry.claimStart();
+      const wait = entry.lastStartAt + entry.minSpacingMs - Date.now();
+      if (wait > 0) await sleep(wait);
+      entry.lastStartAt = Date.now();
+      releaseClaim();
+      return releaseSlot;
+    },
+  };
+}
+
 export async function processBucket(
   bucketKey: string,
   adapter: AtsAdapter,
   companies: Company[],
   stats: RunContext,
   retry: TransportRetryPolicy = defaultRetryPolicy(),
+  throttle: ProviderThrottleState = createProviderThrottleState(),
 ): Promise<void> {
   if (companies.length === 0) return;
   logger.debug({ bucket: bucketKey, count: companies.length }, "processing bucket");
@@ -63,7 +119,12 @@ export async function processBucket(
       const idx = cursor++;
       const company = companies[idx];
       if (!company) return;
-      await processOneCompany(adapter, company, stats, retry);
+      const releaseThrottle = await throttle.start(company.provider);
+      try {
+        await processOneCompany(adapter, company, stats, retry);
+      } finally {
+        releaseThrottle();
+      }
       // Count every company worked (fetched or skipped) so scanned reaches total, driving the progress heartbeat.
       if (progress) progress.scanned++;
       if (config.fetch.interCallDelayMs > 0) {
