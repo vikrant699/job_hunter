@@ -131,6 +131,13 @@ grouping, plus USD/EUR/GBP and friends), a mechanical extractor stores the
 annualized range on the posting - no LLM involved, and never guessed when the JD
 is silent.
 
+There is also an experimental, off-by-default embedding shadow mode: set
+`OLLAMA_EMBED_MODEL` (or `OPENROUTER_EMBED_MODEL` when `LOCAL=false`) and each
+gated posting is embedded and scored by cosine similarity against your embedded
+resume, stored alongside the gate's verdict for offline analysis. It changes
+nothing about filtering; it exists to measure whether a cheap similarity floor
+could safely skip obviously-irrelevant postings before the LLM reads them.
+
 Postings also carry a lifecycle. Every successful company fetch bumps `last_seen_at`
 for each posting the board still lists; a posting missing from the snapshot gets
 `removed_at` stamped (and cleared again if it reappears). Outreach never drafts
