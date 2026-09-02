@@ -109,6 +109,11 @@ Then a cheap regex on the title to skip postings obviously outside your target r
 family (this is what `titleDenyPatterns` in your profile is for; it saves a slow LLM
 call per drop).
 
+SuccessFactors boards (both the CSB JSON API and the legacy HTML board) additionally
+cross-check the tenant's `/sitemap.xml`, which lists every posting in one request;
+ids the paginated listing missed are gap-filled from it, so unstable pagination can
+no longer drop jobs.
+
 Anything that survives gets a JD fetch (if the listing did not already include one),
 then two LLM calls: a "gate" that returns a `matchScore` plus any deal-breaker hit,
 and an "extract" that pulls minimum and maximum YOE from the JD text. The gate judges
@@ -160,7 +165,12 @@ tenant_url: https://acme.wd1.myworkdayjobs.com/External
 ```
 
 Workday has no directory of tenants, so finding these means hunting around the
-company's careers page until you spot a `myworkdayjobs.com` link.
+company's careers page until you spot a `myworkdayjobs.com` link. The career-site
+name (the path segment, e.g. `/External`) is listed in the tenant's
+`robots.txt` (`Allow: /<site>/` lines) if you need to confirm it. If a configured
+site name goes stale, the bot reads robots.txt itself: when exactly one site
+exists there it retries against it and logs a "workday site drift" warning;
+otherwise it logs the candidates for you to repoint the row.
 
 Each entry also carries a `status`. `active`/`candidate` are scanned normally.
 `denied` is excluded from every scan - used for genuine dead ends (defunct or acquired

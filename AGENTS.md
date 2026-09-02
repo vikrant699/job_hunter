@@ -229,6 +229,15 @@ change.
   After a transfer the local file's mtime is stamped with the remote's `modifiedTime`,
   or the next run reads "remote-newer" and re-downloads what it just uploaded (a push
   finishes seconds after the local write, well past the 5s skew tolerance).
+- **Transient ATS failures retry inline.** `fetchOk` in `src/ats/http.ts` retries 429/5xx up
+  to 3 total tries, honoring `Retry-After` (else 1s/2s exponential); the final failure still
+  runs the edge-challenge classifier so the deferred end-of-run pass keeps working. Tests that
+  stub a single canned 429/5xx response must repeat it (see `oracle.test.ts`).
+- **Burst-sensitive providers are throttled per provider.** `config.fetch.providerThrottle`
+  (currently `workday: { maxConcurrent: 2, minSpacingMs: 4000 }`) caps concurrent boards and
+  spaces successive fetch starts of one provider - Workday serves HTML instead of JSON when
+  many boards are hit in a burst from one IP, which otherwise miscounts healthy boards as
+  defects. Other providers are unaffected.
 - **Network outages pause the run; they never skip work.** `src/util/connectivity.ts`
   runs a heartbeat (a 204 probe every 10s) for the whole run, and every outbound call
   - ATS fetches (`ats/http.ts` `fetchOk`), browser navigation (`ats/browserFetch.ts`),
