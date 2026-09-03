@@ -1,9 +1,5 @@
-// src/ats/icicibank.ts — ICICI Bank careers SPA (careers.icici.bank.in), single-tenant hardcoded adapter
-// (not tenant_url/apiMeta driven). AES-128-CBC/PKCS7, traced from the SPA bundle: 16-byte UTF-8 key,
-// random 16-char IV generated per request and appended in PLAIN TEXT after the base64 ciphertext (same
-// scheme both directions). list: POST Career/Search/1 (0-based PageNo+limit; exhausted page =
-// ResponseCode 103, no Data, unencrypted). jd: GET Career/getMobileJd/<id>, plain UNENCRYPTED JSON (the
-// list's hc_JD is always empty). Both endpoints WAF-block the bot UA — use BROWSER_UA.
+// list: POST Career/Search/1 (0-based PageNo+limit)
+// jd: GET Career/getMobileJd/<id>, plain UNENCRYPTED JSON; both endpoints WAF-block non-browser UAs
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -23,8 +19,7 @@ const jdUrl = (jobId: string): string => `${API_BASE}/Career/getMobileJd/${encod
 
 const PAGE_SIZE = 12; // matches the real client's /Career/job-listing/ page.
 
-// If ICICI rotates keys: grep a fresh bundle for the enc.Utf8.parse("...") literal feeding the AES call
-// that slices a 16-char IV suffix off its input/output.
+// If ICICI rotates keys: grep a fresh bundle for the enc.Utf8.parse("...") literal feeding the AES call that slices a 16-char IV suffix off its input/output.
 const ENCRYPT_KEY = "$k@m0u$0172@0r!k";
 const IV_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 

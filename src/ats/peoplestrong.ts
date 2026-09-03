@@ -1,6 +1,5 @@
-// src/ats/peoplestrong.ts — PeopleStrong (Altone) career portals (<tenant>.peoplestrong.com), a
-// clean unauthenticated JSON API shared across tenants. Paginate offset+=45 on the list endpoint;
-// the JD endpoint's `part=` list requires the vendor's misspelling "descriprion" verbatim.
+// src/ats/peoplestrong.ts — PeopleStrong (Altone) career portals (<tenant>.peoplestrong.com): a clean unauthenticated JSON API, paginated offset+=45 on the list endpoint.
+// The JD endpoint's `part=` list requires the vendor's misspelling "descriprion" verbatim.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -11,9 +10,7 @@ import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
 const PAGE = 45; // vendor-fixed page size
-// Safety cap: 225,000 jobs (PAGE 45 x MAX_PAGES 5000). Largest known tenant
-// (Larsen & Toubro) is ~1311 jobs -> ~30 pages, so this is generous headroom,
-// not a real ceiling. listPostings logs if hit.
+// Safety cap only (PAGE 45 x MAX_PAGES 5000 = 225,000 jobs); largest known tenant is ~1311 jobs (~30 pages) — listPostings logs if this is ever hit.
 const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
 
 export const PeoplestrongJobSchema = z.object({
@@ -90,8 +87,7 @@ export const peoplestrongAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
-    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside
-    // the fetchPage closure defeats TS's narrowing).
+    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside the fetchPage closure defeats TS's narrowing).
     const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({
@@ -117,8 +113,7 @@ export const peoplestrongAdapter: AtsAdapter = {
         const items = rows
           .map((j) => normalizePeoplestrong(company, j))
           .filter((p): p is NormalizedPosting => p !== null);
-        // Advance by the raw record count, not the filtered count, so jobs
-        // dropped for a missing jobCode don't shorten the page and stop early.
+        // Advance by the raw record count, not the filtered count, so jobs dropped for a missing jobCode don't shorten the page and stop early.
         return { items, total: parsed.totalRecords ?? null, rawCount: rows.length };
       },
     });

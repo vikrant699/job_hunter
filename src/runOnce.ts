@@ -1,6 +1,4 @@
-// Body of `npm run once`, everything after the DB sync. Split from index.ts because these modules transitively open
-// db/db.ts at load, which the pre-run Drive pull must not race; index.ts reaches this via dynamic import post-sync,
-// and db/openState.ts enforces the rule at runtime.
+// Body of `npm run once`, split from index.ts and loaded only via dynamic import post-sync because these modules transitively open db/db.ts at load, which the pre-run Drive pull must not race; db/openState.ts enforces the rule at runtime.
 import { logger } from "./logger.js";
 import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
 import type { RegistrySyncResult } from "./registry/sheetRegistry.js";

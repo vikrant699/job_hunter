@@ -1,8 +1,5 @@
-// src/ats/mercedes.ts — Mercedes-Benz careers (jobs.mercedes-benz.com), backed by an HR-Open-style
-// search gateway (jobs.api.mercedes-benz.com/search?data=<url-encoded JSON>), filtered by
-// PositionLocation.Country=390 (India). Requisitions repeat 2-3x per channel under the same
-// PositionID, so listPostings dedupes on it. The filtered endpoint never returns a JD body, so
-// fetchJd pulls it from the public job page's embedded JSON-LD JobPosting node instead.
+// list: GET jobs.api.mercedes-benz.com/search?data=<url-encoded JSON>, filtered by PositionLocation.Country=390 (India)
+// requisitions repeat 2-3x per channel under the same PositionID (dedupe on it); no JD in the filtered response, so fetchJd reads the public job page's embedded JSON-LD JobPosting node
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

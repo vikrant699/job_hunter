@@ -1,4 +1,3 @@
-// src/google/auth.ts
 import { readFileSync, existsSync } from "node:fs";
 import { z } from "zod";
 import { config } from "../config.js";

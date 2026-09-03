@@ -6,8 +6,7 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 
-// Lever public postings: GET api.lever.co/v0/postings/<slug>?mode=json
-// Response is a flat array, not wrapped in a `postings` key.
+// list: GET api.lever.co/v0/postings/<slug>?mode=json -> flat array, not wrapped in a `postings` key
 const LeverPostingSchema = z.object({
   id: z.string(),
   text: z.string(),
@@ -16,8 +15,7 @@ const LeverPostingSchema = z.object({
   createdAt: z.number().nullable().optional(),
   descriptionPlain: z.string().nullable().optional(),
   description: z.string().nullable().optional(),
-  // lists[] holds responsibilities/requirements bullets (skills live there); additional(Plain) is the
-  // closing section — must include both or the JD is intro-only.
+  // lists[] holds responsibilities/requirements bullets (skills live there); additional(Plain) is the closing section — must include both or the JD is intro-only
   lists: z
     .array(z.object({ text: z.string().nullable().optional(), content: z.string().nullable().optional() }))
     .nullable()

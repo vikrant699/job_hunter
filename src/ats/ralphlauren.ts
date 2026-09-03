@@ -1,11 +1,5 @@
-// src/ats/ralphlauren.ts — Ralph Lauren careers = Avature's React SPA portal
-// (careers.ralphlauren.com) behind Cloudflare bot-management; a plain fetch gets HTTP 202 + empty
-// body, so we clear Cloudflare in the shared headless browser and run the board's JSON API in-page.
-// GET /en_US/CareersCorporate/SearchJobsCorporateData/ returns every job in one call, grouped by
-// location, but location comes only as lat/lon and many India jobs land in an ungeocoded "," bucket
-// with no country field. We emit geocoded-India jobs with a concrete location, skip geocoded-foreign
-// ones, and emit the ambiguous bucket with location=null so the pipeline's JD-based filter decides.
-// There is no server-side location filter — every guessed param returns all jobs.
+// src/ats/ralphlauren.ts — Ralph Lauren careers = Avature's React SPA (careers.ralphlauren.com) behind Cloudflare; a plain fetch gets HTTP 202 + empty body, so this runs the board's JSON API inside the shared headless browser.
+// GET /en_US/CareersCorporate/SearchJobsCorporateData/ returns every job grouped by location as lat/lon only; many India jobs land in an ungeocoded "," bucket with no country field, kept with location=null for the pipeline's JD-based filter to decide.
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -17,7 +11,7 @@ import { REMOTE_RE } from "./shared.js";
 
 const HOST = "https://careers.ralphlauren.com";
 const SEARCH_PAGE = `${HOST}/en_US/CareersCorporate/SearchJobsCorporate`;
-const DATA_URL = `${HOST}/en_US/CareersCorporate/SearchJobsCorporateData/`;
+const DATA_URL = `${HOST}/en_US/CareersCorporate/SearchJobsCorporateData/`; // no server-side location filter exists — every guessed query param still returns all jobs
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -67,10 +61,8 @@ export function normalizeRalphLauren(
   };
 }
 
-// The true location of an ungeocoded posting, read from the labelled City/State/Region/Location
-// fields in the job-detail page's first article--details block. This is the only place a real
-// location exists for the "," bucket, so fetchJd resolves it there and the pipeline re-applies the
-// strict check (lateLocationCheck) — otherwise a foreign role reaches the LLM gate as unknown-defer.
+// The true location of an ungeocoded posting, read from the labelled City/State/Region/Location fields in the job-detail page's first article--details block.
+// This is the only place a real location exists for the "," bucket, so fetchJd resolves it there and the pipeline re-applies the strict check (lateLocationCheck) — otherwise a foreign role reaches the LLM gate as unknown-defer.
 export function ralphLaurenDetailLocation(html: string): string | null {
   if (!html.trim()) return null;
   const $ = cheerio.load(html);

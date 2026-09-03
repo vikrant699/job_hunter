@@ -11,8 +11,7 @@ import { ensureResumeText } from "./tools/extractResume.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-// --profile <name> (or PROFILE env) selects config/profiles/<name>/; default
-// falls back to config/profile.ts + config/resume.* with id "default".
+// --profile <name> (or PROFILE env) selects config/profiles/<name>/; default falls back to config/profile.ts + config/resume.* with id "default".
 function selectedProfileName(): string {
   const argv = process.argv;
   const i = argv.indexOf("--profile");

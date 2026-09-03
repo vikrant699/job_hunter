@@ -1,14 +1,5 @@
-// src/ats/talentzq.ts — TalentzQ career boards (e.g. pratilipi.talentzq.io), a Blazor
-// WebAssembly SPA fronting a per-tenant JSON API. list: GET
-// <subdomain>.talentzq.io/api/<tenantId>/jd — the HTTP body is a JSON STRING containing
-// the array's JSON text (double-encoded); one call returns the whole board, no pagination.
-// detail: GET .../api/<tenantId>/jd/<Jdcode> — singly-encoded JSON string of the JD HTML.
-// public job page: .../JobView/<Jdcode> (captured via the site's click-through since the
-// listing DOM uses JS handlers, not <a href>).
-// Every request carries a `?v=<token>` query param; verified live that omitting it, or
-// passing garbage, returns identical 200 data, and the same value is reused across
-// unrelated (image) requests in a real page load — it's a cache-busting stamp, not a
-// session token, so this adapter omits it. Only Published===true records are live postings.
+// src/ats/talentzq.ts — TalentzQ career boards (e.g. pratilipi.talentzq.io), a Blazor WebAssembly SPA fronting a per-tenant JSON API.
+// List: GET <subdomain>.talentzq.io/api/<tenantId>/jd, whole board in one call (no pagination), body a double-JSON-encoded string. Detail: GET .../api/<tenantId>/jd/<Jdcode>, singly-encoded JSON string of the JD HTML; the public job page is .../JobView/<Jdcode>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -18,6 +9,7 @@ import { REMOTE_RE, dateToIso, joinLocation } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 
+// Every request carries a `?v=<token>` query param on the live site; verified that omitting it (or passing garbage) returns identical 200 data and the same value recurs across unrelated image requests too — it's a cache-busting stamp, not a session token, so these URLs omit it.
 export function talentzqListUrl(origin: string, tenantId: string): string {
   return `${origin}/api/${tenantId}/jd`;
 }
@@ -45,8 +37,7 @@ export const TalentzqJobSchema = z.object({
 });
 export type TalentzqJob = z.infer<typeof TalentzqJobSchema>;
 
-// Unwraps the double-JSON-encoded list body. Never throws — anything that isn't a valid
-// JSON string parsing to an array yields [].
+// Unwraps the double-JSON-encoded list body. Never throws — anything that isn't a valid JSON string parsing to an array yields [].
 export function talentzqJobsFrom(raw: JsonValue): JsonValue[] {
   if (typeof raw !== "string") return [];
   const parsed = tryParseJson(raw);

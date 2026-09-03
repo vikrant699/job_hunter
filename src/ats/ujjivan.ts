@@ -1,11 +1,5 @@
-// src/ats/ujjivan.ts — Ujjivan Small Finance Bank careers, a first-party JSON API (no
-// auth): GET www.ujjivansfb.bank.in/api/jobs -> { data: [...] }. One GET returns all ~226
-// postings; many are multi-branch roles with a large location[] array.
-// JD: the list API used to inline description/job_description, but the bank's 2026 site
-// redesign dropped both fields from the list payload. The JD now lives on a detail
-// endpoint only discoverable in the site's JS bundle: POST .../api/jobs/job-details
-// {"job_id": id} -> { data: { data: { job_decription: "<html>" } } } — yes, the bank
-// misspelled their own field; correctly-spelled variants are read too in case they fix it.
+// src/ats/ujjivan.ts — Ujjivan SFB careers: GET www.ujjivansfb.bank.in/api/jobs -> { data: [...] }, no auth, one page returns all ~226 postings (many multi-branch with large location[] arrays).
+// JD: the list payload dropped description fields in the bank's 2026 site redesign; fetchJd calls POST .../api/jobs/job-details {job_id} -> job_decription in the response.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/userAgent.js";

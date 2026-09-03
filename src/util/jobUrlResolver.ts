@@ -1,16 +1,10 @@
-// Resolves a job posting URL (typically pasted while debugging "why isn't this in my sheet")
-// into an ATS provider + slug hint + external id, matching the URL shapes our OWN adapters
-// build into postings.job_url (see the per-provider comments below — each cites the adapter
-// function that constructs the URL). Pure and side-effect free; scripts/probeUrl.ts is the
-// only caller.
+// Pure and side-effect free; scripts/probeUrl.ts is the only caller.
 
 export interface JobUrlResolution {
   provider: string | null;
   slugHint: string | null;
   externalId: string | null;
-  /** Present when the match is ambiguous, needs registry lookup by host, or the URL's id is
-   *  known to differ from what we store as postings.external_id (a job_url LIKE fallback is
-   *  then the right next move, not an exact (provider, external_id) lookup). */
+  /** Present when the match is ambiguous, needs a registry host lookup, or the URL's id is known to differ from postings.external_id (fall back to a job_url LIKE lookup instead). */
   hint?: string;
 }
 
@@ -38,8 +32,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const MATCHERS: UrlMatcher[] = [
   {
-    // greenhouse.ts normalize(): jobUrl = j.absolute_url, e.g. "https://boards.greenhouse.io/<slug>/jobs/<id>"
-    // or the newer "https://job-boards.greenhouse.io/<slug>/jobs/<id>"; externalId = String(j.id), same id.
+    // Greenhouse job URLs are "https://(boards|job-boards).greenhouse.io/<slug>/jobs/<id>"; externalId is that same trailing id.
     name: "greenhouse",
     match(url) {
       const host = url.hostname.toLowerCase();
@@ -78,8 +71,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // smartrecruiters.ts srPostingUrl(): "https://jobs.smartrecruiters.com/<Company>/<id>-<title-slug>"
-    // (or bare "<id>" before fetchJd's canonical rewrite); externalId = p.id, the leading digits either way.
+    // SmartRecruiters URLs are "https://jobs.smartrecruiters.com/<Company>/<id>-<title-slug>" (or bare "<id>"); externalId is the leading digits.
     name: "smartrecruiters",
     match(url) {
       if (url.hostname.toLowerCase() !== "jobs.smartrecruiters.com") return null;
@@ -93,11 +85,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // workday.ts normalizeWorkdayListing(): jobUrl = "<uiBase><externalPath>", e.g.
-    // ".../en-US/External/job/Bengaluru---Karnataka/Software-Engineer_R12345". The requisition
-    // segment (last path segment after "/job/") ends in the numeric-suffixed slug, but the
-    // DB's externalId is shortId/jobPostingId (e.g. "R12345") which is usually a DIFFERENT
-    // string than this URL segment — an exact (provider, external_id) lookup will likely miss.
+    // Workday job URLs end in "/job/<location>/<title-slug>_<requisitionId>", and that trailing id usually differs from the DB's stored externalId (shortId/jobPostingId).
     name: "workday",
     match(url) {
       const host = url.hostname.toLowerCase();
@@ -132,11 +120,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // darwinbox.ts darwinboxJobUrl(): both generations (candidatev2 AND legacy) are stored as
-    // ".../ms/candidatev2/<token>/careers/jobDetails/<id>"; externalId = String(j.id), same id.
-    // A "<tenant>.darwinbox.../careers/<id>" URL (no jobDetails segment) is what the LIVE legacy
-    // "candidate ms" UI renders in a browser, but our adapter never stores that shape — treat it
-    // as a same-id alias and fall back to a LIKE lookup if the exact URL isn't found.
+    // Our adapter always stores the candidatev2 "careers/jobDetails/<id>" shape; a legacy "careers/<id>" URL (no jobDetails segment) is the live browser UI's shape, same id, but never what we store.
     name: "darwinbox",
     match(url) {
       const host = url.hostname.toLowerCase();
@@ -158,8 +142,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // zohorecruit.ts zohoJobUrl(): "<careersUrl>/<id>/<title-slug>" (or bare "<id>" with no title);
-    // externalId = j.id, the trailing numeric segment.
+    // Zoho Recruit URLs are "<careersUrl>/<id>/<title-slug>" (or bare "<id>"); externalId is the trailing numeric segment.
     name: "zohorecruit",
     match(url) {
       const host = url.hostname.toLowerCase();
@@ -194,8 +177,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // eightfold.ts normalizeEightfold(): jobUrl = p.canonicalPositionUrl (vendor-supplied, may carry
-    // ?pid=<id>) or our own "https://<host>/careers/job/<id>" fallback; externalId = String(p.id).
+    // eightfold job URLs are either our own "/careers/job/<id>" or the vendor's canonicalPositionUrl carrying "?pid=<id>".
     name: "eightfold",
     match(url) {
       const host = url.hostname.toLowerCase();
@@ -229,9 +211,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // A company's OWN careers page embedding a Greenhouse widget links out via ?gh_jid=<id> rather
-    // than a boards.greenhouse.io URL. Not something our greenhouse adapter stores (it always uses
-    // the boards-api absolute_url), but common in a URL copied straight from a browser.
+    // A company's own careers page embedding a Greenhouse widget links out via "?gh_jid=<id>" instead of a boards.greenhouse.io URL.
     name: "greenhouse-embedded",
     match(url) {
       const jid = url.searchParams.get("gh_jid");
@@ -245,11 +225,7 @@ const MATCHERS: UrlMatcher[] = [
     },
   },
   {
-    // sfcsb.ts sfcsbJobUrl(): ".../job/<slug>/<id>-<locale>/"; successfactors.ts's search-result hrefs:
-    // ".../job/<slug>/<reqId>/" (reqId recognized here only when purely numeric). Both are SAP
-    // SuccessFactors engines on the company's own domain — no shared host to key off, and two
-    // different adapters (sfcsb.ts / successfactors.ts) can produce this shape, so the provider
-    // is left null for the CLI to resolve by host against the registry.
+    // Both sfcsb and successfactors adapters produce ".../job/<slug>/<numeric id>[-<locale>]/" on the company's own domain, so provider is left null for host-based registry lookup.
     name: "successfactors-shaped",
     match(url) {
       const id = /\/job\/[^/]+\/(\d+)(?:-[^/]+)?\/?$/i.exec(url.pathname)?.[1];
@@ -264,8 +240,7 @@ const MATCHERS: UrlMatcher[] = [
   },
 ] as const;
 
-/** Resolve a pasted job posting URL to an ATS provider + slug hint + external id (best-effort,
- *  pattern-matched — never throws). `hint` explains an ambiguity or a known id-shape mismatch. */
+/** Resolve a pasted job posting URL to an ATS provider + slug hint + external id (best-effort, never throws); `hint` explains an ambiguity or a known id-shape mismatch. */
 export function resolveJobUrl(raw: string): JobUrlResolution {
   let url: URL;
   try {

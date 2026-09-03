@@ -1,9 +1,5 @@
-// src/ats/sfSitemap.ts — SAP SuccessFactors sitemap.xml completeness backstop, shared by sfcsb.ts (unstable
-// JSON-search pagination) and successfactors.ts (paginated legacy HTML board): <tenant origin>/sitemap.xml
-// serves the tenant's COMPLETE job-URL set in one request as a plain <urlset>, e.g.
-//   <url><loc>https://careers.payu.in/PayU/job/Gurgaon-P3-Assistant-Manager-BSM/53951080/</loc>...</url>
-// Some tenants serve an <rss> feed at the same path instead — detected, not ingested. Never throws: any
-// failure degrades to null so a sitemap outage can never fail a board that was otherwise fine.
+// SAP SuccessFactors sitemap.xml completeness backstop, shared by sfcsb.ts and successfactors.ts: <tenant origin>/sitemap.xml serves the tenant's COMPLETE job-URL set in one request as a plain <urlset> (e.g. <url><loc>https://careers.payu.in/PayU/job/.../53951080/</loc>...</url>).
+// Some tenants serve an <rss> feed at the same path instead - detected, not ingested. Never throws: any failure degrades to null so a sitemap outage can never fail a board that was otherwise fine.
 import { logger } from "../logger.js";
 import type { AdapterCompany } from "../types.js";
 import { atsFetchText } from "./http.js";
@@ -14,7 +10,6 @@ import { describeError } from "../util/errorCause.js";
 export const SITEMAP_GAP_FILL_CAP = 500;
 
 const LOC_RE = /<loc>\s*([^<\s]+)\s*<\/loc>/gi;
-// A /job/ path segment somewhere in the URL, ending in a trailing all-digits segment (with or without a trailing slash).
 const JOB_ID_RE = /\/job\/.*\/(\d+)\/?$/;
 
 /** Parse a sitemap.xml body into id -> job URL, keeping only /job/.../<digits>/ locs. Pure, never throws. */
@@ -46,9 +41,7 @@ export function titleFromSitemapUrl(url: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }
 
-/** Fetch <tenant origin>/sitemap.xml as a completeness backstop against an adapter's own listing.
- *  Returns the id -> url map (empty is a valid result), or null on ANY failure: a bad tenant URL, an HTTP
- *  error, a non-XML body, a body with no <urlset>, or an <rss> feed variant (logged, not ingested). */
+/** Fetch <tenant origin>/sitemap.xml as a completeness backstop: id -> url map (empty is valid), or null on ANY failure incl. the <rss> feed variant (logged, not ingested). */
 export async function fetchSfSitemapIds(company: AdapterCompany, provider: string): Promise<Map<string, string> | null> {
   let origin: string;
   try {

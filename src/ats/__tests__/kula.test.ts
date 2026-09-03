@@ -1,4 +1,3 @@
-// src/ats/kula.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeKula, kulaListUrl, kulaJobUrl, kulaAdapter } from "../kula.js";

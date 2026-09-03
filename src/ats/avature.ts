@@ -1,9 +1,5 @@
-// src/ats/avature.ts — Avature career portals, white-labeled per client on a custom host (jobs.lenovo.com, jobs.siemens.com).
-// List: GET <host>/<locale>/<portal>/SearchJobs, server-rendered HTML, no auth. Select fields by class within
-// `article.article--result` (subtitle markup is skin-dependent: plain spans on some tenants, .list-item-* blocks on others).
-// Pagination follows the page's own "Next" link verbatim (its offset param name differs per tenant and is ignored if we
-// override it); stop on no Next link or zero postings (a past-the-end page can render a stale placeholder with a bogus Next).
-// JD: GET .../JobDetail/[<slug>/]<id> -> full HTML in `.section__content`.
+// list: GET <host>/<locale>/<portal>/SearchJobs, server-rendered HTML -> article.article--result nodes
+// jd: GET .../JobDetail/[<slug>/]<id> -> full HTML in `.section__content`
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -15,18 +11,15 @@ import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 const MAX_PAGES = 5000; // safety cap in case a tenant's Next link never disappears (loops back on itself, etc.)
 
-// Avature stamps an avature.* meta namespace into every portal page and serves chrome/error pages from /jscore/;
-// either is proof the response came from the engine (see assertAvatureBoardServed).
+// Avature stamps an avature.* meta tag into every portal page and serves chrome/error pages from /jscore/ - either proves the response came from the engine (see assertAvatureBoardServed)
 const AVATURE_PORTAL_META_RE = /name="avature\.[a-z]/i;
 const AVATURE_ASSET_RE = /\/jscore\//;
 
-/** Whether this response was rendered by Avature at all. */
 export function avatureEngineServed(html: string): boolean {
   return AVATURE_PORTAL_META_RE.test(html) || AVATURE_ASSET_RE.test(html);
 }
 
-// Page-1-only: zero postings AND no Avature markup means the host stopped serving the portal (dead, not empty);
-// a WAF challenge page is checked first so an edge block is reported as infrastructure, not charged to the row.
+// checked only for page 1: zero postings + no Avature markup means the board is dead, not empty; a WAF challenge is checked first so an edge block counts as infra, not a broken row
 export function assertAvatureBoardServed(html: string, url: string): void {
   if (avatureEngineServed(html)) return;
   assertNotEdgeChallenge("avature", url, html);
@@ -42,8 +35,7 @@ export function assertAvatureBoardServed(html: string, url: string): void {
 export function avatureSearchUrl(company: AdapterCompany): string {
   const base = company.tenantUrl ?? company.careersUrl;
   const u = new URL(base);
-  // Optional server-side country filter (raw query suffix, e.g. "42386[]=812053"); field/option ids are
-  // tenant-specific and the engine's own Next links carry the filter through every page.
+  // optional server-side country filter (raw query suffix, e.g. "42386[]=812053"); ids are tenant-specific but the engine's own Next links carry it through every page
   const filter = company.apiMeta?.countryFilter;
   const suffix = filter !== undefined && filter !== "" ? `?${filter}` : "";
   if (/\/SearchJobs\/?$/i.test(u.pathname)) {
@@ -64,6 +56,7 @@ export function parseJobDetailHref(href: string): { slug: string | null; id: str
 }
 
 /** `.paginationNextLink` sits on the <a> itself on some skins, wraps one on others - resolve to the <a> either way. */
+// Always follow this href verbatim: the offset param's NAME differs per tenant and a hand-built value is silently ignored.
 export function parseAvatureNextHref(html: string, baseUrl: string): string | null {
   const $ = cheerio.load(html);
   const $next = $(".paginationNextLink").first();
@@ -96,7 +89,6 @@ function pickPostedFromSpans(spanTexts: string[]): string | null {
   return null;
 }
 
-/** Parse one SearchJobs page: its postings and the absolute Next-page URL (if any). */
 export function parseAvatureSearch(
   html: string,
   baseUrl: string,
@@ -161,8 +153,7 @@ export function parseAvatureSearch(
   return { postings, nextHref: parseAvatureNextHref(html, baseUrl) };
 }
 
-/** Prefers `section.section--description .section__content`; a bare `.section__content` first-match can grab the
- *  metadata sidebar instead on some skins. Falls back to it only when the description section class is absent. */
+// prefers section.section--description .section__content; a bare .section__content first-match can grab the metadata sidebar on some skins, so it's only the fallback
 export function parseAvatureJd(html: string): string {
   const $ = cheerio.load(html);
   const described = $("section.section--description .section__content").first();

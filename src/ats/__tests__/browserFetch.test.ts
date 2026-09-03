@@ -1,4 +1,3 @@
-// src/ats/browserFetch.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isTransientEvalError, runWithEvalRetry, MAX_EVAL_ATTEMPTS, HEAVY_ASSET_RE } from "../browserFetch.js";

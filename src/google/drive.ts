@@ -1,6 +1,4 @@
-// Minimal Drive client for syncing the SQLite file between machines. Reuses getAccessToken
-// (needs the drive.file scope: app-created files only). googleFetchJson doesn't fit here since
-// it always JSON-encodes/parses, but these calls move ~50 MB of binary.
+// Minimal Drive client for syncing the SQLite file between machines (drive.file scope: app-created files only); doesn't reuse googleFetchJson since that always JSON-encodes/parses and these calls move ~50 MB of binary.
 import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -25,14 +23,12 @@ export type DriveFileMeta = z.infer<typeof FileMetaSchema>;
 
 const FileListSchema = z.object({ files: z.array(FileMetaSchema).default([]) });
 
-// Drive returns only a default field set unless `fields` asks for more, so the upload response has
-// no modifiedTime/size; we take only the id and read the rest back explicitly.
+// Drive returns only a default field set unless `fields` asks for more, so the upload response has no modifiedTime/size; only the id is taken here and the rest is read back explicitly.
 const UploadedIdSchema = z.object({ id: z.string() });
 
 const META_FIELDS = "id,name,size,modifiedTime";
 
-// "API disabled" 403s carry the fix URL past the snippet slice limit, so it's pulled out by hand below;
-// this is a separate one-time switch from consent/scope, easy to mistake for a permission problem.
+// "API disabled" 403s carry the fix URL past the snippet slice limit, so it's pulled out by hand below; this is a separate one-time switch from consent/scope, easy to mistake for a permission problem.
 const API_DISABLED_RE = /has not been used in project|accessNotConfigured|it is disabled/i;
 
 function driveError(what: string, status: number, body: string): Error {

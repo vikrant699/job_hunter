@@ -1,9 +1,5 @@
-// src/ats/moglix.ts — Moglix's careers board (moglix.flexiele.com), a "FlexiEle" tenant with a
-// hardcoded single-tenant API: POST https://moglix-api.flexiele.com/api-pub/rec/careers/list.
-// Request and response bodies are AES-256-CBC encrypted with a static passphrase baked into the
-// bundle (CryptoJS's OpenSSL-compatible "Salted__" KDF), wrapped in a single-random-hex-key envelope
-// echoed as the `fe-req-encrypted` header. `take:50000` fetches the whole board in one POST; the JD
-// is inline on every row, so no fetchJd. See moglixEncrypt/moglixDecrypt for the KDF replication.
+// list: POST moglix-api.flexiele.com/api-pub/rec/careers/list, request/response AES-256-CBC encrypted (CryptoJS OpenSSL-compatible "Salted__" KDF) with a static passphrase, wrapped in a random-hex-key envelope echoed as the fe-req-encrypted header
+// take:50000 fetches the whole board in one POST; JD inline on every row, no fetchJd
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -39,8 +35,7 @@ function evpBytesToKey(passphrase: string, salt: Buffer, keyLen: number, ivLen: 
   return { key: data.subarray(0, keyLen), iv: data.subarray(keyLen, keyLen + ivLen) };
 }
 
-// Matches CryptoJS.AES.encrypt(plaintext, passphrase): random 8-byte salt, EVP_BytesToKey -> 32-byte
-// key + 16-byte IV, AES-256-CBC/PKCS7, wire format base64("Salted__" + salt + ciphertext).
+// matches CryptoJS.AES.encrypt(plaintext, passphrase): random 8-byte salt, EVP_BytesToKey -> 32-byte key + 16-byte IV, AES-256-CBC/PKCS7, base64("Salted__" + salt + ciphertext)
 export function moglixEncrypt(plaintext: string, passphrase: string): string {
   const salt = randomBytes(8);
   const { key, iv } = evpBytesToKey(passphrase, salt, 32, 16);
@@ -49,7 +44,6 @@ export function moglixEncrypt(plaintext: string, passphrase: string): string {
   return Buffer.concat([Buffer.from("Salted__", "utf8"), salt, ciphertext]).toString("base64");
 }
 
-// Inverse of moglixEncrypt.
 export function moglixDecrypt(blob: string, passphrase: string): string {
   const buf = Buffer.from(blob, "base64");
   const magic = buf.subarray(0, 8).toString("utf8");
@@ -66,8 +60,7 @@ function randomHexKey(): string {
   return randomBytes(4).toString("hex");
 }
 
-// Request and response envelope keys are unrelated (each side generates its own), so this just
-// requires exactly one entry rather than matching a specific key.
+// request/response envelope keys are unrelated (each side generates its own); just require exactly one entry, not a specific key
 const EnvelopeSchema = z.record(z.string(), z.string());
 
 export function unwrapEnvelope(json: JsonValue): string {

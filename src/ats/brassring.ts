@@ -1,7 +1,5 @@
-// src/ats/brassring.ts — IBM/Infinite BrassRing (Kenexa) "TGnewUI" boards, shared host sjobs.brassring.com,
-// keyed by partnerId + siteId. POST /TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs, stateless, page-fixed at 50.
-// Scalar fields live in a flattened Questions array; JD/city/country are tenant-template `formtextN` columns
-// (defaulted to ADM's formtext3/8/10, overridable via apiMeta.jdField/cityField/countryField). Full JD is inline.
+// list: POST /TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs {partnerId,siteId,pageNumber} -> stateless, page fixed at 50; full JD inline
+// scalar fields live in a flattened Questions array; JD/city/country are tenant-template `formtextN` columns (defaulted to ADM's formtext3/8/10, overridable via apiMeta.jdField/cityField/countryField)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

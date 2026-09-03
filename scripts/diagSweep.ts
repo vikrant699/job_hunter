@@ -1,9 +1,4 @@
-/**
- * Read-only diagnostic sweep (NOT part of the pipeline, safe to delete): runs each active
- * ats-api company's listPostings, measures listing-level gaps, then samples JDs via fetchJd
- * and grades the text. Writes NDJSON incrementally so a crash loses nothing.
- *   npx tsx scripts/diagSweep.ts <outDir> [providerFilter]
- */
+// Read-only diagnostic sweep (NOT part of the pipeline, safe to delete); writes NDJSON incrementally so a crash loses nothing.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";

@@ -10,9 +10,8 @@ import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
 import { looksLikeChallengePage } from "../util/errorCause.js";
 
-// Workday CXS adapter. Per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
-// Two-phase: listPostings (metadata only) then fetchJd (full body), so the per-job HTTP
-// call is only paid for postings that survived location + dedup.
+// Workday CXS adapter: per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
+// Two-phase: listPostings (metadata only) then fetchJd (full body) - the per-job HTTP call is only paid for postings that survived location + dedup.
 interface WorkdayUrlParts {
   base: string;
   tenant: string;
@@ -41,8 +40,7 @@ function parseTenantUrl(tenantUrl: string): WorkdayUrlParts {
   return buildWorkdayParts(base, tenant, site);
 }
 
-// robots.txt names real career-site segments via "Allow: /<site>/" and "Sitemap: .../<site>/siteMap.xml" lines —
-// used to recover from a stale/wrong site name in tenant_url (see discoverDriftedSite below).
+// robots.txt names real career-site segments via "Allow: /<site>/" and "Sitemap: .../<site>/siteMap.xml" lines - used to recover from a stale/wrong site name in tenant_url (see discoverDriftedSite below).
 const ALLOW_LINE_RE = /^allow:\s*\/([^/\r\n]+)\/?\s*$/i;
 const SITEMAP_DIRECTIVE_RE = /^sitemap:\s*(\S+)\s*$/i;
 const SITEMAP_SITE_RE = /\/([^/]+)\/sitemap\.xml$/i;
@@ -77,10 +75,7 @@ export function parseWorkdaySites(robotsTxt: string): string[] {
   return sites;
 }
 
-// A wrong site name in tenant_url 404s, or (per config.ts's PROVIDER_THROTTLE_TABLE comment) the Workday edge can
-// also serve HTML instead of JSON under unrelated request-burst throttling — so an HTML body alone doesn't prove
-// drift. What does: robots.txt not listing the configured site at all (see discoverDriftedSite's containment
-// check), which a throttled-but-correctly-named tenant will never fail.
+// A wrong site name in tenant_url 404s, but so can an unrelated request-burst throttle serving HTML instead of JSON (see config.ts's PROVIDER_THROTTLE_TABLE) - so an HTML body alone doesn't prove drift; only robots.txt not listing the configured site at all does (see discoverDriftedSite's containment check).
 const HTML_NOT_JSON_RE = /Unexpected token '<'|<!doctype\b|<html\b|is not valid JSON|Unexpected end of JSON input/i;
 
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
@@ -95,9 +90,7 @@ function isWorkdayHtmlBodyError(err: unknown): boolean {
   return HTML_NOT_JSON_RE.test(err.message);
 }
 
-// Runs once, only after the first listing attempt for the configured site fails 404/HTML-not-JSON. Returns the
-// corrected parts to retry with, or null when the original error should propagate unchanged (not drift, or the
-// robots.txt evidence isn't a clean single-site swap — a human repoints the row instead).
+// Runs once, only after the first listing attempt fails 404/HTML-not-JSON; returns corrected parts to retry with, or null when it's not drift or the robots.txt evidence isn't a clean single-site swap (a human repoints the row instead).
 async function discoverDriftedSite(
   company: AdapterCompany,
   parts: WorkdayUrlParts,
@@ -146,11 +139,9 @@ type WorkdayJobPosting = z.infer<typeof WorkdayJobPostingSchema>;
 
 const WorkdayListResponseSchema = z.object({
   total: z.number().nullable().optional(),
-  // Items are validated one at a time in parseWorkdayListPage: live tenants occasionally
-  // include a stub row with no title/externalPath, and one stub must not fail a 1000+ posting board.
+  // Items are validated one at a time in parseWorkdayListPage: a stub row with no title/externalPath must not fail a 1000+ posting board.
   jobPostings: z.array(JsonValueSchema),
-  // Raw facet tree, shape varies a lot by tenant; only consumed by the 2000-total-latch
-  // partitioning path below, so left unvalidated beyond "is JSON".
+  // Raw facet tree, shape varies a lot by tenant; only consumed by the 2000-total-latch partitioning path below, so left unvalidated beyond "is JSON".
   facets: z.array(JsonValueSchema).nullable().optional(),
 });
 
@@ -161,9 +152,7 @@ export interface WorkdayListPage {
   skipped: number;
 }
 
-// Validates one CXS /jobs page. The envelope must parse, but items are judged
-// individually: a stub row is skipped, and only EVERY item failing on a non-empty page
-// throws (that shape means the field names moved, not that a row is a fluke).
+// Validates one CXS /jobs page: items are judged individually (a stub row is skipped), and only EVERY item failing on a non-empty page throws (that shape means the field names moved, not that a row is a fluke).
 export function parseWorkdayListPage(raw: JsonValue, slug: string): WorkdayListPage {
   const envelope = parseOrThrow(WorkdayListResponseSchema, raw, { provider: "workday", slug });
   const postings: WorkdayJobPosting[] = [];
@@ -198,18 +187,14 @@ const WorkdayJobDetailSchema = z.object({
 
 const PAGE_LIMIT = 20;
 
-// Body of listPostings, factored out so a site-drift retry (see discoverDriftedSite) can rerun it whole
-// against corrected parts — facet discovery included, since it hits the same (possibly wrong) site too.
+// Body of listPostings, factored out so a site-drift retry (see discoverDriftedSite) can rerun it whole against corrected parts - facet discovery included, since it hits the same (possibly wrong) site too.
 async function runWorkdayListing(
   company: AdapterCompany,
   parts: WorkdayUrlParts,
 ): Promise<NormalizedPosting[]> {
   const listUrl = `${parts.cxsBase}/jobs`;
 
-  // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location
-  // facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just
-  // "Bengaluru"). Otherwise probe for an India country facet; legacy tenants without one
-  // paginate unfiltered and rely on the downstream location filter.
+  // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just "Bengaluru"); otherwise probe for an India country facet, and legacy tenants without one paginate unfiltered and rely on the downstream location filter.
   const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
   const appliedFacets: Record<string, string[]> = indiaFacet
     ? { [indiaFacet.param]: indiaFacet.uuids }
@@ -226,11 +211,7 @@ async function runWorkdayListing(
     );
   }
 
-  // Some tenants (Caterpillar) report `total` correctly only on the first page;
-  // `paginate` latches the first non-zero value. Separately, some "monster board"
-  // tenants (Genpact) cap `total` at exactly 2000 even when the real board is much
-  // larger — crawlWorkdayPostings detects that latch and, when a flat facet is
-  // available, partitions the crawl by it so each slice stays under the cap.
+  // Some tenants (Caterpillar) report `total` correctly only on the first page; paginate latches the first non-zero value it sees.
   return crawlWorkdayPostings(company, appliedFacets, indiaFacet?.param ?? null, async (offset, facets) => {
     const data = await atsFetchJson(listUrl, {
       method: "POST",
@@ -289,10 +270,7 @@ export const workdayAdapter: AtsAdapter = {
   },
 };
 
-// Some tenants (Accenture) omit locationsText entirely; the city then only shows up as one
-// of the display-only bulletFields, typically [reqId, location]. Take the first bulletField
-// that isn't the req id and isn't known non-location metadata ("Full time", "40 hrs/week")
-// — values are plain city names as often as "City, Country", so no comma requirement.
+// Some tenants (Accenture) omit locationsText entirely, so the city only shows up as one of the display-only bulletFields (typically [reqId, location]) - take the first bulletField that isn't the req id or known non-location metadata ("Full time", "40 hrs/week"); values are plain city names as often as "City, Country", so no comma requirement.
 const REQ_ID_RE = /^(req|r)[-_]?\d+$/i;
 const NON_LOCATION_BULLET_RE =
   /^(full|part)[\s-]*time$|^\d+(\.\d+)?\s*\+?\s*hrs?\.?\s*\/?\s*(per\s*)?week$|^(permanent|temporary|contract(or)?|intern(ship)?)$/i;
@@ -316,8 +294,7 @@ export function normalizeWorkdayListing(
   j: WorkdayJobPosting,
   parts?: WorkdayUrlParts
 ): NormalizedPosting {
-  // externalId: prefer shortId/jobPostingId, fall back to externalPath tail. bulletFields is
-  // display metadata, never an ID — using it would collide postings on tenants without shortId.
+  // externalId: prefer shortId/jobPostingId, fall back to externalPath tail; bulletFields is display metadata, never an ID (using it would collide postings on tenants without shortId).
   const externalId =
     j.shortId ??
     j.jobPostingId ??
@@ -349,12 +326,7 @@ function extractExternalPathFromJobUrl(jobUrl: string, uiBase: string): string |
   return path.length > 0 ? path : null;
 }
 
-// --- 2000-total-latch partitioning ---------------------------------------
-// Some Workday "monster board" tenants (Genpact confirmed live) report `total` as exactly
-// 2000 regardless of offset — a server-side cap, not the real count. When that happens we
-// partition the crawl by a flat facet (one appliedFacets selection per value) so each
-// slice's own reported total stays under the cap, and union results by externalId.
-
+// Some "monster board" tenants (Genpact confirmed live) cap reported `total` at exactly 2000 regardless of offset; crawlWorkdayPostings detects the latch and partitions the crawl by a flat facet so each slice's own total stays under the cap.
 const WORKDAY_TOTAL_LATCH = 2000;
 
 export interface PartitionFacetValue {
@@ -379,9 +351,7 @@ export type WorkdayPageFetcher = (
   facets: Record<string, string[]>
 ) => Promise<WorkdayPageResult>;
 
-// A "leaf" facet has values that are themselves directly selectable (id + count), as
-// opposed to a nested facet whose values are further facet groups. Only leaf facets are
-// safe to select on with a single appliedFacets entry.
+// A "leaf" facet has values that are themselves directly selectable (id + count), as opposed to a nested facet whose values are further facet groups; only leaf facets are safe to select on with a single appliedFacets entry.
 function leafValuesOf(node: JsonValue): PartitionFacetValue[] | null {
   const obj = getObj(node);
   if (!obj) return null;
@@ -400,8 +370,7 @@ function leafValuesOf(node: JsonValue): PartitionFacetValue[] | null {
   return out;
 }
 
-// Picks the flat leaf facet with the most distinct values (smaller max-bucket size, less
-// likely to hit the cap itself); excludes excludeParam (the India facet already applied).
+// Picks the flat leaf facet with the most distinct values (smaller max-bucket size, less likely to hit the cap itself); excludes excludeParam (the India facet already applied).
 export function selectPartitionFacet(
   facets: JsonValue[] | null | undefined,
   excludeParam: string | null
@@ -449,8 +418,7 @@ async function crawlFlat(
   });
 }
 
-// Orchestrates a Workday listing crawl, switching to facet-partitioned crawling when the
-// reported total latches at exactly 2000. `fetchPage` is injected for unit-testability.
+// fetchPage is injected for unit-testability.
 export async function crawlWorkdayPostings(
   company: AdapterCompany,
   baseFacets: Record<string, string[]>,

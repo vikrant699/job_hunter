@@ -1,4 +1,3 @@
-// src/google/rest.ts
 import { z } from "zod";
 import { logger } from "../logger.js";
 import { sleep } from "../util/sleep.js";
@@ -19,9 +18,7 @@ export interface RestDeps {
   retryDelayMs?: number;
 }
 
-// Authorized fetch-json wrapper shared by Sheets/Gmail clients; returns raw JSON for the caller to zod-validate.
-// Retry policy: 429 retries for every method, but 5xx retries only idempotent methods (a POST may have
-// already been processed before the error response, and replaying it would duplicate the draft/row).
+// Authorized fetch-json wrapper shared by Sheets/Gmail clients (returns raw JSON for the caller to zod-validate); 429 retries for every method, but 5xx retries only idempotent methods since a POST may already have been processed and replaying it would duplicate the draft/row.
 export async function googleFetchJson(
   profileId: string,
   url: string,

@@ -34,7 +34,6 @@ const AmazonJobsPageSchema = z.object({
   jobs: z.array(AmazonJobSchema),
 });
 
-/** Paged search URL; `apiMeta.country` (e.g. "IND") narrows the board, defaults to India. */
 export function amazonJobsApiUrl(company: AdapterCompany, offset: number): string {
   const country = company.apiMeta?.country ?? "IND";
   return `${BASE}/en/search.json?country=${encodeURIComponent(country)}&result_limit=${RESULT_LIMIT}&offset=${offset}&sort=recent`;
@@ -45,7 +44,6 @@ export function amazonJobsPageJobs(pageJson: JsonValue): { jobs: AmazonJob[]; to
   return { jobs: parsed.jobs, total: parsed.hits ?? null };
 }
 
-/** Assemble the full JD from description + labelled qualifications sections. */
 export function amazonJdText(j: AmazonJob): string {
   const sections: string[] = [htmlToText(j.description ?? j.description_short ?? "")];
   const basic = htmlToText(j.basic_qualifications ?? "");

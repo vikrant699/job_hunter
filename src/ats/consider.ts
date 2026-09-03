@@ -1,7 +1,5 @@
-// src/ats/consider.ts — Consider.co VC-portfolio job boards (Peak XV / Surge). One board host serves an entire
-// portfolio; `isParent:false` with a company slug narrows it to that company, so each portfolio company is its own
-// registry row (same slug-keyed shape as talent500.ts).
-// POST <host>/api-boards/search-jobs, body {meta:{size,offset}, board:{id, isParent:false}, query:{promoteFeatured}}.
+// list: POST <host>/api-boards/search-jobs {meta:{size,offset}, board:{id, isParent:false}, query:{promoteFeatured}}
+// one board host serves a whole portfolio; isParent:false + slug narrows to one company (same slug-keyed shape as talent500.ts)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

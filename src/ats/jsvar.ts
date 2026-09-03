@@ -1,8 +1,5 @@
-// src/ats/jsvar.ts — generic adapter for careers pages that ship jobs as a JS literal or escaped-JSON
-// blob baked into HTML/a JS asset (verified on WazirX, EaseMyTrip, Ramco, Revolt). Per-company config
-// lives in apiMeta (see JsVarConfig).
-// JS literals (single quotes/backticks/unquoted keys) aren't valid JSON, so the extracted text runs in a
-// locked-down `vm` context (no globals, 1s timeout); escaped-JSON blobs (unescape:true) go through JSON.parse instead.
+// generic adapter for careers pages shipping jobs as a JS literal or escaped-JSON blob baked into HTML/a JS asset; per-company config lives in apiMeta (JsVarConfig)
+// JS literals (single quotes/backticks/unquoted keys) aren't valid JSON, so they run in a locked-down `vm` context (no globals, 1s timeout); escaped-JSON blobs (unescape:true) go through JSON.parse instead
 import { createContext, runInContext } from "node:vm";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -53,11 +50,7 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
   };
 }
 
-/** Parse an extracted literal: JSON.parse for escaped-JSON blobs, sandboxed vm eval for JS literals
- *  (single quotes/backticks/bare keys). The vm branch's eval result may hold undefined/array
- *  holes/NaN/Date (none of which JsonValue represents), so it's round-tripped through JSON first to
- *  normalize it the way real wire JSON would (holes/NaN -> null, Date -> ISO string) rather than
- *  rejecting literals that parsed fine before. */
+/** vm eval result may hold undefined/array holes/NaN/Date (not representable as JsonValue), so it's round-tripped through JSON first to normalize it the way real wire JSON would (holes/NaN -> null, Date -> ISO). */
 export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
   if (viaJson) return JsonValueSchema.parse(JSON.parse(literal));
   const sandbox = createContext({ __proto__: null });
@@ -68,8 +61,7 @@ export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
 
 export function jsVarPostings(company: AdapterCompany, sourceText: string): NormalizedPosting[] {
   const cfg = jsVarConfig(company);
-  // For escaped-JSON blobs, unescape the whole source first so the bracket scanner sees real `"`
-  // delimiters (a scanner over `\"`-escaped text miscounts brackets inside string values).
+  // unescape the whole source first so the bracket scanner sees real `"` delimiters, not miscounted `\"` escapes
   const haystack = cfg.unescape
     ? sourceText.replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\\//g, "/")
     : sourceText;

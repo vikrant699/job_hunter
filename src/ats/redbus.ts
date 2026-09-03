@@ -1,13 +1,5 @@
-// src/ats/redbus.ts — redBus careers (MMT-group proxy API).
-// POST /careers/api/getJobsList and /careers/api/getJobDesc, both signed with
-// a `hash` query param the client computes as
-//   sha512("Admindarwinbox@go-mmt.com9ee1f8acd90924a81180267e97609291" + timestampSeconds)
-// (lifted from the site's own jobs.bundle.js — helper/career.js). An invalid
-// hash isn't rejected with an error status; the server just silently answers
-// with an empty Data array, so a WRONG hash is easy to miss — it must be
-// computed correctly, even though there's no secret to keep (the salt string
-// is shipped in the client bundle). No per-job URL exists (job detail opens
-// as an in-page panel, not a route), so jobUrl falls back to the listing page.
+// src/ats/redbus.ts — redBus careers (MMT-group proxy API): POST /careers/api/getJobsList and /careers/api/getJobDesc, both signed with a `hash` query param computed as sha512(salt + timestampSeconds) (salt lifted from the site's own jobs.bundle.js — helper/career.js).
+// An invalid hash isn't rejected with an error status — the server just silently returns an empty Data array — and no per-job URL exists, so jobUrl falls back to the listing page.
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -26,8 +18,7 @@ function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-// Not a real secret (the salt is public in the JS bundle), but required for the server to return
-// real data instead of a silent empty list.
+// Not a real secret (the salt is public in the JS bundle), but required for the server to return real data instead of a silent empty list.
 export function redbusHash(timestamp: number): string {
   return createHash("sha512").update(HASH_SALT + timestamp).digest("hex");
 }
@@ -119,9 +110,7 @@ export const redbusAdapter: AtsAdapter = {
     });
     const parsed = RedbusJobDescSchema.parse(raw);
     const desc = parsed.Response.Data.data.job_decription ?? "";
-    // API double-encodes: the field is HTML-entity-encoded HTML (e.g.
-    // "&lt;p&gt;...&lt;/p&gt;"), same pattern as darwinbox — decode entities
-    // once to get real HTML, then strip tags to plain text.
+    // API double-encodes: the field is HTML-entity-encoded HTML (e.g. "&lt;p&gt;...&lt;/p&gt;"), same pattern as darwinbox — decode entities once to get real HTML, then strip tags to plain text.
     return htmlToText(htmlToText(desc));
   },
 };

@@ -1,6 +1,5 @@
-// src/ats/gem.ts — Gem career boards (jobs.gem.com/<slug>): anonymous GraphQL API, POST /api/public/graphql.
-// JobBoardList returns all posting metadata in one shot (no pagination, no WAF gate) but not the description;
-// ExternalJobPostingQuery fetches JD per posting lazily, only for postings that survive location + dedup.
+// list: POST jobs.gem.com/api/public/graphql {JobBoardList} -> all posting metadata in one shot, no pagination, no description
+// jd: POST same endpoint {ExternalJobPostingQuery}, fetched lazily only for postings that survive location+dedup
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";

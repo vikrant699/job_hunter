@@ -1,15 +1,5 @@
-// src/ats/ubs.ts — UBS careers, an IBM Kenexa BrassRing "Talent Gateway" (TGnewUI). The
-// job data comes from POST /TgNewUI/Search/Ajax/MatchedJobs, but that call is pinned to a
-// single-use per-session `rft` + `encryptedsessionvalue` a replayed request can't
-// reproduce. So instead of replaying the API, this adapter drives the site's own search UI
-// in the shared headless browser and passively captures the response it fires: load the
-// home page, decline consent, type the location filter (default "India"), click Search,
-// capture the MatchedJobs JSON.
-// Response shape: { Jobs: { Job: [{ Questions: [{QuestionName,Value}] }] } }. Server-side
-// location filtering returns the full India set in one response, so no pagination is
-// needed today — but the response DOES cap at 50 jobs with no paging cursor exposed, so a
-// crossing of that cap is detected (not repaired): ubsTruncationWarning logs the shortfall.
-// apiMeta.location overrides the search term; partnerid/siteid come from the careers URL.
+// src/ats/ubs.ts — UBS careers (IBM Kenexa BrassRing "Talent Gateway"/TGnewUI): drives the site's own search UI in a headless browser (load home, decline consent, set location filter, click Search) and captures the response.
+// list: passively-captured POST /TgNewUI/Search/Ajax/MatchedJobs -> { Jobs: { Job: [{ Questions: [{QuestionName,Value}] }] } }; JD inline via ubsField("jobdescription"), no separate detail call.
 import type { Page } from "playwright";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -35,16 +25,13 @@ type UbsJob = z.infer<typeof UbsJobSchema>;
 
 const JobsCountSchema = z.object({ JobsCount: z.number() });
 
-// The server's own job count for the executed search — the only completeness signal
-// available, since the response has no paging cursor.
+// The server's own job count for the executed search — the only completeness signal available since the response has no paging cursor.
 export function ubsReportedJobsCount(payload: JsonValue): number | null {
   const parsed = JobsCountSchema.safeParse(payload);
   return parsed.success ? parsed.data.JobsCount : null;
 }
 
-// The truncation message to log, or null when the response looks complete. `parsed` can
-// legitimately fall below the raw array length (dedup / no-title rows), so only a
-// shortfall against the SERVER's count is reported.
+// The truncation message to log, or null when complete; `parsed` can legitimately fall below raw count (dedup/no-title rows), so only a shortfall against the SERVER's count is reported.
 export function ubsTruncationWarning(parsed: number, reported: number | null): string | null {
   if (reported === null || parsed >= reported) return null;
   return `ubs: returned ${parsed} of ${reported} reported jobs — response is truncated`;
@@ -101,6 +88,7 @@ export const ubsAdapter: AtsAdapter = {
   provider: "ubs",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    // MatchedJobs is pinned to a single-use per-session rft/encryptedsessionvalue token, so we drive the UI instead of replaying the API directly.
     const homeUrl = company.tenantUrl ?? company.careersUrl;
     const siteId = new URL(homeUrl).searchParams.get("siteid") ?? "";
     const location = company.apiMeta?.location ?? DEFAULT_LOCATION;

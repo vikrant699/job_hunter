@@ -1,5 +1,4 @@
-// Pure RFC 5322 message builder for Gmail drafts; no I/O, deterministic string building only.
-// Uses base64 (not quoted-printable) so body and attachment share one wrapping helper.
+// Pure RFC 5322 message builder for Gmail drafts (no I/O); uses base64, not quoted-printable, so body and attachment share one wrapping helper.
 
 const CRLF = "\r\n";
 const BASE64_LINE_LENGTH = 76;
@@ -21,8 +20,7 @@ function isAscii(s: string): boolean {
   return /^[\x00-\x7f]*$/.test(s);
 }
 
-// RFC 2047 "B" encoded-word for non-ASCII subjects; control chars stripped first regardless of
-// ASCII-ness so a CRLF in a scraped company name can't inject extra headers into the message.
+// RFC 2047 "B" encoded-word for non-ASCII subjects; control chars are stripped first regardless of ASCII-ness so a CRLF in a scraped company name can't inject extra headers.
 function encodeSubject(subject: string): string {
   const sanitized = subject.replace(/[\x00-\x1f\x7f]+/g, " ");
   if (isAscii(sanitized)) return sanitized;

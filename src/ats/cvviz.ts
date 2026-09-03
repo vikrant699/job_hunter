@@ -1,8 +1,5 @@
-// src/ats/cvviz.ts — CVViz hosted career boards (jobs.cvviz.com/<tenant>). The React SPA reads jobs from a public,
-// no-auth JSON API on the same host (NOT api.cvviz.com, which is token-gated):
-// GET /api/career/employers/<employerId>/jobs?page=&pageSize= -> { data: [...], total }.
-// The tenant must be addressed by its NUMERIC careerpage id, not the slug - the slug form 200s intermittently with
-// an "Invalid employer id" error body. jobdescription is full HTML inline, so no fetchJd is needed.
+// list: GET jobs.cvviz.com/api/career/employers/<employerId>/jobs?page=&pageSize= -> {data[], total} (NOT api.cvviz.com, which is token-gated)
+// employerId must be the NUMERIC careerpage id, not the slug (slug form 200s intermittently with "Invalid employer id")
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

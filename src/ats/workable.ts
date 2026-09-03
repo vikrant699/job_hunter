@@ -1,6 +1,4 @@
-// src/ats/workable.ts — Workable public widget API: GET
-// apply.workable.com/api/v1/widget/accounts/<slug>?details=true. One-phase: details=true
-// returns the full HTML description inline.
+// src/ats/workable.ts — Workable public widget API: GET apply.workable.com/api/v1/widget/accounts/<slug>?details=true; one-phase, JD inline in the response.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -43,9 +41,7 @@ export const workableAdapter: AtsAdapter = {
 };
 
 export function normalizeWorkable(company: AdapterCompany, j: Job): NormalizedPosting {
-  // Join EVERY location, not just [0]: the widget API serializes multi-location postings
-  // with a locations[] array, and keeping only the first geo-rejected postings whose first
-  // location is foreign but which also hire in India ("Boston; Bengaluru").
+  // Join EVERY location, not just [0]: keeping only the first would geo-reject postings whose first location is foreign but which also hire in India ("Boston; Bengaluru").
   const locs = (j.locations ?? [])
     .map((l) => joinLocation(l.city, l.region, l.country))
     .filter((s): s is string => s !== null);

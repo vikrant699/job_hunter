@@ -33,8 +33,7 @@ export const CompanyStatusSchema = z.enum([
 ]);
 export type CompanyStatus = z.infer<typeof CompanyStatusSchema>;
 
-/** Recruiter verification status. GLOBAL (not per-profile): once a contact is
- *  verified or bounces, that holds across every profile that might reach out. */
+/** Recruiter verification status. GLOBAL (not per-profile): once a contact is verified or bounces, that holds across every profile that might reach out. */
 export const RecruiterStatusSchema = z.enum(["unverified", "verified", "bounced"]);
 export type RecruiterStatus = z.infer<typeof RecruiterStatusSchema>;
 

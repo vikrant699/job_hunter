@@ -1,7 +1,5 @@
-// src/ats/breezyhr.ts — BreezyHR public boards (<tenant>.breezy.hr), no auth.
-// GET /json returns a bare array with no description field; ?limit= is ignored. JD comes from GET <job.url>: pick
-// the innermost element with the exact class "description" (not "job-description"/"position-description"), which
-// is stable across both observed themes.
+// list: GET /json -> bare array, no description field; ?limit= is ignored
+// jd: GET <job.url>, pick the innermost element with exact class "description" (not "job-description"/"position-description") - stable across both observed themes
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";

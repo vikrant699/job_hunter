@@ -1,5 +1,4 @@
-// JSON-file state for the TEMPORARY Raw Data blast tool. Deliberately not the job_hunter SQLite DB,
-// so the whole blast can be deleted cleanly when the campaign ends.
+// JSON-file state for the TEMPORARY Raw Data blast tool, deliberately not the job_hunter SQLite DB, so the whole blast can be deleted cleanly when the campaign ends.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";

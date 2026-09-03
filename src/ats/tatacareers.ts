@@ -1,11 +1,5 @@
-// src/ats/tatacareers.ts — Tata Group shared careers board (www.tata.com), aggregating
-// live openings across ~20 Tata operating companies; apiMeta.company selects the tenant.
-// Data channel: POST /bin/tata/jobPostingsFilterServlet? (form-urlencoded) -> { response:
-// { totalJobPostingsCount, jobPostings: [...] } }. No session warm-up needed, but the WAF
-// 403s without a browser UA + Referer/Origin/X-Requested-With.
-// The servlet REQUIRES a non-empty `searchTerm` (there is no browse-all mode) and hard-caps
-// totalJobPostingsCount at 100 regardless of term-list breadth — so tenants with >100 open
-// roles (e.g. TCS) only ever surface their top-100 relevance-ranked matches.
+// src/ats/tatacareers.ts — Tata Group shared careers board (www.tata.com), aggregating live openings across ~20 Tata operating companies; apiMeta.company selects the tenant.
+// POST /bin/tata/jobPostingsFilterServlet? (form-urlencoded, browser UA + Referer/Origin/X-Requested-With required or the WAF 403s) -> { response: { totalJobPostingsCount, jobPostings: [...] } }; the detail page is a constructed URL from the job's own fields, no separate detail fetch.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -22,11 +16,10 @@ const REFERER = `${HOST}/careers/jobs/joblisting`;
 const DETAIL_PATH = `${HOST}/careers/jobs/jobdetails`;
 
 const PAGE = 10; // server-fixed page size
-const MAX_RESULTS = 100; // server-enforced ceiling on totalJobPostingsCount — see file header
+// Server-enforced ceiling on totalJobPostingsCount regardless of term-list breadth — tenants with >100 open roles (e.g. TCS) only ever surface their top-100 relevance-ranked matches, since the servlet requires a non-empty searchTerm and has no browse-all mode.
+const MAX_RESULTS = 100;
 
-// Broad OR-matched vocabulary approximating "every open role": the servlet does a
-// fuzzy/full-text match, not a strict title substring, so a wide net of common role
-// words is the closest thing to a wildcard this endpoint supports.
+// Broad OR-matched vocabulary approximating "every open role": the servlet does a fuzzy/full-text match, not a strict title substring, so a wide net of common role words is the closest thing to a wildcard this endpoint supports.
 export const BROAD_SEARCH_TERMS = [
   "Engineer", "Developer", "Manager", "Analyst", "Executive", "Associate",
   "Consultant", "Specialist", "Lead", "Officer", "Director", "Coordinator",

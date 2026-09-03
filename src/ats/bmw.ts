@@ -1,9 +1,5 @@
-// src/ats/bmw.ts — BMW Group careers (bmwgroup.jobs), Adobe AEM "grpw-web" job-finder behind Akamai Bot Manager
-// (plain Node fetch is TLS-refused, so this runs through the shared headless browser to clear the WAF).
-// The page's own JS fetches an HTML fragment for the job table; we capture the exact URL it requests (container id
-// + India filter baked in) and page it by bumping rowIndex. Fragment is structured HTML keyed by
-// `.grp-jobfinder__wrapper[data-job-id]`; `data-counter` is the true total. Because the board is tiny, every JD is
-// fetched inside the same WAF-cleared session during listing, avoiding a second handshake per posting.
+// list: capture the page's own jobfinder fragment URL (India filter baked in), then page it via rowIndex -> HTML keyed by `.grp-jobfinder__wrapper[data-job-id]`; `data-counter` is the true total
+// plain Node fetch is TLS-refused by Akamai Bot Manager - runs through the shared headless browser to clear the WAF
 import * as cheerio from "cheerio";
 import type { Page } from "playwright";
 import { logger } from "../logger.js";
@@ -26,7 +22,6 @@ export interface BmwTile {
   postedAt: string | null;
 }
 
-/** Parse one jobfinder fragment: the tiles + the reported India total. */
 export function parseBmwFragment(html: string, origin: string): { tiles: BmwTile[]; total: number | null } {
   const $ = cheerio.load(html);
   const totalAttr = $(".grp-jobfinder__table").first().attr("data-counter");

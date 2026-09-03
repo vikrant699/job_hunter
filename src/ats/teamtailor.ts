@@ -1,10 +1,5 @@
-// src/ats/teamtailor.ts — Teamtailor career sites (https://<slug>.teamtailor.com). The
-// board page /jobs?page=N is server-rendered: #jobs_list_container with one <li> per job
-// linking to /jobs/<id>-<slug>. Job links may point at a custom domain even when browsing
-// the teamtailor.com host, so parsing keys on the /jobs/<id>- path, not the host. Per-page
-// count is theme-dependent, so only an EMPTY page ends pagination. JD comes from the job
-// detail page's JSON-LD JobPosting island (entity-encoded HTML, decode once then strip);
-// fallback is the server-rendered <main> .prose block.
+// src/ats/teamtailor.ts — Teamtailor career sites (https://<slug>.teamtailor.com).
+// List: /jobs?page=N is server-rendered, #jobs_list_container with one <li> per job linking to /jobs/<id>-<slug>. Detail: the job page's JSON-LD JobPosting island (entity-encoded HTML), falling back to the server-rendered <main> .prose block.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -23,8 +18,7 @@ export function teamtailorJobsUrl(company: AdapterCompany, page: number): string
   return `${tenantOrigin(company)}/jobs?page=${page}`;
 }
 
-// Returns null when the page has no #jobs_list_container at all (structure change / not a
-// board page), vs [] for a present-but-empty board — callers fail loudly on page 1 only.
+// Returns null when the page has no #jobs_list_container at all (structure change / not a board page), vs [] for a present-but-empty board — callers fail loudly on page 1 only.
 export function parseTeamtailorList(company: AdapterCompany, html: string): NormalizedPosting[] | null {
   const $ = cheerio.load(html);
   const container = $("#jobs_list_container");
@@ -33,7 +27,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
   const out: NormalizedPosting[] = [];
   container.find("li").each((_i, li) => {
     const $li = $(li);
-    // The job anchor is the one whose href matches /jobs/<id>-…
+    // The job anchor is the one whose href matches /jobs/<id>-… (job links may point at a custom domain even when browsing the teamtailor.com host, so parsing keys on this path pattern, not the host).
     const anchor = $li
       .find("a[href]")
       .filter((_j, a) => JOB_HREF_RE.test($(a).attr("href") ?? ""))
@@ -82,8 +76,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
   return out;
 }
 
-// JSON-LD description is entity-encoded HTML, so htmlToText runs twice: pass 1 decodes
-// entities into real HTML, pass 2 strips the tags (double-stripping plain HTML is harmless).
+// JSON-LD description is entity-encoded HTML, so htmlToText runs twice: pass 1 decodes entities into real HTML, pass 2 strips the tags (double-stripping plain HTML is harmless).
 export function teamtailorJdFromHtml(html: string): string {
   const [job] = extractJsonLdJobs(html);
   if (job?.description) return htmlToText(htmlToText(job.description));

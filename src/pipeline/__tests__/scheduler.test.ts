@@ -259,11 +259,7 @@ test("a genuinely malformed JSON body still counts against the board", async () 
   assert.equal(stats.transportRetried, 0, "board defects are not retried");
 });
 
-/**
- * What an HTML adapter's dead-tenant guard throws once it notices the body is a
- * bot-block page rather than a board. Built through the real guard so the test
- * pins the routing, not a hand-copied message.
- */
+/** What an HTML adapter's dead-tenant guard throws once it notices the body is a bot-block page rather than a board; built through the real guard so the test pins the routing, not a hand-copied message. */
 function challengePageError(): Error {
   const body =
     `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head>` +
@@ -299,8 +295,7 @@ test("a genuinely dead board still counts against it — this is no blanket amne
 
   await processBucket(
     "greenhouse",
-    // radancy's verdict for a host that stopped serving the board: no job cards and
-    // no pager state, and nothing about the body says an edge intervened.
+    // radancy's verdict for a host that stopped serving the board: no job cards and no pager state, and nothing about the body says an edge intervened.
     failingAdapter(
       () =>
         new Error(
@@ -372,8 +367,6 @@ test("runDeferredTransportPass is a no-op when nothing was deferred", async () =
   assert.equal(stats.failedCompanies.length, 0);
 });
 
-// ---- the deferred pass must not replay the burst that caused the deferral ----
-
 interface CallLog {
   slugs: string[];
   providers: string[];
@@ -385,9 +378,7 @@ function mkCallLog(): CallLog {
   return { slugs: [], providers: [], inFlight: 0, peakInFlight: 0 };
 }
 
-/** Records call order and peak concurrency, so a pass that fans out is
- *  distinguishable from one that walks its queue. Several adapters can share one
- *  log, which is how the cross-provider concurrency is observed. */
+/** Records call order and peak concurrency, so a pass that fans out is distinguishable from one that walks its queue; several adapters can share one log to observe cross-provider concurrency. */
 function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
   return {
     provider,
@@ -404,8 +395,7 @@ function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
   };
 }
 
-/** The deferred pass's whole input is this array, so pushing onto it directly
- *  keeps these tests off the first-pass retry path they don't exercise. */
+/** The deferred pass's whole input is this array, so pushing onto it directly keeps these tests off the first-pass retry path they don't exercise. */
 function deferBoard(stats: RunContext, company: Company, adapter: AtsAdapter): void {
   stats.transportDeferred.push({ company, adapter, err: "SyntaxError: Unexpected token '<'" });
 }
@@ -443,10 +433,9 @@ test("the deferred pass sleeps between boards, at the injected pace", async () =
   const elapsed = Date.now() - started;
 
   assert.equal(log.slugs.length, 3);
-  // 3 boards leave 2 gaps; asserting only one full gap keeps the bound clear of
-  // timer resolution while still failing outright if the pace is ignored.
+  // 3 boards leave 2 gaps; asserting only one full gap keeps the bound clear of timer resolution while still failing outright if the pace is ignored.
   assert.ok(elapsed >= paceMs, `expected the pass to be paced, took ${elapsed}ms`);
-  // ...and the production pace must be at least as wide as the spacing verified to work against edge throttles.
+  // The production pace must be at least as wide as the spacing verified to work against edge throttles.
   assert.ok(defaultRetryPolicy().deferredPaceMs >= 2500);
 });
 
@@ -463,21 +452,17 @@ test("the deferred pass interleaves providers instead of draining one vendor", a
 
   await runDeferredTransportPass(stats, FAST);
 
-  // Two boards of one vendor back-to-back is the rate the pace exists to avoid,
-  // so a mixed queue alternates rather than draining greenhouse first.
+  // Two boards of one vendor back-to-back is the rate the pace exists to avoid, so a mixed queue alternates rather than draining greenhouse first.
   assert.deepEqual(log.providers, ["greenhouse", "lever", "greenhouse", "lever"]);
   assert.equal(stats.transportRecovered, 4);
 });
-
-// ---- provider start throttle (Workday edge miscounts a burst as board failures) ----
 
 interface StartLog {
   provider: string;
   startedAt: number;
 }
 
-/** Records each fetch's provider + start time and tracks that provider's peak concurrency, so a throttle's two
- *  guarantees (max concurrent, min spacing) are both directly observable. */
+/** Records each fetch's provider + start time and tracks that provider's peak concurrency, so a throttle's two guarantees (max concurrent, min spacing) are both directly observable. */
 function throttleProbeAdapter(
   provider: Provider,
   delayMs: number,
@@ -548,8 +533,7 @@ test("provider throttle caps concurrency and spaces starts, leaving other provid
     assert.ok(gap >= minSpacingMs - 5, `workday starts ${i - 1}->${i} were only ${gap}ms apart`);
   }
 
-  // Greenhouse has no throttle entry, so its worker pool (concurrencyPerProvider) starts it unconstrained -
-  // all 3 fetches should overlap rather than being serialized like workday.
+  // Greenhouse has no throttle entry, so its worker pool (concurrencyPerProvider) starts it unconstrained - all 3 fetches should overlap rather than being serialized like workday.
   assert.ok((peak.get("greenhouse") ?? 0) > 1, "greenhouse fetches should overlap, not be spaced");
 });
 
@@ -560,8 +544,6 @@ test("un-throttled provider's start() is a pure passthrough", async () => {
   assert.ok(Date.now() - before < 10, "un-throttled start must not wait");
   release();
 });
-
-// ---- posting lifecycle: last_seen_at / removed_at / board_runs ----
 
 test("a listing that shrinks from 3 to 2 marks exactly the missing posting removed and records board_runs {added:0, removed:1, unchanged:2}", async () => {
   const slug = `shrink-${Date.now()}`;
@@ -575,8 +557,7 @@ test("a listing that shrinks from 3 to 2 marks exactly the missing posting remov
     insertPostingIfNew(mkPosting("greenhouse", id, slug, company.name), stats.profileId);
   }
 
-  // idA/idB are still listed; both already exist in the DB, so processOnePosting is a no-op for them
-  // (postingExists short-circuits) — the lifecycle bookkeeping lives entirely in processOneCompany.
+  // idA/idB are still listed; both already exist in the DB, so processOnePosting is a no-op for them (postingExists short-circuits) — the lifecycle bookkeeping lives entirely in processOneCompany.
   const adapter: AtsAdapter = {
     provider: "greenhouse",
     listPostings: async () => [
@@ -640,8 +621,6 @@ test("a board that never answers on either pass still gets an error board_runs r
   assert.equal(run.unchanged, 0);
   assert.match(run.error ?? "", /both passes/);
 });
-
-// ---- aggregator-board warning (log-only, no behavior change) ----
 
 interface LogCall {
   level: "warn";

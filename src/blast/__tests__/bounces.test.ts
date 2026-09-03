@@ -1,4 +1,3 @@
-// src/blast/bounces.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { sweepBounces, bounceQuery } from "../bounces.js";

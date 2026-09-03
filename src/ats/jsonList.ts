@@ -1,6 +1,4 @@
-// src/ats/jsonList.ts — factory for the "one-shot JSON board" shape: a single GET/POST returns the whole
-// list, no pagination. Generic over response type R and item type I; each vendor keeps its own zod schema
-// + normalize fn, this owns fetch -> parse -> filter -> normalize -> dedupe.
+// factory for the "one-shot JSON board" shape: a single GET/POST returns the whole list, no pagination; each vendor supplies its own zod schema + normalize fn
 import type { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

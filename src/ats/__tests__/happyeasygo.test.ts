@@ -1,4 +1,3 @@
-// src/ats/happyeasygo.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeHappyEasyGo, flattenDepartment, happyeasygoAdapter } from "../happyeasygo.js";

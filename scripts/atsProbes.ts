@@ -9,8 +9,7 @@ export const ATS_URL_BUILDERS: Record<string, (slug: string) => string> = {
   smartrecruiters: (s) => `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(s)}/postings?limit=1`,
 };
 
-/** GET url and sniff whether the body looks like a real JSON job-board
- *  response (2xx, non-trivial length, not an HTML error page). */
+/** GET url and sniff whether the body looks like a real JSON job-board response (2xx, non-trivial length, not an HTML error page). */
 export async function probeJsonBoard(url: string, timeoutMs = 8_000): Promise<boolean> {
   const res = await probeWithTimeout(url, {
     timeoutMs,

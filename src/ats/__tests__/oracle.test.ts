@@ -30,10 +30,7 @@ test("normalizeOracle maps list metadata and builds the CE job URL", () => {
   assert.equal(p.postedAt, "2026-06-02");
 });
 
-// A stale siteNumber does not filter the board to empty; the pod ignores an unknown
-// site rather than matching nothing, so it can over-collect but never look like []
-// (a dead pod fails loudly instead: 503/ENOTFOUND/timeout/404, never a well-formed
-// empty page). These tests pin that a genuinely empty result stays [].
+// A stale siteNumber does not filter the board to empty -- the pod ignores an unknown site rather than matching nothing, so it can over-collect but never look like [] (a dead pod fails loudly instead: 503/ENOTFOUND/timeout/404, never a well-formed empty page); these tests pin that a genuinely empty result stays [].
 
 const emptyListResponse = {
   items: [{ SiteNumber: "CX_1", TotalJobsCount: 0, requisitionList: [] }],

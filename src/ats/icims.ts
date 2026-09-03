@@ -1,9 +1,5 @@
-// src/ats/icims.ts — iCIMS "classic" hosted career portals on shared <tenant>.icims.com hosts.
-// Portals sit behind an AWS WAF that 405s bundled Chromium (and non-Edge UAs) with a "Human Verification"
-// interstitial, so this adapter drives a real Edge browser (playwright channel:"msedge") to clear it once
-// per host, then fetches list/JD pages via page.request in that warmed context (cached for the run).
-// list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N> (0-based, 17 rows/page); jd: description is split
-// across several .iCIMS_Expandable_Text sections inside .iCIMS_JobContent, concatenated.
+// list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N> (0-based, 17 rows/page)
+// jd: description split across several .iCIMS_Expandable_Text sections inside .iCIMS_JobContent, concatenated
 import * as cheerio from "cheerio";
 import { chromium } from "playwright";
 import type { Browser, BrowserContext } from "playwright";
@@ -98,6 +94,7 @@ let edgeBrowser: Browser | null = null;
 let edgeBoot: Promise<Browser> | null = null;
 const warmContexts = new Map<string, Promise<BrowserContext>>();
 
+// AWS WAF 405s bundled Chromium (and non-Edge UAs) with a "Human Verification" interstitial; msedge channel clears it.
 async function getEdgeBrowser(): Promise<Browser> {
   if (edgeBrowser) return edgeBrowser;
   if (edgeBoot) return edgeBoot;

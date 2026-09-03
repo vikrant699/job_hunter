@@ -1,9 +1,5 @@
-// src/ats/htmlboard.ts — generic selector-driven adapter for bespoke, server-rendered HTML careers pages
-// (no JS/auth); per-company CSS selectors live in apiMeta (see HtmlBoardConfig for fields).
-// boardSelector (distinct from itemSelector) is positive proof the board rendered, so a zero-item page
-// without it fails loud instead of reporting an empty board (see assertHtmlBoardRendered); noItemLinks
-// exists for boards whose only links are a shared apply form/mailto. Pagination: none by default (every
-// converted board renders its whole list in one response); pageParam boards page until nothing new is added.
+// src/ats/htmlboard.ts — generic selector-driven adapter for bespoke, server-rendered HTML careers pages; per-company CSS selectors live in apiMeta
+// pagination: none by default (whole list renders in one response); pageParam boards page until a page adds nothing new
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -15,9 +11,7 @@ import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 // Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;
-// No pageSize is evidenced anywhere (arbitrary hand-authored HTML boards);
-// termination for pageParam boards is "this page added nothing new" (see
-// listPostings), not a page-length comparison, so this is informational only.
+// no pageSize is evidenced (arbitrary hand-authored boards); termination is "page added nothing new" (see listPostings), so this is informational only
 const NOMINAL_PAGE_SIZE = 20;
 
 function pageUrl(cfg: HtmlBoardConfig, page: number): string {
@@ -39,8 +33,7 @@ export interface HtmlBoardConfig {
   fixedLocation: string | null;
   jdSelector: string | null;
   detailJdSelector: string | null;
-  /** Regex w/ ONE capture group over the raw detail-page source (before any selector), for JDs embedded
-   *  in script payloads (e.g. RSC data); captured group is JSON-unescaped before the HTML strip. */
+  /** Regex w/ ONE capture group over the raw detail-page source, for JDs embedded in script payloads (e.g. RSC data); captured group is JSON-unescaped before the HTML strip. */
   detailJdRegex: string | null;
   pageParam: string | null;
   titleRegex: RegExp | null;
@@ -109,8 +102,7 @@ function cleanText($el: { text(): string }): string {
   return collapseWs($el.text());
 }
 
-/** Stable id: the detail link's path+query when it doesn't just point back at the list page (accordion
- *  boards reuse identical "#"/mailto anchors on every item), else a slug of the title (deduped by caller). */
+/** Stable id: the detail link's path+query when it doesn't just point back at the list page (accordion boards reuse identical "#"/mailto anchors), else a slug of the title. */
 export function htmlBoardExternalId(jobUrl: string | null, title: string, listUrl?: string): string {
   if (jobUrl && !jobUrl.startsWith("mailto:")) {
     try {
@@ -216,10 +208,7 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
   return items;
 }
 
-/** Fail a zero-item page that can't prove it's even the board (parked domain, redesign, WAF page at HTTP
- *  200) rather than reporting a healthy empty board. boardSelector is opt-in positive evidence the board
- *  rendered; only consulted once items come up empty. An edge-challenge page is checked first regardless
- *  of boardSelector, since that's infrastructure-shaped, not company-shaped. */
+/** Fails a zero-item page that can't prove it's the board (parked domain/redesign/WAF-200) instead of reporting a healthy empty board; boardSelector is opt-in proof, checked only after the edge-challenge check. */
 export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, itemCount: number, slug: string): void {
   if (itemCount > 0) return;
   assertNotEdgeChallenge("htmlboard", cfg.listUrl, html);
@@ -238,8 +227,7 @@ export function extractHtmlBoardJd(html: string, cfg: HtmlBoardConfig): string {
     const m = new RegExp(cfg.detailJdRegex, "s").exec(html);
     const captured = m?.[1];
     if (captured !== undefined && captured !== "") {
-      // Script-payload JDs arrive as JSON string content: decode the common
-      // escapes before stripping tags.
+      // script-payload JDs arrive as JSON string content - decode common escapes before stripping tags
       const decoded = captured
         .replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
         .replace(/\\(["/nrt\\])/g, (_, c: string) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
@@ -294,8 +282,7 @@ export const htmlboardAdapter: AtsAdapter = {
       return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
     }
 
-    // No pageParam: the whole list renders in one response, fetched directly (never through paginate())
-    // so it can't trip the maxPages cap-exit warning.
+    // no pageParam: fetched directly (never through paginate()) so it can't trip the maxPages cap-exit warning
     if (!cfg.pageParam) {
       const html = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
       const items = parseHtmlBoardListing(html, cfg);
@@ -303,10 +290,7 @@ export const htmlboardAdapter: AtsAdapter = {
       return items.map((item) => htmlBoardItemToPosting(company, cfg, item));
     }
 
-    // pageParam boards have no size/total metric, so termination is "this page added nothing new";
-    // paginate()'s dedupeBy is only a passive filter, not a termination signal, so the seen-set is
-    // tracked here directly and fetchPage returns only newly-seen items (making the default items.length
-    // count naturally 0 on a repeat).
+    // pageParam boards have no size/total metric; termination is "page added nothing new", tracked via this seen-set (paginate()'s dedupeBy is just a passive filter)
     const seen = new Set<string>();
     const items = await paginate<HtmlBoardItem>({
       provider: "htmlboard",

@@ -1,4 +1,3 @@
-// src/google/gmail.ts
 import { z } from "zod";
 import { googleFetchJson } from "./rest.js";
 import type { RestDeps } from "./rest.js";

@@ -1,4 +1,3 @@
-// src/ats/nextdata.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { dig, parseNextDataIsland, nextDataPostings } from "../nextdata.js";

@@ -8,16 +8,13 @@ import { envInt } from "./util/env.js";
 const INTER_CALL_DELAY_MS: number = 250;
 const DEFERRED_PASS_PACE_MS: number = 3_000;
 
-/** Per-provider start throttle: caps how many of that provider's boards fetch at once and how close together their starts
- *  may land. Exists because Workday's edge serves HTML instead of JSON when ~17 of its boards are hit in ~24s from one IP,
- *  which then miscounts healthy boards as failures - see scheduler.ts's ProviderThrottleState. */
+/** Per-provider start throttle: caps concurrent/spacing of a provider's board fetches so Workday's edge doesn't misclassify healthy boards as failures under burst load. */
 export interface ProviderThrottle {
   maxConcurrent: number;
   minSpacingMs: number;
 }
 
-// Values are `as const` (Standard rule 5); the table itself is typed for arbitrary-string lookup (Standard rule 1: no
-// casts) so scheduler.ts can index it by a live `company.provider` without narrowing every provider to a table key.
+// Values are `as const` (Standard rule 5); the table itself is typed for arbitrary-string lookup (Standard rule 1: no casts) so scheduler.ts can index it by a live `company.provider` without narrowing every provider to a table key.
 const PROVIDER_THROTTLE_TABLE: Partial<Record<string, ProviderThrottle>> = {
   workday: { maxConcurrent: 2, minSpacingMs: 4000 },
 } as const;

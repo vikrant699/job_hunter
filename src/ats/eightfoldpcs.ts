@@ -1,8 +1,5 @@
-// src/ats/eightfoldpcs.ts — Eightfold "PCSX" career-site JSON API for enterprises on their own careers host
-// (e.g. careers.qualcomm.com), distinct from eightfold.ts's shared *.eightfold.ai tenants.
-// list: GET <host>/api/pcsx/search?domain=&location=&start=&num=; detail: GET <host>/api/pcsx/position_details?position_id=&domain=.
-// host in tenant_url, domain in apiMeta.domain (apiMeta.location narrows server-side). Page size is server-fixed at
-// 10 (num= accepted but ignored, same as Jibe); two-phase, job_description is absent from the list response.
+// list: GET <host>/api/pcsx/search?domain=&location=&start=&num= (num= ignored, page size server-fixed at 10, same as Jibe); host in tenant_url, domain in apiMeta.domain
+// jd: GET <host>/api/pcsx/position_details?position_id=&domain= (job_description absent from list response)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

@@ -1,4 +1,3 @@
-// src/ats/browserFetch.ts
 import type { Page, Request } from "playwright";
 import { getBrowser, acquirePageSlot } from "../scraper/playwright.js";
 import { BROWSER_UA } from "../util/userAgent.js";
@@ -8,26 +7,16 @@ import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../uti
 export const HEAVY_ASSET_RE = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 
-/**
- * Load `pageUrl` in a real browser (clears Cloudflare/WAF + sets the session), hand the live `Page` to `run`, then
- * always close the context. Shared plumbing behind `browserFetchJson`, `browserFetchJsonSteps`, and the
- * browser-backed adapters that need the same acquire-slot/context/route/goto/close shape.
- *
- * `blockHeavyAssets` (default true) aborts images/fonts/video/css. Some tenant apps (TurboHire's Ola careerpage)
- * treat ANY aborted request as fatal and reload the main frame in a tight loop, destroying the execution context
- * mid-`page.evaluate` - callers that hit that pass `blockHeavyAssets: false`.
- */
+// blockHeavyAssets (default true) aborts images/fonts/video/css; some tenant SPAs (e.g. TurboHire's Ola board) treat ANY aborted request as fatal and reload the frame mid-evaluate - those callers pass blockHeavyAssets: false
 export async function withBrowserPage<T>(
   pageUrl: string,
   run: (page: Page) => Promise<T>,
   opts: {
     blockHeavyAssets?: boolean;
     navTimeoutMs?: number;
-    /** Wait after `goto` before invoking `run`. Default 5000ms (Cloudflare/WAF settle); callers doing their own
-     *  settle/poll inside `run` pass 0 so the two waits don't stack. */
+    /** Wait after `goto` before invoking `run`; default 5000ms settle, pass 0 when `run` does its own settle/poll. */
     settleMs?: number;
-    /** Passed to `page.goto` (default "domcontentloaded"); some tenant apps only fire the request/response the
-     *  caller wants to observe once background XHRs quiesce, which needs "networkidle" instead. */
+    /** Passed to `page.goto` (default "domcontentloaded"); some tenant apps need "networkidle" to let background XHRs quiesce first. */
     waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
     /** Run right before `goto` to register a listener before navigation fires the requests it watches for. */
     beforeGoto?: (page: Page) => void;
@@ -36,8 +25,7 @@ export async function withBrowserPage<T>(
   } = {},
 ): Promise<T> {
   const blockHeavyAssets = opts.blockHeavyAssets ?? true;
-  // Wait out an outage before taking a page slot: a goto failure below is swallowed as a presumed interstitial, so
-  // without this a network drop looks like a parse error charged to the board.
+  // wait out an outage before taking a slot - otherwise a network drop looks like a parse error charged to the board (goto failures below are swallowed as presumed interstitials)
   await awaitNetwork();
   const release = await acquirePageSlot();
   try {
@@ -61,7 +49,6 @@ export async function withBrowserPage<T>(
         // A network drop is otherwise indistinguishable from the interstitial this swallow path assumes.
         reportNetworkFailure();
         if (opts.rethrowGotoErrors) throw err;
-        /* CF interstitial */
       }
       await page.waitForTimeout(opts.settleMs ?? SETTLE_MS);
       return await run(page);
@@ -73,8 +60,7 @@ export async function withBrowserPage<T>(
   }
 }
 
-/** Resolves with the first in-flight request matching `urlRe`, or null after `timeoutMs`. Register before `goto` -
- *  the request it watches for is typically fired during/soon after initial load. */
+/** Resolves with the first in-flight request matching `urlRe`, or null after `timeoutMs`; register before `goto`. */
 export function captureFirstRequest(page: Page, urlRe: RegExp, timeoutMs: number): Promise<string | null> {
   return new Promise((resolve) => {
     const onRequest = (req: Request): void => {
@@ -94,8 +80,7 @@ export function captureFirstRequest(page: Page, urlRe: RegExp, timeoutMs: number
   });
 }
 
-/** Runs an in-page `fetch` for each apiPath after the browser clears Cloudflare - for gated JSON APIs (Darwinbox)
- *  that reject plain Node fetch. */
+/** Runs an in-page `fetch` for each apiPath after the browser clears Cloudflare - for gated JSON APIs (Darwinbox) that reject plain Node fetch. */
 export async function browserFetchJson(
   pageUrl: string,
   apiPaths: string[],
@@ -129,8 +114,7 @@ export async function browserFetchJsonRequests(pageUrl: string, requests: Browse
   return withBrowserPage(pageUrl, async (page) => {
     const out: JsonValue[] = [];
     for (const req of requests) {
-      // Stringify on the Node side: a JsonValue-typed page.evaluate Arg makes Playwright's recursive type mapping
-      // recurse into JsonValue's own recursion and can exceed TS's instantiation-depth limit (TS2589).
+      // stringify on the Node side - a JsonValue-typed page.evaluate arg can exceed TS's instantiation-depth limit (TS2589)
       const bodyJson = req.body !== undefined ? JSON.stringify(req.body) : undefined;
       const json = await page.evaluate(async ({ path, method, bodyJson }) => {
         const res = await fetch(path, {
@@ -157,9 +141,7 @@ export interface BrowserJsonStep {
   body?: JsonValue;
 }
 
-// Some tenant pages (TurboHire's careerpage app) keep re-navigating the main frame to itself for several seconds
-// after load, which can destroy the execution context mid-`page.evaluate`; a still-settling page can also briefly
-// error on `fetch`. Both are transient - retry with a settle wait until the churn passes.
+// some tenant pages (TurboHire) re-navigate the main frame for several seconds after load, destroying the execution context mid-evaluate or transiently erroring fetch - retry with a settle wait until the churn passes
 export const TRANSIENT_EVAL_ERROR_RE = /execution context was destroyed|failed to fetch|target closed/i;
 export const MAX_EVAL_ATTEMPTS = 4;
 
@@ -204,13 +186,7 @@ async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise
   ));
 }
 
-/**
- * Runs a SEQUENCE of in-page fetches, one at a time, in the same session. Unlike `browserFetchJson`, each step can
- * be a POST with arbitrary headers/body, and since `buildStep` is called again after every response, a later step
- * can use data from an earlier one (e.g. thread a bearer token from step 1 into step 2's Authorization header).
- * Returns `null` from `buildStep` to stop. For anon-token-handshake APIs (TurboHire) whose token host WAF-blocks
- * plain Node fetch.
- */
+// runs a sequence of in-page fetches in one session; buildStep gets results-so-far (can thread e.g. a bearer token from an earlier step) and returns null to stop
 export async function browserFetchJsonSteps(
   pageUrl: string,
   buildStep: (resultsSoFar: JsonValue[]) => BrowserJsonStep | null,
@@ -241,12 +217,7 @@ export interface BrowserCapture {
   responseUrls: string[];
 }
 
-/**
- * Boots the SPA, recording every response URL, then runs each `requests[i]` as an in-page fetch with optional
- * headers and returns the raw response text. Differs from {@link browserFetchJson}: per-request headers, raw-text
- * bodies (e.g. TalentRecruit's NaCl-encrypted payload, decrypted in Node), and the response URL list (to locate the
- * seed-bearing bundle).
- */
+// boots the SPA and returns raw response text per request (e.g. to decrypt TalentRecruit's NaCl-encrypted payload in Node) plus every response URL seen, to locate the seed-bearing bundle
 export async function browserCaptureText(
   pageUrl: string,
   requests: InPageRequest[],

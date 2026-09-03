@@ -1,4 +1,3 @@
-// src/ats/talent500.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { talent500Adapter, talent500ListUrl, talent500DetailUrl, talent500JobUrl, talent500CompanyUrl, talent500ShouldKeep, talent500FilterWasIgnored, normalizeTalent500Job, talent500SlugFromUrl, buildTalent500Jd } from "../talent500.js";
@@ -179,8 +178,7 @@ test("buildTalent500Jd throws when no JD-bearing field yields text", () => {
   );
 });
 
-// A slug that doesn't exist is NOT answered with an empty board - the server drops the
-// company_slug filter and serves the whole aggregator, importing other employers' postings.
+// A slug that doesn't exist is NOT answered with an empty board - the server drops the company_slug filter and serves the whole aggregator, importing other employers' postings.
 
 /** One list row, only the fields the adapter reads. */
 function row(id: string, companySlug: string | null): Talent500Job {

@@ -1,4 +1,3 @@
-// src/ats/eightfold.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeEightfold } from "../eightfold.js";

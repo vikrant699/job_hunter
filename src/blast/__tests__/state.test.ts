@@ -1,4 +1,3 @@
-// src/blast/state.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from "node:fs";

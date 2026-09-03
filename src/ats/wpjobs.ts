@@ -1,15 +1,5 @@
-// src/ats/wpjobs.ts — generic WordPress REST API adapter for career sites exposing jobs as
-// a custom post type. Confirmed live on Fibe/EarlySalary: GET
-// <origin>/wp-json/wp/v2/<postType>?per_page=100&page=1&order=desc&_embed=1 -> a JSON
-// ARRAY of WP posts (no auth). Post-type slug is configurable via apiMeta.postType
-// (default "jobpost"); host comes from tenantUrl.
-// Pagination: atsFetchJson only returns the body, not headers, so we can't read WP's
-// X-WP-Total. Falls back to the short-page convention (a page shorter than per_page ends pagination).
-// Location: WP job plugins store this inconsistently; best-effort chain, most to least
-// reliable: (1) _embedded['wp:term'] taxonomy name containing "location"; (2) class_list
-// `<taxonomy>-<term-slug>` classes (catches sites with embedding disabled); (3) acf/meta
-// string field with a location-like key, skipping redirect payloads; (4) a "Location:"
-// label embedded in the post body copy; (5) null — the pipeline's text filter decides.
+// src/ats/wpjobs.ts — generic WordPress REST API adapter for career sites exposing jobs as a custom post type (confirmed live on Fibe/EarlySalary).
+// list: GET <origin>/wp-json/wp/v2/<postType>?per_page=100&page=<n>&order=desc&_embed=1 -> JSON array of WP posts, no auth; postType from apiMeta.postType (default "jobpost"), host from tenantUrl.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -38,8 +28,7 @@ export const WpPostSchema = z.object({
   title: z.object({ rendered: z.string() }),
   content: z.object({ rendered: z.string().nullable().optional() }).nullable().optional(),
   class_list: z.array(z.string()).nullable().optional(),
-  // WP serializes an EMPTY acf/meta set as [] (PHP array), not {} — accept both
-  // (verified live on careers.chingari.io, whose plain "posts" carry acf: []).
+  // WP serializes an EMPTY acf/meta set as [] (PHP array) not {} — accept both (verified live on careers.chingari.io).
   acf: z.union([z.record(z.string(), JsonValueSchema), z.array(JsonValueSchema)]).nullable().optional(),
   meta: z.union([z.record(z.string(), JsonValueSchema), z.array(JsonValueSchema)]).nullable().optional(),
   _embedded: WpEmbeddedSchema.nullable().optional(),
@@ -108,7 +97,7 @@ function locationFromContent(html: string | null | undefined): string | null {
   return found ? found : null;
 }
 
-// Best-effort location extraction; see the module doc for the priority chain.
+// Best-effort location, most to least reliable: embedded location taxonomy term, then class_list, then an acf/meta field, then a "Location:" label in the body text.
 export function wpjobsLocation(post: WpPost): string | null {
   return (
     locationFromEmbeddedTerms(post) ??
@@ -119,9 +108,7 @@ export function wpjobsLocation(post: WpPost): string | null {
   );
 }
 
-// Prefers date_gmt (true UTC) over the site-local `date` field. date_gmt has no zone
-// designator (bare local-looking wall-clock UTC), so "Z" is appended before parsing —
-// otherwise Date.parse would read it in the machine's local timezone.
+// Prefers date_gmt (true UTC) over the site-local date field; date_gmt has no zone designator, so "Z" is appended before parsing or Date.parse would read it as local time.
 function wpjobsPostedAt(post: WpPost): string | null {
   return dateToIso(post.date_gmt ? `${post.date_gmt}Z` : null) ?? dateToIso(post.date);
 }
@@ -154,7 +141,7 @@ export const wpjobsAdapter: AtsAdapter = {
         const parsed = parseOrThrow(WpListSchema, raw, { provider: "wpjobs", slug: company.slug });
         return {
           items: parsed.map((p) => normalizeWpjobs(company, p)),
-          total: null,
+          total: null, // atsFetchJson exposes no X-WP-Total header, so pagination relies on paginate()'s short-page convention
           rawCount: parsed.length,
         };
       },

@@ -1,9 +1,5 @@
-// src/ats/dronahq.ts — DronaHQ careers, single-company WordPress site exposing jobs as a "career" custom post type
-// on the standard WP REST API: GET /wp-json/wp/v2/career?per_page=100&page=<N>, no auth.
-// Doesn't reuse the generic `wpjobs` adapter: the post body is wrapped in WPBakery/`vc_*` shortcode tokens that
-// plain `htmlToText` would leave in the JD text, and location is a fixed HTML fragment in the body itself
-// (`wpjobs`'s generic acf/taxonomy/meta location chain doesn't match this shape).
-// Pagination: atsFetchJson exposes no response headers (no X-WP-Total), so a short/empty page ends it instead.
+// list: GET dronahq.com/wp-json/wp/v2/career?per_page=100&page=<N> (WP REST, no auth); no X-WP-Total header, so a short/empty page ends pagination
+// doesn't reuse the generic wpjobs adapter: JD is wrapped in WPBakery shortcode tokens and location is a fixed HTML fragment in the body, not wpjobs's acf/taxonomy/meta shape
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -31,8 +27,7 @@ export function dronahqListUrl(page: number): string {
   return `${API_ORIGIN}/wp-json/wp/v2/${POST_TYPE}?per_page=${PER_PAGE}&page=${page}`;
 }
 
-// WPBakery/vc_* shortcode tokens wrap plain HTML rather than replacing it, so stripping just the bracketed
-// tokens leaves the underlying markup for htmlToText to handle.
+// vc_* shortcode tokens wrap plain HTML rather than replacing it; stripping just the bracketed tokens leaves the markup for htmlToText.
 const SHORTCODE_RE = /\[[^\]]*\]/g;
 
 export function stripDronahqShortcodes(html: string): string {
@@ -44,8 +39,7 @@ export function buildDronahqJd(contentHtml: string | null | undefined): string {
   return htmlToText(stripDronahqShortcodes(contentHtml));
 }
 
-// The job-header banner every posting shares embeds location as:
-//   <span class="location">Location</span><span><span> Mumbai, ... </span>
+// job-header banner embeds location as <span class="location">Location</span><span><span>Mumbai, ...</span></span>
 const LOCATION_RE = /<span class="location">Location<\/span>\s*<span>\s*<span>\s*([^<]+?)\s*<\/span>/i;
 
 /** Null if the markup isn't found - the pipeline's own location gate still runs against jdText regardless. */

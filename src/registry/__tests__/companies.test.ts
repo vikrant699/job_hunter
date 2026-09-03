@@ -1,4 +1,3 @@
-// src/registry/companies.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";

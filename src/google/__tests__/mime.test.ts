@@ -1,4 +1,3 @@
-// src/google/mime.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildDraftMime, toBase64Url } from "../mime.js";

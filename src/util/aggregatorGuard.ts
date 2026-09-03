@@ -1,13 +1,10 @@
 import type { NormalizedPosting } from "../types.js";
 import type { Provider } from "../schemas.js";
 
-/** A single company's board should return postings from that one org; more than this many distinct
- *  companyName values means it's actually an agency/aggregator board. */
+/** More than this many distinct companyName values on one board means it's actually an agency/aggregator board, not a single company. */
 const AGGREGATOR_ORG_THRESHOLD = 10;
 
-/** Counts distinct non-empty companyName values, case-insensitive and trimmed. For most adapters
- *  companyName equals the registry company name on every posting, so this is 1 — only multi-org
- *  boards like agency adapters produce variety. */
+/** Counts distinct non-empty companyName values, case-insensitive and trimmed; usually 1, since companyName equals the registry company name on every posting except on multi-org boards. */
 export function countDistinctOrgs(postings: NormalizedPosting[]): number {
   const names = new Set<string>();
   for (const posting of postings) {
@@ -25,8 +22,7 @@ export interface AggregatorWarning {
   sample: string[];
 }
 
-/** Threshold check + payload for the "board looks like an aggregator" warn, so the scheduler only has to
- *  log what this returns. Null when the listing's org count is within a single-company board's range. */
+/** Threshold check + payload for the "board looks like an aggregator" warn; null when the listing's org count is within a single-company board's range. */
 export function aggregatorWarning(
   provider: Provider,
   slug: string,

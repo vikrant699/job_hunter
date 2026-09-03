@@ -1,4 +1,3 @@
-// src/ats/leapscholar.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { leapscholarJobs, normalizeLeapscholar } from "../leapscholar.js";

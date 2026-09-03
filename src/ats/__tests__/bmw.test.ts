@@ -1,4 +1,3 @@
-// src/ats/bmw.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl } from "../bmw.js";

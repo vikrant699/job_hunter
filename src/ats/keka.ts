@@ -1,4 +1,3 @@
-// src/ats/keka.ts
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -7,11 +6,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, joinLocation } from "./shared.js";
 
-// Keka careers API, two UI generations sharing one Job[] shape: legacy embed widget (GET
-// .../embedjobs/default/active/<orgGuid>, orgGuid stored in apiMeta) and newer Blazor UI (GET
-// .../jobs/default/active, no orgGuid — its HTML embeds none).
-// No stored orgGuid -> Blazor endpoint directly; with one, try embed first and fall back to Blazor
-// (covers tenants that migrated UIs post-conversion). One-phase (JD inline).
+// list: two Keka UI generations share one Job[] shape — legacy GET .../embedjobs/default/active/<orgGuid> (orgGuid in apiMeta), or newer Blazor GET .../jobs/default/active (no orgGuid)
+// no stored orgGuid goes straight to Blazor; with one, try embed first then fall back to Blazor; one-phase (JD inline)
 const LocSchema = z.object({
   city: z.string().nullable().optional(),
   state: z.string().nullable().optional(),

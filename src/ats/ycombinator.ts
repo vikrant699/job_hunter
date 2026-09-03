@@ -1,9 +1,5 @@
-// src/ats/ycombinator.ts — Y Combinator company job boards. There is no public API (no
-// Algolia call fires client-side for a single company's board). Instead both the job list
-// AND each job's full JD are server-rendered into the page as an HTML-attribute-escaped
-// JSON blob (`data-page="{...}"`). The listing page's jobPostings[] is a teaser only (no
-// description) — fetchJd re-fetches the job's own page, whose data-page props.job.description
-// holds the full JD (plain markdown text, not HTML).
+// src/ats/ycombinator.ts — YC company job boards have no public API; both list and JD are server-rendered as an HTML-attribute-escaped JSON blob (data-page="{...}").
+// list: jobPostings[] on the board page is a teaser only (no description); fetchJd re-fetches the job's own page, whose props.job.description holds the full JD as plain markdown text.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -17,9 +13,7 @@ import type { JsonValue } from "../util/json.js";
 
 const YC_ORIGIN = "https://www.ycombinator.com";
 
-// Pulls the data-page="{...}" React-props JSON island out of a YC jobs page. YC
-// entity-escapes double quotes inside the attribute, so the first "..." run after
-// `data-page=` is exactly the JSON payload.
+// Pulls the data-page="{...}" React-props JSON island; YC entity-escapes double quotes inside the attribute, so the first "..." run after data-page= is exactly the JSON payload.
 export function extractYcDataPage(html: string): JsonValue | null {
   const raw = matchGroup(/data-page="([^"]*)"/, html);
   if (raw === null) return null;
@@ -82,8 +76,7 @@ export function ycJobFromDetailPage(pageData: JsonValue, slug: string, externalI
   return parsed.data.props.job;
 }
 
-// YC renders createdAt/lastActive as date-fns-style relative strings ("about 1 month",
-// "over 2 years"). Best-effort: pull the leading count + unit, ignore the qualifier word.
+// YC renders createdAt as date-fns-style relative strings ("about 1 month", "over 2 years"); best-effort pulls the leading count+unit, ignoring the qualifier word.
 const UNIT_MS: Record<string, number> = {
   minute: 60_000,
   hour: 3_600_000,

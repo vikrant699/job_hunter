@@ -1,4 +1,3 @@
-// src/ats/atlassian.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseAtlassianListings, normalizeAtlassian, atlassianJdText, AtlassianJobSchema } from "../atlassian.js";

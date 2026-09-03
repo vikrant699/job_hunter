@@ -10,8 +10,7 @@ const company = mkAdapterCompany({
   careersUrl: "https://careers.payu.in",
 }, { tenantUrl: "https://careers.payu.in" });
 
-// Modeled on a real PayU sitemap.xml entry, plus a non-job <loc> that must be excluded and an
-// end-of-string (no trailing slash) id variant.
+// Modeled on a real PayU sitemap.xml entry, plus a non-job <loc> that must be excluded and an end-of-string (no trailing slash) id variant.
 const URLSET_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://careers.payu.in/PayU/job/Gurgaon-P3-Assistant-Manager-BSM/53951080/</loc><lastmod>2026-08-29</lastmod></url>

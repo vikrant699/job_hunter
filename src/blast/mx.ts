@@ -1,10 +1,8 @@
-// src/blast/mx.ts
 import { resolveMx } from "node:dns/promises";
 
 export type MxResolver = (domain: string) => Promise<{ exchange: string; priority: number }[]>;
 
-// Per-run MX cache, one DNS query per domain. Any resolver failure counts as "no MX" -
-// not worth risking a hard bounce over a domain we can't positively resolve.
+// Per-run MX cache, one DNS query per domain. Any resolver failure counts as "no MX" - not worth risking a hard bounce over a domain that can't be positively resolved.
 export class MxChecker {
   private readonly cache = new Map<string, boolean>();
   private readonly resolver: MxResolver;

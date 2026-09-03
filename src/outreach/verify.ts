@@ -27,8 +27,7 @@ export interface VerifyRecruiterLookup {
   contactName: string | null;
   phone: string | null;
   source: RecruiterSource;
-  /** Live status at lookup time; setRecruiterStatus refuses bounced->verified, so a row marked
-   *  'verified' here can still belong to a globally-bounced recruiter. */
+  /** Live status at lookup time; setRecruiterStatus refuses bounced->verified, so a row marked 'verified' here can still belong to a globally-bounced recruiter. */
   status: RecruiterStatus;
   registrySlug: string | null;
 }
@@ -224,8 +223,7 @@ async function resolveSentRow(
   return "unchanged";
 }
 
-// Bounce-only verification: draft exists? sent message followed? bounce followed sent? verifyAfterHours elapsed?
-// Must run before runOutreach in the daily tick so yesterday's bounces gate today's drafts.
+// Bounce-only verification (draft exists? sent message followed? bounce followed sent? verifyAfterHours elapsed?); must run before runOutreach in the daily tick so yesterday's bounces gate today's drafts.
 export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
   const deps: VerifyDeps = { ...defaultDeps(), ...options.deps };
   const { profileId } = options;
@@ -251,8 +249,7 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
     else if (outcome === "discarded") discarded++;
   }
 
-  // Gmail's search index can lag a just-sent message, misclassifying a sent draft as discarded;
-  // re-check recent discarded rows for a late-appearing sent hit and recover them.
+  // Gmail's search index can lag a just-sent message, misclassifying a sent draft as discarded; re-check recent discarded rows for a late-appearing sent hit and recover them.
   const recheckCutoffMs = now.getTime() - DISCARDED_RECHECK_DAYS * 24 * 3_600_000;
   const discardedRows = deps.selectOutreachByStatus("discarded", profileId);
   for (const row of discardedRows) {

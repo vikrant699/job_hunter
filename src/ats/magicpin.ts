@@ -1,6 +1,5 @@
-// src/ats/magicpin.ts — magicpin's careers board (magicpin.in/careers), single-tenant hardcoded API.
-// Jobs load client-side from sales.magicpin.in (a different host) via a static bearer JWT baked into
-// the SPA bundle; list has no JD body, fetchJd hits the per-job detail endpoint for it.
+// list: GET sales.magicpin.in/magickiosk/career/jobs (bearer JWT baked into the SPA bundle) -> department groups of jobs, no JD body
+// jd: GET .../jobs/<id> for requirements+responsibilities
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

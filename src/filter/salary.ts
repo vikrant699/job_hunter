@@ -1,5 +1,4 @@
-// Mechanical (no-LLM) stated-salary extraction from JD text, India-first. Pure regex/arithmetic,
-// no network/LLM calls. Returns null whenever nothing plausible is stated - never guesses.
+// Mechanical (no-LLM) stated-salary extraction from JD text, India-first; pure regex/arithmetic, no network/LLM calls.
 
 export type SalaryPeriod = "year" | "month" | "week" | "day" | "hour";
 
@@ -13,16 +12,13 @@ export interface SalaryExtract {
   raw: string;
 }
 
-// Currency tokens. Longer/symbol forms first so "US$" isn't split into "US" + "$"; word forms are
-// \b-bounded so "Rs" never matches inside "Years"/"hrs" and "INR"/"USD"/etc never match mid-word.
+// Currency tokens: longer/symbol forms first so "US$" isn't split into "US" + "$"; word forms are \b-bounded so "Rs" never matches inside "Years"/"hrs" and "INR"/"USD"/etc never match mid-word.
 const CUR = String.raw`(?:US\$|₹|\$|€|£|\bRs\.?|\bINR\b|\bUSD\b|\bEUR\b|\bGBP\b|\bAED\b|\bSGD\b|\bCAD\b|\bAUD\b)`;
 
-// Digit groups with commas (handles both Indian 2-2-3 grouping and Western 3-3 grouping - stripping
-// all commas before parsing works for either) plus an optional decimal.
+// Digit groups with commas (handles both Indian 2-2-3 grouping and Western 3-3 grouping - stripping all commas before parsing works for either) plus an optional decimal.
 const NUM = String.raw`\d[\d,]*(?:\.\d+)?`;
 
-// Indian magnitude words + the ambiguous "k" shorthand. The negative lookahead stops "5 known" from
-// reading "k" out of "known" - MAG only matches when nothing but whitespace/punctuation follows.
+// Indian magnitude words + the ambiguous "k" shorthand; the negative lookahead stops "5 known" from reading "k" out of "known" - MAG only matches when nothing but whitespace/punctuation follows.
 const MAG = String.raw`(?:LPA|LAKHS?|LACS?|CRORE|CR|K)(?![a-zA-Z])`;
 
 const SEP = String.raw`\s*(?:-|–|—|\bto\b)\s*`;

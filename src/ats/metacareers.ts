@@ -1,9 +1,5 @@
-// src/ats/metacareers.ts — Meta careers site (metacareers.com), backed by the Comet/Relay GraphQL
-// API (POST /graphql). Global single tenant. The `lsd` token and persisted-query `doc_id` rotate
-// with Meta's build, so we load the careers page in a real browser and read them off its own live
-// GraphQL requests rather than hardcoding either. `offices` filter values are India city-slugs, read
-// from the CareersJobSearchLocationFilterV3Query response (not the "India" picker label, which
-// itself returns zero results). Job detail pages ship the full JD inline as JSON-LD.
+// GraphQL POST to metacareers.com/graphql (Comet/Relay); lsd token + persisted-query doc_id rotate with Meta's build, so they're captured live off the page's own requests rather than hardcoded
+// offices filter values are India city-slugs read from CareersJobSearchLocationFilterV3Query (the "India" picker label itself returns zero results); job detail pages carry full JD inline as JSON-LD
 import { z } from "zod";
 import type { Request as PwRequest } from "playwright";
 import type { AtsAdapter } from "./types.js";
@@ -34,8 +30,6 @@ export function stripForLoopPrefix(text: string): string {
 function parseJsonUnknown(text: string): JsonValue {
   return JsonValueSchema.parse(JSON.parse(text));
 }
-
-// ---- request/response capture ----
 
 interface GraphqlCall {
   friendlyName: string | null;
@@ -126,8 +120,6 @@ export function indiaSearchVariables(offices: string[]): MetaSearchVariables {
   };
 }
 
-// Capture doc_id/lsd off the page's own live GraphQL requests, read India office ids off the
-// location-filter response, then replay the job-search query in-page with those office ids.
 export async function fetchIndiaJobs(): Promise<MetaJob[]> {
   const release = await acquirePageSlot();
   try {
@@ -152,8 +144,7 @@ export async function fetchIndiaJobs(): Promise<MetaJob[]> {
       page.on("response", (res) => {
         const call = calls.get(res.request());
         if (!call) return;
-        // Fire-and-forget: response bodies land asynchronously; the
-        // SETTLE_MS wait below gives them time before we read `calls`.
+        // fire-and-forget: response bodies land asynchronously; SETTLE_MS below gives them time before we read `calls`
         res.text().then((body) => { call.body = body; }).catch(() => { /* page closed mid-read */ });
       });
 
@@ -290,9 +281,7 @@ export const metacareersAdapter: AtsAdapter = {
         const html = await page.content();
         return extractMetaJd(html);
       },
-      // Unlike fetchIndiaJobs (below), this route has no observed CF
-      // interstitial: the original had no goto catch and no post-goto
-      // settle, so both are preserved exactly (rethrow + settleMs: 0).
+      // unlike fetchIndiaJobs, this route has no observed CF interstitial; no goto catch/settle, rethrow + settleMs:0 preserved as-is
       { settleMs: 0, rethrowGotoErrors: true },
     );
   },

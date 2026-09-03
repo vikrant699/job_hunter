@@ -11,8 +11,6 @@ export interface RenderedPage extends FetchedHtml {
   bodyText: string;
 }
 
-// Headless-Chromium fetcher for SPA careers pages: one shared Browser, per-call Context, heavy assets aborted, concurrent pages capped.
-
 const NAV_TIMEOUT_MS = 30_000;
 // Short settle under networkidle (already hydrated); longer under the load/domcontentloaded fallback so SPAs can boot + XHR.
 const POST_LOAD_WAIT_NETWORKIDLE_MS = 1_500;

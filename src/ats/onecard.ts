@@ -1,10 +1,5 @@
-// src/ats/onecard.ts — Onecard / FPL Technologies careers (fplabs.tech/careers). The Sucuri-gated
-// page's own inline <script> calls a public onrender-hosted Strapi-style API directly:
-// GET .../hr/jobs?pagination[page]=<n>&pagination[pageSize]=<size>, header x-api-key: hr-read-only
-// (a static public literal, no browser/cookies needed). Board had 0 openings at build time; the
-// per-job field shape is inferred from the page's rendering template rather than a live fixture.
-// No per-job deep link exists (every apply CTA is the same mailto:), so jobUrl is synthesized as
-// the careers page plus a `#job-<id>` anchor. description/experience are inline, so no fetchJd.
+// src/ats/onecard.ts — Onecard / FPL Technologies careers (fplabs.tech/careers): the Sucuri-gated page's own inline <script> calls a public onrender-hosted Strapi-style API directly.
+// GET .../hr/jobs?pagination[page]=<n>&pagination[pageSize]=<size>, header x-api-key: hr-read-only (a static public literal, no browser/cookies needed).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -16,6 +11,7 @@ const LIST_PATH = "/hr/jobs";
 const API_KEY = "hr-read-only";
 const PAGE = 25; // server appears to enforce this regardless of pageSize requested
 
+// Board had 0 openings at build time; the per-job field shape is inferred from the page's rendering template rather than a live fixture.
 export const OnecardJobAttributesSchema = z.object({
   title: z.string(),
   location: z.string().nullable().optional(),
@@ -75,6 +71,7 @@ export function normalizeOnecard(company: AdapterCompany, j: OnecardJob): Normal
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.attributes.title,
+    // No per-job deep link exists (every apply CTA is the same mailto:), so jobUrl is synthesized as the careers page plus a `#job-<id>` anchor.
     jobUrl: `${company.careersUrl.replace(/\/+$/, "")}/#job-${j.id}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,

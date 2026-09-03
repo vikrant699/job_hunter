@@ -38,8 +38,7 @@ const FAST = { intervalMs: 5, downIntervalMs: 5 };
 
 test("awaitNetwork is a no-op when no monitor is running", async () => {
   stopConnectivityMonitor();
-  // Entry points that never opted in (health, blast, the test suite) must keep
-  // their existing behaviour and can never park.
+  // Entry points that never opted in (health, blast, the test suite) must keep their existing behaviour and can never park.
   await awaitNetwork();
   assert.deepEqual(connectivityStatus(), { monitoring: false, down: false, downForMs: 0, waiting: 0 });
 });
@@ -54,8 +53,7 @@ test("awaitNetwork resolves immediately while the network is healthy", async (t)
   assert.equal(connectivityStatus().down, false);
 });
 
-// The heartbeat is the point: an outage is noticed on its own schedule, without any
-// request having to fail first and burn its retry budget discovering it.
+// The heartbeat is the point: an outage is noticed on its own schedule, without any request having to fail first and burn its retry budget discovering it.
 test("the heartbeat notices an outage with no failing request at all", async (t) => {
   const p = controllableProbe(true);
   t.after(stopConnectivityMonitor);
@@ -92,8 +90,7 @@ test("awaitNetwork parks callers while down and releases them all on recovery", 
   assert.equal(connectivityStatus().down, false);
 });
 
-// THE case that must never pause the run: one host refusing us (a WAF block, a dead
-// vendor) while the connection itself is fine.
+// THE case that must never pause the run: one host refusing us (a WAF block, a dead vendor) while the connection itself is fine.
 test("a failing request does not pause the run when the network is reachable", async (t) => {
   const p = controllableProbe(true);
   t.after(stopConnectivityMonitor);
@@ -106,8 +103,7 @@ test("a failing request does not pause the run when the network is reachable", a
   await awaitNetwork(); // resolves immediately
 });
 
-// ...and the mirror image: the same report during a real outage confirms it at once
-// rather than waiting for the next scheduled tick.
+// ...and the mirror image: the same report during a real outage confirms it at once rather than waiting for the next scheduled tick.
 test("a failing request confirms a real outage immediately", async (t) => {
   const p = controllableProbe(true);
   t.after(stopConnectivityMonitor);
@@ -136,8 +132,7 @@ test("concurrent failure reports collapse into a single probe", async (t) => {
   assert.ok(p.calls() - before <= 2, `expected ~1 extra probe, got ${p.calls() - before}`);
 });
 
-// A real response is better evidence than a probe, so it should not cost a whole
-// tick to act on it.
+// A real response is better evidence than a probe, so it should not cost a whole tick to act on it.
 test("a successful response resumes the run without waiting for the next probe", async (t) => {
   const p = controllableProbe(false);
   t.after(stopConnectivityMonitor);

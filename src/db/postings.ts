@@ -5,8 +5,6 @@ import type { Provider, Severity } from "../schemas.js";
 import { ProviderSchema } from "../schemas.js";
 import { db, queryAll, queryOne } from "./db.js";
 
-/* ===== Statements ===== */
-
 // p.jdText is deliberately not persisted: the gate consumes it in-memory and nothing reads it back afterwards.
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
@@ -38,14 +36,10 @@ export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boo
   return result.changes > 0;
 }
 
-/* ===== posting lifecycle: last_seen_at / removed_at ===== */
-
-// node:sqlite has no array-bind for IN(...), so the placeholder list is built per call; chunked well under
-// SQLite's ~999-parameter cap (4 fixed params + up to 500 ids per chunk stays comfortably inside it).
+// node:sqlite has no array-bind for IN(...), so the placeholder list is built per call, chunked under SQLite's ~999-parameter cap.
 const SEEN_CHUNK_SIZE = 500;
 
-/** Bumps last_seen_at (and revives — clears removed_at) for exactly the externalIds a successful listing fetch
- *  returned. A posting that is listed is "seen" regardless of relevance, so callers pass the FULL listing. */
+/** Bumps last_seen_at (and revives - clears removed_at) for exactly the externalIds a successful listing fetch returned; callers pass the FULL listing since "seen" doesn't depend on relevance. */
 export function markSeen(
   provider: Provider,
   companySlug: string,
@@ -75,9 +69,7 @@ const markRemovedStmt = db.prepare(`
     AND removed_at IS NULL AND last_seen_at < :fetchStartedAt
 `);
 
-/** Marks as removed every not-yet-removed row of this board that a fetch starting at `fetchStartedAt` did not
- *  see (its last_seen_at predates the fetch). The fetchStartedAt bound is what protects a parallel company's
- *  freshly-inserted rows — never widen this WHERE. Returns the number of rows removed. */
+/** Marks every not-yet-removed row of this board with last_seen_at before fetchStartedAt as removed; that bound protects a parallel company's freshly-inserted rows - never widen this WHERE. */
 export function markRemoved(
   provider: Provider,
   companySlug: string,
@@ -97,8 +89,7 @@ const countInsertedSinceStmt = db.prepare(`
     AND discovered_at >= :sinceIso
 `);
 
-/** How many rows of this board were freshly inserted (discovered_at >= sinceIso) — used to compute a fetch's
- *  "added" count without threading a counter through the per-posting pipeline. */
+/** How many rows of this board were freshly inserted (discovered_at >= sinceIso); avoids threading a counter through the per-posting pipeline. */
 export function countInsertedSince(provider: Provider, companySlug: string, profileId: string, sinceIso: string): number {
   const row = queryOne(countInsertedSinceStmt, CountSchema, { provider, companySlug, profileId, sinceIso });
   return row?.n ?? 0;
@@ -113,8 +104,7 @@ const countRemovedNotifiedSinceStmt = db.prepare(`
     AND p.removed_at IS NOT NULL
 `);
 
-/** Count of notified postings (same window as selectNotifiedPostingsSince) that are excluded because the
- *  board no longer lists them — feeds the outreach stage's one-line exclusion log. */
+/** Count of notified postings (same window as selectNotifiedPostingsSince) excluded because the board no longer lists them; feeds the outreach stage's exclusion log. */
 export function countRemovedNotifiedSince(sinceIso: string, profileId: string): number {
   const row = queryOne(countRemovedNotifiedSinceStmt, CountSchema, { sinceIso, profileId });
   return row?.n ?? 0;
@@ -127,8 +117,6 @@ const postingExistsStmt = db.prepare(`
 export function postingExists(provider: Provider, externalId: string, profileId: string): boolean {
   return postingExistsStmt.get({ provider, externalId, profileId }) !== undefined;
 }
-
-/* ===== selectNotifiedRoleKeys ===== */
 
 const NotifiedRoleKeySchema = z.object({
   company: z.string().nullable(),
@@ -143,8 +131,7 @@ const selectNotifiedRoleKeysStmt = db.prepare(`
   WHERE p.notified_at IS NOT NULL AND p.notified_at >= :cutoff AND p.profile_id = :profileId
 `);
 
-// A role re-posted after this long is worth a fresh ping anyway, and the cutoff
-// keeps the in-memory dedup set from growing unboundedly with notify history.
+// A role re-posted after this long is worth a fresh ping; also bounds the in-memory dedup set from growing unboundedly with notify history.
 const NOTIFY_DEDUP_WINDOW_DAYS = 180;
 
 /** Every (company, title, location) tuple notified in the last 180 days; dedupes reposts, which get a fresh external_id and would otherwise slip past postingExists. */
@@ -156,8 +143,6 @@ export function selectNotifiedRoleKeys(profileId: string): Array<{
   const cutoff = new Date(Date.now() - NOTIFY_DEDUP_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   return queryAll(selectNotifiedRoleKeysStmt, NotifiedRoleKeySchema, { cutoff, profileId });
 }
-
-/* ===== updatePostingResult ===== */
 
 const updatePostingResultStmt = db.prepare(`
   UPDATE postings SET
@@ -204,8 +189,6 @@ export function updatePostingResult(update: PostingResultUpdate): void {
   });
 }
 
-/* ===== getPostingSalary (audit/test read-back) ===== */
-
 const PostingSalarySchema = z.object({
   salary_min: z.number().nullable(),
   salary_max: z.number().nullable(),
@@ -225,8 +208,7 @@ const getPostingSalaryStmt = db.prepare(`
   FROM postings WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
 `);
 
-/** The stored (annualized) salary columns for one posting - audit/test read-back; nothing in the
- *  pipeline itself reads this back. */
+/** The stored (annualized) salary columns for one posting - audit/test read-back; nothing in the pipeline itself reads this back. */
 export function getPostingSalary(provider: Provider, externalId: string, profileId: string): PostingSalary | undefined {
   const row = queryOne(getPostingSalaryStmt, PostingSalarySchema, { provider, externalId, profileId });
   if (!row) return undefined;
@@ -237,8 +219,6 @@ export function getPostingSalary(provider: Provider, externalId: string, profile
     salaryPeriod: row.salary_period,
   };
 }
-
-/* ===== selectNotifiedPostingsSince ===== */
 
 const OutreachNotifiedPostingRowSchema = z.object({
   provider: ProviderSchema,

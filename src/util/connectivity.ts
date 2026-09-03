@@ -1,6 +1,3 @@
-// One process-wide answer to "is the internet up?". A single failed request can't distinguish a real outage from one host
-// refusing us, so a neutral-endpoint heartbeat is the sole arbiter: probe fails -> everything waits; probe succeeds -> that
-// one host is the problem and the run carries on. No "N hosts failed in M seconds" threshold - a probe replaces the guess.
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 
@@ -153,7 +150,7 @@ export async function awaitNetwork(): Promise<void> {
   });
 }
 
-/** A request just failed; this doesn't declare an outage, it asks for a probe now so a real outage or a single hostile host is confirmed in milliseconds. Concurrent reports collapse into one in-flight probe. */
+/** A failing request never decides the network is down; it only asks for a probe now, and the probe is the sole arbiter. Concurrent reports collapse into one in-flight probe. */
 export function reportNetworkFailure(): void {
   const m = monitor;
   if (m === null || m.stopped || m.probing) return;

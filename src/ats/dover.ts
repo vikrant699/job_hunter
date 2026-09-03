@@ -1,8 +1,5 @@
-// src/ats/dover.ts — Dover (app.dover.com) public career boards, e.g. Codingal, SALT. Every tenant lives under the
-// same shared host, keyed by an opaque client id rather than the slug. Three-call shape: resolve slug -> clientId
-// (GET /api/v1/careers-page-slug/<slug>), list (GET /api/v1/careers-page/<clientId>/jobs, no description field, so
-// fetchJd is mandatory), detail (GET /api/v1/jobs/<jobId>/get_job_description). No WAF, plain fetch works.
-// clientId is cached in apiMeta.clientId when known, else resolved live via the slug endpoint.
+// resolve: GET /api/v1/careers-page-slug/<slug> -> clientId (cached in apiMeta.clientId when known); list: GET /api/v1/careers-page/<clientId>/jobs (no description)
+// jd: GET /api/v1/jobs/<jobId>/get_job_description (fetchJd mandatory, list has no description field)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -151,9 +148,7 @@ export const doverAdapter: AtsAdapter = {
       fetchPage: async (offset) => {
         const raw = await atsFetchJson(doverJobsUrl(clientId, offset), { provider: "dover" });
         const parsed = parseOrThrow(DoverJobsPageSchema, raw, { provider: "dover", slug: company.slug });
-        // Dover shows sample/unpublished jobs to prospective employers on
-        // thin boards — filter before normalizing, but advance the offset by
-        // the RAW page size so filtered-out records don't skew pagination.
+        // Dover shows sample/unpublished jobs on thin boards; filter before normalizing but advance offset by the RAW page size so filtered records don't skew pagination.
         const live = parsed.results.filter((j) => j.is_published !== false && !j.is_sample);
         return {
           items: live.map((j) => normalizeDover(company, j)),

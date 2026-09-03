@@ -84,10 +84,7 @@ export function parseSfcsbPage(
   return { jobs, total: page.totalJobs ?? null };
 }
 
-/** Build a placeholder posting for a sitemap id the JSON listing never returned: jobUrl is the sitemap's own
- *  canonical URL, title is derived from its slug segment (no per-job JSON detail endpoint exists to fetch a
- *  real one cheaply), location stays null (the pipeline's late location check handles that), jdText is filled
- *  by fetchJd exactly like every other posting. */
+/** Placeholder posting for a sitemap id the JSON listing never returned: jobUrl is the sitemap's own canonical URL, title is derived from its slug segment, location stays null (the pipeline's late location check handles that), jdText is filled by fetchJd like every other posting. */
 function sfcsbPostingFromSitemap(company: AdapterCompany, id: string, url: string): NormalizedPosting {
   const jobTitle = titleFromSitemapUrl(url);
   return {
@@ -144,8 +141,7 @@ export const sfcsbAdapter: AtsAdapter = {
     }
     const apiCount = out.length;
 
-    // Completeness backstop: this API's pagination is known-unstable (see the listPostings comment above),
-    // so a job the sitemap knows about but the JSON walk never surfaced is added as a placeholder.
+    // Completeness backstop: a job the sitemap knows about but the JSON walk never surfaced is added as a placeholder.
     const sitemapIds = await fetchSfSitemapIds(company, "sfcsb");
     let gapFilled = 0;
     if (sitemapIds) {

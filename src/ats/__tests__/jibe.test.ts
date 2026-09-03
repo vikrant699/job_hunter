@@ -82,8 +82,7 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-/** Serve a canned body per `?page=N`; anything past the end is an empty page.
- *  Returns the page numbers requested, in order. */
+/** Serve a canned body per `?page=N` (anything past the end is an empty page); returns the page numbers requested, in order. */
 function stubPages(pages: Record<string, string>, totalCount: number | null): string[] {
   const seen: string[] = [];
   globalThis.fetch = async (input) => {

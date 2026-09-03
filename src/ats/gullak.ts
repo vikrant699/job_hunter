@@ -1,8 +1,5 @@
-// src/ats/gullak.ts — Gullak Money careers ("AutoHire" SPA). GET .../public/jobs -> { pipelines: [...] }, no auth.
-// The host ("internal"/"uat") is publicly reachable but fragile by naming convention, so a schema failure
-// here likely means the endpoint rotated. Only status === "active" pipelines are live; JD is an external
-// Google Drive link (unfetchable), so jdText uses description+experience; no location field, so a fixed
-// Bengaluru location is stamped.
+// list: GET .../public/jobs -> { pipelines: [...] }, no auth
+// host ("internal"/"uat" naming) is fragile — a schema failure here likely means the endpoint rotated
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -10,7 +7,7 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 
 const LIST_URL = "https://autohire.internal.svc.uat.glkmny.tech/public/jobs";
 const BOARD_URL = "https://candid.hub.gullak.money/jobs/";
-const FIXED_LOCATION = "Bengaluru, India";
+const FIXED_LOCATION = "Bengaluru, India"; // no location field on the API
 
 export const GullakJobSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -25,6 +22,7 @@ export type GullakJob = z.infer<typeof GullakJobSchema>;
 export const GullakResponseSchema = z.object({ pipelines: z.array(GullakJobSchema) });
 
 export function normalizeGullakJob(company: AdapterCompany, j: GullakJob): NormalizedPosting {
+  // jd_link is an external Google Drive link (unfetchable), so jdText is built from description+experience instead.
   const jdText = [
     j.description ?? "",
     j.experience_required !== null && j.experience_required !== undefined
@@ -60,7 +58,7 @@ export const gullakAdapter: AtsAdapter = {
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
     for (const j of parsed.pipelines) {
-      if (j.status && j.status !== "active") continue;
+      if (j.status && j.status !== "active") continue; // only active pipelines are live postings
       const p = normalizeGullakJob(company, j);
       if (seen.has(p.externalId)) continue;
       seen.add(p.externalId);

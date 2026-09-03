@@ -1,11 +1,4 @@
-/**
- * Read-only job-URL diagnostic: resolves a job posting URL to (provider, slug hint, external
- * id), then reports everything the DB (and, if needed, the live board) knows about it.
- *   npm run probe-url -- <url> [--profile <name>] [--gate]
- * Never writes to the DB. `--gate` additionally spends real LLM calls to run the actual
- * relevance gate + YOE extract for the selected profile (requires that profile's resume;
- * missing resume/config prints the pre-flight error and exits non-zero).
- */
+// Read-only job-URL diagnostic: resolves a job posting URL to (provider, slug hint, external id), then reports everything the DB (and, if needed, the live board) knows about it. Never writes to the DB.
 import "dotenv/config";
 import { z } from "zod";
 import { db, queryAll, selectAllCompanies } from "../src/db/index.js";
@@ -68,11 +61,7 @@ function toAdapterCompany(c: Company): AdapterCompany {
   };
 }
 
-/* ===== company lookup ===== */
-
-// Hosts shared by every tenant of a multi-tenant ATS (the tenant lives in the PATH, not the
-// host) — a careers_url/tenant_url substring match on one of these would "match" every company
-// on that provider, so the host fallback below is skipped for them.
+// Hosts shared by every tenant of a multi-tenant ATS (tenant lives in the PATH, not the host) — a substring match on one of these would "match" every company on that provider, so the host fallback below is skipped for them.
 const SHARED_ATS_HOSTS = new Set([
   "boards.greenhouse.io",
   "job-boards.greenhouse.io",
@@ -81,10 +70,7 @@ const SHARED_ATS_HOSTS = new Set([
   "jobs.smartrecruiters.com",
 ]);
 
-/** (provider + exact slug) when the URL resolved to one; otherwise a careers_url/tenant_url
- *  substring match on the URL's host, narrowed by provider when one is known. Skips the host
- *  fallback for a shared multi-tenant ATS host (see SHARED_ATS_HOSTS) — that would otherwise
- *  "match" every company on the provider instead of none. */
+/** (provider + exact slug) when the URL resolved to one; otherwise a careers_url/tenant_url substring match on the URL's host, narrowed by provider when known, skipping shared multi-tenant ATS hosts (see SHARED_ATS_HOSTS). */
 function findCompanies(provider: string | null, slugHint: string | null, rawUrl: string): Company[] {
   const all = selectAllCompanies();
   if (provider && slugHint) {
@@ -99,8 +85,6 @@ function findCompanies(provider: string | null, slugHint: string | null, rawUrl:
       (c.careersUrl.toLowerCase().includes(host) || (c.tenantUrl?.toLowerCase().includes(host) ?? false)),
   );
 }
-
-/* ===== posting lookup ===== */
 
 const PostingRowSchema = z.object({
   provider: z.string(),
@@ -161,8 +145,6 @@ function findPostings(
   return rows;
 }
 
-/* ===== board_runs ===== */
-
 const BoardRunRowSchema = z.object({
   run_at: z.string(),
   status: z.string(),
@@ -183,8 +165,6 @@ function findBoardRuns(provider: string, companySlug: string): BoardRunRow[] {
     { provider, companySlug },
   );
 }
-
-/* ===== printing ===== */
 
 function printResolution(r: ReturnType<typeof resolveJobUrl>): void {
   console.log("RESOLUTION");
@@ -260,8 +240,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Live listing: needed whenever the DB has no posting row (to explain why), and always
-  // needed for --gate since postings.jd_text is never persisted (see db/schema.sql).
+  // Live listing: needed whenever the DB has no posting row, and always needed for --gate since postings.jd_text is never persisted (see db/schema.sql).
   let liveMatch: NormalizedPosting | null = null;
   let liveAdapter: AtsAdapter | null = null;
   let liveAdapterCompany: AdapterCompany | null = null;
@@ -299,6 +278,7 @@ async function main(): Promise<void> {
     }
   }
 
+  // --gate spends real LLM calls to run the actual relevance gate + YOE extract; requires the selected profile's resume.
   if (gate) {
     console.log("\nGATE");
     if (!company) {

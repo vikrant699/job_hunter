@@ -1,15 +1,5 @@
-// src/ats/webbtree.ts — Webbtree hosted career boards (app.webbtree.com/company/<slug>/jobs).
-// STEP 1 (list): a plain GET of the board returns SSR HTML with the full, unpaginated job
-// list as an Angular TransferState island (<script id="serverApp-state" type="application/json">).
-// It uses a CUSTOM entity scheme (not standard HTML entities): &q; -> ", &a; -> &, decoded
-// in a single pass (a naive sequential replace would double-decode an "&a;"-derived "&").
-// The tenant's opaque `c_e` token also lives in this island (a `c_e=` query param, or
-// fallback the path segment in a job's jobdescriptionurl); needed for step 2, cached
-// in-memory per company slug (or supplied via apiMeta.c_e).
-// STEP 2 (JD, per job): POST to a SHARED endpoint (same host for every tenant) with the
-// token in both the body and a `customurl` header. "qwer23" (companynumber) is a hardcoded
-// placeholder the backend ignores — the real tenant identity travels via c_n/c_e. The
-// island's jobdescriptionurl is a dead legacy SPA route, never used for fetching.
+// src/ats/webbtree.ts — Webbtree hosted boards (app.webbtree.com/company/<slug>/jobs). list: plain GET returns SSR HTML with the full unpaginated job list as an Angular TransferState island (script#serverApp-state).
+// detail: POST https://appapi.webbtree.com/candidate/jobs/getjobdetails (shared host for every tenant) with the tenant's c_e token in the body and a customurl header.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -62,8 +52,7 @@ const WebbtreeJobDetailsResponseSchema = z.object({
     .optional(),
 });
 
-// Decodes Webbtree's custom entity scheme in a single pass so an "&a;"-derived "&" is never
-// mistaken for the start of a fresh entity.
+// Decodes Webbtree's custom entity scheme (&q;->", &a;->&) in a single pass so an "&a;"-derived "&" is never mistaken for the start of a fresh entity.
 export function decodeWebbtreeEntities(s: string): string {
   return s.replace(/&q;|&a;/g, (m) => (m === "&q;" ? '"' : "&"));
 }
@@ -99,8 +88,7 @@ export function webbtreeJobsFromIsland(island: WebbtreeIsland, slug: string): We
 const CE_TOKEN_RE = /[?&]c_e=([A-Za-z0-9_-]+)/;
 const CE_TOKEN_FROM_JOB_URL_RE = /\/([A-Za-z0-9_-]+)\/job-board\/career\/jobdetail\//;
 
-// The tenant's opaque c_e token: any island entry's request URL with c_e=, falling back to
-// the path segment in a job's jobdescriptionurl. Null when neither source has it.
+// The tenant's opaque c_e token: any island entry's request URL with c_e=, falling back to the path segment in a job's jobdescriptionurl; null when neither source has it.
 export function extractCeToken(island: WebbtreeIsland, jobs: readonly WebbtreeJob[]): string | null {
   for (const entry of Object.values(island)) {
     const token = typeof entry.url === "string" ? matchGroup(CE_TOKEN_RE, entry.url) : null;
@@ -130,7 +118,7 @@ export function normalizeWebbtree(company: AdapterCompany, j: WebbtreeJob): Norm
     jobUrl: j.jobdescriptionurl ?? webbtreeListUrl(company.slug),
     location,
     isRemote: j.remotelocation === 1 || j.remotelocation === true,
-    // Two-phase: JD comes from fetchJd (getjobdetails), never inline in the list.
+    // Two-phase: JD comes from fetchJd (getjobdetails); jobdescriptionurl is a dead legacy SPA route, only used here as a jobUrl fallback.
     jdText: "",
     postedAt: null,
   };
@@ -161,8 +149,7 @@ export function postingsFromWebbtreeHtml(company: AdapterCompany, html: string):
   return jobs.map((j) => normalizeWebbtree(company, j));
 }
 
-// In-memory cache: listPostings always runs before fetchJd, sparing fetchJd a second full
-// page fetch just for the token. Falls back to re-deriving if the cache (and apiMeta) are empty.
+// In-memory cache: listPostings always runs before fetchJd, sparing it a second full page fetch just for the token; falls back to re-deriving if cache and apiMeta are empty.
 const tokenCache = new Map<string, string>();
 
 async function resolveCeToken(company: AdapterCompany): Promise<string> {

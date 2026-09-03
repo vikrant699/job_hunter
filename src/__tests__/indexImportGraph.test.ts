@@ -4,10 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// index.ts must run the Drive sync before db/db.ts opens the SQLite file (the pull replaces that file, and an open handle
-// means EPERM on Windows or a stale read on Linux). db.ts opens on module load, so nothing in index.ts's static import
-// graph may reach it; the run body lives in runOnce.ts, reached by dynamic import after the sync. A comment can't enforce
-// that, so this test does.
+// index.ts must run the Drive sync before db/db.ts opens the SQLite file (the pull replaces that file, and an open handle means EPERM on Windows or a stale read on Linux) - db.ts opens on module load, so nothing in index.ts's static import graph may reach it; the run body lives in runOnce.ts, reached by dynamic import after the sync. A comment can't enforce that, so this test does.
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 

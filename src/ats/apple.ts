@@ -1,8 +1,5 @@
-// src/ats/apple.ts — Apple Careers (jobs.apple.com) public search API.
-// List: POST /api/v1/search, page size fixed at 20; `sort`/`format` body keys are load-bearing (omit either and it silently returns zero results).
-// `locations` filter takes an opaque facet id, not a country code (India = "postLocation-INDC").
-// Multi-location postings list once per city with a distinct `id` sharing one `positionId`; `id` is used as externalId.
-// JD: GET /api/v1/jobDetails/<jobNumber>?locale=<locale>, jobNumber is the numeric positionId.
+// list: POST /api/v1/search, page size fixed at 20 -> {res.searchResults[]}
+// jd: GET /api/v1/jobDetails/<jobNumber>?locale=<locale>, jobNumber is the numeric positionId
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -15,6 +12,7 @@ import type { JsonValue } from "../util/json.js";
 const ORIGIN = "https://jobs.apple.com";
 const PAGE = 20;
 const LOCALE = "en-in";
+// The locations filter takes Apple's opaque facet ids, not country codes; "postLocation-INDC" is the India facet.
 const INDIA_LOCATION_FACET = "postLocation-INDC";
 
 const AppleLocationSchema = z.object({
@@ -49,7 +47,7 @@ const AppleJobDetailsResponseSchema = z.object({
   }),
 });
 
-/** Every key here is required - see module header. */
+// `sort`/`format` keys are load-bearing - omit either and it silently returns zero results
 export function appleSearchBody(page: number): JsonValue {
   return {
     query: "",
@@ -66,6 +64,7 @@ export function normalizeApple(company: AdapterCompany, r: AppleSearchResult): N
   const location = loc?.name ?? loc?.countryName ?? null;
   return {
     provider: "apple",
+    // Multi-location postings repeat once per city with a distinct r.id sharing one positionId, so r.id is the dedup key.
     externalId: r.id,
     companySlug: company.slug,
     companyName: company.name,

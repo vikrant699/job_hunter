@@ -1,10 +1,5 @@
-// src/ats/ceipal.ts — Ceipal ATS "CareerPortal" JSON API.
-// POST careerapi.ceipal.com/<api_key>/CareerPortalJobPostings/?page=<n>, multipart/form-data; Referer header is
-// REQUIRED or it 400s as bot access. api_key + cp_id are per-tenant widget-embed attributes with no host/path to
-// regex-match, so (like Keka/Eightfold) apiMeta must supply them out of band.
-// JD is two-phase: the list truncates description to a ~184-char teaser. Full JD is a separate unauthenticated GET
-// on candidateportal.ceipal.com/api/jobs/description/<token> (token = last segment of campus_portal_job_details_url);
-// jdText is left empty so the pipeline calls fetchJd, falling back to the teaser only if that call fails.
+// list: POST careerapi.ceipal.com/<api_key>/CareerPortalJobPostings/?page=<n>, multipart/form-data, Referer required or 400s as bot access; api_key+cp_id come from apiMeta (per-tenant widget-embed attrs, no host/path to regex-match)
+// jd: GET candidateportal.ceipal.com/api/jobs/description/<token> (token = last segment of campus_portal_job_details_url); list description is only a ~184-char teaser
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -93,8 +88,7 @@ export function ceipalLocation(j: CeipalJob): string | null {
   return joinLocation(j.city, j.state, j.country);
 }
 
-// Falls back to public_job_desc when requistion_description is absent OR empty (some jobs return "" for it with
-// content in the other field, so a plain `??` would wrongly yield the empty string).
+// Falls back to public_job_desc when requistion_description is "" or absent (a plain ?? would wrongly keep the empty string).
 export function ceipalTeaser(j: CeipalJob): string {
   const req = j.requistion_description?.trim();
   const raw = req || j.public_job_desc || "";
@@ -113,8 +107,7 @@ export function ceipalDescriptionUrl(token: string): string {
   return `https://candidateportal.ceipal.com/api/jobs/description/${encodeURIComponent(token)}`;
 }
 
-// The pipeline only calls fetchJd when jdText is empty, so the teaser is stashed here keyed by the posting object
-// it passes back into fetchJd.
+// Stashed here keyed by the posting object, since fetchJd only receives the posting back (not this teaser).
 const teaserByPosting = new WeakMap<NormalizedPosting, string>();
 
 export function normalizeCeipal(company: AdapterCompany, j: CeipalJob): NormalizedPosting {

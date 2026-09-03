@@ -1,4 +1,3 @@
-// src/ats/htmlText.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { htmlToText, decodeNumericEntities, decodeAttrEntities } from "../htmlText.js";

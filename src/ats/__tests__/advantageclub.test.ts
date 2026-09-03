@@ -1,4 +1,3 @@
-// src/ats/advantageclub.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { advantageClubListUrl, advantageClubDetailUrl, advantageClubJobUrl, normalizeAdvantageClubJob, buildAdvantageClubJd } from "../advantageclub.js";

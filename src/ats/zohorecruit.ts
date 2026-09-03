@@ -1,13 +1,5 @@
-// src/ats/zohorecruit.ts — Zoho Recruit hosted career sites (<tenant>.zohorecruit.com /
-// .zohorecruit.in). A plain GET of the tenant's careers page (fetched exactly as stored,
-// since the page-name segment varies per tenant) returns server-rendered HTML with the
-// complete published-jobs list embedded as an entity-escaped JSON array in
-// `<input type="hidden" value="[...]" id="jobs">`. One request, no pagination.
-// On MOST tenants the island carries the full JD inline. But 22 of 57 live tenants
-// (2026-08-13 sweep) omit Job_Description from the list island entirely (a few serve a
-// short snippet), which used to drop every posting as no-jd. For those, fetchJd reads the
-// job DETAIL page, where the full JD is embedded in a JS-escaped (\x22-quoted) data blob —
-// see extractZohoDetailJd. An empty board serializes as value="[]".
+// src/ats/zohorecruit.ts — Zoho Recruit hosted sites (<tenant>.zohorecruit.com/.in): a plain GET of the careers page returns SSR HTML with the full jobs list as an entity-escaped JSON array in <input id="jobs" value="[...]">, one request, no pagination.
+// Most tenants inline the full JD there, but 22 of 57 (2026-08-13 sweep) omit Job_Description; fetchJd then reads the job DETAIL page, where the JD is embedded in a JS-escaped (\x22-quoted) data blob.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -34,12 +26,9 @@ export type ZohoRecruitJob = z.infer<typeof ZohoRecruitJobSchema>;
 
 const JobsIslandSchema = z.array(ZohoRecruitJobSchema);
 
-// Pulls the raw (still entity-escaped) value of the id="jobs" hidden input. Attribute
-// values are fully entity-escaped, so raw quotes only occur as delimiters — a
-// quote-aware scan for the tag-closing `>` is unambiguous. Null when the island is absent.
+// Pulls the raw (still entity-escaped) value of the id="jobs" hidden input; attribute values are fully entity-escaped so raw quotes only occur as delimiters, making a quote-aware scan for the tag-closing > unambiguous. Null when absent.
 export function extractJobsIsland(html: string): string | null {
-  // A raw `id="jobs"` literal can occur in unrelated page content before the real island —
-  // walk every occurrence and require containment in an <input> tag.
+  // A raw id="jobs" literal can occur in unrelated page content before the real island, so walk every occurrence and require containment in an <input> tag.
   for (let idIdx = html.indexOf('id="jobs"'); idIdx !== -1; idIdx = html.indexOf('id="jobs"', idIdx + 1)) {
     const tagStart = html.lastIndexOf("<input", idIdx);
     if (tagStart === -1) continue;
@@ -52,8 +41,7 @@ export function extractJobsIsland(html: string): string | null {
       else if (ch === ">" && !inQuote) { end = i; break; }
     }
     if (end === -1) continue;
-    // Containment: a stray literal in earlier content has its nearest <input further back,
-    // so that tag closes before the occurrence — skip it.
+    // Containment: a stray literal in earlier content has its nearest <input further back, so that tag closes before the occurrence — skip it.
     if (end <= idIdx) continue;
 
     // `\s` (not `\b`) so a data-value="..." attribute can never match.
@@ -107,10 +95,7 @@ export function postingsFromZohoHtml(company: AdapterCompany, html: string): Nor
     .map((j) => normalizeZohoRecruit(company, j));
 }
 
-// Pulls the JD out of a zoho job DETAIL page. The page embeds the job record in a JS
-// string with hex-escaped quotes (`\x22Job_Description\x22:\x22<span ...`), the value's
-// own inner quotes escaped one layer deeper — so the first bare (non-backslash-preceded)
-// `\x22` after the value opens is the terminator. Null when the page carries no JD value.
+// Pulls the JD from a job DETAIL page's hex-escaped JS string (\x22Job_Description\x22:\x22<span...); the value's own inner quotes are escaped one layer deeper, so the first bare (non-backslash-preceded) \x22 after the value opens is the terminator. Null when there's no JD value.
 export function extractZohoDetailJd(html: string): string | null {
   const OPEN = "\\x22:\\x22";
   let i = html.indexOf("Job_Description");

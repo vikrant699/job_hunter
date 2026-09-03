@@ -128,8 +128,7 @@ export async function paginate<T>(opts: PaginateOpts<T>): Promise<T[]> {
       total = pageTotal;
     }
 
-    // Stop only on an EXACT repeat of the prior page (not just previously-seen rows): ignoring the offset param would serve page 0 forever, but some boards legitimately re-serve earlier rows mid-crawl while more pages remain, so a weaker signal would truncate them.
-    // The same exact-repeat also happens benignly when a board clamps at its last page and re-serves it; indistinguishable from the response alone, so only the counts decide how loud describePaginationStall logs.
+    // Stop only on an EXACT repeat of the prior page (not just previously-seen rows) - a weaker signal would truncate boards that legitimately re-serve earlier rows mid-crawl; a clamped-last-page repeat looks identical, so only the counts decide how loud describePaginationStall logs.
     const signature = dedupeBy ? items.map(dedupeBy).join("\u0000") : null;
     if (signature !== null && items.length > 0 && added === 0 && signature === prevSignature) {
       // The page we stalled ON is a byte-for-byte repeat of the previous one, so its own evidence about the board's pager is the evidence for the repeat.

@@ -1,4 +1,3 @@
-// src/ats/digitalrecruiters.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeDigitalRecruiters, digitalRecruitersAdapter } from "../digitalrecruiters.js";

@@ -1,5 +1,4 @@
-// Bounce sweep for blast drafts: one precise per-address Gmail query (duplicated from
-// verify.ts's bounceSearchQuery so the blast tool stays deletable). Bounced is terminal.
+// Bounce sweep for blast drafts: one precise per-address Gmail query (duplicated from verify.ts's bounceSearchQuery so the blast tool stays deletable). Bounced is terminal.
 import type { MessageRef, MessageMetadata } from "../google/gmail.js";
 import type { BlastState } from "./state.js";
 
