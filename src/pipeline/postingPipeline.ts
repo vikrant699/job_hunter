@@ -4,7 +4,6 @@ import {
   postingExists,
   updatePostingResult,
   bumpMatched,
-  upsertPostingVector,
 } from "../db/index.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
@@ -17,7 +16,6 @@ import { runGate } from "../llm/gate.js";
 import { runExtract } from "../llm/extract.js";
 import type { ExtractResult } from "../llm/extract.js";
 import { LlmUnavailableError } from "../llm/errors.js";
-import { embedText, embedModelTag, cosine } from "../llm/embed.js";
 import { classifyVerdict, SILENT_SCORE_FLOOR } from "../filter/verdict.js";
 import { extractSalary } from "../filter/salary.js";
 import { profile } from "../profile.js";
@@ -39,58 +37,7 @@ interface PostingResultPatch {
   notifiedAt: string | null;
 }
 
-// Shadow-mode: resume text embedded once per (modelTag, profileId) and cached for the process's lifetime,
-// so every posting after the first reuses it instead of spending an LLM call per posting. A failed anchor
-// embed is cached too (as null), which is what "disables itself for the run" means in practice - no retry
-// storm, and the one warn below fires exactly once per key.
-const resumeAnchorCache = new Map<string, number[] | null>();
-
-async function resumeAnchorVector(profileId: string, modelTag: string): Promise<number[] | null> {
-  const key = `${modelTag}:${profileId}`;
-  if (resumeAnchorCache.has(key)) return resumeAnchorCache.get(key) ?? null;
-  const embedded = await embedText(profile.resumeText ?? "");
-  const vector = embedded?.vector ?? null;
-  resumeAnchorCache.set(key, vector);
-  if (!vector) {
-    logger.warn({ profileId, modelTag }, "embed: resume anchor failed; shadow-mode disabled for this run");
-  }
-  return vector;
-}
-
-/** Shadow mode only: embeds the posting, compares it to the run's resume anchor, and stores both the
- *  vector and the similarity. Never throws and never touches gate/verdict inputs - a failure here (or the
- *  embed-model knob being unset) just means embedSim stays null, exactly as if the feature were off. */
-async function embedShadow(posting: NormalizedPosting, profileId: string): Promise<number | null> {
-  const modelTag = embedModelTag();
-  if (!modelTag) return null;
-  const anchor = await resumeAnchorVector(profileId, modelTag);
-  if (!anchor) return null;
-
-  const postingText = [
-    `Title: ${posting.jobTitle}`,
-    `Location: ${posting.location ?? ""}`,
-    `Company: ${posting.companyName}`,
-    posting.jdText,
-  ].join("\n");
-  const embedded = await embedText(postingText);
-  if (!embedded) return null;
-
-  upsertPostingVector({
-    provider: posting.provider,
-    externalId: posting.externalId,
-    profileId,
-    modelTag: embedded.modelTag,
-    vector: embedded.vector,
-  });
-  return cosine(embedded.vector, anchor);
-}
-
-function writePostingResult(
-  posting: NormalizedPosting,
-  patch: PostingResultPatch,
-  profileId: string,
-  embedSim: number | null = null,
-): void {
+function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch, profileId: string): void {
   // Mechanical (no-LLM), storage-only: computed for every posting that reaches this point with real JD
   // text (skipped for no-jd/junk-jd writes, where jdText is empty). Never affects verdict/filtering.
   const salary = posting.jdText ? extractSalary(posting.jdText) : null;
@@ -109,7 +56,6 @@ function writePostingResult(
     salaryMax: salary?.annualMax ?? null,
     salaryCurrency: salary?.currency ?? null,
     salaryPeriod: salary?.period ?? null,
-    embedSim,
   });
 }
 
@@ -257,11 +203,6 @@ export async function processOnePosting(
     return;
   }
 
-  // Shadow mode: measured alongside the gate, never acting on it. Runs before the gate call per the
-  // design (posting text is independent of the gate's own JD-based prompt), and every write below carries
-  // it through so the one terminal write per posting always includes it.
-  const embedSim = await embedShadow(posting, stats.profileId);
-
   let gateResult;
   try {
     gateResult = await runGate({
@@ -281,7 +222,6 @@ export async function processOnePosting(
       posting,
       droppedResult(`gate-error: ${describeError(err).slice(0, 120)}`, "gate-error"),
       stats.profileId,
-      embedSim,
     );
     return;
   }
@@ -293,7 +233,6 @@ export async function processOnePosting(
         llmConfidence: gateResult.matchScore,
       }),
       stats.profileId,
-      embedSim,
     );
     return;
   }
@@ -320,7 +259,6 @@ export async function processOnePosting(
         yoeMax: extractResult?.yoeMax ?? null,
       }),
       stats.profileId,
-      embedSim,
     );
     return;
   }
@@ -338,7 +276,6 @@ export async function processOnePosting(
         notifiedAt: null,
       }),
       stats.profileId,
-      embedSim,
     );
     return;
   }
@@ -367,6 +304,5 @@ export async function processOnePosting(
       notifiedAt,
     }),
     stats.profileId,
-    embedSim,
   );
 }

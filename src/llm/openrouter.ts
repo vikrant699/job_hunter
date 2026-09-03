@@ -27,10 +27,6 @@ export interface OpenRouterGenerateOpts {
   temperature?: number | undefined;
 }
 
-const OpenRouterEmbedResponseSchema = z.object({
-  data: z.array(z.object({ embedding: z.array(z.number()) })).default([]),
-});
-
 /** Attempts made *inside* the transport for a rate-limited / transient-5xx response. */
 const MAX_STATUS_RETRIES = 3;
 /** How often to emit the running cache hit-rate. */
@@ -240,64 +236,4 @@ export async function openRouterGenerate(
     return content;
   }
   throw new Error(`OpenRouter HTTP retries exhausted after ${MAX_STATUS_RETRIES + 1} attempts`);
-}
-
-/** fatalMessage's text names OPENROUTER_MODEL, the chat-completions knob; embed calls fail against
- *  OPENROUTER_EMBED_MODEL instead, so fatalModel gets its own message naming the right knob. */
-function embedFatalMessage(verdict: StatusVerdict, status: number, body: string): string | null {
-  if (verdict === "fatalModel") {
-    return `OpenRouter has no endpoint for embedding model '${config.llm.openRouterEmbedModel ?? ""}' (HTTP ${status}): ${body.slice(0, 160)}. Fix OPENROUTER_EMBED_MODEL in .env.`;
-  }
-  return fatalMessage(verdict, status, body);
-}
-
-const EMBEDDINGS_URL = `${API_BASE}/embeddings`;
-
-/** One embedding call against OpenRouter's OpenAI-compatible POST /embeddings. `model` is resolved by the
- *  caller (llm/embed.ts) from OPENROUTER_EMBED_MODEL. Shares auth headers, Retry-After/429 handling, and
- *  status classification with openRouterGenerate. */
-export async function openRouterEmbed(input: string, model: string): Promise<number[]> {
-  for (let attempt = 0; attempt <= MAX_STATUS_RETRIES; attempt++) {
-    await awaitNetwork();
-    let res: Response;
-    try {
-      res = await fetch(EMBEDDINGS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.llm.openRouterKey}`,
-        },
-        body: JSON.stringify({ model, input }),
-        signal: AbortSignal.timeout(config.llm.timeoutMs),
-      });
-    } catch (err) {
-      reportNetworkFailure();
-      throw err;
-    }
-    reportNetworkSuccess();
-
-    const verdict = classifyOpenRouterStatus(res.status);
-
-    if (verdict === "retry" && attempt < MAX_STATUS_RETRIES) {
-      const waitMs = parseRetryAfterMs(res.headers.get("retry-after"));
-      logger.warn({ status: res.status, waitMs, attempt }, "openrouter embed throttled; backing off");
-      await sleep(waitMs);
-      continue;
-    }
-
-    if (verdict !== "ok") {
-      const body = await res.text();
-      const fatal = embedFatalMessage(refineVerdict(verdict, res.status, body), res.status, body);
-      if (fatal !== null) throw new LlmUnavailableError(fatal);
-      throw new Error(`OpenRouter embed HTTP ${res.status}: ${body.slice(0, 200)}`);
-    }
-
-    const data = OpenRouterEmbedResponseSchema.parse(await res.json());
-    const vector = data.data[0]?.embedding;
-    if (!vector) {
-      throw new Error("OpenRouter embed returned no vector");
-    }
-    return vector;
-  }
-  throw new Error(`OpenRouter embed HTTP retries exhausted after ${MAX_STATUS_RETRIES + 1} attempts`);
 }
