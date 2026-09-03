@@ -3,13 +3,8 @@ import { logger } from "../logger.js";
 import { makeSemaphore } from "../util/semaphore.js";
 import { sleep } from "../util/sleep.js";
 import { LlmUnavailableError } from "./errors.js";
-import { assertOllamaAvailable, ollamaGenerate } from "./ollama.js";
 import { assertOpenRouterAvailable, openRouterGenerate } from "./openrouter.js";
-
-interface GenerateOpts {
-  format?: "json";
-  temperature?: number | undefined;
-}
+import type { OpenRouterGenerateOpts as GenerateOpts } from "./openrouter.js";
 
 // Connection-level failure (server unreachable), distinct from a per-posting model/output error.
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
@@ -33,19 +28,15 @@ let consecutiveConnFailures = 0;
 
 const acquire = makeSemaphore(() => config.llm.maxConcurrent);
 
-/** Pre-flight for whichever backend LOCAL selects; throws LlmUnavailableError so a bad backend fails fast instead of flooding gate-errors. */
+/** Pre-flight for the LLM backend; throws LlmUnavailableError so a bad backend fails fast instead of flooding gate-errors. */
 export async function assertLlmAvailable(): Promise<void> {
-  return config.llm.local ? assertOllamaAvailable() : assertOpenRouterAvailable();
-}
-
-function transportGenerate(prompt: string, opts: GenerateOpts): Promise<string> {
-  return config.llm.local ? ollamaGenerate(prompt, opts) : openRouterGenerate(prompt, opts);
+  return assertOpenRouterAvailable();
 }
 
 async function once(prompt: string, opts: GenerateOpts): Promise<string> {
   const release = await acquire();
   try {
-    return await transportGenerate(prompt, opts);
+    return await openRouterGenerate(prompt, opts);
   } finally {
     release();
   }

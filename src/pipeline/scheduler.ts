@@ -287,7 +287,7 @@ async function processOneCompany(
   try {
     postings = await listWithTransportRetry(adapter, adapterCompany, company, stats, retry);
   } catch (err) {
-    // Backend down (scrape adapters call the LLM shortlist) - abort rather than mark every company a fetch failure against a dead Ollama.
+    // Backend down (scrape adapters call the LLM shortlist) - abort rather than mark every company a fetch failure against a dead LLM backend.
     if (err instanceof LlmUnavailableError) throw err;
     const msg = describeError(err);
 
@@ -336,8 +336,8 @@ async function processOneCompany(
     seenAt,
   );
 
-  // Worker pool within the company: HTTP work parallelizes here while Ollama
-  // calls serialize inside llm/client.ts via the semaphore.
+  // Worker pool within the company: HTTP work parallelizes here while LLM
+  // calls are capped inside llm/client.ts via the semaphore.
   const workers = config.fetch.workersPerCompany;
   let cursor = 0;
   async function postingWorker(): Promise<void> {

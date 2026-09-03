@@ -2,14 +2,11 @@
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
-import { envInt, envBool } from "./util/env.js";
+import { envInt } from "./util/env.js";
 
 // Typed `number` (not `as const`-narrowed) so scheduler.ts's skip-if-disabled checks stay real runtime checks.
 const INTER_CALL_DELAY_MS: number = 250;
 const DEFERRED_PASS_PACE_MS: number = 3_000;
-
-// Hoisted: envBool returns `boolean`, so `as const` can't narrow config.llm.local to a compile-time constant.
-const LLM_LOCAL = envBool("LOCAL", true);
 
 /** Per-provider start throttle: caps how many of that provider's boards fetch at once and how close together their starts
  *  may land. Exists because Workday's edge serves HTML instead of JSON when ~17 of its boards are hit in ~24s from one IP,
@@ -29,7 +26,7 @@ export const config = {
   fetch: {
     /** How many companies of one provider run in parallel. */
     concurrencyPerProvider: 4,
-    /** Postings processed in parallel inside one company. Ollama serializes via the semaphore in llm/client.ts. */
+    /** Postings processed in parallel inside one company. LLM calls are capped separately by the semaphore in llm/client.ts. */
     workersPerCompany: 5,
     /** Politeness delay between worker-pool iterations within a company. */
     interCallDelayMs: INTER_CALL_DELAY_MS,
@@ -48,22 +45,17 @@ export const config = {
   },
 
   llm: {
-    /** true = local Ollama (default); false = OpenRouter. Only the exact word "false" flips it - see envBool. */
-    local: LLM_LOCAL,
-    ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
-    model: process.env.OLLAMA_MODEL ?? "qwen3.5:9b",
-    /** Required only when local is false; llm/client.ts pre-flight fails fast if missing. */
+    /** Required; llm/client.ts pre-flight fails fast if missing. */
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
     /** Pinned to a dated snapshot so the model can't change under a run's feet; pre-flight verifies it still resolves. */
     openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
     /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
-    timeoutMs: envInt("LLM_TIMEOUT_MS", LLM_LOCAL ? 90_000 : 30_000),
+    timeoutMs: envInt("LLM_TIMEOUT_MS", 30_000),
     maxRetries: 2,
-    /** Ollama serializes on the GPU (1 locally); hosted has no such constraint (8). Override with LLM_MAX_CONCURRENT. */
-    maxConcurrent: envInt("LLM_MAX_CONCURRENT", LLM_LOCAL ? 1 : 8),
-    /** Context window (tokens), Ollama-only; jdMaxChars is sized to this. */
-    numCtx: envInt("OLLAMA_NUM_CTX", 9000),
+    /** Concurrent LLM calls in flight; override with LLM_MAX_CONCURRENT. */
+    maxConcurrent: envInt("LLM_MAX_CONCURRENT", 8),
+    /** Caps JD text per prompt to bound per-call cost. */
     jdMaxChars: 18000,
   },
 

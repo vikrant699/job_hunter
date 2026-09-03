@@ -5,13 +5,3 @@ export function envInt(name: string, fallback: number): number {
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : fallback;
 }
-
-/** Boolean env knob: only exact "true"/"false" (case-insensitive) are honoured, so a typo falls back rather than silently switching providers. */
-export function envBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name];
-  if (raw === undefined) return fallback;
-  const s = raw.trim().toLowerCase();
-  if (s === "true") return true;
-  if (s === "false") return false;
-  return fallback;
-}
