@@ -1,7 +1,5 @@
-// src/ats/digitalrecruiters.ts — Digital Recruiters (api.digitalrecruiters.com), shared multi-tenant French ATS
-// (Decathlon and other EU employers), keyed by careers-site domain (apiMeta.domainName). No auth, no CSRF.
-// List: POST /public/v1/careers-site/job-ads (JD not inline). JD: GET .../job-ads/<id> (description+profile HTML).
-// Public job URL is https://<domain>/<localePath>/<jobPathSlug>/<url>; those fields are cached in apiMeta.
+// list: POST api.digitalrecruiters.com/public/v1/careers-site/job-ads (no JD); jd: GET .../job-ads/<id> (description+profile HTML)
+// public job URL: https://<domain>/<localePath>/<jobPathSlug>/<url-or-id>; domain/locale/localePath/jobPathSlug cached in apiMeta
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -52,8 +50,7 @@ const DetailBodySchema = z.object({
   description: z.string().nullable().optional(),
   profile: z.string().nullable().optional(),
 });
-// Root usually carries description/profile directly; tolerate an {item:{...}}
-// envelope as a fallback.
+// Root usually carries description/profile directly; tolerate an {item:{...}} envelope as fallback.
 const DetailResponseSchema = DetailBodySchema.extend({
   item: DetailBodySchema.optional(),
 });

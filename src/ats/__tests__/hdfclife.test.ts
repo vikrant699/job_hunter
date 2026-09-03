@@ -1,4 +1,3 @@
-// src/ats/__tests__/hdfclife.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

@@ -65,8 +65,7 @@ test("isTransportError is true for common outage signatures", () => {
 });
 
 test("isTransportError is false for board-shaped failures", () => {
-  // These came FROM the board, so they are genuinely per-company and must
-  // still count toward quarantine.
+  // These came FROM the board, so they are genuinely per-company and must still count toward quarantine.
   assert.equal(isTransportError(new Error("greenhouse 404")), false);
   assert.equal(isTransportError(new Error("workday HTTP 403: permission denied")), false);
   assert.equal(isTransportError(new Error("gohire HTTP 429: limit exceeded")), false);
@@ -75,10 +74,7 @@ test("isTransportError is false for board-shaped failures", () => {
   assert.equal(isTransportError(new SyntaxError("Unexpected token '<'")), false);
 });
 
-/**
- * The real thing: whatever this Node's V8 phrases a JSON.parse failure as, so
- * the classifier is tested against the live message rather than a copy of it.
- */
+/** Whatever this Node's V8 phrases a JSON.parse failure as, so the classifier is tested against the live message rather than a copy of it. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function jsonParseFailure(body: string): unknown {
   try {
@@ -122,8 +118,7 @@ test("isEdgeInterstitialError is false for failures the board really produced", 
     ),
     false,
   );
-  // An HTTP status error whose body snippet happens to be HTML is still an HTTP
-  // status error — no JSON parse was attempted, so the tag alone proves nothing.
+  // An HTTP status error whose body snippet happens to be HTML is still an HTTP status error — no JSON parse was attempted, so the tag alone proves nothing.
   assert.equal(isEdgeInterstitialError(new Error("workday HTTP 520: <!DOCTYPE html>")), false);
 });
 
@@ -183,12 +178,9 @@ test("isInfrastructureFault is false for board defects, which must still count",
   assert.equal(isInfrastructureFault(jsonParseFailure('{"jobs":')), false);
 });
 
-// --- HTML bot-block / challenge pages ----------------------------------------
-// The JSON-parse rule above cannot see these: an HTML adapter never parses JSON, so a WAF page reaches its dead-tenant guard
-// as ordinary markup with no job rows and no engine fingerprint - the exact shape the guard is built to fail.
+// The JSON-parse rule above cannot see these: an HTML adapter never parses JSON, so a WAF page reaches its dead-tenant guard as ordinary markup with no job rows or engine fingerprint.
 
-/** Bodies shaped like the block pages this repo's boards actually sit behind,
- *  trimmed to the marker plus enough chrome to stay recognisable. */
+/** Bodies shaped like the block pages this repo's boards actually sit behind, trimmed to the marker plus enough chrome to stay recognisable. */
 const INCAPSULA_BODY =
   `<html><head><title>Request unsuccessful. Incapsula incident ID: ` +
   `489000670129277600-30177459283132412</title></head><body></body></html>`;
@@ -249,8 +241,7 @@ test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
     looksLikeChallengePage(`<li class="job"><span>Reference #18274</span>Data Engineer</li>`),
     false,
   );
-  // Employers really do run coding challenges, and "challenge-container" is an
-  // ordinary CSS class name.
+  // Employers really do run coding challenges, and "challenge-container" is an ordinary CSS class name.
   assert.equal(
     looksLikeChallengePage(`<div class="challenge-container">Take our coding challenge</div>`),
     false,
@@ -264,8 +255,7 @@ test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
   // A bare 403 body, and an application-form validation string.
   assert.equal(looksLikeChallengePage(`{"error":"Access Denied"}`), false);
   assert.equal(looksLikeChallengePage(`<p>Request unsuccessful, please try again.</p>`), false);
-  // Careers pages routinely serve assets from a CloudFront distribution; the CDN's
-  // hostname alone must never read as its block page.
+  // Careers pages routinely serve assets from a CloudFront distribution; the CDN's hostname alone must never read as its block page.
   assert.equal(
     looksLikeChallengePage(
       `<html><head><script src="https://d1a2b3c4.cloudfront.net/bundle.js"></script></head>` +
@@ -279,12 +269,10 @@ test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
 test("challengeEvidence quotes every marker it matched, so the quote re-classifies", () => {
   const evidence = challengeEvidence(AKAMAI_BODY);
   assert.ok(evidence !== null);
-  // Both halves of a paired marker have to survive into the quote, or an error
-  // built from it would no longer satisfy the pair when re-scanned.
+  // Both halves of a paired marker have to survive into the quote, or an error built from it would no longer satisfy the pair when re-scanned.
   assert.match(evidence, /Access Denied/i);
   assert.match(evidence, /permission to access/i);
-  // Quoting the evidence is itself the bounded snippet — no document travels with
-  // the error into last_error or the Discord summary.
+  // Quoting the evidence is itself the bounded snippet — no document travels with the error into last_error or the Discord summary.
   assert.ok(evidence.length <= 200, `evidence must stay short, got ${evidence.length}`);
   assert.equal(challengeEvidence(`<section data-total-results="0"></section>`), null);
 });
@@ -298,8 +286,7 @@ test("isEdgeInterstitialError catches a challenge page carried in the error text
 });
 
 test("an HTTP status error whose body is a challenge page is the edge, not the board", () => {
-  // atsHttpError embeds a 200-char body snippet, so this arrives for free: a 403
-  // carrying Cloudflare's block page is an edge refusing us, not a broken board.
+  // atsHttpError embeds a 200-char body snippet, so this arrives for free: a 403 carrying Cloudflare's block page is an edge refusing us, not a broken board.
   assert.ok(
     isInfrastructureFault(
       new Error(`radancy HTTP 403: ${CLOUDFLARE_BLOCK_BODY.slice(0, 200)}`),
@@ -317,8 +304,7 @@ test("assertNotEdgeChallenge throws an infrastructure-shaped error, or nothing",
       thrown = err;
     }
     assert.ok(thrown instanceof Error, `${vendor} must be rejected`);
-    // The round trip is the whole mechanism: whatever the guard throws has to be
-    // classifiable by the predicate the scheduler routes on.
+    // The round trip is the whole mechanism: whatever the guard throws has to be classifiable by the predicate the scheduler routes on.
     assert.ok(isInfrastructureFault(thrown), `${vendor} error must classify as infrastructure`);
     assert.match(thrown.message, /careers\.amgen\.com/);
     // A page must never travel with the error — last_error goes to the DB and Discord.

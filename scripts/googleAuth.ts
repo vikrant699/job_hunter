@@ -1,13 +1,4 @@
-/**
- * One-time Google OAuth consent for a profile's Gmail account.
- *
- *   npm run google-auth -- --profile vikrant
- *
- * Reads GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET from .env, opens the consent
- * URL in your default browser (log in with the Gmail account this profile
- * SENDS from), and writes the token to data/google-token-<profile>.json.
- * Re-run any time to re-consent; the file is overwritten.
- */
+// One-time Google OAuth consent for a profile's Gmail account; writes the token to data/google-token-<profile>.json, overwritten on re-consent.
 import "dotenv/config";
 import { createServer } from "node:http";
 import { writeFileSync, mkdirSync } from "node:fs";

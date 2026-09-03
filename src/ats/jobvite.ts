@@ -1,11 +1,5 @@
-// src/ats/jobvite.ts — Jobvite hosted job boards (jobs.jobvite.com/<tenant>), server-rendered HTML, no
-// public JSON API.
-// list: GET .../search/?p=<N> (0-based) -> table.jv-job-list rows; multi-site rows render an "N Locations"
-// placeholder, refined by fetchJd. Total is inline as "1-50 of 53"; single-page boards render no
-// pagination control. A dead tenant 302s to jobvite.com's own support page (not a 404), so an off-host
-// final URL means the tenant is gone.
-// jd: GET .../job/<id> -> .jv-job-detail-description; .jv-job-detail-meta is "<department> <sep>
-// <location>..." (first segment is department, rest are locations).
+// list: GET .../search/?p=<N> (0-based) -> table.jv-job-list rows
+// jd: GET .../job/<id> -> .jv-job-detail-description; .jv-job-detail-meta is department + locations
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -69,8 +63,7 @@ export function parseJobviteList(html: string): { jobs: JobviteJob[]; total: num
 export function parseJobviteJd(html: string): { jdText: string; location: string | null } {
   const $ = cheerio.load(html);
   const jdText = htmlToText($(".jv-job-detail-description").first().html() ?? "");
-  // Meta segments are delimited by jv-inline-separator spans, so walk the node list structurally — a text
-  // sentinel can't survive the HTML parser, and joining on whitespace would merge segments.
+  // jv-inline-separator spans delimit segments; walk nodes structurally, a text sentinel can't survive the HTML parser
   const segments: string[] = [];
   let buf = "";
   $(".jv-job-detail-meta").first().contents().each((_, node) => {

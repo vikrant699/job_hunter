@@ -1,9 +1,5 @@
-// src/ats/jio.ts — Reliance Jio careers (careers.jio.com), a legacy ASP.NET WebForms site covering the
-// whole Jio group (Reliance Jio / Jio Platforms / Jio Payments Bank).
-// functions: GET frmJobCategories.aspx -> per-function links; per-func: GET frmfuncwisejob.aspx?func=...
-// server-renders 10 rows/page. Pagination is BROWSER-ONLY: the DataPager's __doPostBack UpdatePanel is
-// F5-WAF-blocked over bare HTTP, so each function is walked with a real browser (set page size 25, click
-// Next until it stops). jd: GET frmjobdescription.aspx (plain fetch).
+// list: GET frmJobCategories.aspx -> per-function links; per-func GET frmfuncwisejob.aspx?func=... server-renders 10 rows/page
+// jd: GET frmjobdescription.aspx (plain fetch); pagination is BROWSER-ONLY — DataPager's __doPostBack UpdatePanel is F5-WAF-blocked over bare HTTP
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -16,8 +12,7 @@ import { REMOTE_RE } from "./shared.js";
 const ORIGIN = "https://careers.jio.com";
 const FUNCTIONS_URL = `${ORIGIN}/frmJobCategories.aspx`;
 const PAGE_SIZE_SELECT = "#MainContent_ddlentries";
-// The DataPager's Next is an ASP.NET <input type="submit">, disabled on the last
-// page via a `disabled` attribute + the `aspNetDisabled` class.
+// The DataPager's Next is an ASP.NET <input type="submit">, disabled on the last page via a `disabled` attribute + the `aspNetDisabled` class.
 const NEXT_SELECTOR = "input[id$='lnkNext']";
 // Runaway guard only — a function with this many pages of 25 is 125k jobs.
 const MAX_PAGES_PER_FUNCTION = 5000;

@@ -1,4 +1,3 @@
-// src/ats/amazonjobs.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { amazonJobsApiUrl, amazonJobsPageJobs, normalizeAmazonJobs } from "../amazonjobs.js";

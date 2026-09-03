@@ -1,10 +1,5 @@
-// src/ats/reliancebrands.ts — Reliance Brands careers. rblcareers.in redirects to Reliance's
-// group-wide "PeopleFirst / OPMP" candidate portal (peoplefirst.ril.com), an Angular SPA. Jobs come
-// from POST https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSearch, unauthenticated but
-// WAF-guarded against plain Node fetch, so this runs the POST inside the shared headless browser.
-// The whole portal had zero live postings at build time, so per-job field NAMES could not be
-// observed; the normalizer reads each field from a list of candidate keys rather than fixed names.
-// apiMeta.country overrides the country filter (default "IN"), apiMeta.subtenant scopes further.
+// src/ats/reliancebrands.ts — Reliance Brands careers: rblcareers.in redirects to Reliance's group-wide "PeopleFirst / OPMP" candidate portal (peoplefirst.ril.com), an Angular SPA.
+// Jobs come from POST .../opmp/api/tagcan-home-i/jobSearch, unauthenticated but WAF-guarded against plain Node fetch, so this runs inside the shared headless browser.
 import type { Page } from "playwright";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -20,11 +15,11 @@ const JOBSEARCH_URL = "https://peoplefirst.ril.com/opmp/api/tagcan-home-i/jobSea
 const WARM_URL = "https://peoplefirst.ril.com/ocandidate/";
 const PAGE_SIZE = 20;
 
+// The whole portal had zero live postings at build time, so per-job field NAMES could not be observed; each field is read from a list of candidate keys rather than a fixed name.
 const TITLE_KEYS = ["JobTitle", "jobTitle", "title", "PositionName", "positionName", "Position", "Designation", "designation"];
 const ID_KEYS = ["ReqId", "reqId", "reqid", "JobId", "jobId", "id", "PositionId", "RequisitionId", "requisitionId"];
 const LOCATION_KEYS = ["Location", "location", "City", "city", "WorkLocation", "workLocation", "JobLocation"];
-// Kept out of LOCATION_KEYS: a bare ISO code like "IN" carries no signal checkLocation() can match
-// against the profile's "india"/"in," hints, so it's expanded and appended to the city instead (see composeLocation).
+// Kept out of LOCATION_KEYS: a bare ISO code like "IN" carries no signal checkLocation() can match against the profile's "india"/"in," hints, so it's expanded and appended to the city instead (see composeLocation).
 const COUNTRY_KEYS = ["Country", "country", "CountryCode", "countryCode"];
 // Only the codes this adapter actually filters on; anything else passes through verbatim.
 const COUNTRY_CODE_NAMES: Record<string, string> = { IN: "India" };
@@ -83,11 +78,8 @@ function searchBody(pageno: number, country: string, subtenant: string | null): 
 const JobRowSchema = z.record(z.string(), JsonValueSchema);
 
 async function postJobSearch(page: Page, body: JsonValue): Promise<{ result: JsonValue[] }> {
-  // Both the Arg and the return cross the Playwright boundary as strings: a
-  // JsonValue-typed Arg makes Playwright's recursive Unboxed<Arg> mapped type
-  // recurse into JsonValue's own recursive union and exceed TS's
-  // instantiation-depth limit (same reason as browserFetch.ts). Validating the
-  // response text back on the Node side also keeps the parse in one place.
+  // Both the Arg and the return cross the Playwright boundary as strings: a JsonValue-typed Arg would make Playwright's recursive Unboxed<Arg> type recurse into JsonValue's own union and exceed TS's instantiation-depth limit (same reason as browserFetch.ts).
+  // Validating the response text back on the Node side also keeps the parse in one place.
   const bodyJson = JSON.stringify(body);
   const raw = await page.evaluate(
     async ({ url, bodyJson }) => {
@@ -142,8 +134,7 @@ export const reliancebrandsAdapter: AtsAdapter = {
           },
         });
       },
-      // WAF interstitial on goto is swallowed (default) — the in-page POST
-      // below still runs in-origin even if the initial nav "failed".
+      // WAF interstitial on goto is swallowed (default) — the in-page POST below still runs in-origin even if the initial nav "failed".
       { navTimeoutMs: 45_000, blockHeavyAssets: false },
     );
   },

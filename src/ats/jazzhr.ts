@@ -1,7 +1,5 @@
-// src/ats/jazzhr.ts — JazzHR (ApplyToJob) career boards (<tenant>.applytojob.com), server-rendered HTML,
-// no auth, no pagination (all postings on one /apply page).
-// A nonexistent tenant slug answers HTTP 200 but redirects off-host to JazzHR's own marketing page — see
-// assertJazzhrOnTenantHost. detail: GET /apply/<id>/<slug> -> #job-description.
+// list: GET <tenant>.applytojob.com/apply -> server-rendered HTML, no auth, no pagination (all postings on one page)
+// jd: GET /apply/<id>/<slug> -> #job-description; a dead tenant slug 200s and redirects off-host instead of 404ing (see assertJazzhrOnTenantHost)
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -10,9 +8,7 @@ import { atsFetchHtml } from "./http.js";
 import { REMOTE_RE, tenantOriginOr, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-/** Tenant origin, e.g. "https://hackerearth.applytojob.com". Prefers an
- *  explicit tenant_url host when set, else builds it from the slug (the
- *  subdomain — an arbitrary JazzHR account name). */
+/** Tenant origin, e.g. "https://hackerearth.applytojob.com"; prefers an explicit tenant_url host, else builds it from the slug. */
 export function jazzhrBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.applytojob.com`);
 }
@@ -28,15 +24,11 @@ function hostOf(url: string): { host: string; canonical: string } | null {
   }
 }
 
-/** Throw when the board answered off the tenant host: a dead JazzHR slug doesn't 404, it 200s and
- *  redirects to JazzHR's own marketing page (no list-group items), which used to read as a healthy empty
- *  board forever. Keyed on host rather than page copy so it can't rot when the vendor rewrites wording;
- *  `base` comes from jazzhrBase so a tenant_url/apiMeta override sets the expected host. */
+/** Throws when the board answered off the tenant host: a dead JazzHR slug 200s and redirects to JazzHR's own marketing page instead of 404ing; keyed on host rather than page copy so it can't rot when the vendor rewrites wording. */
 export function assertJazzhrOnTenantHost(base: string, finalUrl: string): void {
   const expected = hostOf(base);
   const actual = hostOf(finalUrl);
-  // An unparseable URL on either side says nothing about the board, so stay quiet rather than turn a
-  // URL-shape oddity into a company failure.
+  // An unparseable URL on either side says nothing about the board, so stay quiet rather than turn a URL-shape oddity into a company failure.
   if (expected === null || actual === null) return;
   if (expected.canonical === actual.canonical) return;
 

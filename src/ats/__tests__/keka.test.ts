@@ -1,4 +1,3 @@
-// src/ats/keka.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeKeka, extractKekaOrgGuid, kekaEmbedUrl } from "../keka.js";

@@ -4,8 +4,6 @@ import { OutreachStatusSchema, UndraftedReasonSchema } from "../schemas.js";
 import type { OutreachStatus, UndraftedReason } from "../schemas.js";
 import { db, queryAll, queryOne } from "./db.js";
 
-/* ===== outreach ===== */
-
 const OutreachRowSchema = z.object({
   id: z.number(),
   profile_id: z.string(),
@@ -178,8 +176,6 @@ export function selectLastDraftedAt(email: string, profileId: string): string | 
   const row = queryOne(selectLastDraftedAtStmt, LastDraftedAtSchema, { email, profileId });
   return row?.maxDraftedAt ?? null;
 }
-
-/* ===== undrafted ===== */
 
 const UndraftedRowSchema = z.object({
   id: z.number(),

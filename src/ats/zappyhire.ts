@@ -1,24 +1,11 @@
-// src/ats/zappyhire.ts — Zappyhire recruitment boards. The tenant-facing frontend host
-// does NOT reveal the backend API host or generation — both are baked into the tenant's
-// compiled Angular bundle at build time (captured once at registry-seeding time) and
-// cached in apiMeta = { backendHost, generation: "new"|"legacy"|"multitenant", source? }.
-//
-// new-gen (e.g. Federal Bank): one call, JD inline.
-//   POST https://<backendHost>/api/job_portal/dashboard/?sortOrder=descend
-//     body {} -> { results: { open_jobs: Job[], registration_open_jobs_count } }
-//
-// legacy (e.g. ESAF): 3-call chain, JD fetched lazily via fetchJd.
-//   GET  .../api/resourcerequirements/career/dashboard/?source=<SRC>       (departments)
-//   GET  .../api/resourcerequirements/job/dashboard/?group=<deptId>&source=<SRC>  (jobs per dept)
-//   GET  .../api/resourcerequirements/job/career/?job=<id>                 (JD, via fetchJd)
+// src/ats/zappyhire.ts — Zappyhire recruitment boards; the frontend never reveals the backend API host or generation, so both are captured once from the tenant's compiled Angular bundle at registry-seeding time.
+// Cached as apiMeta = { backendHost, generation: "new"|"legacy"|"multitenant", source? }; each generation has its own endpoint recipe noted above its code below.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, sleep, INTER_PAGE_DELAY_MS, DEFAULT_MAX_PAGES, paginate, tenantOriginOr } from "./shared.js";
-
-// ---------- api_meta ----------
 
 export interface ZappyhireMeta {
   backendHost: string;
@@ -39,13 +26,10 @@ function meta(company: AdapterCompany): ZappyhireMeta {
   return { backendHost, generation, source: company.apiMeta?.source ?? null };
 }
 
-// Tenant frontend origin. Prefers an explicit tenant_url, else derives the
-// `<x>careers.zappyhire.com` host (only used for fallback job URLs — the real API host is apiMeta.backendHost).
+// Tenant frontend origin: prefers an explicit tenant_url, else derives <x>careers.zappyhire.com (fallback job URLs only — the real API host is apiMeta.backendHost).
 function tenantBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}careers.zappyhire.com`);
 }
-
-// ---------- new-gen (single-call dashboard, JD inline) ----------
 
 const NewJobSchema = z.object({
   id: z.union([z.number(), z.string()]),
@@ -91,14 +75,13 @@ export function normalizeZappyhireNew(company: AdapterCompany, j: NewGenJob): No
   };
 }
 
+// new-gen (e.g. Federal Bank): one call, JD inline — POST https://<backendHost>/api/job_portal/dashboard/?sortOrder=descend, body {} -> { results: { open_jobs: Job[] } }.
 async function listNewGen(company: AdapterCompany, m: ZappyhireMeta): Promise<NormalizedPosting[]> {
   const url = `https://${m.backendHost}/api/job_portal/dashboard/?sortOrder=descend`;
   const raw = await atsFetchJson(url, { method: "POST", body: {}, provider: "zappyhire" });
   const parsed = parseOrThrow(NewGenResponseSchema, raw, { provider: "zappyhire", slug: company.slug, what: "new-gen" });
   return parsed.results.open_jobs.map((j) => normalizeZappyhireNew(company, j));
 }
-
-// ---------- legacy (dept -> jobs -> JD chain) ----------
 
 const DeptSchema = z.object({
   id: z.union([z.number(), z.string()]),
@@ -128,8 +111,7 @@ export function normalizeZappyhireLegacy(company: AdapterCompany, j: LegacyJobSu
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    // apply_url in the JD-detail response is malformed on the live tenant (a literal vendor
-    // bug: "https=//..."), so build our own from the known frontend route instead.
+    // apply_url in the JD-detail response is malformed on the live tenant (literal vendor bug: "https=//..."), so build our own from the known frontend route instead.
     jobUrl: `${tenantBase(company)}/tr/${j.id}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
@@ -138,6 +120,7 @@ export function normalizeZappyhireLegacy(company: AdapterCompany, j: LegacyJobSu
   };
 }
 
+// legacy (e.g. ESAF): 3-call chain — GET .../career/dashboard/?source=<SRC> (departments), GET .../job/dashboard/?group=<deptId>&source=<SRC> (jobs), GET .../job/career/?job=<id> via fetchJd (JD).
 async function listLegacy(company: AdapterCompany, m: ZappyhireMeta): Promise<NormalizedPosting[]> {
   if (!m.source) throw new Error(`zappyhire legacy adapter requires apiMeta.source for ${company.slug}`);
   const source = m.source;
@@ -171,13 +154,8 @@ async function listLegacy(company: AdapterCompany, m: ZappyhireMeta): Promise<No
   return [...out.values()];
 }
 
-// ---------- multitenant (recruitcareers.zappyhire.com shared board) ----------
-//
-// The shared recruitcareers.zappyhire.com/en/<slug> frontend talks to a per-tenant,
-// slug-derivable backend host `<slug>.zappyhire-multitenant-be-prod.zappyhire.com` (no
-// bundle capture needed). Two calls:
-//   list: GET .../api/jobs/jobsearch/?page=<n>&page_size=<N> -> Elasticsearch-shaped hits, JD NOT inline
-//   JD:   GET .../api/careers/jobs/<job>/ -> { results: { description, ... } }
+// multitenant (recruitcareers.zappyhire.com/en/<slug>): backend host is slug-derivable (<slug>.zappyhire-multitenant-be-prod.zappyhire.com), no bundle capture needed.
+// list: GET .../api/jobs/jobsearch/?page=<n>&page_size=<N> -> Elasticsearch-shaped hits (JD not inline); JD: GET .../api/careers/jobs/<job>/ -> { results: { description } }.
 const MT_PAGE_SIZE = 50;
 
 const MtSourceSchema = z.object({
@@ -245,8 +223,7 @@ async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promi
       }
       cumulativeCount += newItems.length;
 
-      // Stop once the page is empty, the cumulative count reaches this page's own reported
-      // total (recomputed fresh each time, never latched), or nothing new was added.
+      // Stop once the page is empty, cumulative count reaches this page's own reported total (recomputed fresh each time, never latched), or nothing new was added.
       const expected = total?.value ?? hits.length;
       const isDone = hits.length === 0 || cumulativeCount >= expected || cumulativeCount === before;
 
@@ -258,8 +235,6 @@ async function listMultitenant(company: AdapterCompany, m: ZappyhireMeta): Promi
     },
   });
 }
-
-// ---------- adapter ----------
 
 export const zappyhireAdapter: AtsAdapter = {
   provider: "zappyhire",
@@ -273,8 +248,7 @@ export const zappyhireAdapter: AtsAdapter = {
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const m = meta(company);
-    // new-gen JDs are already inline; the pipeline only calls fetchJd when jdText is empty,
-    // so this branch is a defensive no-op in practice.
+    // new-gen JDs are already inline; the pipeline only calls fetchJd when jdText is empty, so this branch is a defensive no-op in practice.
     if (m.generation === "new") return posting.jdText;
 
     if (m.generation === "multitenant") {

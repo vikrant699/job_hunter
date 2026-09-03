@@ -1,8 +1,5 @@
-// src/ats/procmart.ts — ProcMart careers (www.procmart.com). Each opening is a WordPress PAGE at
-// slug `job-opening-<N>`. The origin hangs on any /wp-json/wp/v2/pages COLLECTION query whose
-// `_fields` includes `content` (Elementor render stalls PHP), so this is two-phase: list without
-// content, then fetch each page's content individually. page.title.rendered is always "Job Opening",
-// so the real title is the content's first <h2>.
+// src/ats/procmart.ts — ProcMart careers (www.procmart.com): each opening is a WordPress page at slug `job-opening-<N>`; list is GET /wp-json/wp/v2/pages without the `content` field (any collection query requesting `content` hangs the origin — Elementor render stalls PHP).
+// Detail is a per-page GET with `_fields=...,content`; page.title.rendered is always "Job Opening", so the real title is the content's first <h2>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -36,7 +33,6 @@ export const procmartAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
-    // Deliberately without the content field — see file header, that query hangs the origin.
     const raw = await atsFetchJson(
       `${base}/wp-json/wp/v2/pages?per_page=100&_fields=id,slug,link`,
       { provider: "procmart" },

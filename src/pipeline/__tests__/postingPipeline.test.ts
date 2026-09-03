@@ -1,4 +1,3 @@
-// src/pipeline/postingPipeline.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { droppedResult, verdictResult, lateLocationCheck, processOnePosting } from "../postingPipeline.js";
@@ -26,7 +25,6 @@ function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
   };
 }
 
-// ---- processOnePosting orchestration fixtures ----
 // A counter keeps externalIds unique across calls in one test process, so the same (provider, external_id, profile_id) row is never re-inserted.
 let orchPostingCounter = 0;
 function mkNormalizedPosting(overrides: Partial<NormalizedPosting> = {}): NormalizedPosting {
@@ -95,8 +93,7 @@ function mkCompany(overrides: Partial<Company> = {}): Company {
   };
 }
 
-// The real JD backoff is 5s/10s/20s, which tests must not wait for. `retries: 1`
-// keeps production's shape (attempts = 1 + retries) at millisecond scale.
+// The real JD backoff is 5s/10s/20s, which tests must not wait for; `retries: 1` keeps production's shape (attempts = 1 + retries) at millisecond scale.
 const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 const orchAdapterCompany = mkAdapterCompany({
@@ -218,7 +215,6 @@ test("verdictResult: duplicate shape prefixes reason and carries extract yoe", (
   });
 });
 
-// processOnePosting orchestration: pre-LLM drop paths only (location -> dedup -> title-deny, ahead of fetchJd/gate/extract).
 // These pin the LLM-free stages against the real test DB using the checked-in example profile's location/title-deny config.
 
 test("processOnePosting drops an out-of-region posting before any DB write", async () => {
@@ -256,7 +252,6 @@ test("processOnePosting title-deny drops before fetchJd", async () => {
   assert.equal(stats.postingsTitleDenied, 1);
 });
 
-// ---- JD-fetch retry: which errors qualify ----
 // What res.json() throws when a JSON endpoint answers with an HTML challenge/error page.
 const EDGE_INTERSTITIAL = `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`;
 
@@ -304,11 +299,8 @@ test("a board-shaped JD failure is not retried", async () => {
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
 });
 
-// ---- salary storage: mechanical extraction, no LLM call needed ----
-
 test("processOnePosting stores annualized salary columns for a posting with a stated LPA range", async () => {
-  // 8+ years trips the yoe-deny hard cap (profile.example.ts hardYoeCap=6) before any gate/extract
-  // LLM call, so this stays a fast deterministic test while still exercising the write path.
+  // 8+ years trips the yoe-deny hard cap (profile.example.ts hardYoeCap=6) before any gate/extract LLM call, so this stays a fast deterministic test while still exercising the write path.
   const p = mkNormalizedPosting({
     location: "Bengaluru, India",
     jdText: "We need 8+ years of experience. CTC: 10-12 LPA.",

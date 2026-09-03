@@ -1,4 +1,3 @@
-// src/ats/ceipal.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ceipalAdapter, ceipalDescriptionUrl, ceipalDetailToken, ceipalListUrl, ceipalLocation, ceipalTeaser, ceipalTokens, normalizeCeipal, parseCeipalDate } from "../ceipal.js";

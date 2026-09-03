@@ -1,4 +1,3 @@
-// src/ats/eightfold.ts
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

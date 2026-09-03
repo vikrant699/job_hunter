@@ -1,7 +1,4 @@
-// src/ats/nextdata.ts — generic adapter for Next.js (pages-router) careers pages that SSR-embed
-// their full job list in the <script id="__NEXT_DATA__"> JSON island. Per-company config in apiMeta:
-// listUrl (optional), jobsPath (required, dot-path to the jobs array), titleField (required),
-// idField/locationField/jdFields/urlTemplate/fixedLocation (all optional, see nextDataConfig).
+// src/ats/nextdata.ts — generic adapter for Next.js (pages-router) careers pages that SSR-embed the full job list in the <script id="__NEXT_DATA__"> JSON island; per-company config lives in apiMeta (see nextDataConfig).
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

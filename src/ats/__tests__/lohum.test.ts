@@ -1,4 +1,3 @@
-// src/ats/lohum.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LohumJobSchema, LohumResponseSchema, normalizeLohum, lohumListUrl } from "../lohum.js";

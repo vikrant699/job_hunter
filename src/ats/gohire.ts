@@ -1,7 +1,5 @@
-// src/ats/gohire.ts — GoHire (jobs.gohire.io) career boards, no public JSON API.
-// list: POST <board>/ (form: page, remoteDdValue, typeDdValue, jobTitleSearched, cityOrCountrySearched) ->
-// server-rendered HTML; page size inferred from page 1, paginate until a page returns 0 cards or repeats.
-// jd: detail page's schema.org JobPosting JSON-LD island.
+// list: POST jobs.gohire.io/<board>/ (form: page, remoteDdValue, typeDdValue, jobTitleSearched, cityOrCountrySearched) -> server-rendered HTML
+// jd: detail page's schema.org JobPosting JSON-LD island
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -21,9 +19,7 @@ export function gohireExternalId(href: string): string | null {
   return m ? (m[1] ?? null) : null;
 }
 
-/** Three states, not `number | null`: "absent" (no pager block rendered) is positive proof the single page
- *  fetched IS the whole board; "unparsed" proves nothing either way. Collapsing them would let a real
- *  truncation claim completeness. */
+/** Three states, not number|null: "absent" proves the single page IS the whole board; "unparsed" proves nothing; collapsing them would let a real truncation claim completeness. */
 export type GohirePager =
   | { kind: "absent" }
   | { kind: "unparsed" }
@@ -32,8 +28,7 @@ export type GohirePager =
 // Matches "Page 1 of 3, Total 26 jobs" against whitespace-collapsed text (tag-agnostic); anything else is unparsed, never guessed.
 const PAGER_RE = /page\s+(\d+)\s+of\s+(\d+)\s*,?\s*total\s+(\d+)\s+jobs?/i;
 
-// Class-substring match (not the literal tag) so a class-prefix change still finds it; deliberately not the
-// `.jobs-pagination` wrapper, whose Prev/Next buttons carry no counts.
+// Class-substring match (not the literal tag) so a class-prefix change still finds it; not .jobs-pagination, whose Prev/Next buttons carry no counts.
 const PAGER_SELECTOR = '[class*="pagination-results"]';
 
 /** Read the pager's three numbers out of its rendered text. */
@@ -46,15 +41,12 @@ function parseGohirePager($: cheerio.CheerioAPI): GohirePager {
   const page = Number(m[1]);
   const totalPages = Number(m[2]);
   const totalJobs = Number(m[3]);
-  // A number too large to represent exactly, or a missing regex group (NaN), lands here as unparsed rather
-  // than a bogus authoritative total; "Page 1 of 0" is nonsense too, not a one-page board.
+  // A too-large number or missing regex group (NaN) lands here as unparsed, not a bogus authoritative total; "Page 1 of 0" isn't a one-page board.
   if (![page, totalPages, totalJobs].every(Number.isSafeInteger) || totalPages < 1) return { kind: "unparsed" };
   return { kind: "present", page, totalPages, totalJobs };
 }
 
-/** Parse one list page's cards into postings. `rawCount` is the server's card count (not postings.length,
- *  since unparseable cards are dropped) so pagination isn't fooled into an early stop by a full page with
- *  one bad card. `pager` is the board's own account of its size — see `GohirePager`. */
+/** rawCount is the server's card count (not postings.length, since unparseable cards are dropped) so pagination isn't fooled by an early stop; pager is the board's own size, see GohirePager. */
 export function parseGohireListPage(
   html: string,
   company: AdapterCompany,
@@ -67,8 +59,7 @@ export function parseGohireListPage(
     const href = $(el).attr("href");
     const externalId = href ? gohireExternalId(href) : null;
     const title = $(el).find("h3.job-title").text().trim();
-    // No stable id or title — skip rather than emit a posting that would
-    // collide on the (provider, external_id) dedup key.
+    // No stable id or title — skip rather than emit a posting that would collide on the (provider, external_id) dedup key.
     if (!href || !externalId || !title) return;
 
     const location = $(el).find("p.careers-location").text().trim() || null;
@@ -99,11 +90,9 @@ export const gohireAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "gohire",
       company: company.slug,
-      // Page size inferred from page 1: nothing in the request declares a size, so a fixed guess would
-      // truncate any tenant serving fewer.
+      // Page size inferred from page 1: nothing in the request declares a size, so a fixed guess would truncate a tenant serving fewer.
       pageSize: "infer",
-      // Needed because a tenant that clamps an out-of-range `page` back to page 1 (rather than emptying)
-      // relies on the exact-page-repeat stall guard, which needs a stable key to spot the repeat.
+      // Needed because a tenant that clamps an out-of-range page back to page 1 relies on the exact-page-repeat stall guard, which needs a stable key.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         const html = await atsFetchFormHtml(

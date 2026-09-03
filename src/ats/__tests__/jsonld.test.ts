@@ -4,9 +4,7 @@ import { jsonldAdapter, isJobDetailUrl, titleFromUrl } from "../jsonld.js";
 import { stubFetch, fetchSequence, htmlResponse, mkAdapterCompany } from "./testHelpers.js";
 import type { NormalizedPosting } from "../../types.js";
 
-/** Route-map fetch stub: serves a canned Response per exact URL, 404s anything unlisted (harmless — the
- *  adapter's discovery fetches are all wrapped to degrade to null on failure). Records call order when
- *  `calls` is passed, for tests that care which URLs were (or weren't) fetched. */
+/** Route-map fetch stub: serves a canned Response per exact URL, 404s anything unlisted (harmless — discovery fetches degrade to null on failure); records call order when `calls` is passed. */
 function mapFetch(routes: Record<string, () => Response>, calls?: string[]): typeof globalThis.fetch {
   return async (input: Parameters<typeof globalThis.fetch>[0]): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;

@@ -1,4 +1,3 @@
-// src/ats/http.ts
 import type { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -18,8 +17,7 @@ export function atsHttpError(provider: string, status: number, bodySnippet: stri
 /** Total tries (1 original + 2 retries) for a retryable status (429/5xx). No config knob — this is transport-shaped, not tunable per board. */
 const ATS_RETRY_ATTEMPTS = 3;
 
-/** Run `fn` with an AbortSignal that times out the WHOLE call (headers + body). Exported for adapters
- *  whose fetch shape doesn't fit atsFetchJson/atsFetchText. */
+/** Run `fn` with an AbortSignal that times out the WHOLE call (headers + body); exported for adapters whose fetch shape doesn't fit atsFetchJson/atsFetchText. */
 export async function withAtsTimeout<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number = config.fetch.timeoutMs,
@@ -27,20 +25,12 @@ export async function withAtsTimeout<T>(
   return fn(AbortSignal.timeout(timeoutMs));
 }
 
-/** fetch() that throws `atsHttpError` on non-OK, retrying a transient status (429/5xx) up to
- *  ATS_RETRY_ATTEMPTS total tries with a Retry-After-aware wait between them. Every atsFetch*
- *  helper funnels through here, which is why the connectivity gate (park while network is down,
- *  report the outcome) lives here too.
- *
- *  `init.signal` is the caller's whole-call timeout (withAtsTimeout wraps the entire retry loop,
- *  not one attempt), so attempt 0 keeps it as-is; spending it across 3 attempts would starve a
- *  retry of most of its budget, so a retry attempt gets its own fresh AbortSignal.timeout instead.
- *  If that caller signal has already fired by the time a retry would start, the retry is skipped
- *  (its deadline is honored, not overridden by the fresh per-attempt one). */
+// fetch() that throws atsHttpError on non-OK, retrying a transient status (429/5xx) up to ATS_RETRY_ATTEMPTS total tries with a Retry-After-aware wait; every atsFetch* helper funnels through here, which is why the connectivity gate lives here too
 async function fetchOk(url: string, init: RequestInit, provider: string): Promise<Response> {
   const callerSignal = init.signal;
   for (let attempt = 0; attempt < ATS_RETRY_ATTEMPTS; attempt++) {
     await awaitNetwork();
+    // init.signal is the caller's whole-call timeout (attempt 0 keeps it as-is); a retry attempt gets its own fresh per-attempt timeout instead of splitting the caller's budget across attempts
     const attemptInit: RequestInit = attempt === 0 ? init : { ...init, signal: AbortSignal.timeout(config.fetch.timeoutMs) };
     let res: Response;
     try {
@@ -55,12 +45,11 @@ async function fetchOk(url: string, init: RequestInit, provider: string): Promis
     if (res.ok) return res;
 
     const lastAttempt = attempt === ATS_RETRY_ATTEMPTS - 1;
+    // if the caller's own deadline already fired, skip the retry rather than overriding it with a fresh per-attempt timeout
     const willRetry = !lastAttempt && isRetryableHttpStatus(res.status) && callerSignal?.aborted !== true;
     if (!willRetry) {
       const body = await res.text();
-      // Scan the FULL body for a WAF/block-page signature before atsHttpError truncates to 200 chars
-      // (CloudFront/Akamai markers land past that cut). An edge-challenge classifies as an infrastructure
-      // fault: retried inline, deferred to end-of-run, never charged to the row.
+      // scan the FULL body for a WAF signature before atsHttpError truncates to 200 chars (CloudFront/Akamai markers land past that cut); an edge challenge counts as an infra fault, never charged to the row
       assertNotEdgeChallenge(provider, url, body);
       throw atsHttpError(provider, res.status, body);
     }
@@ -101,10 +90,7 @@ export async function atsFetchJson(
 
 export interface ParseCtx { provider: string; slug: string; what?: string }
 
-// Generic over the SCHEMA (not a bare `<T>`) so `z.infer<S>` resolves to the schema's true post-transform
-// output type, not the pre-transform shape TS would otherwise unify T against. The explicit `<unknown>`
-// bound keeps `parsed.data` typed as `unknown` instead of `any` (a bare `z.ZodType` bound defaults to
-// `any` and trips no-unsafe-return).
+// generic over the SCHEMA (not a bare <T>) so z.infer<S> resolves to the post-transform type; the explicit <unknown> bound keeps parsed.data as unknown, not any
 
 /** safeParse + warn-log + throw. The word "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- the `<unknown>` bound keeps `parsed.data` as `unknown` rather than `any`
@@ -131,8 +117,7 @@ export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: JsonVa
   return parsed.data;
 }
 
-/** POST form-urlencoded, parse the response as JSON. For ATSes (e.g. RippleHire) that content-negotiate
- *  on Accept (default XML, JSON if asked). Same timeout/UA/error semantics as atsFetchJson. */
+/** POST form-urlencoded, parse the response as JSON; for ATSes (e.g. RippleHire) that content-negotiate on Accept (default XML, JSON if asked). */
 export async function atsFetchFormJson(
   url: string,
   form: Record<string, string>,
@@ -156,8 +141,7 @@ export async function atsFetchFormJson(
   });
 }
 
-/** Like atsFetchJson but multipart/form-data POST with extra headers. Needed for ATSes (Ceipal) that
- *  require a Referer header and refuse a JSON body; userAgent override for stacks (Zwayam) that reject the bot UA. */
+/** Like atsFetchJson but multipart/form-data POST with extra headers; for ATSes (Ceipal) that require a Referer header and refuse a JSON body. */
 export async function atsFetchJsonMultipart(
   url: string,
   opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string; userAgent?: string },
@@ -208,8 +192,7 @@ export async function atsFetchText(url: string, opts: { provider?: string; userA
   return html;
 }
 
-/** POST form-urlencoded, return the HTML response — for form-driven boards (e.g. GoHire) whose list
- *  endpoint only serves page N via a POST body (a plain GET with ?page=N 404s). */
+/** POST form-urlencoded, return the HTML response — for form-driven boards (e.g. GoHire) whose list endpoint only serves page N via a POST body (a plain GET with ?page=N 404s). */
 export async function atsFetchFormHtml(
   url: string,
   form: Record<string, string>,

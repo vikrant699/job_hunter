@@ -1,5 +1,4 @@
-// One weekly blast run: bounce sweep -> safety guards -> candidate pool -> MX gate -> render +
-// create drafts -> Blast Log projection. TEMPORARY tool; never sends mail, touches no job_hunter DB tables.
+// One weekly blast run: bounce sweep -> safety guards -> candidate pool -> MX gate -> render + create drafts -> Blast Log projection. TEMPORARY tool; never sends mail, touches no job_hunter DB tables.
 import { readFileSync } from "node:fs";
 import { logger } from "../logger.js";
 import { config } from "../config.js";

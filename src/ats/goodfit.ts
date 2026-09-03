@@ -1,7 +1,4 @@
-// src/ats/goodfit.ts — Goodfit job boards (Springworks' ATS), one tenant per path: https://app.goodfit.so/jobs/<slug>.
-// Two generations: v2 (JSON-LD ItemList for titles/urls + an RSC flight-data island for locations/createdAt; the
-// DOM's "Remote" default for jobs with no locations is deliberately ignored) and v1 (server-rendered anchor cards).
-// jd: v2 in div.prose, v1 in a font-serif container, else whole-page text. No pagination on either generation.
+// list: v2 JSON-LD ItemList + RSC flight-data island (locations/createdAt), else v1 server-rendered anchor cards; no pagination on either generation
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -56,9 +53,7 @@ export interface GoodfitRscJob {
   createdAt: string | null;
 }
 
-/** v2 RSC flight-data island (`self.__next_f.push(...)`): JSON escaped inside a JS string, unescaped once
- *  before balanced-scanning the "jobs" array so a brace/bracket inside a job's own string fields (e.g. a
- *  title) can't miscount the scan. Per-job tolerant; returns id -> {locations, createdAt}. */
+/** v2 RSC flight-data island: JSON is escaped inside a JS string, unescaped once before balanced-scanning "jobs" so a job's own string fields (e.g. title) can't miscount the scan. */
 export function extractGoodfitRscJobs(html: string): Map<string, GoodfitRscJob> {
   const map = new Map<string, GoodfitRscJob>();
   const unescaped = html.replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\\\//g, "/");
@@ -140,8 +135,7 @@ function makePosting(
   };
 }
 
-/** Parse one board page (either generation) into postings; throws on Next's 404 fallback (board slug gone),
- *  [] is a legitimately empty board. */
+/** Parse one board page (either generation) into postings; throws on Next's 404 fallback (board slug gone), [] is a legitimately empty board. */
 export function parseGoodfitBoard(html: string, finalUrl: string, company: AdapterCompany): NormalizedPosting[] {
   if (html.includes("NEXT_HTTP_ERROR_FALLBACK;404")) {
     throw new Error(`goodfit board 404 for ${company.slug} (${finalUrl})`);
@@ -158,7 +152,7 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
       if (!id || seen.has(id)) continue;
       seen.add(id);
       const meta = rsc.get(id);
-      const locations = meta?.locations ?? [];
+      const locations = meta?.locations ?? []; // DOM's "Remote" default for jobs with no locations is deliberately not used here
       out.push(
         makePosting(company, {
           externalId: id,
@@ -217,8 +211,7 @@ export function extractGoodfitJd(html: string): string {
   return htmlToText(target ?? "");
 }
 
-/** Fetch a goodfit page, following embedded client-side redirects (v1 shell -> v2 board/job); meta refresh
- *  targets can be relative, so each hop resolves against the previous URL. */
+/** Fetch a goodfit page, following embedded client-side redirects (v1 shell -> v2 board/job); meta refresh targets can be relative, resolved against the previous URL. */
 async function fetchGoodfitPage(url: string): Promise<{ finalUrl: string; html: string }> {
   let page = await atsFetchHtml(url, { provider: "goodfit" });
   for (let hop = 0; hop < 3; hop++) {

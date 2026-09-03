@@ -1,12 +1,5 @@
-// src/ats/talentsoft.ts — TalentSoft (Cegid) career sites server-render listing and
-// detail pages as plain HTML, no auth. `mode=list` is forced on every list request
-// (overwriting whatever is stored): TalentSoft renders the same data as three different
-// markups depending on `mode` (list/card/map), and only `mode=list` produces the
-// `.ts-offer-list-item` shape this adapter parses. Pagination appends `&page=N` to the
-// same URL; we page until the running total (`.ts-ol-pagination__title.resultat .gras`)
-// is reached AND stop on the first zero-item page as a backstop. JD is every element
-// between `<h2 class="JobDescription">` and the next `<h2>` sibling under
-// `#contenu-ficheoffre`, excluding the surrounding boilerplate sections.
+// src/ats/talentsoft.ts — TalentSoft (Cegid) career sites server-render listing and detail pages as plain HTML, no auth.
+// List: same URL with `mode=list` forced (overwriting whatever is stored, since TalentSoft renders the same data as three different markups depending on `mode` and only `mode=list` produces the `.ts-offer-list-item` shape this adapter parses), paginated via `&page=N` until the running total (`.ts-ol-pagination__title.resultat .gras`) is reached, backstopped by the first zero-item page. Detail: every element between `<h2 class="JobDescription">` and the next `<h2>` sibling under `#contenu-ficheoffre`, excluding the surrounding boilerplate sections.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -33,8 +26,7 @@ export interface TalentsoftListingPage {
   total: number | null;
 }
 
-// Base listing URL for a tenant: stored tenantUrl or careersUrl, carrying whatever
-// lcid/facet_Country the registry configured; `mode=list` is always forced on top.
+// Base listing URL for a tenant: stored tenantUrl or careersUrl, carrying whatever lcid/facet_Country the registry configured; `mode=list` is always forced on top.
 export function talentsoftListingUrl(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
   const u = new URL(raw);
@@ -50,16 +42,14 @@ export function talentsoftPageUrl(baseUrl: string, page: number): string {
   return u.toString();
 }
 
-// externalId from a job detail URL, e.g. ".../job-..._114086.aspx" -> "114086". Null if
-// the URL doesn't match (never a fallback id to collide on the dedup key).
+// externalId from a job detail URL, e.g. ".../job-..._114086.aspx" -> "114086". Null if the URL doesn't match (never a fallback id to collide on the dedup key).
 export function talentsoftIdFromUrl(url: string): string | null {
   const path = url.split(/[?#]/)[0] ?? "";
   const m = path.match(ID_RE);
   return m ? (m[1] ?? null) : null;
 }
 
-// Location from a listing card's description `<li>` texts (contract type, country, city
-// — in that order). Takes the last two entries as "<city>, <country>".
+// Location from a listing card's description `<li>` texts (contract type, country, city — in that order). Takes the last two entries as "<city>, <country>".
 export function talentsoftLocationFromDescItems(descItems: string[]): string | null {
   const items = descItems.map((s) => s.trim()).filter(Boolean);
   if (items.length === 0) return null;

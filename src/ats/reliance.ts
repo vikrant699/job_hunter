@@ -1,9 +1,5 @@
-// src/ats/reliance.ts — Reliance Industries corporate careers board (careers.ril.com/rilcareers),
-// a classic ASP.NET WebForms site. Single tenant: RIL corporate only (Jio and Retail run different
-// stacks). JBTITLE/jbID detail-link params are opaque encrypted, not usable as a stable id, so
-// externalId uses the numeric requisition code embedded in the title instead. Pagination is via
-// __doPostBack on the pager's page-number <select>; __VIEWSTATE is self-contained (no session cookie
-// needed), so each page's hidden fields are just re-extracted and POSTed back with the target page.
+// src/ats/reliance.ts — Reliance Industries corporate careers board (careers.ril.com/rilcareers): a classic ASP.NET WebForms site; single tenant (RIL corporate only — Jio and Retail run different stacks).
+// Pagination is via __doPostBack on the pager's page-number <select>; __VIEWSTATE is self-contained (no session cookie needed), so each page's hidden fields are re-extracted and POSTed back with the target page.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -90,9 +86,8 @@ export function parseRelianceListPage(html: string): RelianceListPage {
   };
 }
 
-// Requisition code embedded at the end of the title, e.g. "... ( 82861680 )" -> "82861680". Falls
-// back to a kebab-cased title slug — not the detail href, whose JBTITLE/jbID params are encrypted
-// and possibly session-varying, so unsafe as a stable id.
+// Requisition code embedded at the end of the title, e.g. "... ( 82861680 )" -> "82861680"; falls back to a kebab-cased title slug.
+// Not the detail href, whose JBTITLE/jbID params are encrypted and possibly session-varying, so unsafe as a stable id.
 export function relianceExternalId(row: Pick<RelianceJobRow, "title" | "href">): string {
   return JOB_CODE_RE.exec(row.title)?.[1] ?? kebabCase(row.title);
 }
@@ -128,9 +123,7 @@ export function buildPageRequestBody(fields: Record<string, string>, targetPage:
   };
 }
 
-// The live markup embeds share buttons whose href contains a literal unescaped "<url>" placeholder
-// (invalid HTML, trips up htmlText.ts's regex-based stripper), so cheerio removes those plus the
-// Apply/Back inputs before falling back to htmlToText for whitespace normalization.
+// Share-button hrefs contain a literal unescaped "<url>" placeholder (invalid HTML that trips up htmlText.ts's regex stripper), so cheerio removes those plus the Apply/Back inputs before htmlToText normalizes whitespace.
 export function parseRelianceJd(html: string): string {
   const $ = cheerio.load(html);
   const div = $("#MainContent_divDesc");
@@ -150,9 +143,7 @@ export const relianceAdapter: AtsAdapter = {
     rows.push(...page.rows);
     let fields = extractFormFields(html);
 
-    // No fixed page cap (a genuinely large board should be paged in full) —
-    // but if the server ever stops advancing `currentPage` (a stuck postback,
-    // e.g. from a viewstate/field mismatch) this must not spin forever.
+    // No fixed page cap (paged in full), but if the server ever stops advancing `currentPage` (e.g. a viewstate/field mismatch) this must not spin forever.
     let pagesFetched = 1;
     while (page.currentPage < page.totalPages) {
       const target = page.currentPage + 1;

@@ -1,7 +1,5 @@
-// src/ats/leapscholar.ts — Leap Scholar's own careers API (TurboHire-backed, but fronted by a bespoke
-// Vercel endpoint rather than the shared TurboHire adapter).
-// GET careers-api-eight.vercel.app/api/jobs -> { Total, Jobs[] } with full JD inline; page/limit params
-// are ignored, always returns the whole set. Location is a JSON-encoded string of [{Address, PlaceId}].
+// list: GET careers-api-eight.vercel.app/api/jobs -> { Total, Jobs[] } with full JD inline; page/limit params ignored, always returns the whole set
+// Location is a JSON-encoded string of [{Address, PlaceId}]
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

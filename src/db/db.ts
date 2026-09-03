@@ -84,8 +84,7 @@ db.exec(schema);
     logger.info("migration: postings rebuilt with profile_id in PK (existing rows -> 'default')");
   }
 
-  // postings.jd_text was write-only (the gate reads JDs in-memory, nothing reads the column back); runs after the profile_id
-  // rebuild so a pre-profile_id DB migrates first. DROP COLUMN only hides it, so VACUUM reclaims the disk space.
+  // postings.jd_text was write-only (gate reads JDs in-memory); must run after the profile_id rebuild, and DROP COLUMN only hides it so VACUUM reclaims the space.
   const postingColsAfter = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (postingColsAfter.some((c) => c.name === "jd_text")) {
     db.exec("ALTER TABLE postings DROP COLUMN jd_text");
@@ -94,8 +93,7 @@ db.exec(schema);
     logger.info("migration: VACUUM complete");
   }
 
-  // postings.last_seen_at / removed_at — the posting-lifecycle columns; runs after the profile_id rebuild so a
-  // pre-profile_id DB gets them added to the rebuilt table, not the dropped one.
+  // postings.last_seen_at / removed_at (lifecycle columns) must run after the profile_id rebuild, or a pre-profile_id DB would add them to the table that gets dropped.
   const postingColsLifecycle = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (!postingColsLifecycle.some((c) => c.name === "last_seen_at")) {
     db.exec("ALTER TABLE postings ADD COLUMN last_seen_at TEXT");
@@ -127,8 +125,7 @@ db.exec(schema);
 
 logger.info({ path: dbPath }, "sqlite initialized");
 
-/** Close the singleton connection; terminal for the process (every module-scope prepared statement is bound to this handle).
- *  Exists for the post-run Drive push, since a still-open handle makes wal_checkpoint(TRUNCATE) return busy. */
+/** Close the singleton connection (terminal - every prepared statement is bound to this handle); needed before the post-run Drive push, since an open handle makes wal_checkpoint(TRUNCATE) return busy. */
 export function closeDb(): void {
   db.close();
   markDbClosed();

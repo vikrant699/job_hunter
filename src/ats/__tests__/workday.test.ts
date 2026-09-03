@@ -1,4 +1,3 @@
-// src/ats/workday.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -368,8 +367,7 @@ const driftCompany: AdapterCompany = mkAdapterCompany(
   },
   {
     tenantUrl: "https://acme.wd1.myworkdayjobs.com/External",
-    // Pinned facet so discoverIndiaFacet's own probe request never runs - keeps the fetch
-    // sequence in these tests down to exactly the listing calls being exercised.
+    // Pinned facet so discoverIndiaFacet's own probe request never runs - keeps the fetch sequence in these tests down to exactly the listing calls being exercised.
     apiMeta: { facetParam: "locationCountry", facetValueIds: "in-1" },
   },
 );
@@ -489,8 +487,7 @@ test("workday listPostings rethrows the original 404 when robots.txt still lists
 });
 
 test("workday listPostings never fetches robots.txt on a 429 (throttle, not drift)", async (t) => {
-  // fetchOk itself retries a 429 (transient status) a few times before giving up - every one of
-  // those retries must still land on the listing URL, never robots.txt.
+  // fetchOk itself retries a 429 (transient status) a few times before giving up - every one of those retries must still land on the listing URL, never robots.txt.
   const calls: string[] = [];
   stubFetch(
     t,

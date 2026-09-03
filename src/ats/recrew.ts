@@ -1,7 +1,5 @@
-// src/ats/recrew.ts — Recrew AI agency board (talent.recrew.ai/careers). Server-rendered listing of
-// .job-card items (data-job-uuid/title/location attrs); the JD is served by GET
-// /job/job-board/<uuid>/detail/modal, which 400s without X-Requested-With. Public per-job pages use an
-// underivable slug, so jobUrl points at the board with the uuid as a query marker.
+// src/ats/recrew.ts — Recrew AI agency board (talent.recrew.ai/careers): server-rendered listing of .job-card items (data-job-uuid/title/location attrs).
+// JD is served by GET /job/job-board/<uuid>/detail/modal, which 400s without X-Requested-With; public per-job pages use an underivable slug, so jobUrl points at the board with the uuid as a query marker.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

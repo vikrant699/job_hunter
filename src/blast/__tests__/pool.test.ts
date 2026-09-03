@@ -1,4 +1,3 @@
-// src/blast/pool.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildPool } from "../pool.js";

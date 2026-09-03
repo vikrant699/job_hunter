@@ -23,9 +23,7 @@ export function parseFreshteamHref(href: string): { id: string; slug: string } |
   return { id, slug };
 }
 
-// A nonexistent subdomain still answers HTTP 200 with Freshteam's own "claim it now" page (no jobs_list
-// container) instead of a 404 — detected via INVALID_DOMAIN_SELECTOR, distinct from a genuinely empty
-// board's `.no-jobs-found` / `[data-portal-id="no_data"]`, which must keep returning [].
+// A nonexistent subdomain answers HTTP 200 with Freshteam's "claim it now" page (no jobs_list container), detected via INVALID_DOMAIN_SELECTOR — distinct from a genuinely empty board, which must keep returning [].
 const INVALID_DOMAIN_SELECTOR = ".invalid-domain-wrapper, .no-ats";
 
 /** Parse the /jobs listing into postings; throws on Freshteam's invalid-domain page (see INVALID_DOMAIN_SELECTOR). */
@@ -74,8 +72,7 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     });
   });
 
-  // Legacy template fallback: bare a.job-title anchors in .job-list-info rows, location in a sibling
-  // .job-location block; only consulted when the data-portal pass found nothing, so a board with both never double-counts.
+  // Legacy template fallback (bare a.job-title anchors in .job-list-info, location in sibling .job-location); only consulted when the data-portal pass found nothing.
   if (postings.length === 0) {
     $(".job-list-info a.job-title").each((_, el) => {
       const $a = $(el);
@@ -115,8 +112,7 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     });
   }
 
-  // Checked only when the parse yields nothing, so a marker collision can't fail a board that has rows;
-  // the URL comes from the company row since the served page never names the tenant itself.
+  // Checked only when the parse yields nothing, so a marker collision can't fail a board that has rows.
   if (postings.length === 0 && $(INVALID_DOMAIN_SELECTOR).length > 0) {
     throw new Error(
       `freshteam: tenant does not exist at ${freshteamListUrl(company)} — Freshteam served its ` +

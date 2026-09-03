@@ -1,4 +1,3 @@
-// src/ats/ongig.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ongigAdapter } from "../ongig.js";

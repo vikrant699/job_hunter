@@ -11,8 +11,7 @@ test("parseRetryAfterMs reads the header as whole seconds", () => {
 });
 
 test("parseRetryAfterMs falls back to 1s on a non-numeric header", () => {
-  // An HTTP-date Retry-After (RFC 1123) is not supported; it parses to NaN and
-  // takes the same 1s fallback the Discord webhook has always used.
+  // An HTTP-date Retry-After (RFC 1123) is not supported; it parses to NaN and takes the same 1s fallback.
   assert.equal(parseRetryAfterMs("Wed, 21 Oct 2026 07:28:00 GMT"), 1000);
   assert.equal(parseRetryAfterMs("garbage"), 1000);
 });

@@ -243,9 +243,7 @@ const PATTERNS: PatternDef[] = [
       return { url: `https://${u.host}/career-page`, slug };
     },
   },
-  // No pattern for turbohire/zappyhire/eightfoldpcs/ceipal/jibe/zwayam: each needs per-tenant config (accountName,
-  // backend host, own careers domain, embed attributes, or bundle discovery) with no shared host signature to
-  // regex-match - all rely on registry seeding instead.
+  // no pattern for turbohire/zappyhire/eightfoldpcs/ceipal/jibe/zwayam - each needs per-tenant config with no shared host signature to regex-match; registry seeding instead
   {
     provider: "ripplehire",
     re: /https?:\/\/[a-z0-9-]+\.ripplehire\.com\b/gi,
@@ -291,10 +289,7 @@ const PATTERNS: PatternDef[] = [
     },
   },
   {
-    // Deliberately not "successfactors": that's a ProviderSchema member and would falsely advertise an adapter.
-    // This is the shared-host SAPUI5 portal (career<N>.successfactors.com/career?company=<slug>), a DIFFERENT
-    // engine from src/ats/successfactors.ts (which only handles the legacy Jobs2Web engine on each tenant's own
-    // custom domain). Detect-only until an adapter for this shape exists.
+    // deliberately not "successfactors" (a ProviderSchema member, would falsely advertise an adapter) - this is the shared-host SAPUI5 portal, a DIFFERENT engine from src/ats/successfactors.ts (legacy Jobs2Web on each tenant's own domain); detect-only until an adapter exists
     provider: "successfactors-ui5",
     re: /https?:\/\/career\d*\.successfactors\.(?:com|eu)\/career\?company=([A-Za-z0-9_-]+)/gi,
     parse(m) {
@@ -304,8 +299,7 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "consider",
-    // Consider.co's widget usually calls a same-origin RELATIVE path rather than an absolute consider.co URL, so
-    // this falls back to the careers page's own host when the match carries none. No adapter yet.
+    // Consider.co's widget usually calls a same-origin RELATIVE path rather than an absolute consider.co URL, so this falls back to the careers page's own host when the match carries none; no adapter yet
     re: /(?:https?:\/\/[a-z0-9.-]+)?\/api-boards\/search-jobs\b/gi,
     parse(m, careersUrl) {
       const abs = /^https?:\/\/([a-z0-9.-]+)\//i.exec(m)?.[1];

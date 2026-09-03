@@ -1,4 +1,3 @@
-// src/ats/kula.ts
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -6,10 +5,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
-// Kula ATS public board API: GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>
-// &items=99 -> { data: AtsJobPost[], meta: { count, ... } }.
-// One-phase (job_description present on every list item, no fetchJd needed); meta.count is honored via
-// paginate's total-based stop so a larger tenant pages correctly rather than truncating.
+// list: GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>&items=99 -> { data: AtsJobPost[], meta: { count } }
+// one-phase (job_description on every list item); meta.count honored via paginate's total-based stop so larger tenants page fully
 const PAGE_SIZE = 99;
 
 const OfficeSchema = z.object({

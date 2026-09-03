@@ -1,8 +1,5 @@
-// src/ats/ongig.ts — Ongig-powered careers sites (e.g. jobs.yum.com), proxying Elastic App Search
-// behind a Laravel front end that pins the search call to a per-session XSRF token: GET the origin
-// for the XSRF-TOKEN cookie, then POST /api/appSearch with x-xsrf-token + cookie headers.
-// apiMeta.groupId selects the tenant board; apiMeta.countryFilter (default "india") scopes results.
-// Requesting content.raw (not the truncated snippet field) yields the full JD.
+// src/ats/ongig.ts — Ongig-powered careers sites (e.g. jobs.yum.com) proxy Elastic App Search behind a Laravel front end that pins the search call to a per-session XSRF token.
+// GET the origin for the XSRF-TOKEN cookie, then POST /api/appSearch with x-xsrf-token + cookie headers.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -92,7 +89,7 @@ export function normalizeOngig(company: AdapterCompany, org: string, r: OngigRes
     jobUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: (raw(r.content) ?? "").trim(),
+    jdText: (raw(r.content) ?? "").trim(), // requesting content.raw (not the truncated snippet field) yields the full JD
     postedAt: null,
   };
 }
@@ -152,8 +149,7 @@ export const ongigAdapter: AtsAdapter = {
         const items = parsed.results
           .map((r) => normalizeOngig(company, org, r))
           .filter((p): p is NormalizedPosting => p !== null);
-        // total_pages is re-read from this page's own response; report a total equal to the
-        // cumulative offset once this is the last page, null otherwise, so the loop stops right after.
+        // total_pages is re-read from this page's own response; report a total equal to the cumulative offset once this is the last page, null otherwise, so the loop stops right after.
         const totalPagesNow = parsed.meta.page.total_pages ?? current;
         const isLastPage = current >= totalPagesNow;
         return {

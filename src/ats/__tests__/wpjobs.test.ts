@@ -1,4 +1,3 @@
-// src/ats/wpjobs.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { wpjobsApiUrl, wpjobsLocation, normalizeWpjobs } from "../wpjobs.js";

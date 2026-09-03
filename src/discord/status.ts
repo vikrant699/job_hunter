@@ -24,8 +24,7 @@ export interface StatusInput {
   instahyre: InstahyreResult | null;
 }
 
-/** Group failed boards by reason tag into a compact, Discord-field-safe string
- *  (max ~1024 chars). e.g. "timeout ×122: bosch, abb, adobe … (+40) · 404 ×2: …". */
+/** Group failed boards by reason tag into a compact, Discord-field-safe string (max ~1024 chars), e.g. "timeout ×122: bosch, abb, adobe … (+40) · 404 ×2: …". */
 export function buildIssueList(
   failed: ReadonlyArray<{ provider: string; slug: string; reason: string }>,
   maxLen = 1000,

@@ -1,11 +1,5 @@
-// src/ats/turbohire.ts — TurboHire career boards (Flipkart group, Ola, Tata Motors PV,
-// Britannia). Anon-token handshake, both hosted on thapi.azurewebsites.net (WAF-blocks
-// plain Node fetch — browser-backed like Darwinbox):
-//   1. GET  /api/token/noauth                         -> { access_token, ... }
-//   2. POST /api/careerpagev2/filteredjobs?orgId=<id> -> { Total, Result: Job[] }
-// The endpoint ignores pageNumber/pageSize and returns every matching job on the first
-// call (confirmed live against Flipkart), but we still paginate defensively in case a
-// larger tenant behaves differently. Full JD is inline (JobDescV2, HTML) — no fetchJd needed.
+// src/ats/turbohire.ts — TurboHire boards (Flipkart group, Ola, Tata Motors PV, Britannia), thapi.azurewebsites.net (WAF-blocks plain Node fetch — browser-backed like Darwinbox): GET /api/token/noauth -> access_token
+// POST /api/careerpagev2/filteredjobs?orgId=<id> -> { Total, Result: Job[] }; JD inline (JobDescV2, HTML), no fetchJd needed.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -60,8 +54,7 @@ function requireOrgId(company: AdapterCompany): string {
   return orgId;
 }
 
-// `Location` arrives as a JSON-ENCODED STRING of `[{Address, PlaceId}]`; extract and join
-// every non-empty Address. Null on missing/malformed input rather than throwing.
+// Location arrives as a JSON-encoded string of [{Address, PlaceId}]; joins every non-empty Address, null on missing/malformed input.
 const TurboHireLocationEntrySchema = z.object({ Address: z.string().nullable().optional() });
 const TurboHireLocationArraySchema = z.array(TurboHireLocationEntrySchema);
 
@@ -77,9 +70,7 @@ export function parseTurboHireLocation(raw: string | null | undefined): string |
   return addresses.length > 0 ? addresses.join("; ") : null;
 }
 
-// PublishedDate carries a trailing "Z"; UpdatedDate doesn't despite being the same
-// backend-UTC format — append "Z" when no zone designator is present, else Date.parse
-// would read it in the machine's local timezone.
+// PublishedDate carries a trailing "Z" but UpdatedDate doesn't despite the same backend-UTC format; "Z" is appended when no zone designator is present, else Date.parse reads it as local time.
 function parseTurboHireDate(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const withZone = /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : `${raw}Z`;
@@ -106,17 +97,14 @@ export function normalizeTurboHire(company: AdapterCompany, j: TurboHireJob): No
   };
 }
 
-// Accumulates already-fetched filteredjobs pages (page 2+) into `out`. Stops early on an
-// empty page or once `total` is reached; throws (not warn+truncate) on schema mismatch,
-// since page 1 already throws on the same mismatch and a mid-stream break would look complete.
-// Dedupes by JobId since this endpoint ignores pageNumber/pageSize and could re-serve page 1.
+// Accumulates already-fetched filteredjobs pages into `out`, stopping on an empty page or once `total` is reached; throws (not warn+truncate) on schema mismatch since a mid-stream break would look complete.
 export function mergeTurboHirePages(
   company: AdapterCompany,
   out: NormalizedPosting[],
   pages: JsonValue[],
   total: number,
 ): void {
-  const seen = new Set(out.map((p) => p.externalId));
+  const seen = new Set(out.map((p) => p.externalId)); // dedupe by JobId since this endpoint ignores pageNumber/pageSize and could re-serve page 1
   for (const raw of pages) {
     const parsed = parseOrThrow(TurboHireListSchema, raw, {
       provider: "turbohire",
@@ -140,10 +128,7 @@ export const turbohireAdapter: AtsAdapter = {
     const careersUrl = turboHireCareerPageUrl(company, orgId);
     const out: NormalizedPosting[] = [];
 
-    // One browser session: get the anon token, then page 1 (reveals Total).
-    // blockHeavyAssets:false — confirmed live on Ola: this app treats ANY aborted request
-    // (even an unrelated stylesheet) as fatal and reloads the main frame, tearing down our
-    // evaluate mid-flight. It's a one-shot handshake, not a scrape, so leave assets on.
+    // blockHeavyAssets:false — confirmed live on Ola: this app treats ANY aborted request (even a stylesheet) as fatal and reloads the main frame mid-handshake.
     const first = await browserFetchJsonSteps(careersUrl, (soFar) => {
       if (soFar.length === 0) return { url: TURBOHIRE_TOKEN_URL };
       if (soFar.length === 1) {

@@ -1,4 +1,3 @@
-// src/ats/oracle.ts
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -6,20 +5,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow, parseOrNull } from "./http.js";
 import { REMOTE_RE, paginate } from "./shared.js";
 
-// Oracle HCM Cloud Recruiting (CE) public REST API:
-//   list:   <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitions
-//             ?onlyData=true&expand=requisitionList.secondaryLocations
-//             &finder=findReqs;siteNumber=<CX_n>&limit=&offset=
-//           -> { items: [ { requisitionList: Req[], TotalJobsCount } ] }
-//   detail: <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails
-//             ?onlyData=true&expand=all&finder=ById;Id=<id>,siteNumber=<CX_n>
-// base in tenant_url, siteNumber in api_meta.siteNumber. Two-phase.
-//
-// A stale siteNumber does not empty the board: an unrecognised site drops the
-// filter rather than matching nothing, so it OVER-collects (and breaks every
-// jobUrl) instead of looking empty. A gone pod fails loudly (503/ENOTFOUND/
-// timeout). Only items[0] with requisitionList: [] and TotalJobsCount: 0 is a
-// genuinely empty board — oracle.test.ts pins this distinction.
+// list: <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations&finder=findReqs;siteNumber=<CX_n>&limit=&offset= -> { items: [ { requisitionList: Req[], TotalJobsCount } ] }; base = tenant_url, siteNumber = api_meta.siteNumber
+// detail: <base>/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?onlyData=true&expand=all&finder=ById;Id=<id>,siteNumber=<CX_n>
 const SecondaryLocSchema = z.object({ Name: z.string().nullable().optional() });
 const ReqSchema = z.object({
   Id: z.string(),
@@ -59,18 +46,17 @@ export const oracleAdapter: AtsAdapter = {
       provider: "oracle",
       company: company.slug,
       pageSize: PAGE,
-      // Oracle CE silently caps a page at 25 items regardless of `limit=` - a sub-PAGE page is
-      // normal, not the end; pagination must run to TotalJobsCount / an empty page.
+      // Oracle CE silently caps a page at 25 items regardless of `limit=` - a sub-PAGE page is normal, not the end; pagination must run to TotalJobsCount / an empty page.
       shortPageEndsPagination: false,
       fetchPage: async (offset) => {
-        // limit/offset live inside the finder args - some pods ignore top-level &limit=&offset=
-        // entirely and would serve page 1 forever otherwise.
+        // limit/offset live inside the finder args - some pods ignore top-level &limit=&offset= entirely and would serve page 1 forever otherwise.
         const url =
           `${base}/hcmRestApi/resources/latest/recruitingCEJobRequisitions` +
           `?onlyData=true&expand=requisitionList.secondaryLocations` +
           `&finder=findReqs;siteNumber=${encodeURIComponent(site)},limit=${PAGE},offset=${offset}`;
         const raw = await atsFetchJson(url, { provider: "oracle" });
         const parsed = parseOrThrow(ListSchema, raw, { provider: "oracle", slug: company.slug });
+        // A stale siteNumber over-collects instead of emptying the board (drops the filter rather than matching nothing); items[0] with requisitionList:[] and TotalJobsCount:0 is the only genuinely-empty signal - oracle.test.ts pins this.
         const item = parsed.items[0];
         const reqs = item?.requisitionList ?? [];
         const items = reqs.map((r) => normalizeOracle(company, r));

@@ -1,7 +1,5 @@
-// src/ats/urbancompany.ts — Urban Company single-tenant board API (backed by TurboHire
-// under the hood, but exposed through Urban Company's own gateway, hence single-company).
-// POST www.urbanclap.com/api/v2/platform-gateway/getAllJobs, body {} -> { jobs: JobRow[] }.
-// One-phase: job_description (full HTML) and apply_url are inline on every row.
+// src/ats/urbancompany.ts — Urban Company single-tenant board (backed by TurboHire under the hood, exposed via Urban Company's own gateway).
+// POST www.urbanclap.com/api/v2/platform-gateway/getAllJobs, body {} -> { jobs: JobRow[] }; one-phase, job_description (full HTML) and apply_url inline on every row.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

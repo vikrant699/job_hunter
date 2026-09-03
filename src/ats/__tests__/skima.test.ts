@@ -1,4 +1,3 @@
-// src/ats/skima.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

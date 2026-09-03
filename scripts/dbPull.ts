@@ -1,8 +1,4 @@
-/**
- * Downloads data/job_hunter.db from Google Drive, replacing the local copy.
- *   npm run db:pull -- --profile vikrant [--force]
- * Verifies integrity in a temp file before swapping it in, and refuses when the local copy is newer (an earlier run here never pushed) unless --force.
- */
+// Downloads data/job_hunter.db from Google Drive, replacing the local copy; verifies integrity in a temp file before swapping it in, and refuses when the local copy is newer unless --force.
 import "dotenv/config";
 import { pullDb, checkState, syncSkipReason } from "../src/db/sync.js";
 import { assertGoogleTokenValid } from "../src/google/auth.js";

@@ -1,4 +1,3 @@
-// src/ats/successfactors.test.ts
 import { test } from "node:test";
 import * as cheerio from "cheerio";
 import assert from "node:assert/strict";

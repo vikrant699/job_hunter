@@ -23,8 +23,7 @@ import { sleep } from "../util/sleep.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
 import { parseStatedYoeMin } from "../filter/yoe.js";
 import type { RunContext } from "./index.js";
-// Type-only: the scheduler owns the policy and is this function's only production
-// caller, so importing the shape back creates no runtime dependency on it.
+// Type-only: the scheduler owns the policy and is this function's only production caller, so importing the shape back creates no runtime dependency on it.
 import type { TransportRetryPolicy } from "./scheduler.js";
 
 interface PostingResultPatch {
@@ -38,8 +37,7 @@ interface PostingResultPatch {
 }
 
 function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch, profileId: string): void {
-  // Mechanical (no-LLM), storage-only: computed for every posting that reaches this point with real JD
-  // text (skipped for no-jd/junk-jd writes, where jdText is empty). Never affects verdict/filtering.
+  // Mechanical (no-LLM), storage-only: skipped for no-jd/junk-jd writes (jdText empty); never affects verdict/filtering.
   const salary = posting.jdText ? extractSalary(posting.jdText) : null;
   updatePostingResult({
     provider: posting.provider,
@@ -94,8 +92,7 @@ export function verdictResult(
   };
 }
 
-/** Location verdict once the JD is fetched. An adapter may resolve `location` late (e.g. ralphlauren, from the detail page);
- *  that must still hit the strict metadata check, not the no-metadata fallback, or a foreign role could slip past. */
+/** Location verdict once the JD is fetched; a late-resolved `location` (e.g. ralphlauren, from the detail page) must still hit the strict metadata check, not the no-metadata fallback, or a foreign role could slip past. */
 export function lateLocationCheck(posting: NormalizedPosting): LocationCheck {
   if (posting.location !== null && posting.location !== "") {
     return checkLocation(posting.location, posting.isRemote);
@@ -118,8 +115,7 @@ export async function processOnePosting(
 
   if (postingExists(posting.provider, posting.externalId, stats.profileId)) return;
 
-  // Cross-run dedup: skip re-listings (same company/title/location notified before)
-  // before spending gate + extract calls, since we'd only drop them at notify time.
+  // Cross-run dedup: skip re-listings (same company/title/location notified before) before spending gate + extract calls, since we'd only drop them at notify time.
   const dupKey = notifyKey(posting.companyName, posting.jobTitle, posting.location);
   if (stats.priorNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
@@ -139,8 +135,7 @@ export async function processOnePosting(
 
   if (!posting.jdText && adapter.fetchJd) {
     const fetchJd = adapter.fetchJd;
-    // Retry infrastructure failures: a JD lost to a network blip is skipped before insertPostingIfNew and only reappears
-    // next run. Board-shaped errors (404/403/schema) are not retried - the host answered.
+    // Retry infrastructure failures: a JD lost to a network blip is skipped before insertPostingIfNew and only reappears next run; board-shaped errors (404/403/schema) are not retried - the host answered.
     // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
     let jdErr: unknown;
     for (let attempt = 0; attempt <= retry.retries; attempt++) {
@@ -164,8 +159,7 @@ export async function processOnePosting(
     }
   }
 
-  // Late location filter: strict metadata if the adapter resolved a location
-  // during fetchJd, otherwise the title/JD/URL heuristic.
+  // Late location filter: strict metadata if the adapter resolved a location during fetchJd, otherwise the title/JD/URL heuristic.
   if (!lateLocationCheck(posting).accept) return;
 
   const inserted = insertPostingIfNew(posting, stats.profileId);
@@ -263,8 +257,7 @@ export async function processOnePosting(
     return;
   }
 
-  // Within-run dedup: check-and-reserve is atomic here (no await between
-  // has() and add()), so two workers can't both record the same role.
+  // Within-run dedup: check-and-reserve is atomic here (no await between has() and add()), so two workers can't both record the same role.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     writePostingResult(

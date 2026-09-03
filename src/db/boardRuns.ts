@@ -37,8 +37,7 @@ export interface InsertBoardRunInput {
   error: string | null;
 }
 
-/** Records one company fetch's lifecycle delta (added/removed/unchanged, or an error) and prunes that board's
- *  history to the newest 60 rows. */
+/** Records one company fetch's lifecycle delta (added/removed/unchanged, or an error) and prunes that board's history to the newest 60 rows. */
 export function insertBoardRun(row: InsertBoardRunInput): void {
   insertBoardRunStmt.run(row);
   pruneBoardRunsStmt.run({ provider: row.provider, companySlug: row.companySlug, keep: BOARD_RUNS_KEEP });

@@ -1,7 +1,5 @@
-// src/ats/mynexthire.ts — MyNextHire (Indian ATS), e.g. swiggy.mynexthire.com. Each tenant is a
-// subdomain; POST /employer/careers/reqlist/get with body { source: "careers", code: "",
-// filterByBuId: -1 } returns every open requisition (with inline plain-text JD) in one call. jobUrl
-// reproduces the vendor's own base64-encoded client link builder byte-for-byte so the SPA can parse it.
+// list: POST <tenant>.mynexthire.com/employer/careers/reqlist/get { source:"careers", code:"", filterByBuId:-1 } -> every open requisition inline (plain-text JD) in one call
+// jobUrl reproduces the vendor's own base64-encoded client link builder byte-for-byte so the SPA can parse it
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

@@ -1,7 +1,4 @@
-/**
- * One-time (idempotent) bootstrap of the outreach spreadsheet: creates the bot-managed tabs, seeds Raw Data and Companies from local files when empty, writes headers into empty lifecycle tabs, and adds the bot's extra columns to Recruiters List. Safe to re-run - tabs with data are left untouched.
- *   npm run bootstrap-sheet [-- --profile <name>]
- */
+// One-time (idempotent) bootstrap of the outreach spreadsheet: creates the bot-managed tabs, seeds Raw Data and Companies from local files when empty, writes headers into empty lifecycle tabs, and adds the bot's extra columns to Recruiters List. Safe to re-run - tabs with data are left untouched.
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";

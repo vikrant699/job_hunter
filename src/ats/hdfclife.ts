@@ -1,7 +1,5 @@
-// src/ats/hdfclife.ts — HDFC Life careers, single-tenant AES-256-GCM encrypted API (mist.api-hdfclife.com),
-// traced from the site's client JS (Encrypter class).
-// list: POST get-open-requisition -> results.results[] JOB_ROLE buckets, each with REQUISITION.results[]
-// (whole board in one call, no pagination). jd: POST get-job-descriptions -> results.JOBDESCRIPTION (HTML).
+// list: POST get-open-requisition -> results.results[] JOB_ROLE buckets, each with REQUISITION.results[] (whole board in one call, no pagination)
+// jd: POST get-job-descriptions -> results.JOBDESCRIPTION (HTML)
 import { createCipheriv, createDecipheriv } from "node:crypto";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -19,8 +17,7 @@ const LIST_URL = `${API_BASE}/get-open-requisition`;
 const JD_URL = `${API_BASE}/get-job-descriptions`;
 const CAREERS_URL = "https://www.hdfclife.com/hdfc-careers/find-your-fit.html";
 
-// Key is the first 32 chars of REQUEST_TOKEN as UTF-8 bytes; if HDFC rotates it, grep a fresh script.js
-// for the `new Encrypter("<token>", "<iv>")` literals feeding the request call.
+// Key is the first 32 chars of REQUEST_TOKEN as UTF-8 bytes; if HDFC rotates it, grep a fresh script.js for the `new Encrypter("<token>", "<iv>")` literals feeding the request call.
 export const REQUEST_TOKEN =
   "ob1VbQlyRRaKms81nzKB91hjb4QvmP-5f7jSdTgmOIzNvWh5-eLFykYnBx7_1flXG7MGYXSwcVKplNypX26VC19wHmYI4RZFD9uiUfjj3pyUOG-YX7-TkGzIUTpMEE2Bm9YDYBpNRzI6FGns0csd0t1XU7hoVuwazD_NEMJiv2f68HaM7zf_YKHIJHamig2p7jWtBnaUSvm5UZi3wJSw_B7A6qiIFKFYstdxQJCTv7G1jyTmBIWWi23rQ8";
 // 11-byte IV (not the usual 12); node's createCipheriv accepts it, SubtleCrypto would reject it.
@@ -73,8 +70,7 @@ const ListEnvelopeSchema = z.object({
   }),
 });
 
-// JD endpoint's `results` is FLAT (unlike list's `results.results` array); JOB_DESC is the real HTML
-// string, JOBDESCRIPTION is a nested object on this tenant, so only a non-empty string field is used (JOB_DESC first).
+// JD endpoint's `results` is FLAT (unlike list's `results.results` array); JOB_DESC is the real HTML string, JOBDESCRIPTION is a nested object on this tenant, so only a non-empty string field is used (JOB_DESC first).
 const DetailEnvelopeSchema = z.object({
   results: z.object({
     JOB_DESC: JsonValueSchema.optional(),

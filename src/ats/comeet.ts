@@ -1,8 +1,5 @@
-// src/ats/comeet.ts — Comeet hosted job boards (www.comeet.com/jobs/<company>/<code>).
-// The board page embeds `COMPANY_POSITIONS_DATA = [...];`, a single JSON array with every position and its full
-// JD HTML inline (no pagination); fetchJd is a fallback reading the same-shaped `POSITION_DATA = {...};` island off
-// the position's own page. Islands are serialized on one line, so extraction greedy-matches to the line's last
-// bracket (a literal "];" inside a description can't truncate it), with a lazy multi-line fallback.
+// list: <boardUrl> embeds COMPANY_POSITIONS_DATA = [...]; inline (full JD HTML, no pagination)
+// jd fallback: position page embeds POSITION_DATA = {...}; island regex greedy-matches to the line's last bracket, lazy multi-line as fallback
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -128,8 +125,7 @@ export const comeetAdapter: AtsAdapter = {
     return out;
   },
 
-  // Fallback only: the list already carries the full JD for every tenant seen
-  // so far. Runs when a tenant's island omitted custom_fields.details.
+  // Fallback only: list normally carries full JD; runs when a tenant's island omits custom_fields.details.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "comeet" });
     const island = extractComeetPosition(html);

@@ -1,8 +1,5 @@
-// src/ats/google.ts — Google Careers (google.com/about/careers/applications), single-tenant. The public JSON
-// API is retired (404s); results/detail pages are fully server-rendered, parsed via cheerio keyed on
-// structure + stable heading text (never Google's rotating obfuscated CSS classes).
-// list: GET .../jobs/results?location=India&page=<n> (1-based, 20/page); jd: detail page, JD is the smallest
-// block containing all of the "About the job"/"Minimum qualifications"/"Preferred qualifications"/"Responsibilities" headings.
+// list: GET .../jobs/results?location=India&page=<n> (1-based, 20/page); public JSON API is retired (404s), so this parses server-rendered HTML via cheerio
+// jd: detail page; JD is the smallest block holding all of "About the job"/"Minimum qualifications"/"Preferred qualifications"/"Responsibilities" (stable headings, classes rotate)
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -61,8 +58,7 @@ export function parseGoogleList(company: AdapterCompany, html: string): Normaliz
   return out;
 }
 
-/** JD text: the smallest ancestor block holding all stable JD-section <h3>s, from the first heading onward
- *  (page chrome above it is dropped). "" when no sections found. */
+/** JD text: the smallest ancestor block holding all stable JD-section <h3>s, from the first heading onward; "" when no sections found. */
 export function parseGoogleJd(html: string): string {
   const $ = cheerio.load(html);
   const jdHeads = $("h3").filter((_, e) => JD_HEADING_RE.test($(e).text()));

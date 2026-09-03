@@ -1,6 +1,5 @@
-// src/ats/bamboohr.ts — BambooHR hosted career sites (<tenant>.bamboohr.com), two-phase JSON API, no auth, no pagination.
-// GET /careers/list and GET /careers/<id>/detail. Location is split across `location`/`atsLocation`, either may be
-// populated (sometimes with city/state swapped or a pincode in state/province) - we just join whichever has parts.
+// list: GET /careers/list -> {result[]}; location is split across `location`/`atsLocation` - either may be populated (sometimes city/state swapped, or a pincode in state/province) - join whichever has parts
+// jd: GET /careers/<id>/detail
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

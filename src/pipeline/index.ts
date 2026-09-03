@@ -140,8 +140,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     "production tick: companies loaded",
   );
 
-  // Bucket by adapter identity (not provider) so llm-scrape companies share
-  // one bucket regardless of their declared `source`.
+  // Bucket by adapter identity (not provider) so llm-scrape companies share one bucket regardless of their declared `source`.
   const buckets = new Map<string, { adapter: AtsAdapter; companies: Company[]; key: string }>();
   for (const c of companies) {
     const adapter = resolveAdapter(c);

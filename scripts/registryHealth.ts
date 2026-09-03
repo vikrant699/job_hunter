@@ -1,8 +1,4 @@
-/**
- * Registry health report (read-only).
- *   node --import tsx scripts/registryHealth.ts
- * Yield telemetry here is a prioritization signal (who to investigate), not a removal criterion.
- */
+// Registry health report (read-only); yield telemetry here is a prioritization signal (who to investigate), not a removal criterion.
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -56,9 +52,7 @@ console.log("  never fetched:", num("SELECT COUNT(*) n FROM companies WHERE last
 console.log("  url_suspect=1:", num("SELECT COUNT(*) n FROM companies WHERE url_suspect=1"));
 console.log("  consecutive_failures>=3:", num("SELECT COUNT(*) n FROM companies WHERE COALESCE(consecutive_failures,0)>=3"));
 
-// Went-quiet: a board that once produced postings and now answers N clean fetches with zero
-// rows is the dead-tenant false-pass signature (200 + empty list while the company hires
-// elsewhere). Surfaced here for repoint research instead of rotting silently.
+// Went-quiet: N clean fetches with zero rows from a board that once produced postings is the dead-tenant false-pass signature (200 + empty list while the company hires elsewhere).
 console.log("\n[WENT QUIET]  active, saw postings before, >=3 consecutive zero-yield fetches");
 const quietRow = z.object({ provider: z.string(), slug: z.string(), name: z.string(), zy: z.number(), seen: z.number() });
 const quiet = query(

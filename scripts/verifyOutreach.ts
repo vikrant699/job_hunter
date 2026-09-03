@@ -1,9 +1,4 @@
-/**
- * Standalone verify pass for one profile's mailbox, outside the daily tick.
- *   npm run verify-outreach -- --profile vikrant
- * Runs runVerify() then projectToSheet() and prints the summary. `--profile` does double duty:
- * it selects both the loaded config/profiles/<name>/profile.ts AND the Gmail/Sheets token file.
- */
+// Standalone verify pass for one profile's mailbox, outside the daily tick.
 import "dotenv/config";
 import { runVerify } from "../src/outreach/verify.js";
 import { projectToSheet } from "../src/outreach/sheetSync.js";

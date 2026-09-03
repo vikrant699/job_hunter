@@ -1,7 +1,5 @@
-// src/ats/jobsoid.ts — Jobsoid career sites (<tenant>.jobsoid.com), server-rendered, all postings on one
-// page (no pagination observed); some tenants redirect to a custom domain.
-// A subdomain Jobsoid does NOT host also redirects, but to the vendor's shared portal.jobsoid.com — see
-// assertJobsoidTenantExists. fetchJd re-fetches the per-job page's schema.org JobPosting JSON-LD (list page has no JD).
+// list: <tenant>.jobsoid.com, server-rendered, all postings on one page (no pagination observed); some tenants redirect to a custom domain
+// jd: re-fetches the per-job page's schema.org JobPosting JSON-LD (list page has no JD)
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -22,22 +20,18 @@ const JOBSOID_PORTAL_HOST = "portal.jobsoid.com";
 /** Host of an absolute URL, `www.`-insensitive. Null when unparseable. */
 function hostOf(url: string): string | null {
   try {
-    // URL already lowercases the host and drops path/query, so comparing this
-    // is inherently insensitive to a trailing slash or a ?notfound=true.
+    // URL already lowercases the host and drops path/query, so comparing this is inherently insensitive to a trailing slash or a ?notfound=true.
     return new URL(url).host.replace(/^www\./, "");
   } catch {
     return null;
   }
 }
 
-/** Throw when the board was served from Jobsoid's shared portal.jobsoid.com instead of the tenant.
- *  A dead subdomain doesn't 404: it 200s and redirects to the portal (a cross-tenant search with no
- *  a.jobDetailsLink anchors), which used to parse as a healthy empty board forever. Keyed on the portal
- *  host specifically (not "left the tenant host") because custom-domain redirects are normal and
- *  legitimate here; checked before parsing since the portal embeds other employers' postings. */
+/** Throws when the board was served from JOBSOID_PORTAL_HOST instead of the tenant: a dead subdomain 200s and redirects there instead of 404ing, and the portal embeds other employers' postings, so this must be checked before parsing. */
 export function assertJobsoidTenantExists(base: string, finalUrl: string): void {
   const actual = hostOf(finalUrl);
   // An unparseable URL says nothing about the board, so stay quiet rather than turn it into a company failure.
+  // Keyed on the portal host specifically (not "left the tenant host") since custom-domain redirects are normal and legitimate here.
   if (actual === null || actual !== JOBSOID_PORTAL_HOST) return;
 
   throw new Error(
@@ -47,11 +41,7 @@ export function assertJobsoidTenantExists(base: string, finalUrl: string): void 
   );
 }
 
-/**
- * Parse the tenant's board HTML into postings. `baseUrl` should be the
- * post-redirect URL the HTML was actually served from, so relative `/j/...`
- * links resolve to the real (possibly custom-domain) host.
- */
+/** Parse the tenant's board HTML into postings; `baseUrl` should be the post-redirect URL so relative `/j/...` links resolve to the real (possibly custom-domain) host. */
 export function parseJobsoidList(html: string, baseUrl: string, company: AdapterCompany): NormalizedPosting[] {
   const $ = cheerio.load(html);
   const out: NormalizedPosting[] = [];
@@ -75,8 +65,7 @@ export function parseJobsoidList(html: string, baseUrl: string, company: Adapter
 
     seen.add(id);
     const row = $(el).closest("li");
-    // Per-item location next to the address icon; some tenants have none and instead group jobs under
-    // `.list-title` headers — inherit the nearest preceding group title in that case.
+    // Per-item location next to the address icon; some tenants have none and instead group jobs under `.list-title` headers — inherit the nearest preceding group title in that case.
     const perItem = collapseWs(row.find(".sub-title .r-space:has(i.tek-address)").first().text());
     const groupTitle = perItem === "" ? collapseWs(row.closest("ul.list").prevAll(".list-title").first().text()) : "";
     const location = perItem || groupTitle || null;

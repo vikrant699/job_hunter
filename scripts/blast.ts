@@ -1,8 +1,4 @@
-/**
- * Weekly blast for the Raw Data tab.
- *   npm run blast -- --profile divya [--limit N] [--verify-only] [--force]
- * Drafts only, never sends. Doesn't import src/profile.ts - only needs the Gmail/Sheets token identity.
- */
+// Weekly blast for the Raw Data tab; drafts only, never sends. Doesn't import src/profile.ts - only needs the Gmail/Sheets token identity.
 import "dotenv/config";
 import { assertGoogleTokenValid } from "../src/google/auth.js";
 import { runBlast } from "../src/blast/run.js";

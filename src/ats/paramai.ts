@@ -1,5 +1,5 @@
-// src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai). One unauthenticated GET
-// returns every posting grouped by department, with the JD inline. apiMeta.subdomain selects the tenant.
+// src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai): one unauthenticated GET returns every posting grouped by department, with the JD inline.
+// apiMeta.subdomain selects the tenant.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

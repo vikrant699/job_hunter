@@ -1,4 +1,3 @@
-// src/ats/__tests__/jio.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseJioFunctions, parseJioRows, parseJioJd, jioNextIsClickable } from "../jio.js";

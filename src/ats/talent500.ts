@@ -1,13 +1,5 @@
-// src/ats/talent500.ts — Talent500 (by ANSR), a shared JSON REST job-board
-// aggregator hosting many India GCCs on one host. list: GET prod-warmachine.talent500.co
-// /api/v3/jobs/search/?company_slug=<slug>&offset=<N>&size=<SIZE>, paginated via the
-// response's search_after cursor (offset is accepted but ignored). detail: GET
-// .../api/jobs/<job.slug>/ — JD built by concatenating role_summary/description/
-// responsibilities/what_you_need_to_succeed, then stripping HTML. Public job URL
-// talent500.com/jobs/<job.slug> is also the source of the detail slug (the API's
-// `id` is a uuid, not usable against the detail endpoint).
-// An unknown company_slug is silently dropped and the endpoint answers with the
-// WHOLE aggregator at HTTP 200 — see talent500FilterWasIgnored / assertTalent500TenantExists.
+// src/ats/talent500.ts — Talent500 (by ANSR), a shared JSON REST job-board aggregator hosting many India GCCs on one host.
+// List: GET prod-warmachine.talent500.co/api/v3/jobs/search/?company_slug=<slug>&offset=<N>&size=<SIZE>, paginated via the response's search_after cursor (offset accepted but ignored). Detail: GET .../api/jobs/<job.slug>/, JD built by concatenating role_summary/description/responsibilities/what_you_need_to_succeed then stripping HTML; the public job URL talent500.com/jobs/<job.slug> is also the source of the detail slug, since the API's `id` is a uuid not usable against the detail endpoint.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -85,17 +77,14 @@ export function talent500CompanyUrl(companySlug: string): string {
   return `${API_ORIGIN}/api/companies/${encodeURIComponent(companySlug)}/`;
 }
 
-// True when the server plainly did NOT apply our company_slug filter: an unknown slug 200s with the whole
-// aggregator instead of rejecting, so we require at least one returned row to actually belong to this company.
-// Rows carrying no company object leave the question unanswerable and deliberately return false there.
+// True when the server plainly did NOT apply our company_slug filter: an unknown slug 200s with the whole aggregator instead of rejecting, so we require at least one returned row to actually belong to this company (rows carrying no company object leave the question unanswerable and deliberately return false).
 export function talent500FilterWasIgnored(rows: readonly Talent500Job[], companySlug: string): boolean {
   const rowSlugs = rows.map((r) => r.company?.slug).filter((s): s is string => typeof s === "string" && s !== "");
   if (rowSlugs.length === 0) return false;
   return !rowSlugs.includes(companySlug);
 }
 
-// Throws only on a definitive 404; a 400 "Not Published" means the company exists but has no public profile
-// (a healthy board), and a transport failure here says nothing about the tenant.
+// Throws only on a definitive 404; a 400 "Not Published" means the company exists but has no public profile (a healthy board), and a transport failure here says nothing about the tenant.
 export async function assertTalent500TenantExists(companySlug: string): Promise<void> {
   const url = talent500CompanyUrl(companySlug);
   let status: number;

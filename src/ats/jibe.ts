@@ -1,6 +1,5 @@
-// src/ats/jibe.ts — Jibe (iCIMS CX) career sites. GET <host>/api/jobs?page=N returns
-// { jobs: [{data}], totalCount } with the full JD inline (no per-job fetch).
-// Page size is server-fixed (10 seen so far, ignores any size param — inferred from page 1); the WAF 403s non-browser UAs, so BROWSER_UA is used.
+// list: GET <host>/api/jobs?page=N -> { jobs: [{data}], totalCount }, full JD inline (no per-job fetch)
+// page size is server-fixed (10 seen so far, ignores any size param — inferred from page 1); WAF 403s non-browser UAs
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -68,8 +67,7 @@ export const jibeAdapter: AtsAdapter = {
       company: company.slug,
       // Page-size params are ignored; short-page checks run before totalCount, so infer size from page 1.
       pageSize: "infer",
-      // totalCount is optional; when absent with full pages, the exact-page-repeat stall guard is the only
-      // terminator for a board that ignores `page`, and it needs this stable key.
+      // totalCount is optional; when absent with full pages, the exact-page-repeat stall guard is the only terminator for a board that ignores `page`, and it needs this stable key.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         const json = await atsFetchJson(jibeApiUrl(company, page + 1), {

@@ -1,9 +1,5 @@
-// src/ats/ripplehire.ts — RippleHire candidate career boards (<tenant>.ripplehire.com). Token
-// discovery: GET /candidate/careers 302s to /candidate/?token=<TOKEN>&source=CAREERSITE, a permanent
-// per-tenant short-link code (not a session secret), discovered once and reused. List endpoint
-// replies with XML unless the request sends Accept: application/json (atsFetchFormJson always does).
-// externalId is jobSeq (falls back to jobId — same value on every tenant seen, but jobSeq is what
-// the detail endpoint expects).
+// src/ats/ripplehire.ts — RippleHire candidate career boards (<tenant>.ripplehire.com): GET /candidate/careers 302s to /candidate/?token=<TOKEN>&source=CAREERSITE, a permanent per-tenant short-link code (not a session secret), discovered once and reused.
+// The list endpoint replies with XML unless the request sends Accept: application/json (atsFetchFormJson always does).
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -90,6 +86,7 @@ export function ripplehireBoardUrl(base: string, token: string): string {
   return `${base}/candidate/?token=${encodeURIComponent(token)}&source=CAREERSITE`;
 }
 
+// externalId is jobSeq (falls back to jobId, same value on every tenant seen) — jobSeq is what the detail endpoint expects.
 // Null when the job has neither jobSeq nor jobId (no stable id / JD key), so the caller can skip it.
 export function normalizeRipplehire(
   company: AdapterCompany,
@@ -125,8 +122,7 @@ export const ripplehireAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
     const token = await resolveRipplehireToken(company, base);
-    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside
-    // the fetchPage closure defeats TS's narrowing).
+    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside the fetchPage closure defeats TS's narrowing).
     const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({
@@ -150,8 +146,7 @@ export const ripplehireAdapter: AtsAdapter = {
         const items = rawJobs
           .map((j) => normalizeRipplehire(company, token, j))
           .filter((p): p is NormalizedPosting => p !== null);
-        // Advance by the raw record count, not the filtered count, so jobs
-        // dropped for a missing id don't shorten the page and stop early.
+        // Advance by the raw record count, not the filtered count, so jobs dropped for a missing id don't shorten the page and stop early.
         return { items, total: parsed.totalJobCount ?? null, rawCount: rawJobs.length };
       },
     });

@@ -1,14 +1,4 @@
-/**
- * Slug-probe utility.
- *
- * Usage:
- *   npm run probe -- razorpay
- *   npm run probe -- razorpay swiggy meesho
- *
- * For each candidate company name, tries plausible slugs against every supported
- * ATS and reports the first hit. Used during seed compilation to classify names
- * into ats-api vs llm-scrape strategies.
- */
+// For each candidate company name, tries plausible slugs against every supported ATS and reports the first hit; used during seed compilation to classify names into ats-api vs llm-scrape strategies.
 import { ATS_URL_BUILDERS, probeJsonBoard } from "./atsProbes.js";
 
 const PROBE_PROVIDERS = ["greenhouse", "lever", "ashby"] as const;

@@ -1,4 +1,3 @@
-// src/ats/peoplehum.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { peoplehumListUrl, peoplehumJobs, isPeoplehumPrivate, normalizePeoplehum } from "../peoplehum.js";

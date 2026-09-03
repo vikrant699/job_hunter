@@ -1,4 +1,3 @@
-// src/ats/feishu.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeFeishu, feishuLocation, feishuAdapter } from "../feishu.js";

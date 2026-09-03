@@ -1,4 +1,3 @@
-// src/google/sheets.ts
 import { z } from "zod";
 import { googleFetchJson, requireSpreadsheetId, CellsSchema } from "./rest.js";
 import type { RestDeps } from "./rest.js";

@@ -1,10 +1,5 @@
-// src/ats/mediatek.ts — MediaTek careers (custom Next.js + tRPC API).
-// GET /api/trpc/job.getJobs?batch=1&input=<urlencoded JSON> returns
-// [{ result: { data: { json: { status, jobs:[...], pagination } } } }].
-// There is no "India" location filter and no location field on job objects —
-// India postings are reached by querying one request PER CITY CODE (locations
-// filter), tagging each result with the queried city, and deduping by job id
-// across cities. Bare-curl clean, no cookie needed.
+// list: GET /api/trpc/job.getJobs?batch=1&input=<urlencoded JSON> -> [{ result: { data: { json: { status, jobs[], pagination } } } }]
+// no India filter or location field on jobs; query once per city code (locations filter), tag results with the queried city, dedupe by job id across cities
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -19,7 +14,6 @@ const PAGE_LIMIT = 100;
 // India city codes: Bangalore, Noida, Mumbai.
 export const DEFAULT_MEDIATEK_CITY_CODES = ["0000168800", "0000009297", "9021"];
 
-// Job objects carry no usable location field; tag postings with the queried city instead.
 const CITY_LABELS: Record<string, string> = {
   "0000168800": "Bangalore",
   "0000009297": "Noida",

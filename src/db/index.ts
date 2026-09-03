@@ -1,5 +1,4 @@
 // Pure barrel — re-exports every public symbol from the db sub-modules.
-// All importers outside src/db/ continue to use this path unchanged.
 
 export { db, queryAll, queryOne } from "./db.js";
 export * from "./apiMeta.js";

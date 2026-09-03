@@ -1,7 +1,5 @@
-// src/ats/advantageclub.ts — Advantage Club's own careers board (app.advantageclub.ai), single-company, no auth.
-// List: GET /api/v1/career/jobs?page=&per_page= (only a short_description teaser, not the full JD).
-// Detail: GET /api/v1/career/jobs/<numeric id> (keyed by numeric id, NOT the slug - the slug path 404s).
-// Public job URL is /pages/ac_career/vacancy_details/<id> on the marketing site, same numeric id.
+// list: GET /api/v1/career/jobs?page=&per_page= -> {jobs[]} (only a short_description teaser, not the full JD)
+// jd: GET /api/v1/career/jobs/<numeric id> (keyed by numeric id, NOT the slug - the slug path 404s)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -79,7 +77,6 @@ export function normalizeAdvantageClubJob(company: AdapterCompany, j: AdvantageC
   };
 }
 
-/** Concatenates whichever JD-bearing fields are present, then strips HTML. Throws if none yield text. */
 export function buildAdvantageClubJd(detail: AdvantageClubDetail): string {
   const parts = [
     detail.description,

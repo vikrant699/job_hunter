@@ -1,6 +1,5 @@
 // src/ats/sfunify.ts — SAP SuccessFactors CSB "Unify" skin (e.g. careers.wipro.com, careers.hcltech.com, jobs.standardchartered.com, careers.skyworksinc.com).
 // List: POST <origin>/services/recruiting/v1/jobs (page size server-fixed at 10). Detail: GET <origin>/job/<urlTitle>/<id>-<locale>, SSR HTML with the JD in one or more <span itemprop="description"> blocks.
-// KNOWN LIMITATION: pageNumber-based pagination isn't fully deterministic - the same page can return a different 10-item slice on repeat requests (looks like backend replicas with different orderings), so a single crawl can undercount unique postings by ~10-20%. We dedupe by externalId and retry an all-duplicate page once; missed postings are expected to surface in a later scheduled crawl.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -154,7 +153,7 @@ export const sfunifyAdapter: AtsAdapter = {
       provider: "sfunify",
       company: company.slug,
       pageSize: PAGE,
-      // Page slicing isn't reliably tied to pageSize (see module header) - only an empty page or reaching totalJobs ends pagination.
+      // KNOWN LIMITATION: pageNumber-based pagination isn't fully deterministic (the same page can return a different 10-item slice on repeat requests, i.e. backend replicas with different orderings), so slicing isn't reliably tied to pageSize - only an empty page or reaching totalJobs ends pagination.
       shortPageEndsPagination: false,
       // dedupeBy handles cross-page accumulation; `seen` is tracked separately only so fetchPage can know BEFORE filtering whether a page was 100% already-collected, to decide the retry below.
       dedupeBy: (p) => p.externalId,

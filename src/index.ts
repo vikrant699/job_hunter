@@ -9,8 +9,7 @@ import { profile } from "./profile.js";
 import { runInstahyreAutoApply } from "./instahyre/autoApply.js";
 import type { InstahyreResult } from "./instahyre/autoApply.js";
 
-// No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces);
-// the run body lives in ./runOnce.ts, reached via dynamic import after the sync. Pinned by indexImportGraph.test.ts.
+// No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces) - the run body lives in ./runOnce.ts, reached via dynamic import after the sync; pinned by indexImportGraph.test.ts.
 
 function printUsage(): void {
   console.log(`Usage: npm run <command> [-- --profile <name>]

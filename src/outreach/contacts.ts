@@ -24,9 +24,7 @@ function cellAt(row: string[], index: number): string {
   return (row[index] ?? "").trim();
 }
 
-// Syncs recruiter contacts from two sheet tabs: "Raw Data" (unverified) synced first, then the
-// manual "Recruiters List" (verified) so a contact in both ends up verified with the manual
-// sheet's fields winning; upsertRecruiter's no-downgrade rule keeps a later re-sync from un-verifying.
+// Syncs "Raw Data" (unverified) first, then "Recruiters List" (verified), so a contact in both ends up verified with the manual sheet's fields winning; upsertRecruiter's no-downgrade rule keeps a later re-sync from un-verifying.
 export async function syncContactsFromSheet(
   profileId: string,
   deps: SyncContactsDeps = {},

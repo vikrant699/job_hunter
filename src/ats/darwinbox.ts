@@ -1,7 +1,5 @@
-// src/ats/darwinbox.ts — Darwinbox career portals, two generations:
-// legacy: /ms/candidate/careers + /ms/candidateapi/job?page=N&companyId=main (per-job detail fetch needed).
-// candidatev2: /ms/candidatev2/<token>/careers/... (SPA rewrite); its POST /ms/candidateapi/job/alljobs returns the
-// full JD inline per job, like jibe.ts. Generation is detected from the registered careers/tenant URL.
+// src/ats/darwinbox.ts — legacy: /ms/candidate/careers + /ms/candidateapi/job?page=N&companyId=main (per-job detail fetch needed)
+// candidatev2: /ms/candidatev2/<token>/careers/... SPA; POST /ms/candidateapi/job/alljobs returns full JD inline per job; generation detected from the registered careers/tenant URL
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -40,10 +38,7 @@ export function darwinboxV2Token(company: AdapterCompany): string | null {
   return matchGroup(CANDIDATEV2_RE, raw);
 }
 
-// Darwinbox writes the literal placeholder "Multiple locations" for multi-city requisitions; it carries no geo
-// signal, so passing it through would make checkLocation() wrongly drop the posting as out-of-region - null routes
-// it to the recall-safe title/JD/URL filter instead. Only an EXACT match is a placeholder (a value containing the
-// phrase alongside real cities still carries usable signal).
+// Darwinbox's literal "Multiple locations" placeholder carries no geo signal - null it (EXACT match only) so checkLocation() falls back to the recall-safe title/JD/URL filter instead of wrongly dropping it as out-of-region
 const PLACEHOLDER_LOCATION_RE = /^multiple locations?$/i;
 
 export function darwinboxLocation(raw: string | null | undefined): string | null {
@@ -70,15 +65,13 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
 }
 
 const CAREERS_PATH = "/ms/candidate/careers";
-// Some legacy tenants carry a per-tenant token in the careers path; hardcoding companyId="main" returns 0 jobs
-// for those tenants, so it must be extracted when present.
+// some legacy tenants carry a per-tenant token in the careers path; hardcoding companyId="main" returns 0 jobs for those, so it must be extracted when present
 const LEGACY_TOKEN_RE = /\/ms\/candidate\/(?!careers)([^/]+)\/careers/i;
 export function legacyCompanyId(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
   return matchGroup(LEGACY_TOKEN_RE, raw) ?? "main";
 }
-// Server-rendered deep link (og:title carries the job) for both generations; legacy tenants resolve under
-// candidatev2 with their companyId token, `main` when untokened.
+// server-rendered deep link (og:title carries the job) for both generations; legacy tenants resolve under candidatev2 with their companyId token, "main" when untokened
 export function darwinboxJobUrl(company: AdapterCompany, externalId: string): string {
   const token = darwinboxV2Token(company) ?? legacyCompanyId(company);
   return `${darwinboxTenantBase(company)}/ms/candidatev2/${encodeURIComponent(token)}/careers/jobDetails/${encodeURIComponent(externalId)}`;
@@ -92,8 +85,7 @@ export function darwinboxPagesNeeded(total: number, pageSize: number): number {
   return Math.min(Math.ceil(total / (pageSize || 1)), MAX_LIST_PAGES);
 }
 
-/** Mutates `out` in place; throws (rather than truncating) on a schema mismatch, since a silent break would return
- *  a partial list that looks complete. */
+/** Mutates `out` in place; throws (rather than truncating) on a schema mismatch, since a silent break would return a partial list that looks complete. */
 export function mergeDarwinboxPages(
   company: AdapterCompany,
   out: NormalizedPosting[],
@@ -153,15 +145,13 @@ async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting
   return cleanDarwinboxJd(htmlToText(htmlToText(jd)));
 }
 
-// Darwinbox's rich-text editor saves its own hint text as the JD when the recruiter never typed one; null it so
-// the posting takes the honest no-jd path.
+// Darwinbox's rich-text editor saves its own hint text as the JD when the recruiter never typed one; null it so the posting takes the honest no-jd path
 const PLACEHOLDER_JD_RE = /^please enter job description\.?$/i;
 export function cleanDarwinboxJd(jd: string): string {
   return PLACEHOLDER_JD_RE.test(jd.trim()) ? "" : jd;
 }
 
-// candidatev2: POST /ms/candidateapi/job/alljobs?companyId=<token>, body {companyId, page, sort_option, limit}
-// returns {status, data: [...jobs], job_counts}; each job carries the full HTML-encoded jd (no per-job detail call).
+// candidatev2: POST /ms/candidateapi/job/alljobs?companyId=<token> {companyId,page,sort_option,limit} -> {status, data: jobs[], job_counts}; each job carries full HTML-encoded jd (no per-job detail call)
 const V2_PAGE_SIZE = 10;
 const V2_CAREERS_PATH = (token: string) => `/ms/candidatev2/${token}/careers/allJobs`;
 const V2_API_PATH = (token: string) => `/ms/candidateapi/job/alljobs?companyId=${encodeURIComponent(token)}`;
@@ -244,8 +234,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   return out;
 }
 
-// Fallback only: candidatev2's list already embeds the full jd, so the pipeline's !jdText guard means this
-// normally never runs.
+// fallback only: candidatev2's list already embeds the full jd, so the pipeline's !jdText guard means this normally never runs
 async function fetchJdV2(company: AdapterCompany, token: string, posting: NormalizedPosting): Promise<string> {
   const postings = await listPostingsV2(company, token);
   const match = postings.find((p) => p.externalId === posting.externalId);

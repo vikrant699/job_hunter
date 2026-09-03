@@ -1,6 +1,4 @@
-// src/ats/pinpoint.ts — Pinpoint hosted career sites (<tenant>.pinpointhq.com). A plain GET of
-// GET https://<tenant>.pinpointhq.com/postings.json returns the full board with the complete HTML
-// JD inline, no auth/pagination, so no fetchJd. The feed carries no posting date.
+// src/ats/pinpoint.ts — Pinpoint hosted career sites (<tenant>.pinpointhq.com): GET /postings.json returns the full board with the complete HTML JD inline, no auth/pagination.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -28,9 +26,7 @@ export type PinpointPosting = z.infer<typeof PinpointPostingSchema>;
 
 const ListResponseSchema = z.object({ data: z.array(PinpointPostingSchema) });
 
-// The pinpointhq subdomain frequently differs from both the registry slug and the company's own
-// careers domain, so: use tenant_url only when it is itself a pinpointhq host, else apiMeta.boardSlug,
-// else the slug. Never fall back to careers_url — that's the marketing site, not the board host.
+// The pinpointhq subdomain often differs from the registry slug: use tenant_url only if it's a pinpointhq host, else apiMeta.boardSlug, else the slug — never careers_url (that's the marketing site, not the board host).
 export function pinpointBase(company: AdapterCompany): string {
   if (company.tenantUrl) {
     try {

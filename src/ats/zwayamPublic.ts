@@ -1,20 +1,5 @@
-// src/ats/zwayamPublic.ts — Zwayam career boards reached via the "public" domain-scoped
-// search endpoint, which needs no companyId/tenantGroupId discovery (unlike zwayam.ts's
-// header-based flow):
-//
-//   POST https://public.zwayam.com/jobs/search  (multipart/form-data)
-//     fields: filterCri (same shape as zwayam.ts), domain (tenant host)
-//     -> { code, data: { data: [{ _id, _source: {...} }], totalCount, hasMoreData } }
-//
-// POSTing with only filterCri 400s; adding `domain` (no companyId/header) 200s and returns
-// that tenant's own jobs. Kept as its own provider/file so zwayam.ts's flow stays untouched.
-//
-// Tenants are SHARDED across API hosts, and each host answers `data: null` for the other's
-// tenants, so the host is per-tenant config (apiMeta.apiHost, default public.zwayam.com).
-// Request shape/schema are identical across shards; only the host, served page size (5 vs
-// 10), and which location field a tenant populates differ.
-//
-// One-phase: the JD is inline in _source, same shape/inconsistency as zwayam.ts — no fetchJd needed.
+// list: POST https://public.zwayam.com/jobs/search (multipart/form-data: filterCri same shape as zwayam.ts, domain = tenant host; no companyId/header needed) -> { code, data: { data: [{ _id, _source }], totalCount, hasMoreData } }.
+// POSTing with only filterCri 400s; adding `domain` (no companyId) 200s and returns that tenant's own jobs - kept as its own provider/file so zwayam.ts's flow stays untouched.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -25,12 +10,10 @@ import { REMOTE_RE, paginate, epochMsToIso } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 
-// The shard most tenants live on. Overridden per company by apiMeta.apiHost.
+// The shard most tenants live on (overridden per company by apiMeta.apiHost); tenants are SHARDED across hosts and each host answers data:null for the other's tenants.
 const DEFAULT_API_HOST = "public.zwayam.com";
 
-// `location` is the tenant's own free-text code as typed into their ATS ("Bangalore", "HO");
-// `formattedLocation` is Zwayam's geocoded reading of it. Fields stay optional: this is a
-// supplementary source for one field, so a shape drift here must not fail a whole board.
+// `location` is the tenant's own free-text code as typed into their ATS ("Bangalore", "HO"); `formattedLocation` is Zwayam's geocoded reading of it. Fields stay optional since a shape drift here must not fail a whole board.
 const JobLocationRecordSchema = z.object({
   formattedLocation: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
@@ -76,8 +59,7 @@ export function zwayamPublicFilterCri(paginationStartNo: number): string {
   });
 }
 
-// Unwraps one jobs/search page. Throws on a schema mismatch — callers should let that
-// propagate (a silently-truncated page looks complete).
+// Unwraps one jobs/search page; throws on a schema mismatch (a silently-truncated page looks complete).
 export function zwayamPublicPage(
   raw: JsonValue,
   slug = "zwayam-public",
@@ -99,8 +81,7 @@ function bestJdText(src: z.infer<typeof HitSourceSchema>): string {
   return candidates.reduce((best, c) => (c.length > best.length ? c : best), "");
 }
 
-// Detail endpoint (same shard host): returns the FULL JD in longDescription, which the
-// apic2 shard omits from search hits entirely. Shape captured from the tenant's own Angular detail view.
+// Detail endpoint (same shard host): returns the FULL JD in longDescription, which the apic2 shard omits from search hits entirely; shape captured from the tenant's own Angular detail view.
 const DetailResponseSchema = z.object({
   longDescription: z.string().nullable().optional(),
   shortDescription: z.string().nullable().optional(),
@@ -109,20 +90,13 @@ const DetailResponseSchema = z.object({
 // companyId per registry slug, learned from search hits during listPostings; the detail endpoint requires it.
 const companyIdBySlug = new Map<string, string>();
 
-// Whether a raw location code is the tenant's HEAD-OFFICE marker rather than a place.
-// Zwayam still geocodes these, landing them on real foreign towns (bare "HO" -> Ho, Volta
-// Region, Ghana). Matching is on the CODE, never the geocoded country — a genuinely
-// Ghanaian/Japanese posting is legitimate. The bare code matches case-insensitively; the
-// "<marker> <office name>" form requires the literal uppercase abbreviation so a real "Ho
-// Chi Minh City" code is left alone.
+// Whether a raw location code is the tenant's HEAD-OFFICE marker rather than a place - Zwayam still geocodes these onto real foreign towns (bare "HO" -> Ho, Volta Region, Ghana), so matching is on the CODE, never the geocoded country; the bare code matches case-insensitively, and the "<marker> <office name>" form requires the literal uppercase abbreviation so a real "Ho Chi Minh City" code is left alone.
 function isHeadOfficeCode(code: string | null | undefined): boolean {
   const trimmed = (code ?? "").trim();
   return trimmed.toUpperCase() === "HO" || /^HO\s/.test(trimmed);
 }
 
-// The posting's location from jobLocationRecord: takes the first entry that isn't
-// head-office-coded (not entry [0]) since the head-office artefact sometimes sits first
-// with the real city second in a multi-entry row.
+// The posting's location from jobLocationRecord: takes the first entry that isn't head-office-coded (not entry [0]), since the head-office artefact sometimes sits first with the real city second in a multi-entry row.
 function recordLocation(records: z.infer<typeof HitSourceSchema>["jobLocationRecord"]): string | null {
   for (const rec of records ?? []) {
     if (isHeadOfficeCode(rec.location)) continue;
@@ -132,9 +106,7 @@ function recordLocation(records: z.infer<typeof HitSourceSchema>["jobLocationRec
   return null;
 }
 
-// First non-empty path segment of a URL — the tenant path used in the candidate-facing job
-// URL. NOT always equal to the registry slug (Max Life Insurance: slug "max-life-insurance",
-// tenant path "axismaxlife").
+// First non-empty path segment of a URL - the tenant path used in the candidate-facing job URL; NOT always equal to the registry slug (Max Life Insurance: slug "max-life-insurance", tenant path "axismaxlife").
 export function zwayamPublicTenantPath(url: string): string {
   const first = new URL(url).pathname.split("/").filter(Boolean)[0];
   if (!first) throw new Error(`zwayam-public: could not derive tenant path from URL "${url}"`);
@@ -148,14 +120,8 @@ export function normalizeZwayamPublic(
   tenantPath: string,
 ): NormalizedPosting {
   const src = hit._source;
-  // locationSeparatedbySlash is the shard-dependent field, populated on most of the public
-  // shard's postings and almost none of apic2's; it stays preferred where present (every
-  // previous run keyed on it), and jobLocationRecord backfills the rest.
-  //
-  // A null here is deliberate: it routes the posting to the JD-text fallback in
-  // lateLocationCheck instead of asserting a location known to be wrong. Same contract as
-  // ralphlauren's ungeocoded bucket — do not "fix" it by emitting the geocoded string
-  // without checking isHeadOfficeCode first.
+  // locationSeparatedbySlash is shard-dependent (populated on most public-shard postings, almost none of apic2's) and stays preferred where present; jobLocationRecord backfills the rest.
+  // A null here is deliberate: it routes the posting to lateLocationCheck's JD-text fallback instead of asserting a location known to be wrong - same contract as ralphlauren's ungeocoded bucket, do not "fix" it by emitting the geocoded string without checking isHeadOfficeCode first.
   const slashLocation = (src.locationSeparatedbySlash ?? "").trim();
   const location = slashLocation !== "" ? slashLocation : recordLocation(src.jobLocationRecord);
   const postedMs = src.createdDate ?? src.jobCreatedDate ?? null;
@@ -186,11 +152,9 @@ export const zwayamPublicAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "zwayam-public",
       company: company.slug,
-      // Tenant-set, not engine-set: the two shards serve 5 and 10 rows for the same
-      // request, so any constant would be a guess. Latch the tenant's own first-page row count.
+      // Tenant-set, not engine-set: the two shards serve 5 and 10 rows for the same request, so any constant would be a guess - latch the tenant's own first-page row count.
       pageSize: "infer",
-      // Arms the exact-page-repeat stall guard: without it a board ignoring
-      // paginationStartNo is walked all the way to totalCount re-fetching page 1.
+      // Arms the exact-page-repeat stall guard: without it a board ignoring paginationStartNo is walked all the way to totalCount re-fetching page 1.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
         const raw = await atsFetchJsonMultipart(zwayamPublicSearchUrl(company), {

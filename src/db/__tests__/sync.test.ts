@@ -56,8 +56,6 @@ test("compareState flips exactly outside the skew tolerance", () => {
   assert.equal(compareState(NOW + 5_001, NOW), "local-newer");
 });
 
-/* ===== decideBeforeRun: the fresh-machine case mtime cannot see ===== */
-
 function local(overrides: Partial<LocalDbState> = {}): LocalDbState {
   return { mtimeMs: NOW, bytes: 50_000_000, postings: 118_867, ...overrides };
 }
@@ -80,8 +78,6 @@ test("decideBeforeRun treats an unreadable/tableless local DB as no-local", () =
 test("decideBeforeRun reports no-remote when Drive holds nothing, even for a fresh local", () => {
   assert.equal(decideBeforeRun(local({ postings: 0 }), null), "no-remote");
 });
-
-/* ===== assertPushSafe ===== */
 
 test("assertPushSafe allows a normal push", () => {
   assertPushSafe(local(), 50_000_000, false);
@@ -115,8 +111,6 @@ test("assertPushSafe honours force for a deliberate shrink", () => {
   assertPushSafe(local({ bytes: 51_000_000 }), 609_000_000, true);
   assertPushSafe(local({ postings: 0 }), 50_000_000, true);
 });
-
-/* ===== readLocalState ===== */
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "job-hunter-sync-"));
@@ -159,8 +153,6 @@ test("readLocalState survives a file that is not a database", () => {
   assert.ok(state.bytes > 0, "size still reported so the caller can log it");
 });
 
-/* ===== checkpointWal: busy is transient, not a defect ===== */
-
 /** A WAL-mode database with an open writer connection - both load-bearing, or a closed fixture would leave nothing that can report busy and these tests would pass vacuously. */
 function makeWalDb(path: string, rows: number): DatabaseSync {
   const writer = new DatabaseSync(path);
@@ -192,8 +184,7 @@ test("checkpointWal succeeds on an unheld database", async () => {
   }
 });
 
-// The behaviour that matters: wait for the other connection rather than treating a
-// perfectly ordinary lock as a failed push.
+// The behaviour that matters: wait for the other connection rather than treating a perfectly ordinary lock as a failed push.
 test("checkpointWal retries while another connection holds the DB, then succeeds", async () => {
   const path = join(tempDir(), "wal.db");
   const writer = makeWalDb(path, 3);
@@ -247,8 +238,6 @@ test("checkpointWal throws when frames are still only in the WAL", async () => {
     writer.close();
   }
 });
-
-/* ===== pullDb / pushDb over a stubbed Drive ===== */
 
 const REMOTE_MODIFIED = "2026-08-07T10:30:00.000Z";
 
@@ -441,8 +430,6 @@ test("pushDb honours force for a deliberately shrunken database", async () => {
   });
   assert.equal(forced.action, "uploaded");
 });
-
-/* ===== the profile pin ===== */
 
 test("syncSkipReason allows every profile while DB_SYNC_PROFILE is unset", () => {
   // config reads the env at import; the suite runs without DB_SYNC_PROFILE set.

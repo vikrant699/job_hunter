@@ -1,7 +1,5 @@
-// src/ats/unberry.ts — Unberry ATS (app.unberry.com/careers/<companyId>, e.g. Vahan). Public JSON API at
-// ats-api.unberry.com/api/v3: list GET /job/<companyId>?page&size (no location/JD fields), detail
-// GET /job/job-details/<jobId> (jobDescription/jobRequirements/jobBenefits HTML). companyId is the opaque
-// mongo id from the careers URL; apiMeta.fixedLocation supplies location since the API carries none.
+// src/ats/unberry.ts — Unberry ATS (app.unberry.com/careers/<companyId>, e.g. Vahan). list: GET ats-api.unberry.com/api/v3/job/<companyId>?page&size (no location/JD fields).
+// detail: GET .../job/job-details/<jobId> -> jobDescription/jobRequirements/jobBenefits HTML; companyId is the opaque mongo id from the careers URL, apiMeta.fixedLocation supplies location since the API carries none.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

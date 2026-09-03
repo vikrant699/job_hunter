@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import { normalizeCompanyName, findContacts } from "../match.js";
 import type { RecruiterRow } from "../../db/recruiters.js";
 
-/* ===== normalizeCompanyName ===== */
-
 test("normalizeCompanyName strips legal suffixes and punctuation", () => {
   const cases: Array<[string, string]> = [
     ["Acelucid Technologies Private Limited", "acelucid technologies"],
@@ -31,8 +29,6 @@ test("normalizeCompanyName is idempotent", () => {
   const once = normalizeCompanyName("Acelucid Technologies Private Limited");
   assert.equal(normalizeCompanyName(once), once);
 });
-
-/* ===== findContacts ===== */
 
 function mkRecruiter(overrides: Partial<RecruiterRow> = {}): RecruiterRow {
   return {

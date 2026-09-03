@@ -1,8 +1,4 @@
-/**
- * Standalone Instahyre auto-apply run (phase 0 of `npm run once`, runnable on its own).
- *   npm run instahyre -- --profile vikrant
- * Skips fast when the profile has no INSTAHYRE_EMAIL_<NAME>/INSTAHYRE_PASSWORD_<NAME>, or when the feed has no jobs.
- */
+// Standalone Instahyre auto-apply run; skips fast when the profile has no INSTAHYRE_EMAIL_<NAME>/INSTAHYRE_PASSWORD_<NAME>, or when the feed has no jobs.
 import "dotenv/config";
 import { profile } from "../src/profile.js";
 import { runInstahyreAutoApply } from "../src/instahyre/autoApply.js";

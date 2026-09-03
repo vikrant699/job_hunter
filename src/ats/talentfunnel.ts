@@ -1,11 +1,5 @@
-// src/ats/talentfunnel.ts — Talent Funnel (multi-tenant UK ATS). Every customer's
-// board is backed by one shared JSON API keyed by a per-customer Tenant UUID.
-// list: POST ats-api.talent-funnel.com/js/search/vacancy, header Tenant:<uuid> (required,
-// else 403), body {"limit":5000} returns the whole board in one shot. JD: GET
-// .../js/vacancy/<vacancyId> -> positionProfile.description (HTML) — the list response
-// carries no description. The `?country[0]=IN` URL facet is client-side only and not
-// honored server-side, so we fetch the whole board and let the location filter cut India.
-// The Tenant UUID lives in apiMeta.tenant.
+// src/ats/talentfunnel.ts — Talent Funnel (multi-tenant UK ATS). Every customer's board is backed by one shared JSON API keyed by a per-customer Tenant UUID (apiMeta.tenant).
+// List: POST ats-api.talent-funnel.com/js/search/vacancy, header Tenant:<uuid> (required, else 403), body {"limit":5000} returns the whole board in one shot. Detail: GET .../js/vacancy/<vacancyId> -> positionProfile.description (HTML), since the list response carries no description.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -92,6 +86,7 @@ export const talentfunnelAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const tenant = talentfunnelTenant(company);
+    // The `?country[0]=IN` URL facet is client-side only and not honored server-side, so this fetches the whole board and relies on the location filter to cut India.
     const raw = await atsFetchJson(SEARCH_URL, {
       method: "POST",
       body: { limit: PAGE_LIMIT },

@@ -6,8 +6,6 @@ import { ProviderSchema, ParsingStrategySchema, CompanyStatusSchema } from "../s
 import { db, queryAll } from "./db.js";
 import { parseApiMeta } from "./apiMeta.js";
 
-/* ===== Row schema ===== */
-
 const CompanyDbRowSchema = z.object({
   provider: ProviderSchema,
   slug: z.string(),
@@ -31,8 +29,6 @@ const CompanyDbRowSchema = z.object({
 });
 
 export type CompanyDbRow = z.infer<typeof CompanyDbRowSchema>;
-
-/* ===== Helpers ===== */
 
 export function rowToCompany(r: CompanyDbRow): Company {
   return {
@@ -58,8 +54,6 @@ export function rowToCompany(r: CompanyDbRow): Company {
   };
 }
 
-/* ===== Statements ===== */
-
 const upsertCompanyStmt = db.prepare(`
   INSERT INTO companies (
     provider, slug, name, careers_url, parsing_strategy, status,
@@ -80,8 +74,7 @@ const upsertCompanyStmt = db.prepare(`
     tenant_url       = excluded.tenant_url,
     api_meta         = excluded.api_meta
 `);
-// Not updated on conflict: discovered_via/discovered_at (frozen at first discovery); broken/dormant status (a re-import
-// alone doesn't prove recovery - broken needs a human flip, dormant wakes only via markFetchSuccess).
+// Not updated on conflict: discovered_via/discovered_at (frozen at first discovery); broken/dormant status (a re-import alone doesn't prove recovery).
 
 interface UpsertCompanyRow {
   [key: string]: SQLInputValue;
@@ -189,8 +182,7 @@ export function markFetchFailure(
   });
 }
 
-// Deliberately leaves consecutive_failures and status ALONE — see
-// markTransportFailure. Only the diagnostic columns are written.
+// Deliberately leaves consecutive_failures and status ALONE; only the diagnostic columns are written.
 const markTransportFailureStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at = :now,
@@ -198,8 +190,7 @@ const markTransportFailureStmt = db.prepare(`
   WHERE provider = :provider AND slug = :slug
 `);
 
-/** Records a transport-layer failure (DNS/socket death) without advancing the consecutive-failure counter that
- *  quarantines a board at 5 - a board that never answered told us nothing about its own health. */
+/** Records a transport-layer failure (DNS/socket death) without advancing the consecutive-failure counter that quarantines a board at 5 - a board that never answered told us nothing about its own health. */
 export function markTransportFailure(
   provider: Provider,
   slug: string,
@@ -239,8 +230,7 @@ const applyDormancyStmt = db.prepare(`
     AND zero_yield_streak >= :minStreak
 `);
 
-/** Parks scrape companies (ats-api is exempt - too cheap to bother) with zero postings for `minStreak` consecutive clean
- *  runs; they re-enter the weekly recheck (selectActiveCompanies) and wake instantly on jobs (markFetchSuccess). */
+/** Parks scrape companies (ats-api is exempt - too cheap to bother) with zero postings for `minStreak` consecutive clean runs; they re-enter the weekly recheck and wake instantly on jobs. */
 export function applyDormancy(minStreak: number = 3): number {
   const result = applyDormancyStmt.run({ minStreak });
   return Number(result.changes);

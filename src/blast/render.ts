@@ -1,6 +1,4 @@
-// Variant rotation + company-mention personalization for blast emails. Subject/opener text is
-// per-profile, user-approved verbatim, in config/profiles/<profile>/blast-content.json (gitignored).
-// Hard rule: no em dashes in outgoing mail.
+// Variant rotation + company-mention personalization for blast emails; subject/opener text is per-profile, user-approved verbatim, in config/profiles/<profile>/blast-content.json (gitignored). Hard rule: no em dashes in outgoing mail.
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import type { JsonValue } from "../util/json.js";
@@ -22,8 +20,7 @@ export const BlastContentSchema = z.object({
 });
 export type BlastContent = z.infer<typeof BlastContentSchema>;
 
-/** Load + validate a profile's outgoing-content config; throws on structural problems, a missing
- *  {company} token, or any em dash (banned in outgoing mail). */
+/** Load + validate a profile's outgoing-content config; throws on structural problems, a missing {company} token, or any em dash (banned in outgoing mail). */
 export function loadBlastContent(path: string): BlastContent {
   let parsed: JsonValue;
   try {
@@ -86,8 +83,7 @@ export interface RenderInput {
   content: BlastContent;
   company: string;
   contactName: string | null;
-  /** Global 0-based index over every address ever drafted; drives rotation so subject x opener
-   *  combos all appear before any repeats. */
+  /** Global 0-based index over every address ever drafted; drives rotation so subject x opener combos all appear before any repeats. */
   rotationIndex: number;
 }
 

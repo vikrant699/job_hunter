@@ -1,11 +1,5 @@
-// src/ats/peoplehum.ts — peopleHum shared career-site API (e.g. hire.peoplehum.com/<tenant>).
-// Clean JSON list API: GET .../customer/<customerId>/external/job/list returns
-// { responseObject: { content: Job[], ... }, status } with the FULL job
-// description inline (both plain-text `description` and rich `descriptionHTML`).
-// No pagination fields observed — treated as a flat list. `company.slug` is the
-// numeric customerId (as a string); the public careers site is a client-rendered
-// Angular SPA with no server-rendered per-job URL, so `jobUrl` falls back to the
-// tenant's careers page for every posting.
+// src/ats/peoplehum.ts — peopleHum shared career-site API (e.g. hire.peoplehum.com/<tenant>): GET .../customer/<customerId>/external/job/list returns { responseObject: { content: Job[] } } with the full description inline (plain-text `description` and rich `descriptionHTML`).
+// No pagination fields observed — treated as a flat list.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -41,6 +35,7 @@ const PeoplehumResponseSchema = z.object({
   }),
 });
 
+// `company.slug` is the numeric customerId (as a string).
 export function peoplehumListUrl(company: AdapterCompany): string {
   return `https://webapi.peoplehum.com/api/web/internal-api/customer/${company.slug}/external/job/list`;
 }
@@ -66,6 +61,7 @@ export function normalizePeoplehum(company: AdapterCompany, j: PeoplehumJob): No
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
+    // The public careers site is a client-rendered Angular SPA with no server-rendered per-job URL, so jobUrl falls back to the tenant's careers page.
     jobUrl: company.careersUrl,
     location,
     isRemote: Boolean(j.isRemote) || REMOTE_RE.test(`${j.workPlaceType ?? ""} ${location ?? ""}`),

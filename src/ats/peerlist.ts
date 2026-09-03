@@ -1,8 +1,5 @@
-// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io), a server-rendered
-// Next.js page whose `<script id="__NEXT_DATA__">` island carries props.pageProps.careersList
-// (board postings) and jobData (populated only on a single job's own page). No live board has ever
-// had postings to observe, so the per-item schema is deliberately tolerant: multiple candidate keys
-// for id/title/location, and .passthrough() for unknown fields.
+// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io): a server-rendered Next.js page's `<script id="__NEXT_DATA__">` island carries props.pageProps.careersList (list).
+// jobData is populated only on a single job's own page, used by fetchJd.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -21,6 +18,7 @@ const LooseLocationPartSchema = z.object({
   country: z.string().nullable().optional(),
 });
 
+// No live board has ever had postings to observe, so the schema is deliberately tolerant: multiple candidate keys for id/title/location, and .passthrough() for unknown fields.
 export const PeerlistJobLikeSchema = z
   .object({
     id: z.union([z.string(), z.number()]).nullable().optional(),

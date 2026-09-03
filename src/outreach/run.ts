@@ -79,8 +79,7 @@ interface CompanyGroup {
   postings: OutreachNotifiedPosting[];
 }
 
-/** Groups by normalized company name so near-duplicate registry entries ("Wipro" vs "Wipro Limited")
- *  don't produce two drafts to the same recruiter; display name is the first spelling seen. */
+/** Groups by normalized company name so near-duplicate registry entries ("Wipro" vs "Wipro Limited") don't produce two drafts to the same recruiter; display name is the first spelling seen. */
 export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
   const byKey = new Map<string, CompanyGroup>();
   const order: CompanyGroup[] = [];
@@ -154,8 +153,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   let draftsCreated = 0;
   let undraftedCount = 0;
   let companiesMatched = 0;
-  // Tracks in-run duplicates: two different companies can resolve to the same recruiter
-  // (alt-name matches), and the in-DB cooldown only reflects pre-run state.
+  // Tracks in-run duplicates: two different companies can resolve to the same recruiter (alt-name matches), and the in-DB cooldown only reflects pre-run state.
   const draftedThisRun = new Set<string>();
 
   for (const group of groupByCompany(eligiblePostings)) {

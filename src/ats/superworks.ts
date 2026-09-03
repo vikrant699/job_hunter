@@ -68,15 +68,7 @@ export function superworksTenantName(html: string): string | null {
   return result.data.companyInfo.companyName.trim() || null;
 }
 
-/**
- * A subdomain Superworks doesn't host still answers 200 with the generic
- * Next.js shell and no initialData at all - indistinguishable from a real
- * tenant with zero open jobs, except a real tenant (even with nothing open)
- * still resolves initialData.companyInfo.companyName from the subdomain.
- * Runs only after a zero-row parse, so a page that yielded postings can
- * never be failed by this. A bot-blocker's challenge page also carries no
- * initialData, so it's checked for first and thrown infrastructure-shaped.
- */
+/** A subdomain Superworks doesn't host still answers 200 with the generic Next.js shell and no initialData at all - indistinguishable from a real tenant with zero open jobs, except a real tenant (even with nothing open) still resolves initialData.companyInfo.companyName from the subdomain; a bot-blocker's challenge page also carries no initialData, so it's checked for first and thrown infrastructure-shaped. */
 export function assertSuperworksTenantExists(html: string, slug: string, listUrl: string): void {
   if (superworksTenantName(html) !== null) return;
   assertNotEdgeChallenge("superworks", listUrl, html);

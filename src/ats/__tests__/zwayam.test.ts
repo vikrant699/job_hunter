@@ -1,4 +1,3 @@
-// src/ats/zwayam.test.ts
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
@@ -122,12 +121,7 @@ test("normalizeZwayam: falls back to the numeric id in the job URL when jobUrl s
   assert.equal(p.jobUrl, "https://careers.cyient.com/cyient/jobview/42");
 });
 
-// Zwayam needs no dead-tenant guard: an unhosted domain answers 200 with data.data
-// absent, which parseOrThrow already fails instead of reading as an empty board.
-// The tenant selector is `domain`, not companyId - a wrong companyId still returns
-// the domain's own jobs, so no combination of stale tokens yields a silent [].
-// The tenant/group endpoint is deliberately not used as an existence oracle: it
-// answers blank for a healthy tenant (Livspace) same as for a bogus host.
+// Zwayam needs no dead-tenant guard: an unhosted domain answers 200 with data.data absent, which parseOrThrow already fails instead of reading as an empty board; the tenant selector is `domain`, not companyId, so a wrong companyId still returns the domain's own jobs and no combination of stale tokens yields a silent []; the tenant/group endpoint is deliberately not used as an existence oracle since it answers blank for a healthy tenant (Livspace) same as for a bogus host.
 
 const liveCompany: AdapterCompany = {
   provider: "zwayam", slug: "cult", name: "Cult.fit",

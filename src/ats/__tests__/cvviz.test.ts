@@ -1,4 +1,3 @@
-// src/ats/__tests__/cvviz.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cvvizEmployerId, cvvizDisplaySlug, cvvizJobsUrl, cvvizLocation, normalizeCvviz, parseCvvizPage } from "../cvviz.js";

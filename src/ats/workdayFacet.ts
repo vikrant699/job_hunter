@@ -4,8 +4,7 @@ import { JsonValueSchema } from "../util/json.js";
 
 export interface DiscoveredFacet {
   param: string;
-  // Every facet-value id that selects India: one on tenants with a real country facet,
-  // several on tenants whose only location facet has composite per-city leaves (hpe exposes 36).
+  // Every facet-value id that selects India: one on tenants with a real country facet, several on tenants whose only location facet has composite per-city leaves (hpe exposes 36).
   uuids: string[];
 }
 
@@ -13,9 +12,7 @@ interface WorkdayUrlPartsForFacet {
   cxsBase: string;
 }
 
-// Exact-token match after splitting on comma/dash/whitespace — NEVER a substring test,
-// which would select "Indiana"/"Indianapolis" leaves (live false-positives on 7 US
-// tenants). Covers variants like "Ahmedabad, Gujarat, India", "India - Chennai", "India Remote".
+// Exact-token match after splitting on comma/dash/whitespace - NEVER a substring test, which would select "Indiana"/"Indianapolis" leaves (live false-positives on 7 US tenants); covers "Ahmedabad, Gujarat, India", "India - Chennai", "India Remote".
 export function descriptorIsIndia(descriptor: string): boolean {
   return descriptor.split(/[,\-\s]+/).some((t) => t.toLowerCase() === "india");
 }
@@ -24,8 +21,7 @@ export function descriptorIsIndia(descriptor: string): boolean {
 function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
   if (typeof node !== "object" || node === null || Array.isArray(node)) return null;
 
-  // `nodeId` (the facet-node's own id) is a fallback only used when the node has no
-  // explicit facetParameter — distinct from the leaf value id below.
+  // `nodeId` (the facet-node's own id) is a fallback only used when the node has no explicit facetParameter - distinct from the leaf value id below.
   const nodeId = node["id"];
   const paramRaw = node["facetParameter"] ?? nodeId;
   const param = typeof paramRaw === "string" ? paramRaw : null;
@@ -42,9 +38,7 @@ function findIndiaFacetIn(node: JsonValue): DiscoveredFacet | null {
       const descriptor = v["descriptor"];
       const valueId = v["id"];
       if (typeof descriptor !== "string" || typeof valueId !== "string") continue;
-      // Location-ish params take any India-token leaf. Oddly-named params (redhat's country
-      // facet node id is literally "a") only take a BARE "India" leaf, since token-matching
-      // there could select an unrelated text facet.
+      // Location-ish params take any India-token leaf; oddly-named params (redhat's country facet node id is literally "a") only take a BARE "India" leaf, since token-matching there could select an unrelated text facet.
       if (looksLocation ? descriptorIsIndia(descriptor) : /^\s*india\s*$/i.test(descriptor)) {
         uuids.push(valueId);
       }
@@ -73,10 +67,7 @@ export function findIndiaFacet(data: JsonValue): DiscoveredFacet | null {
   return null;
 }
 
-// Facet pinned explicitly in api_meta (facetParam + facetValueIds), for tenants whose only
-// location facet has city leaves with no "India" token (lowes: a flat `locations` facet
-// whose India leaf is just "Bengaluru") — token discovery can't find those without
-// substring-matching city names. Null when either key is absent, falling through to discoverIndiaFacet.
+// Facet pinned explicitly in api_meta (facetParam + facetValueIds), for tenants whose only location facet has city leaves with no "India" token (lowes: a flat `locations` facet whose India leaf is just "Bengaluru"); null when either key is absent, falling through to discoverIndiaFacet.
 export function pinnedFacet(apiMeta: Record<string, string> | null | undefined): DiscoveredFacet | null {
   const param = apiMeta?.facetParam;
   const idsRaw = apiMeta?.facetValueIds;

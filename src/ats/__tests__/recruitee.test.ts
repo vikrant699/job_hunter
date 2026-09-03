@@ -1,4 +1,3 @@
-// src/ats/recruitee.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { recruiteeBase, normalizeRecruitee, postingsFromRecruiteeJson, RecruiteeOfferSchema } from "../recruitee.js";

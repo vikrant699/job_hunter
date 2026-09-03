@@ -1,4 +1,3 @@
-// src/google/rest.test.ts
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { googleFetchJson } from "../rest.js";

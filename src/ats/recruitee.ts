@@ -1,7 +1,5 @@
-// src/ats/recruitee.ts — Recruitee hosted career sites (<tenant>.recruitee.com). A plain GET of
-// https://<tenant>.recruitee.com/api/offers/ returns the full board with description + requirements
-// (both full HTML) inline, no auth/pagination, so no fetchJd needed; filtered defensively to
-// status:"published" even though nothing else has been observed.
+// src/ats/recruitee.ts — Recruitee hosted career sites (<tenant>.recruitee.com): GET /api/offers/ returns the full board with description + requirements (both full HTML) inline, no auth/pagination.
+// Filtered defensively to status:"published" even though nothing else has been observed.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

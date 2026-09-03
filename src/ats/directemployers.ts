@@ -1,8 +1,5 @@
-// src/ats/directemployers.ts — DirectEmployers-network career sites (Nuxt shells on `<company>.jobs` domains,
-// backed by the shared jobsyn.org Solr search API).
-// GET prod-search-api.jobsyn.org/api/v1/solr/search?page=<N>, header x-origin: <tenant .jobs domain> is REQUIRED
-// (a custom header, not the standard Origin - omitting it 403s "Mismatched origin" even from a real browser).
-// apiMeta.origin selects the tenant; JD is inline in `description`.
+// list: GET prod-search-api.jobsyn.org/api/v1/solr/search?page=<N>, header x-origin: <tenant .jobs domain> REQUIRED (custom header, not Origin; omitting it 403s "Mismatched origin")
+// apiMeta.origin selects the tenant; JD is inline in description, no fetchJd needed
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -102,8 +99,7 @@ export const directemployersAdapter: AtsAdapter = {
         const items = parsed.jobs
           .map((j) => normalizeDeJob(company, j))
           .filter((p): p is NormalizedPosting => p !== null);
-        // total_pages is re-read from every response (not latched from page 1); once this page is the last one,
-        // `total` is reported as the cumulative offset so paginate() stops right after fetching it.
+        // total_pages is re-read each response (not latched from page 1); on the last page, total is reported as cumulative offset so paginate() stops.
         const totalPagesNow = parsed.pagination?.total_pages ?? currentPage;
         const isLastPage = currentPage >= totalPagesNow;
         return {

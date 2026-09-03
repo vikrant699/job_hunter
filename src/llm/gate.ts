@@ -82,8 +82,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
     jdText: input.jdText.slice(0, config.llm.jdMaxChars),
   });
 
-  // Up to 2 re-asks on parse failure (malformed JSON); each re-ask uses generateOnce() (1 HTTP call)
-  // instead of another full transport-retry cascade, so worst case is 3 + 1 + 1 = 5 calls, not 9.
+  // Up to 2 re-asks on parse failure, each a single generateOnce() call instead of a full transport-retry cascade - worst case 5 HTTP calls, not 9.
   // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
   let lastErr: unknown;
   for (let attempt = 0; attempt <= 2; attempt++) {

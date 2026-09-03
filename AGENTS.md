@@ -199,6 +199,9 @@ change.
   Refactors must be behavior-preserving (the existing suite is the safety net).
 - **Don't reintroduce duplication.** Shared helpers live in `src/util/` and `src/ats/shared.ts`;
   use them.
+- **Comments are at most one line**, state a constraint the code cannot, and are omitted when
+  the code can say it. No block narration, file-tour headers, section dividers, or history.
+  Adapter files may open with at most 2 single-line comments (list + detail endpoint recipes).
 - **Docs use no em dashes** (use regular hyphens or rephrase). A repo owner preference, applied
   to `README.md` and this file.
 - **Commit messages** follow conventional-commit style (`feat:`, `refactor:`, `fix:`, `docs:`,

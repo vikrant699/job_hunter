@@ -4,8 +4,6 @@ import { RecruiterStatusSchema, RecruiterSourceSchema } from "../schemas.js";
 import type { RecruiterStatus, RecruiterSource } from "../schemas.js";
 import { db, queryAll } from "./db.js";
 
-/* ===== Row schema ===== */
-
 const RecruiterRowSchema = z.object({
   email: z.string(),
   company: z.string(),
@@ -23,8 +21,7 @@ const RecruiterRowSchema = z.object({
 
 export type RecruiterDbRow = z.infer<typeof RecruiterRowSchema>;
 
-/** Camel-cased view of a recruiter row, used everywhere outside this module
- *  (including src/outreach/match.ts, which imports only this type). */
+/** Camel-cased view of a recruiter row, used everywhere outside this module (including src/outreach/match.ts, which imports only this type). */
 export interface RecruiterRow {
   email: string;
   company: string;
@@ -57,10 +54,7 @@ function rowToRecruiter(r: RecruiterDbRow): RecruiterRow {
   };
 }
 
-/* ===== Statements ===== */
-
-// Upsert never downgrades status/verified_at: 'bounced' is terminal against imports (only setRecruiterStatus can clear it),
-// and an incoming 'unverified' never overwrites an existing verified/bounced row.
+// Upsert never downgrades status/verified_at: 'bounced' is terminal against imports, and an incoming 'unverified' never overwrites an existing verified/bounced row.
 const upsertRecruiterStmt = db.prepare(`
   INSERT INTO recruiters (
     email, company, company_norm, alt_names_norm, contact_name, phone,

@@ -1,4 +1,3 @@
-// src/ats/adityabirla.test.ts
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeAdityaBirla, adityaBirlaPageUrl } from "../adityabirla.js";

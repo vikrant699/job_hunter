@@ -18,8 +18,7 @@ export function successfactorsSearchUrl(origin: string, startrow: number): strin
   return `${origin}/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=${startrow}`;
 }
 
-// Detecting "board is dead" (parked/re-pointed domain) needs a POSITIVE "the engine rendered" marker, not the results banner or row containers - some live but currently-empty boards have neither (reproducible on any healthy tenant by searching a nonsense keyword).
-// Every J2W page loads /platform/{css,js}/j2w/ assets, including on empty and no-results pages, so its absence (not zero rows) is what marks a dead tenant.
+// Detecting "board is dead" needs a POSITIVE "the engine rendered" marker, not the results banner or row containers (some live but currently-empty boards have neither) - every J2W page loads /platform/{css,js}/j2w/ assets even when empty, so its absence (not zero rows) is what marks a dead tenant.
 const J2W_ENGINE_RE = /\/platform\/(?:css|js)\/j2w\//i;
 
 /** Whether this page came from the Jobs2Web engine at all - see J2W_ENGINE_RE. */
@@ -158,10 +157,7 @@ export function parseSuccessfactorsSearch(
   return { postings, rowCount: rows.length, total: parseSuccessfactorsTotal(html) };
 }
 
-/** Build a placeholder posting for a sitemap id the HTML search never surfaced: jobUrl is the sitemap's own
- *  canonical URL, title is derived from its slug segment (no per-job JSON detail endpoint exists to fetch a
- *  real one cheaply), location stays null (the pipeline's late location check handles that), jdText is filled
- *  by fetchJd exactly like every other posting. */
+/** Placeholder posting for a sitemap id the HTML search never surfaced: jobUrl is the sitemap's own canonical URL, title is derived from its slug segment, location stays null (the pipeline's late location check handles that), jdText is filled by fetchJd like every other posting. */
 function successfactorsPostingFromSitemap(company: AdapterCompany, id: string, url: string): NormalizedPosting {
   const jobTitle = titleFromSitemapUrl(url);
   return {
@@ -250,8 +246,7 @@ export const successfactorsAdapter: AtsAdapter = {
       );
     }
 
-    // Completeness backstop: the paginated HTML walk above can miss rows (unparsed hrefs, a clamped/looping
-    // pager); a job the sitemap knows about but the walk never surfaced is added as a placeholder.
+    // Completeness backstop: the paginated HTML walk above can miss rows (unparsed hrefs, a clamped/looping pager); a job the sitemap knows about but the walk never surfaced is added as a placeholder.
     const seen = new Set(postings.map((p) => p.externalId));
     const out = postings.slice();
     const sitemapIds = await fetchSfSitemapIds(company, "successfactors");

@@ -1,7 +1,3 @@
-// Undici's fetch collapses every connection-level failure into the same opaque "TypeError: fetch failed" and hides the real
-// error in err.cause, which String(err) drops. These helpers walk the cause chain so the stored text names the actual
-// failure (ENOTFOUND, ECONNRESET, ...) and the scheduler can tell a transport fault apart from a board defect.
-
 /** Cause chains are shallow in practice; the cap only guards a cyclic `cause`. */
 const MAX_CAUSE_DEPTH = 5;
 
@@ -13,6 +9,7 @@ function hasStringCode(value: unknown): value is { code: string } {
   return typeof value.code === "string";
 }
 
+// Undici's fetch collapses connection failures into an opaque "TypeError: fetch failed" and hides the real cause in err.cause, which String(err) drops.
 /** Walk `err` and its `cause` chain, outermost first. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 function chain(err: unknown): unknown[] {
@@ -49,8 +46,7 @@ export function describeError(err: unknown): string {
   return missing.length > 0 ? `${text} (${missing.join(",")})` : text;
 }
 
-/** Transport-shaped failures (network/DNS/socket never delivered a response) are retryable and must not count toward a
- *  company's failure quarantine - a dead resolver is not a dead board. HTTP status/schema/config errors are excluded; those came from the board. */
+/** Transport-shaped codes: network/DNS/socket faults where no response was ever delivered - retryable, never counted toward a company's failure quarantine. */
 const TRANSPORT_CODES = new Set([
   "ENOTFOUND", // DNS: no such host
   "EAI_AGAIN", // DNS: temporary resolver failure
@@ -72,8 +68,7 @@ const TRANSPORT_CODES = new Set([
 const TRANSPORT_MESSAGE_RE =
   /fetch failed|socket hang up|network socket disconnected|other side closed|terminated|client network socket|aborted due to timeout/i;
 
-/** AbortSignal.timeout rejects with a DOMException whose name is "TimeoutError"
- *  (it is not always an Error subclass, so match the name, not instanceof). */
+/** AbortSignal.timeout rejects with a DOMException named "TimeoutError" that isn't always an Error subclass, so match by name, not instanceof. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- narrows a caught value, so `unknown` is the input type by construction
 function hasTimeoutName(value: unknown): boolean {
   if (typeof value !== "object" || value === null) return false;
@@ -84,23 +79,18 @@ function hasTimeoutName(value: unknown): boolean {
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isTransportError(err: unknown): boolean {
   if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
-  // A per-call timeout dies on our side of the wire (a large response can outlast the budget under run congestion while the
-  // board itself is healthy); no response was read, so it says nothing about the board.
+  // A per-call timeout dies on our side of the wire; no response was read, so it says nothing about whether the board is healthy.
   if (chain(err).some(hasTimeoutName)) return true;
   return TRANSPORT_MESSAGE_RE.test(describeError(err));
 }
 
-/** V8's JSON.parse failure text. Matched as well as the SyntaxError type so a
- *  rethrow that keeps only the message still classifies. */
+/** V8's JSON.parse failure text, matched alongside the SyntaxError type so a rethrow that keeps only the message still classifies. */
 const JSON_PARSE_MESSAGE_RE = /is not valid JSON|Unexpected end of JSON input/i;
 
-/** The body's first non-space character opened a tag, i.e. it was a document.
- *  `Unexpected token '<'` is V8's own way of saying so when it truncates. */
+/** `Unexpected token '<'` is V8's JSON.parse error when the body's first non-space character opened an HTML tag. */
 const MARKUP_BODY_RE = /Unexpected token '<'|<!doctype\b|<html\b/i;
 
-// Markers that on their own prove a bot-blocker response, not the board: each is a vendor brand token or a sentence a
-// careers page has no reason to contain, since a false positive here would hand a genuinely dead board a permanent excuse.
-// Weaker phrases (generic enough to appear in legitimate app text) are pairing-gated instead, in CHALLENGE_PAIRED_MARKERS.
+// Markers that alone prove a bot-block response (not the board): vendor brand tokens or sentences no careers page would contain; weaker phrases are pairing-gated instead, in CHALLENGE_PAIRED_MARKERS.
 const CHALLENGE_STRONG_MARKERS = [
   /Incapsula incident ID/i, // Imperva/Incapsula block page
   /cf-browser-verification/i, // Cloudflare interstitial body class
@@ -126,8 +116,7 @@ const CHALLENGE_PAIRED_MARKERS: Array<readonly [RegExp, RegExp]> = [
   [/The request could not be satisfied/i, /cloudfront/i],
 ];
 
-/** Longest excerpt of one marker match kept as evidence. Every marker above is a
- *  short fixed phrase, so this only guards a pathological regex. */
+/** Longest excerpt kept as evidence; every marker above is a short fixed phrase, so this only guards a pathological regex. */
 const MARKER_EXCERPT_MAX = 80;
 
 function quoteMatch(re: RegExp, text: string): string | null {
@@ -136,8 +125,7 @@ function quoteMatch(re: RegExp, text: string): string | null {
   return hit === undefined ? null : `"${hit.slice(0, MARKER_EXCERPT_MAX)}"`;
 }
 
-/** The marker text this body matched, quoted (or null). The quote is a short bounded literal substring so it can travel
- *  into `last_error` without carrying a whole document, and re-scanning it still satisfies the same pairing rule. */
+/** The marker text this body matched, quoted (or null); bounded so it can travel into `last_error` without carrying a whole document. */
 export function challengeEvidence(text: string): string | null {
   for (const re of CHALLENGE_STRONG_MARKERS) {
     const quoted = quoteMatch(re, text);
@@ -152,14 +140,12 @@ export function challengeEvidence(text: string): string | null {
   return null;
 }
 
-/** Whether a body is a bot-block/WAF challenge page rather than the board; HTML dead-tenant guards check this first, since a
- *  challenge page has no job rows or engine markup either, indistinguishable otherwise from a genuinely dead host. */
+/** Whether a body is a bot-block/WAF challenge page rather than the board; checked first by dead-tenant guards since a challenge page is otherwise indistinguishable from a dead host. */
 export function looksLikeChallengePage(html: string): boolean {
   return challengeEvidence(html) !== null;
 }
 
-/** Throws an infrastructure-shaped error if `body` is a bot-block page, so an edge refusal never reaches a dead-board verdict.
- *  Quotes the matched marker so the thrown error re-classifies as infrastructure on the way out. */
+/** Throws an infrastructure-shaped error if `body` is a bot-block page, so an edge refusal never reaches a dead-board verdict. */
 export function assertNotEdgeChallenge(provider: string, url: string, body: string): void {
   const evidence = challengeEvidence(body);
   if (evidence === null) return;
@@ -171,17 +157,10 @@ export function assertNotEdgeChallenge(provider: string, url: string, body: stri
   );
 }
 
-// A JSON endpoint answering with an HTML document is an edge interstitial (WAF challenge, rate-limit notice) in front of a
-// healthy board, not a broken one - since it arrives over a live socket with a 2xx status, isTransportError can't see it.
-// Matching is narrow: only a JSON parse failure whose body began with a tag (malformed-but-JSON and truncated bodies stay
-// board defects). An explicit bot-block signature anywhere in the text also counts, covering HTML adapters that never
-// parse JSON and would otherwise see a challenge page as indistinguishable from a dead host.
-
-/** HTTP statuses that are an edge refusing the moment, not the board refusing the request (429 rate limit; 406 is how some
- *  nginx/AppTrana edges answer traffic that looks automated, with the same request succeeding minutes later). Narrow on
- *  purpose - 403/422/5xx stay board defects since those regularly are the board's own application answering. */
+/** 429 (rate limit) and 406 (nginx/AppTrana automated-traffic block) are edge refusals, not the board; 403/422/5xx stay board defects since those are usually the app itself answering. */
 const EDGE_REFUSAL_STATUS_RE = /\bHTTP (?:406|429)\b/;
 
+// Edge-interstitial: a JSON parse failure whose body opened with an HTML tag (a WAF/rate-limit page in front of a healthy board, invisible to isTransportError since it arrives over a live 2xx socket), or an explicit bot-block signature anywhere in the text.
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isEdgeInterstitialError(err: unknown): boolean {
   const text = describeError(err);
@@ -192,8 +171,7 @@ export function isEdgeInterstitialError(err: unknown): boolean {
   return parseFailed && MARKUP_BODY_RE.test(text);
 }
 
-/** Faults from the network or an edge in front of the board, never from the board's own application: retryable and never
- *  chargeable to the company's failure count. Lives here so every caller (scheduler, JD-fetch loop) routes on the same rule. */
+/** Infrastructure fault: network transport OR an edge interstitial, never the board's own application - retryable, never chargeable to the company's failure count. */
 // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
 export function isInfrastructureFault(err: unknown): boolean {
   return isTransportError(err) || isEdgeInterstitialError(err);

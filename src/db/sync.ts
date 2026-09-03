@@ -1,7 +1,3 @@
-// Keeps data/job_hunter.db in step across machines via Drive: a stale local DB makes postingExists() miss postings
-// another machine already processed, redrafting emails to already-contacted recruiters. Two rules: (1) a pull may only
-// run while nothing holds the DB open (openState.ts); (2) mtime alone can't distinguish a fresh machine from an
-// up-to-date one, since db.ts creates the file on import - row counts settle that (decideBeforeRun).
 import {
   readFileSync,
   writeFileSync,
@@ -30,8 +26,7 @@ const SKEW_TOLERANCE_MS = 5_000;
 const SHRINK_REFUSE_RATIO = 0.5;
 
 export interface SyncDeps extends DriveDeps {
-  /** Overrides config.storage.dbPath. Tests set it so a sync never touches the
-   *  real database; production always uses the config value. */
+  /** Overrides config.storage.dbPath; tests set it so a sync never touches the real database. */
   dbPath?: string;
   /** Skip the safety refusals in pushDb. Only ever set from an explicit --force. */
   force?: boolean;
@@ -126,11 +121,7 @@ function alignMtimeToRemote(dbPath: string, remote: DriveFileMeta): void {
   utimesSync(dbPath, seconds, seconds);
 }
 
-/**
- * `PRAGMA wal_checkpoint` returns three values: whether it gave up (busy), how many
- * frames the WAL held (log), and how many it managed to move into the main file
- * (checkpointed).
- */
+/** `PRAGMA wal_checkpoint` returns busy (gave up?), log (WAL frame count), checkpointed (frames moved to the main file). */
 const CheckpointSchema = z.object({
   busy: z.number(),
   log: z.number(),
@@ -161,9 +152,7 @@ function attemptCheckpoint(dbPath: string, busyTimeoutMs: number): z.infer<typeo
   }
 }
 
-/** Folds the WAL into the main file before upload, or newest commits stay in -wal and the upload is silently behind. A TRUNCATE
- *  checkpoint reports busy=1 (not a failure) while another connection holds the DB, so it's retried for 30s; only frames left
- *  uncopied after that (data genuinely missing from disk) fails the push - all-frames-copied-but-untruncated is harmless. */
+/** Folds the WAL into the main file before upload; busy=1 during TRUNCATE means another connection holds the DB (retried for 30s), not a failure - only truly uncopied frames fail the push. */
 export async function checkpointWal(dbPath: string, opts: CheckpointOpts = {}): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? CHECKPOINT_TIMEOUT_MS;
   const retryDelayMs = opts.retryDelayMs ?? CHECKPOINT_RETRY_DELAY_MS;
@@ -299,9 +288,7 @@ export function syncSkipReason(profileId: string): string | null {
   return `DB sync is pinned to profile '${pinned}' via DB_SYNC_PROFILE; '${profileId}' uses a different Google account, so its Drive holds a different backup.`;
 }
 
-/** Pulls when Drive is ahead or local has no real DB yet; warns (doesn't pull) when local is ahead. A failure while deciding only
- *  logs (sync loss shouldn't abort a scrape), but a failure while pulling propagates - a known-stale local DB must stop the run.
- *  Must be called before anything imports db/db.ts; pullDb enforces it. */
+/** A failure while deciding only logs (sync loss shouldn't abort a scrape), but a failure while pulling propagates - a known-stale local DB must stop the run. */
 export async function syncBeforeRun(profileId: string, deps: SyncDeps = {}): Promise<void> {
   const skip = syncSkipReason(profileId);
   if (skip !== null) {

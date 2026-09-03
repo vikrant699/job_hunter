@@ -1,8 +1,5 @@
-// src/ats/adityabirla.ts — Aditya Birla Group shared careers board (careers.adityabirla.com, Next.js).
-// GET /api/v3/jobs?orgunit=<OrgUnit>&offset=<page>&limit=<N>; `orgunit` must match a name from /api/v3/organisations.
-// `offset` is a 0-based PAGE NUMBER, not an item offset; `count` is just this page's size, so pagination ends on a short/empty page.
-// Bearer token has no login endpoint - captured live from the page's own first API request, refreshed on 401. AppTrana WAF requires a browser UA.
-// jobDescription HTML is inline in the list - no detail endpoint; jobUrl falls back to the shared listing page since jobDetailUrl is always empty.
+// list: GET /api/v3/jobs?orgunit=<OrgUnit>&offset=<page>&limit=<N> -> {data[]}; orgunit must match a name from /api/v3/organisations
+// jd: jobDescription HTML is inline in the list - no detail endpoint; jobUrl falls back to the shared listing page since jobDetailUrl is always empty
 import { z } from "zod";
 import type { Request as PlaywrightRequest } from "playwright";
 import type { AtsAdapter } from "./types.js";
@@ -51,7 +48,7 @@ class AuthExpiredError extends Error {
 
 let cachedToken: { value: string; fetchedAt: number } | null = null;
 
-/** Capture the SPA's bearer token by visiting /job-search and reading the Authorization header off its first jobs-API request. */
+// There is no login endpoint for this bearer token: it can only be sniffed from the SPA's own XHRs (AppTrana WAF also requires a browser UA), then reused until a 401 forces recapture.
 async function captureAuthToken(): Promise<string> {
   // Boxed in an object: TS narrowing can't see a `let` reassigned only inside the beforeGoto closure below.
   const captured: { token: string | null } = { token: null };
@@ -90,7 +87,7 @@ async function getAuthToken(forceRefresh: boolean): Promise<string> {
   return value;
 }
 
-/** Build the paged jobs-API URL. `page` is a 0-based PAGE NUMBER (see module doc). */
+// `page` is a 0-based PAGE NUMBER, not an item offset
 export function adityaBirlaPageUrl(orgunit: string, page: number, pageSize: number = PAGE_SIZE): string {
   return `${TENANT_ORIGIN}${JOBS_API_PATH}?orgunit=${encodeURIComponent(orgunit)}&offset=${page}&limit=${pageSize}`;
 }

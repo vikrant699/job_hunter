@@ -1,6 +1,4 @@
-// Phase 0 of `npm run once`: log into Instahyre and click apply/confirm on every matching opportunity.
-// Ported from D:\Random Code\autoclickInstahyre\instahyre (plain-JS Puppeteer bot); fixes its infinite waits
-// (timeout: 0) with finite timeouts everywhere, and never throws out of the run.
+// Phase 0 of `npm run once`: log into Instahyre and click apply/confirm on every matching opportunity; never throws out of the run.
 import { existsSync } from "node:fs";
 import { chromium } from "playwright";
 import type { Browser, Page } from "playwright";
@@ -59,8 +57,7 @@ async function skip(
   return result;
 }
 
-// fill() is atomic so Angular hydration can't swallow leading keystrokes (pressSequentially right after
-// #email appeared dropped the first chars of the email); verify and fall back to slow typing once.
+// Atomic fill so Angular hydration can't swallow leading keystrokes (pressSequentially right after #email appeared dropped the first chars); verifies and falls back to slow typing once.
 async function fillVerified(page: Page, selector: string, value: string): Promise<boolean> {
   const loc = page.locator(selector);
   await loc.click();
@@ -94,8 +91,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
       ...(existsSync(statePath) ? { storageState: statePath } : {}),
     });
     const page = await context.newPage();
-    // networkidle (not domcontentloaded): the AngularJS app pre-renders the per-job apply modals only once
-    // the feed XHRs settle; interacting before that leaves the apply modal absent. Matches the original bot.
+    // networkidle (not domcontentloaded): the AngularJS app pre-renders per-job apply modals only once the feed XHRs settle; interacting before that leaves the apply modal absent.
     await page.goto(INSTAHYRE_URL, { waitUntil: "networkidle", timeout: config.instahyre.navTimeoutMs });
 
     let loggedIn: boolean;
@@ -148,8 +144,7 @@ export async function runInstahyreAutoApply(profileId: string): Promise<Instahyr
     // Persist only a confirmed-good session (#interested-btn present); saving a failed login poisons the next run.
     await context.storageState({ path: statePath });
 
-    // Passed as a string (not a typed function) - this repo's tsconfig has no "DOM" lib, matching
-    // scraper/playwright.ts's precedent for in-page evaluate scripts that touch document/window.
+    // Passed as a string (not a typed function): this repo's tsconfig has no "DOM" lib.
     const clickInterestedScript = `(() => {
       const buttons = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.interestedBtn)}));
       const visibleBtn = buttons.find((btn) => {

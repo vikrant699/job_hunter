@@ -5,9 +5,8 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { tenantOriginOr } from "./shared.js";
 
-// greytHR public recruitment board ("careerbuild" SPA), tenant subdomain <slug>.greythr.com.
-// list: POST /hire/api/career/published_jobs/, JD inline (no fetchJd needed); location IDs have no
-// public id->name map, so location falls back to a JD-text regex (see JD_LOCATION_RE below).
+// tenant subdomain <slug>.greythr.com ("careerbuild" SPA)
+// list: POST /hire/api/career/published_jobs/, JD inline (no fetchJd needed); location IDs have no public id->name map, so location falls back to a JD-text regex (JD_LOCATION_RE)
 
 export const GreythrJobSchema = z.object({
   id: z.string(),
@@ -23,8 +22,7 @@ export type GreythrJob = z.infer<typeof GreythrJobSchema>;
 
 const ListResponseSchema = z.object({ data: z.array(GreythrJobSchema) });
 
-/** Tenant host origin, e.g. "https://firstclub.greythr.com". Prefers an explicit
- *  tenant_url host when set, else builds it from the slug (the subdomain). */
+/** Tenant host origin, e.g. "https://firstclub.greythr.com"; prefers an explicit tenant_url host, else builds it from the slug. */
 export function greythrBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.greythr.com`);
 }
@@ -42,9 +40,7 @@ export const greythrAdapter: AtsAdapter = {
   },
 };
 
-// locations[] are opaque ids with no lookup endpoint; most tenants write the human location into the JD
-// text instead ("Location: Bangalore"), so it's regexed out there. Stops at tag/line boundaries so it
-// doesn't swallow the next field.
+// Stops at tag/line boundaries so it doesn't swallow the next field.
 const JD_LOCATION_RE = /\blocation\s*:\s*([^\n<,;|]{2,60})/i;
 export function greythrLocationFromJd(jdText: string): string | null {
   const m = JD_LOCATION_RE.exec(jdText);

@@ -1,6 +1,4 @@
-// src/ats/happyeasygo.ts — HappyEasyGo single-company JSON API.
-// GET .../heg_api/join/getDepartmentJobList.do returns departments whose real postings are nested in
-// joinUsMessages[]; flattened into one list. workPlace falls back to "Gurugram, India" when null.
+// list: GET .../heg_api/join/getDepartmentJobList.do -> departments[]; real postings nested in joinUsMessages[], flattened into one list
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -38,8 +36,7 @@ const ListSchema = z.object({
   data: z.array(DepartmentSchema),
 });
 
-/** Flatten one department's joinUsMessages into postings; deptIndex feeds the externalId fallback
- *  (departmentId+index) when a position has no own id, stable since positions are only appended. */
+/** Flatten one department's joinUsMessages into postings; deptIndex feeds the externalId fallback (departmentId+index) when a position has no own id. */
 export function flattenDepartment(company: AdapterCompany, dept: HappyEasyGoDepartment): NormalizedPosting[] {
   const positions = dept.joinUsMessages ?? [];
   return positions.map((p, i) => normalizeHappyEasyGo(company, p, dept, i));

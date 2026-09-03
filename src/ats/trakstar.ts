@@ -1,10 +1,5 @@
-// src/ats/trakstar.ts — Trakstar Hire career sites, one tenant per subdomain
-// (<tenant>.hire.trakstar.com), server-rendered, no auth. list: GET <origin>/?p=<N>
-// (pagination param is `p`, NOT `page`, which is silently ignored); follow until a
-// short/empty page. Each posting is a .js-careers-page-job-list-item with an
-// <a href="/jobs/<slug>/">, the slug being the stable external id (no numeric job id).
+// list: GET <origin>/?p=<N> (one tenant per subdomain <tenant>.hire.trakstar.com, server-rendered, no auth) - pagination param is `p`, NOT `page` (silently ignored); follow until a short/empty page; each posting is a .js-careers-page-job-list-item with <a href="/jobs/<slug>/">, slug is the stable external id.
 // jd: GET <origin>/jobs/<slug>/ -> full HTML in div.jobdesciption (vendor's own misspelling).
-// A never-existed subdomain 404s; a CANCELLED tenant answers 200 — see INACTIVE_ACCOUNT_SELECTOR.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -28,15 +23,10 @@ export function parseTrakstarHref(href: string): { slug: string } | null {
   return { slug };
 }
 
-// A cancelled tenant's subdomain keeps serving HTTP 200 with an "Inactive account" notice
-// instead of the board, which used to parse as a healthy zero-job board and never
-// quarantine. The marker is the page's canonical link pointing at Trakstar's shared
-// /inactive-ats notice — machine-readable, present only there, absent on serving boards
-// and on the 404 a never-existed subdomain returns.
+// A cancelled tenant's subdomain keeps serving HTTP 200 with an "Inactive account" notice instead of the board (used to parse as a healthy zero-job board); the marker is the page's canonical link pointing at Trakstar's shared /inactive-ats notice, present only there and absent on serving boards and on the 404 a never-existed subdomain returns.
 const INACTIVE_ACCOUNT_SELECTOR = 'link[rel="canonical"][href*="inactive-ats"]';
 
-// Tolerates a missing location; skips rows missing an href/slug/title; dedupes by slug.
-// Throws when the page is Trakstar's inactive-account notice — see INACTIVE_ACCOUNT_SELECTOR.
+// Tolerates a missing location; skips rows missing an href/slug/title; dedupes by slug; throws when the page is Trakstar's inactive-account notice (see INACTIVE_ACCOUNT_SELECTOR).
 export function parseTrakstarList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -105,15 +95,13 @@ export const trakstarAdapter: AtsAdapter = {
   provider: "trakstar",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Server-paginated via `?p=N`; `total` isn't exposed, so termination relies on the
-    // short-page rule plus the exact-page-repeat stall guard.
+    // Server-paginated via `?p=N`; `total` isn't exposed, so termination relies on the short-page rule plus the exact-page-repeat stall guard.
     return paginate<NormalizedPosting>({
       provider: "trakstar",
       company: company.slug,
       // `?p=N` carries no page size; latch the tenant's own first-page row count instead of assuming 25.
       pageSize: "infer",
-      // Arms the exact-page-repeat stall guard: without a stable per-item key, a tenant
-      // that clamps an out-of-range `p` back to page 1 has nothing to stop it before the runaway cap.
+      // Arms the exact-page-repeat stall guard: without a stable per-item key, a tenant that clamps an out-of-range `p` back to page 1 has nothing to stop it before the runaway cap.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         const html = await atsFetchText(trakstarListUrl(company, page + 1), { provider: "trakstar" });

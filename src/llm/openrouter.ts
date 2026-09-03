@@ -6,9 +6,6 @@ import { parseRetryAfterMs, isRetryableHttpStatus } from "../util/httpRetry.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { LlmUnavailableError } from "./errors.js";
 
-// OpenRouter transport (the sole LLM backend). Rate limits (429) are retried here, not surfaced to client.ts's
-// connection breaker, since they're traffic shaping not a dead backend; auth failures abort immediately instead.
-
 const OpenRouterResponseSchema = z.object({
   choices: z
     .array(z.object({ message: z.object({ content: z.string().nullable().optional() }) }))
@@ -85,8 +82,7 @@ export function classifyOpenRouterStatus(status: number): StatusVerdict {
   return status >= 200 && status < 300 ? "ok" : "perCall";
 }
 
-// The live API answers an unknown model slug with 400 ("not a valid model ID"), not 404 - but a
-// plain 400 is also what an over-long prompt returns (per-call), so the model case is picked out by message.
+// The live API answers an unknown model slug with 400 ("not a valid model ID"), not 404 - but a plain 400 is also what an over-long prompt returns (per-call), so the model case is picked out by message.
 export function refineVerdict(verdict: StatusVerdict, status: number, body: string): StatusVerdict {
   if (verdict === "perCall" && status === 400 && /not a valid model/i.test(body)) {
     return "fatalModel";
@@ -112,8 +108,7 @@ function fatalMessage(verdict: StatusVerdict, status: number, body: string): str
 const API_BASE = "https://openrouter.ai/api/v1";
 const MODEL_ENDPOINTS_BASE = `${API_BASE}/models`;
 
-// Confirms the model slug resolves; only an explicit 404 is treated as a verdict since a 5xx or
-// unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
+// Confirms the model slug resolves; only an explicit 404 is treated as a verdict since a 5xx or unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
 export async function assertModelAvailable(model: string): Promise<void> {
   let res: Response;
   try {
@@ -176,8 +171,7 @@ export async function assertOpenRouterAvailable(): Promise<void> {
 }
 
 // Retries internally ONLY for 429/5xx; every other failure propagates to client.ts's retry/breaker.
-// The whole prompt goes in one user message on purpose: splitting into system+user would change the
-// token prefix and cost prompt-cache hits (~80% of input on a gate call).
+// The whole prompt goes in one user message on purpose: splitting into system+user would change the token prefix and cost prompt-cache hits (~80% of input on a gate call).
 export async function openRouterGenerate(
   prompt: string,
   opts: OpenRouterGenerateOpts,

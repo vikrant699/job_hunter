@@ -1,7 +1,6 @@
 import type { RecruiterRow } from "../db/recruiters.js";
 
-// Trailing-token-only legal suffixes; deliberately excludes "company"/"co" since that's often
-// part of the actual brand name ("Bain & Company") and would collide unrelated firms.
+// Trailing-token-only legal suffixes; deliberately excludes "company"/"co" since that's often part of the actual brand name ("Bain & Company") and would collide unrelated firms.
 const LEGAL_SUFFIXES = new Set([
   "pvt", "private", "ltd", "limited", "inc", "llc", "corp", "corporation",
 ]);
@@ -45,17 +44,14 @@ function domainLabel(email: string): string | null {
 // Guards against short/common labels ("hr", "app") false-positive-matching unrelated companies.
 const MIN_DOMAIN_LABEL_LENGTH = 4;
 
-// EXACT equality only: substring containment was tried and matched dozens of unrelated companies
-// (e.g. @tech...com to 41 registry rows). Misaddressing a recruiter is the worst failure mode here.
+// EXACT equality only: substring containment was tried and matched dozens of unrelated companies (e.g. @tech...com to 41 registry rows) - misaddressing a recruiter is the worst failure mode here.
 function domainHeuristicMatch(companyNormCollapsed: string, email: string): boolean {
   const label = domainLabel(email);
   if (!label || label.length < MIN_DOMAIN_LABEL_LENGTH) return false;
   return label === companyNormCollapsed;
 }
 
-// Match tiers in priority order, stopping at the first with any matches: (a) exact normalized
-// name, (b) normalized alt-name, (c) domain heuristic. Then splits eligible/ineligible (bounced,
-// or drafted within cooldown) and sorts eligible verified-first, then least-recently-drafted first.
+// Match tiers in priority order, stopping at the first with any matches: (a) exact normalized name, (b) normalized alt-name, (c) domain heuristic; then splits eligible/ineligible (bounced, or drafted within cooldown) and sorts eligible verified-first, then least-recently-drafted first.
 export function findContacts(input: FindContactsInput): FindContactsResult {
   const { companyName, candidates, lastDraftedAt, nowMs, cooldownDays } = input;
   const targetNorm = normalizeCompanyName(companyName);
