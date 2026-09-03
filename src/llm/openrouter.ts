@@ -6,7 +6,7 @@ import { parseRetryAfterMs, isRetryableHttpStatus } from "../util/httpRetry.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { LlmUnavailableError } from "./errors.js";
 
-// OpenRouter transport (LOCAL=false). Rate limits (429) are retried here, not surfaced to client.ts's
+// OpenRouter transport (the sole LLM backend). Rate limits (429) are retried here, not surfaced to client.ts's
 // connection breaker, since they're traffic shaping not a dead backend; auth failures abort immediately instead.
 
 const OpenRouterResponseSchema = z.object({
@@ -101,7 +101,7 @@ function fatalMessage(verdict: StatusVerdict, status: number, body: string): str
     case "fatalKey":
       return `OpenRouter rejected the API key (HTTP ${status}): ${detail}. Check OPENROUTER_API_KEY in .env.`;
     case "fatalCredits":
-      return `OpenRouter is out of credits (HTTP ${status}): ${detail}. Top up at https://openrouter.ai/credits, or set LOCAL=true to fall back to Ollama.`;
+      return `OpenRouter is out of credits (HTTP ${status}): ${detail}. Top up at https://openrouter.ai/credits.`;
     case "fatalModel":
       return `OpenRouter has no endpoint for model '${config.llm.openRouterModel}' (HTTP ${status}): ${detail}. Fix OPENROUTER_MODEL in .env.`;
     default:
@@ -130,7 +130,7 @@ export async function assertModelAvailable(model: string): Promise<void> {
   if (res.status === 404) {
     throw new LlmUnavailableError(
       `OpenRouter does not serve a model called '${model}'. Fix OPENROUTER_MODEL in .env ` +
-        `(check the exact slug at https://openrouter.ai/models), or set LOCAL=true to use Ollama.`,
+        `(check the exact slug at https://openrouter.ai/models).`,
     );
   }
   if (!res.ok) {
@@ -141,11 +141,11 @@ export async function assertModelAvailable(model: string): Promise<void> {
   }
 }
 
-/** Pre-flight: key present and accepted, and the configured model served (mirrors assertOllamaAvailable). */
+/** Pre-flight: key present and accepted, and the configured model served. */
 export async function assertOpenRouterAvailable(): Promise<void> {
   if (config.llm.openRouterKey.trim() === "") {
     throw new LlmUnavailableError(
-      "LOCAL=false but OPENROUTER_API_KEY is not set. Add it to .env, or set LOCAL=true to use Ollama.",
+      "OPENROUTER_API_KEY is not set. Add it to .env (create a key at https://openrouter.ai/keys).",
     );
   }
   let res: Response;
@@ -156,7 +156,7 @@ export async function assertOpenRouterAvailable(): Promise<void> {
     });
   } catch (err) {
     throw new LlmUnavailableError(
-      `OpenRouter not reachable (${String(err).slice(0, 120)}). Check connectivity, or set LOCAL=true to use Ollama.`,
+      `OpenRouter not reachable (${String(err).slice(0, 120)}). Check connectivity.`,
     );
   }
   if (res.status === 401) {
@@ -166,7 +166,7 @@ export async function assertOpenRouterAvailable(): Promise<void> {
   }
   if (res.status === 402) {
     throw new LlmUnavailableError(
-      "OpenRouter reports no remaining credits. Top up at https://openrouter.ai/credits, or set LOCAL=true to use Ollama.",
+      "OpenRouter reports no remaining credits. Top up at https://openrouter.ai/credits.",
     );
   }
   if (!res.ok) {
@@ -199,7 +199,7 @@ export async function openRouterGenerate(
           stream: false,
           temperature: opts.temperature ?? 0.2,
           ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
-          // Hosted equivalent of Ollama's think: false - avoids multiplying output tokens with reasoning traces.
+          // Disable reasoning traces - avoids multiplying output tokens.
           reasoning: { enabled: false },
         }),
         signal: AbortSignal.timeout(config.llm.timeoutMs),

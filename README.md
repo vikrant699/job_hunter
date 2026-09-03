@@ -1,14 +1,14 @@
 # job-hunter-bot
 
 A personal job-hunting bot. It pulls postings from a list of companies you care about,
-filters them against your resume and deal-breakers, scores each with a local LLM, records
+filters them against your resume and deal-breakers, scores each with an LLM, records
 the good matches to a Google Sheet, and drafts outreach emails to the matching companies'
 recruiters (drafts only - you review and send). Discord is used only for run status.
 
 You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
-~1,800-company registry (active rows; total rows are higher) takes several hours - most of
-it waiting on the local LLM and on slow JavaScript-rendered careers pages. Incremental runs
-(most postings already seen and deduped from earlier runs) finish much faster.
+~1,800-company registry (active rows; total rows are higher) takes roughly half an hour;
+incremental runs (most postings already seen and deduped from earlier runs) finish in
+minutes.
 
 ## What it looks like
 
@@ -24,16 +24,8 @@ a per-strategy breakdown), and at the end of every run a single summary embed po
 ## What it needs
 
 - Node 22 or newer (uses the built-in `node:sqlite`).
-- An LLM backend. The primary way to run the bot is [OpenRouter](https://openrouter.ai)
-  (`OPENROUTER_API_KEY` in `.env` and `LOCAL=false`). The local alternative is
-  [Ollama](https://ollama.com) with a chat model pulled; the default is `qwen3.5:9b`
-  (Q4_K_M, about 6.6 GB):
-  ```
-  ollama pull qwen3.5:9b
-  ```
-  On an 8 GB GPU it fits with a little CPU offload. Set `OLLAMA_FLASH_ATTENTION=1` and
-  `OLLAMA_KV_CACHE_TYPE=q8_0` in Ollama's environment so the KV cache stays small. To
-  use a different model, set `OLLAMA_MODEL` (and `OLLAMA_NUM_CTX` for the context size).
+- An [OpenRouter](https://openrouter.ai) API key (`OPENROUTER_API_KEY` in `.env`). The
+  default model is set by `OPENROUTER_MODEL`; a full sweep costs a negligible amount.
 - Your resume as a PDF at `config/resume.pdf` (see Getting started).
 - Optionally, a Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for run status: a
   mid-run progress heartbeat every 15 minutes plus the single end-of-run summary embed.
@@ -224,9 +216,8 @@ src/
   google/                auth.ts (per-profile OAuth token refresh), rest.ts
                            (authorized fetch + retry), sheets.ts, gmail.ts, mime.ts
                            (RFC 5322 draft builder)
-  llm/                   the two LLM transports (OpenRouter is the primary way to
-                           run the bot, Ollama the local option); prompts/ holds
-                           gate.ts, extract.ts, shortlist.ts
+  llm/                   the OpenRouter client (semaphore, retry, circuit breaker);
+                           prompts/ holds gate.ts, extract.ts, shortlist.ts
   discord/               webhook helper + progress heartbeat + end-of-run status embed
   outreach/              contact sync from the sheet (contacts.ts), the company/contact
                            matcher (match.ts), the email template (template.ts), the
@@ -304,10 +295,8 @@ playwright-llm-scrape. See `ProviderSchema` in `src/schemas.ts` for the full lis
 The bot creates `data/job_hunter.db` on the first run. SQLite WAL files live there too.
 The `data/` directory is gitignored entirely.
 
-The LLM gate and extract calls go through a semaphore (capped at one concurrent
-generation by default) because Ollama serializes on the GPU anyway. HTTP work inside
-one company fans out across `fetch.workersPerCompany` workers. If you run multiple
-Ollama instances behind a load balancer, raise `llm.maxConcurrent` in `src/config.ts`.
+LLM calls run up to 8 concurrent by default; `LLM_MAX_CONCURRENT` overrides. HTTP work
+inside one company fans out across `fetch.workersPerCompany` workers.
 
 If a careers page is bot-blocked (Cloudflare, Akamai, and the like), the bot does not
 work around it; there is no headless-evasion code. The `manual` parsing strategy exists

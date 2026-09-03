@@ -70,7 +70,6 @@ async function runTickAndOutreach(
 
 /** Report the hosted provider's prompt cache totals for the run (cached vs uncached input is a ~4x cost difference). */
 function logCacheStats(): void {
-  if (config.llm.local) return;
   const stats = getCacheStats();
   if (stats.calls === 0) return;
   const cachedPct =

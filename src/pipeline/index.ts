@@ -193,7 +193,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     // Record the abort reason and propagate; dormancy/summary are skipped since this run's data is suspect.
     const reason = err instanceof LlmUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
     if (err instanceof LlmUnavailableError) {
-      logger.error({ err: err.message }, "run aborted: Ollama became unavailable mid-run");
+      logger.error({ err: err.message }, "run aborted: LLM backend became unavailable mid-run");
     }
     closeRun(reason);
     throw err;

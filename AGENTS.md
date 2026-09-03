@@ -5,7 +5,7 @@ Guidance for AI agents (and humans) working in this repo. Read this before makin
 ## What this is
 
 A personal job-hunting bot. It pulls postings from a registry of companies, filters them
-against the user's resume and deal-breakers, scores each with a local LLM, then drafts
+against the user's resume and deal-breakers, scores each with an LLM, then drafts
 outreach emails to matching companies' recruiters in the profile's Gmail account (drafts
 only - a human reviews and sends). Before drafting, a bounce-only verify pass checks
 yesterday's drafts/sent messages against the mailbox (sent/discarded/bounced/verified) so
@@ -112,14 +112,11 @@ src/
                  fetch + retry), sheets.ts, gmail.ts, mime.ts (pure RFC5322 builder),
                  drive.ts (resumable upload/download of the DB backup; binary, so it
                  cannot use rest.ts's JSON helper)
-  llm/         client.ts (provider-agnostic: semaphore, retry, circuit breaker, and the
-                 LOCAL dispatch); ollama.ts + openrouter.ts (the two transports);
-                 errors.ts (LlmUnavailableError, its own module so both transports can
+  llm/         client.ts (semaphore, retry, circuit breaker facade); openrouter.ts (the
+                 transport - OpenRouter is the only backend, OPENROUTER_API_KEY required);
+                 errors.ts (LlmUnavailableError, its own module so the transport can
                  throw it without importing client.ts); gate.ts, extract.ts, shortlist.ts,
                  extractTextJobs.ts, render.ts; prompts/ holds the prompt strings.
-                 Every llm/ feature must work identically on BOTH backends (Ollama and
-                 OpenRouter) - never build for only one; OpenRouter is the primary way
-                 the bot is run, Ollama the local fallback
   pipeline/    index.ts (run lifecycle), scheduler.ts (concurrency), postingPipeline.ts
   discord/     webhook.ts (shared POST/retry), progress.ts (mid-run heartbeat),
                  status.ts (single end-of-run status embed; the progress channel is the
@@ -276,28 +273,21 @@ change.
   (Desktop-app OAuth client; consent screen in Testing mode means refresh tokens die
   ~weekly - the bot's pre-flight guard names the renew command) and
   `GOOGLE_SPREADSHEET_ID`. Per-profile tokens live at `data/google-token-<name>.json`.
-- **LLM backend** is chosen by `LOCAL` in `.env` (default `true`). Only the exact word
-  `false` switches providers - `LOCAL=1`/`yes`/a typo falls back to local, so a slip never
-  silently spends money. `client.ts` reads the flag at call time and dispatches to
-  `ollama.ts` or `openrouter.ts`; everything above the transport (semaphore, retry,
-  breaker, `generate`/`generateOnce`) is shared, so callers never care which is live.
-  - `LOCAL=true`: **Ollama** with `qwen3.5:9b` pulled. Concurrency 1 (the GPU serializes),
-    90s timeout.
-  - `LOCAL=false`: **OpenRouter** (`OPENROUTER_API_KEY`, default model
-    `deepseek/deepseek-v4-flash-0731` - always a DATED slug, since the undated alias
-    points at an older, dearer build and can move mid-sweep). Concurrency 8, 30s timeout.
-    Pre-flight checks the key AND that the model slug resolves, because a wrong slug
-    otherwise passes pre-flight and then fails on every posting in the sweep.
-    Status handling is a table in `classifyOpenRouterStatus`, and the fatal/per-call split
-    is the whole point of it: **401** (bad key), **402** (no credits) and **404** (no such
-    model) would fail identically on every remaining posting, so they abort the run;
-    **403** is usually a moderation/guardrail block on one JD, so it stays per-posting;
-    **429/5xx** are retried inside the transport with `Retry-After` so a rate limit never
-    trips the backend-down breaker. The prompt goes as ONE user message - splitting it
-    would change the token prefix and lose provider-side prompt-cache hits. The cache
-    hit-rate is logged every 100 calls plus a total at the end of the run; watch it, since
-    cached vs uncached input is roughly a 4x cost difference.
-  - Both override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS`.
+- **LLM backend** is **OpenRouter** (`OPENROUTER_API_KEY`, default model
+  `deepseek/deepseek-v4-flash-0731` - always a DATED slug, since the undated alias
+  points at an older, dearer build and can move mid-sweep). Concurrency 8, 30s timeout.
+  Pre-flight checks the key AND that the model slug resolves, because a wrong slug
+  otherwise passes pre-flight and then fails on every posting in the sweep.
+  Status handling is a table in `classifyOpenRouterStatus`, and the fatal/per-call split
+  is the whole point of it: **401** (bad key), **402** (no credits) and **404** (no such
+  model) would fail identically on every remaining posting, so they abort the run;
+  **403** is usually a moderation/guardrail block on one JD, so it stays per-posting;
+  **429/5xx** are retried inside the transport with `Retry-After` so a rate limit never
+  trips the backend-down breaker. The prompt goes as ONE user message - splitting it
+  would change the token prefix and lose provider-side prompt-cache hits. The cache
+  hit-rate is logged every 100 calls plus a total at the end of the run; watch it, since
+  cached vs uncached input is roughly a 4x cost difference.
+  Override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS`.
 - The relevance "gate" judges each posting against the full resume text from
   `config/resume.txt` (generated once from `config/resume.pdf`; the bot stops if neither
   exists).
