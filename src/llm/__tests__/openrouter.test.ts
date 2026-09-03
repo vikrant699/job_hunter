@@ -5,7 +5,6 @@ import { stubFetch, jsonResponse } from "../../ats/__tests__/testHelpers.js";
 import { LlmUnavailableError } from "../errors.js";
 import {
   openRouterGenerate,
-  openRouterEmbed,
   getCacheStats,
   resetCacheStats,
   assertModelAvailable,
@@ -263,69 +262,4 @@ test("getCacheStats tolerates a response with no usage block", async (t) => {
   await openRouterGenerate("prompt", {});
 
   assert.deepEqual(getCacheStats(), { calls: 1, promptTokens: 0, cachedTokens: 0 });
-});
-
-// ---- openRouterEmbed ----
-
-const EmbedBodySchema = z.object({ model: z.string(), input: z.string() });
-
-function embedding(vector: number[]): Response {
-  return jsonResponse({ data: [{ embedding: vector }] });
-}
-
-test("openRouterEmbed posts to /embeddings with the bearer key and unwraps data[0].embedding", async (t) => {
-  let seenUrl = "";
-  let seenInit: RequestInit | undefined;
-  stubFetch(t, async (url, init) => {
-    seenUrl = String(url);
-    seenInit = init;
-    return embedding([0.4, 0.5, 0.6]);
-  });
-
-  const vector = await openRouterEmbed("some job description", "text-embedding-3-small");
-
-  assert.match(seenUrl, /openrouter\.ai\/api\/v1\/embeddings/);
-  const headers = new Headers(seenInit?.headers);
-  assert.match(headers.get("authorization") ?? "", /^Bearer/);
-  const body = EmbedBodySchema.parse(JSON.parse(String(seenInit?.body)));
-  assert.deepEqual(body, { model: "text-embedding-3-small", input: "some job description" });
-  assert.deepEqual(vector, [0.4, 0.5, 0.6]);
-});
-
-test("openRouterEmbed retries a 429 honouring Retry-After, then succeeds", async (t) => {
-  let calls = 0;
-  stubFetch(t, async () => {
-    calls++;
-    return calls === 1 ? throttled("0.1") : embedding([1, 0]);
-  });
-
-  const vector = await openRouterEmbed("prompt", "text-embedding-3-small");
-  assert.deepEqual(vector, [1, 0]);
-  assert.equal(calls, 2);
-});
-
-test("openRouterEmbed throws LlmUnavailableError on 401 without retrying", async (t) => {
-  let calls = 0;
-  stubFetch(t, async () => {
-    calls++;
-    return new Response("invalid api key", { status: 401 });
-  });
-
-  await assert.rejects(openRouterEmbed("prompt", "text-embedding-3-small"), LlmUnavailableError);
-  assert.equal(calls, 1);
-});
-
-// The chat-completions fatalMessage names OPENROUTER_MODEL; embed calls must name OPENROUTER_EMBED_MODEL instead.
-test("openRouterEmbed throws LlmUnavailableError on 404 naming OPENROUTER_EMBED_MODEL, not OPENROUTER_MODEL", async (t) => {
-  stubFetch(t, async () => new Response('{"error":{"message":"No endpoints found"}}', { status: 404 }));
-
-  await assert.rejects(openRouterEmbed("prompt", "text-embedding-3-small"), {
-    name: "LlmUnavailableError",
-    message: /OPENROUTER_EMBED_MODEL/,
-  });
-});
-
-test("openRouterEmbed rejects a response with no embedding data", async (t) => {
-  stubFetch(t, async () => jsonResponse({ data: [] }));
-  await assert.rejects(openRouterEmbed("prompt", "text-embedding-3-small"), /no vector/);
 });

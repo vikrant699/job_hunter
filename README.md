@@ -24,8 +24,10 @@ a per-strategy breakdown), and at the end of every run a single summary embed po
 ## What it needs
 
 - Node 22 or newer (uses the built-in `node:sqlite`).
-- [Ollama](https://ollama.com) running locally with a chat model pulled. The default is
-  `qwen3.5:9b` (Q4_K_M, about 6.6 GB):
+- An LLM backend. The primary way to run the bot is [OpenRouter](https://openrouter.ai)
+  (`OPENROUTER_API_KEY` in `.env` and `LOCAL=false`). The local alternative is
+  [Ollama](https://ollama.com) with a chat model pulled; the default is `qwen3.5:9b`
+  (Q4_K_M, about 6.6 GB):
   ```
   ollama pull qwen3.5:9b
   ```
@@ -133,13 +135,6 @@ grouping, plus USD/EUR/GBP and friends), a mechanical extractor stores the
 annualized range on the posting - no LLM involved, and never guessed when the JD
 is silent.
 
-There is also an experimental, off-by-default embedding shadow mode: set
-`OLLAMA_EMBED_MODEL` (or `OPENROUTER_EMBED_MODEL` when `LOCAL=false`) and each
-gated posting is embedded and scored by cosine similarity against your embedded
-resume, stored alongside the gate's verdict for offline analysis. It changes
-nothing about filtering; it exists to measure whether a cheap similarity floor
-could safely skip obviously-irrelevant postings before the LLM reads them.
-
 Postings also carry a lifecycle. Every successful company fetch bumps `last_seen_at`
 for each posting the board still lists; a posting missing from the snapshot gets
 `removed_at` stamped (and cleared again if it reappears). Outreach never drafts
@@ -222,16 +217,16 @@ src/
                            /sitemap.xml completeness backstop shared by sfcsb +
                            successfactors
   db/                    per-table modules (companies, postings, runs, board-runs,
-                           posting-vectors, recruiters, outreach, link-cache,
-                           api-meta) behind a barrel index.ts
+                           recruiters, outreach, link-cache, api-meta) behind a
+                           barrel index.ts
   filter/                location / title / denylist / verdict / salary
                            (mechanical stated-salary extraction, no LLM)
   google/                auth.ts (per-profile OAuth token refresh), rest.ts
                            (authorized fetch + retry), sheets.ts, gmail.ts, mime.ts
                            (RFC 5322 draft builder)
-  llm/                   Ollama client; embed.ts (shadow-mode resume<->posting
-                           similarity, off by default); prompts/ holds gate.ts,
-                           extract.ts, shortlist.ts
+  llm/                   the two LLM transports (OpenRouter is the primary way to
+                           run the bot, Ollama the local option); prompts/ holds
+                           gate.ts, extract.ts, shortlist.ts
   discord/               webhook helper + progress heartbeat + end-of-run status embed
   outreach/              contact sync from the sheet (contacts.ts), the company/contact
                            matcher (match.ts), the email template (template.ts), the

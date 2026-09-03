@@ -52,14 +52,10 @@ export const config = {
     local: LLM_LOCAL,
     ollamaHost: process.env.OLLAMA_HOST ?? "http://localhost:11434",
     model: process.env.OLLAMA_MODEL ?? "qwen3.5:9b",
-    /** Unset = embedding feature off for this backend (opt-in); llm/embed.ts checks the ACTIVE backend's knob only. */
-    ollamaEmbedModel: process.env.OLLAMA_EMBED_MODEL,
     /** Required only when local is false; llm/client.ts pre-flight fails fast if missing. */
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
     /** Pinned to a dated snapshot so the model can't change under a run's feet; pre-flight verifies it still resolves. */
     openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
-    /** Unset = embedding feature off for this backend (opt-in); llm/embed.ts checks the ACTIVE backend's knob only. */
-    openRouterEmbedModel: process.env.OPENROUTER_EMBED_MODEL,
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
     /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
     timeoutMs: envInt("LLM_TIMEOUT_MS", LLM_LOCAL ? 90_000 : 30_000),

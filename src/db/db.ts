@@ -118,10 +118,10 @@ db.exec(schema);
     db.exec("ALTER TABLE postings ADD COLUMN salary_period TEXT");
   }
 
-  // postings.embed_sim — shadow-mode cosine similarity vs the run's resume anchor (src/llm/embed.ts); nullable, never read by filtering.
-  const postingColsEmbed = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
-  if (!postingColsEmbed.some((c) => c.name === "embed_sim")) {
-    db.exec("ALTER TABLE postings ADD COLUMN embed_sim REAL");
+  // Leftovers from the removed embedding shadow mode (owner call 2026-09-03); idempotent drops clean up DBs that ran it.
+  db.exec("DROP TABLE IF EXISTS posting_vectors");
+  if (postingColsSalary.some((c) => c.name === "embed_sim")) {
+    db.exec("ALTER TABLE postings DROP COLUMN embed_sim");
   }
 }
 

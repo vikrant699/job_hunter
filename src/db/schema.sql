@@ -49,7 +49,6 @@ CREATE TABLE IF NOT EXISTS postings (
   salary_max       REAL,
   salary_currency  TEXT,
   salary_period    TEXT,  -- the period as stated in the JD (year|month|week|day|hour); salary_min/max are always annualized
-  embed_sim        REAL,  -- cosine similarity vs the run's resume anchor (src/llm/embed.ts); shadow mode only, never affects filtering
   PRIMARY KEY (provider, external_id, profile_id)
 );
 
@@ -69,19 +68,6 @@ CREATE TABLE IF NOT EXISTS board_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_board_runs_board ON board_runs(provider, company_slug, run_at);
-
--- Shadow-mode embedding vectors (src/llm/embed.ts): one row per (posting, profile, model), never read by
--- filtering/verdict logic. model_tag is part of the key since scores from different models are not comparable.
-CREATE TABLE IF NOT EXISTS posting_vectors (
-  provider    TEXT    NOT NULL,
-  external_id TEXT    NOT NULL,
-  profile_id  TEXT    NOT NULL,
-  model_tag   TEXT    NOT NULL,
-  dims        INTEGER NOT NULL,
-  vec         BLOB    NOT NULL,
-  created_at  TEXT    NOT NULL,
-  PRIMARY KEY (provider, external_id, profile_id, model_tag)
-);
 
 CREATE TABLE IF NOT EXISTS link_cache (
   provider    TEXT NOT NULL,
