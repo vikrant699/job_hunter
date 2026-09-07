@@ -1,10 +1,12 @@
 // src/ats/teamtailor.ts — Teamtailor career sites (https://<slug>.teamtailor.com).
 // List: /jobs?page=N is server-rendered, #jobs_list_container with one <li> per job linking to /jobs/<id>-<slug>. Detail: the job page's JSON-LD JobPosting island (entity-encoded HTML), falling back to the server-rendered <main> .prose block.
 import * as cheerio from "cheerio";
+import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchText, parseOrThrow } from "./http.js";
+import { parseJsonOrThrow } from "../util/json.js";
 import { extractJsonLdJobs } from "../scraper/jsonLd.js";
 import { REMOTE_RE, paginate, tenantOrigin, collapseWs } from "./shared.js";
 
@@ -12,6 +14,49 @@ const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
 // Workplace chips rendered next to the location (e.g. "Hybrid · <wifi icon>").
 const WORKPLACE_RE = /^(hybrid|remote|fully remote|on-?site|office)$/i;
+
+// JSON Feed every Teamtailor site serves regardless of theme; the fallback when a custom jobs page has no #jobs_list_container (e.g. careers.lyzr.ai).
+export function teamtailorFeedUrl(company: AdapterCompany): string {
+  return `${tenantOrigin(company)}/jobs.json`;
+}
+
+const FeedSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        title: z.string(),
+        url: z.string(),
+        date_published: z.string().optional(),
+        _jobposting: z.object({ description: z.string().optional() }).optional(),
+      }),
+    )
+    .default([]),
+});
+
+/** Feed items carry title, /jobs/<id>-slug url and the JSON-LD description (entity-encoded HTML) but NO location; the pipeline's title/JD heuristic covers that. */
+export function parseTeamtailorFeed(company: AdapterCompany, raw: string): NormalizedPosting[] {
+  const feed = parseOrThrow(FeedSchema, parseJsonOrThrow(raw, "teamtailor feed"), { provider: "teamtailor", slug: company.slug });
+  const out: NormalizedPosting[] = [];
+  for (const item of feed.items) {
+    const id = item.url.match(JOB_HREF_RE)?.[1];
+    const title = collapseWs(item.title);
+    if (!id || !title) continue;
+    const description = item._jobposting?.description ?? "";
+    out.push({
+      provider: "teamtailor",
+      externalId: id,
+      companySlug: company.slug,
+      companyName: company.name,
+      jobTitle: title,
+      jobUrl: new URL(item.url, tenantOrigin(company)).toString(),
+      location: null,
+      isRemote: REMOTE_RE.test(title),
+      jdText: description !== "" ? htmlToText(htmlToText(description)) : "",
+      postedAt: item.date_published ?? null,
+    });
+  }
+  return out;
+}
 
 // Paged board URL: https://<slug>.teamtailor.com/jobs?page=N (1-based).
 export function teamtailorJobsUrl(company: AdapterCompany, page: number): string {
@@ -88,6 +133,12 @@ export function teamtailorJdFromHtml(html: string): string {
 export const teamtailorAdapter: AtsAdapter = {
   provider: "teamtailor",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
+    // Custom themes drop the standard list container; the JSON Feed is theme-independent, so fall back to it instead of failing the board.
+    const firstPage = await atsFetchText(teamtailorJobsUrl(company, 1), { provider: "teamtailor" });
+    if (parseTeamtailorList(company, firstPage) === null) {
+      const raw = await atsFetchText(teamtailorFeedUrl(company), { provider: "teamtailor" });
+      return parseTeamtailorFeed(company, raw);
+    }
     const postings = await paginate<NormalizedPosting>({
       provider: "teamtailor",
       company: company.slug,
@@ -95,12 +146,9 @@ export const teamtailorAdapter: AtsAdapter = {
       // Page size is theme-configurable, so a short page is NOT authoritative.
       shortPageEndsPagination: false,
       fetchPage: async (_offset, page) => {
-        const html = await atsFetchText(teamtailorJobsUrl(company, page + 1), { provider: "teamtailor" });
+        const html = page === 0 ? firstPage : await atsFetchText(teamtailorJobsUrl(company, page + 1), { provider: "teamtailor" });
         const items = parseTeamtailorList(company, html);
-        if (items === null) {
-          if (page === 0) throw new Error(`teamtailor: no #jobs_list_container on board page for ${company.slug}`);
-          return { items: [], total: null };
-        }
+        if (items === null) return { items: [], total: null };
         return { items, total: null };
       },
     });

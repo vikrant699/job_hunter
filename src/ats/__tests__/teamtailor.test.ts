@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   teamtailorJobsUrl,
   parseTeamtailorList,
+  parseTeamtailorFeed,
+  teamtailorFeedUrl,
   teamtailorJdFromHtml,
 } from "../teamtailor.js";
 import type { AdapterCompany } from "../../types.js";
@@ -165,4 +167,39 @@ test("teamtailorJdFromHtml falls back to the server-rendered .prose block withou
   const jd = teamtailorJdFromHtml(noLd);
   assert.match(jd, /innovative platform & valuation suite/);
   assert.doesNotMatch(jd, /<p>/);
+});
+
+test("teamtailorFeedUrl points at the site's JSON Feed", () => {
+  assert.equal(teamtailorFeedUrl(company), "https://73strings.teamtailor.com/jobs.json");
+});
+
+// careers.lyzr.ai shape (2026-09-07): custom jobs page with no #jobs_list_container, but /jobs.json still lists every job with its JSON-LD description.
+test("parseTeamtailorFeed maps feed items to postings with inline JD and no location", () => {
+  const raw = JSON.stringify({
+    version: "https://jsonfeed.org/version/1.1",
+    items: [
+      {
+        id: "4e76", title: "Customer Success Manager", url: "https://careers.lyzr.ai/jobs/693737-customer-success-manager",
+        date_published: "2026-09-01T17:37:16+05:30",
+        _jobposting: { "@type": "JobPosting", description: "&lt;p&gt;Own onboarding &amp; renewals.&lt;/p&gt;" },
+      },
+      { id: "bad", title: "No id in url", url: "https://careers.lyzr.ai/about" },
+      { id: "r", title: "Remote Frontend Engineer", url: "https://careers.lyzr.ai/jobs/700001-remote-frontend-engineer" },
+    ],
+  });
+  const out = parseTeamtailorFeed(company, raw);
+  assert.equal(out.length, 2);
+  const [first, second] = out;
+  if (!first || !second) throw new Error("expected two postings");
+  assert.equal(first.externalId, "693737");
+  assert.equal(first.jobUrl, "https://careers.lyzr.ai/jobs/693737-customer-success-manager");
+  assert.equal(first.location, null);
+  assert.equal(first.jdText, "Own onboarding & renewals.");
+  assert.equal(first.postedAt, "2026-09-01T17:37:16+05:30");
+  assert.equal(second.isRemote, true);
+  assert.equal(second.jdText, "");
+});
+
+test("parseTeamtailorFeed rejects a non-feed body", () => {
+  assert.throws(() => parseTeamtailorFeed(company, "<html>not json</html>"));
 });
