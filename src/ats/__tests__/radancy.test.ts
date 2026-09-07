@@ -418,3 +418,19 @@ test("parseRadancyList (ARM): reads location from a bare span.location when job-
   assert.equal(p.jobTitle, "Senior CPU Engineer");
   assert.equal(p.location, "Bangalore, India");
 });
+
+// disneycareers.com (2026-09): <h2> title with sibling brand/location/date spans inside the anchor - none of those may leak into the title.
+test("parseRadancyList (Disney): takes the <h2> title and ignores brand/date spans", () => {
+  const html = `<section id="search-results"><ul>
+    <li><a href="/en/job/bengaluru/senior-manager-talent-and-growth-india/391/91086496512" data-job-id="91086496512">
+      <h2>Senior Manager, Talent &amp; Growth, India</h2>
+      <span class="job-brand">The Walt Disney Company (APAC)</span>
+      <span class="job-location">Bengaluru, India</span>
+      <span class="job-date-posted">Jul. 27, 2026</span></a></li>
+  </ul></section>`;
+  const out = parseRadancyList(html, fordCompany);
+  assert.equal(out.length, 1);
+  assert.equal(out[0]?.jobTitle, "Senior Manager, Talent & Growth, India");
+  assert.equal(out[0]?.location, "Bengaluru, India");
+  assert.equal(out[0]?.externalId, "91086496512");
+});
