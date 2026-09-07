@@ -25,7 +25,8 @@ a per-strategy breakdown), and at the end of every run a single summary embed po
 
 - Node 22 or newer (uses the built-in `node:sqlite`).
 - An [OpenRouter](https://openrouter.ai) API key (`OPENROUTER_API_KEY` in `.env`). The
-  default model is set by `OPENROUTER_MODEL`; a full sweep costs a negligible amount.
+  default model is set by `OPENROUTER_MODEL` and routing is pinned to the providers in
+  `OPENROUTER_PROVIDERS` so prompt caching works; a full sweep costs well under a dollar.
 - Your resume as a PDF at `config/resume.pdf` (see Getting started).
 - Optionally, a Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for run status: a
   mid-run progress heartbeat every 15 minutes plus the single end-of-run summary embed.

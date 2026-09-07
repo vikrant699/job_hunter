@@ -12,7 +12,7 @@ import { projectToSheet } from "./outreach/sheetSync.js";
 import { postRunStatus } from "./discord/status.js";
 import { closeDb } from "./db/db.js";
 import { config } from "./config.js";
-import { getCacheStats } from "./llm/openrouter.js";
+import { getCacheStats, cachedPercent } from "./llm/openrouter.js";
 import type { InstahyreResult } from "./instahyre/autoApply.js";
 
 async function runTickAndOutreach(
@@ -66,13 +66,22 @@ async function runTickAndOutreach(
   }
 }
 
+const CACHE_WARN_MIN_CALLS = 50;
+const CACHE_WARN_BELOW_PCT = 50;
+
 /** Report the hosted provider's prompt cache totals for the run (cached vs uncached input is a ~4x cost difference). */
 function logCacheStats(): void {
   const stats = getCacheStats();
   if (stats.calls === 0) return;
-  const cachedPct =
-    stats.promptTokens > 0 ? Math.round((100 * stats.cachedTokens) / stats.promptTokens) : 0;
+  const cachedPct = cachedPercent(stats);
   logger.info({ ...stats, cachedPct, model: config.llm.openRouterModel }, "llm run totals");
+  // The resume+rubric prefix is ~80% of a gate prompt; well under that means the pin isn't holding or the provider dropped its cache.
+  if (stats.calls >= CACHE_WARN_MIN_CALLS && cachedPct < CACHE_WARN_BELOW_PCT) {
+    logger.warn(
+      { cachedPct, providers: stats.providers, pinned: config.llm.openRouterProviders },
+      "llm prompt-cache hit rate is low - check OPENROUTER_PROVIDERS",
+    );
+  }
 }
 
 /** The whole run, from registry sync to Discord status. Assumes the DB is current. */

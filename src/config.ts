@@ -2,7 +2,7 @@
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
-import { envInt } from "./util/env.js";
+import { envInt, envList } from "./util/env.js";
 
 // Typed `number` (not `as const`-narrowed) so scheduler.ts's skip-if-disabled checks stay real runtime checks.
 const INTER_CALL_DELAY_MS: number = 250;
@@ -46,6 +46,8 @@ export const config = {
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
     /** Pinned to a dated snapshot so the model can't change under a run's feet; pre-flight verifies it still resolves. */
     openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
+    /** OpenRouter provider slugs tried in order, NO fallback beyond them: the prompt cache lives per provider, so letting OpenRouter load-balance across ~20 hosts made the hit-rate collapse to ~0%. Pre-flight verifies at least one serves the model. */
+    openRouterProviders: envList("OPENROUTER_PROVIDERS", ["openinference", "deepinfra"]),
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
     /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
     timeoutMs: envInt("LLM_TIMEOUT_MS", 30_000),

@@ -289,8 +289,13 @@ change.
   trips the backend-down breaker. The prompt goes as ONE user message - splitting it
   would change the token prefix and lose provider-side prompt-cache hits. The cache
   hit-rate is logged every 100 calls plus a total at the end of the run; watch it, since
-  cached vs uncached input is roughly a 4x cost difference.
-  Override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS`.
+  cached vs uncached input is roughly a 4x cost difference. **The cache is per upstream
+  provider**, so requests pin `provider.order` to `OPENROUTER_PROVIDERS` (default
+  `openinference,deepinfra`) with `allow_fallbacks:false`: letting OpenRouter load-balance
+  the model across its ~20 hosts drove the hit-rate from ~77% to ~3% (audit 2026-09-07).
+  Pre-flight aborts if none of the pinned providers serve the model; the run-totals line
+  lists calls per answering provider and warns when the hit-rate is under 50%.
+  Override with `LLM_MAX_CONCURRENT` / `LLM_TIMEOUT_MS` / `OPENROUTER_PROVIDERS`.
 - The relevance "gate" judges each posting against the full resume text from
   `config/resume.txt` (generated once from `config/resume.pdf`; the bot stops if neither
   exists).

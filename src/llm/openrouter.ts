@@ -7,6 +7,7 @@ import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../uti
 import { LlmUnavailableError } from "./errors.js";
 
 const OpenRouterResponseSchema = z.object({
+  provider: z.string().optional(),
   choices: z
     .array(z.object({ message: z.object({ content: z.string().nullable().optional() }) }))
     .default([]),
@@ -33,13 +34,15 @@ export interface CacheStats {
   calls: number;
   promptTokens: number;
   cachedTokens: number;
+  /** Calls answered per upstream provider; more than one entry means the pin isn't holding and the cache is being split. */
+  providers: Record<string, number>;
 }
 
-const cacheStats: CacheStats = { calls: 0, promptTokens: 0, cachedTokens: 0 };
+const cacheStats: CacheStats = { calls: 0, promptTokens: 0, cachedTokens: 0, providers: {} };
 
 /** Running prompt-cache totals for the process; logged since the cached fraction drives sweep cost. */
 export function getCacheStats(): CacheStats {
-  return { ...cacheStats };
+  return { ...cacheStats, providers: { ...cacheStats.providers } };
 }
 
 /** Test seam - the counters are module state. */
@@ -47,25 +50,22 @@ export function resetCacheStats(): void {
   cacheStats.calls = 0;
   cacheStats.promptTokens = 0;
   cacheStats.cachedTokens = 0;
+  cacheStats.providers = {};
 }
 
-function recordUsage(usage: z.infer<typeof OpenRouterResponseSchema>["usage"]): void {
+export function cachedPercent(stats: CacheStats): number {
+  return stats.promptTokens > 0 ? Math.round((100 * stats.cachedTokens) / stats.promptTokens) : 0;
+}
+
+function recordUsage(data: z.infer<typeof OpenRouterResponseSchema>): void {
+  const usage = data.usage;
   cacheStats.calls++;
   cacheStats.promptTokens += usage?.prompt_tokens ?? 0;
   cacheStats.cachedTokens += usage?.prompt_tokens_details?.cached_tokens ?? 0;
+  const provider = data.provider ?? "unknown";
+  cacheStats.providers[provider] = (cacheStats.providers[provider] ?? 0) + 1;
   if (cacheStats.calls % CACHE_LOG_EVERY === 0) {
-    const pct = cacheStats.promptTokens > 0
-      ? Math.round((100 * cacheStats.cachedTokens) / cacheStats.promptTokens)
-      : 0;
-    logger.info(
-      {
-        calls: cacheStats.calls,
-        promptTokens: cacheStats.promptTokens,
-        cachedTokens: cacheStats.cachedTokens,
-        cachedPct: pct,
-      },
-      "openrouter prompt-cache hit rate",
-    );
+    logger.info({ ...getCacheStats(), cachedPct: cachedPercent(cacheStats) }, "openrouter prompt-cache hit rate");
   }
 }
 
@@ -108,8 +108,27 @@ function fatalMessage(verdict: StatusVerdict, status: number, body: string): str
 const API_BASE = "https://openrouter.ai/api/v1";
 const MODEL_ENDPOINTS_BASE = `${API_BASE}/models`;
 
-// Confirms the model slug resolves; only an explicit 404 is treated as a verdict since a 5xx or unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
-export async function assertModelAvailable(model: string): Promise<void> {
+// Endpoint tags look like "open-inference/fp8" or "deepinfra"; the slug before "/" is what the provider.order request field takes.
+const ModelEndpointsSchema = z.object({
+  data: z.object({ endpoints: z.array(z.object({ tag: z.string().optional() })).default([]) }),
+});
+
+/** Provider slug from an endpoint tag; OpenRouter writes some as "open-inference" but routes on "openinference", so hyphens are dropped for matching. */
+function providerSlug(tag: string): string {
+  return tag.split("/")[0]?.replace(/-/g, "").toLowerCase() ?? "";
+}
+
+/** Pinned providers that actually serve this model; null when the endpoint list couldn't be read. */
+// eslint-disable-next-line @typescript-eslint/no-restricted-types -- raw JSON from fetch is validated right here with zod (Standard rule 3)
+export function servingProviders(pinned: readonly string[], body: unknown): string[] | null {
+  const parsed = ModelEndpointsSchema.safeParse(body);
+  if (!parsed.success) return null;
+  const served = new Set(parsed.data.data.endpoints.map((e) => providerSlug(e.tag ?? "")));
+  return pinned.filter((p) => served.has(p.replace(/-/g, "").toLowerCase()));
+}
+
+// Confirms the model slug resolves and that a pinned provider serves it; only an explicit 404 is a slug verdict since a 5xx or unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
+export async function assertModelAvailable(model: string, pinned: readonly string[] = config.llm.openRouterProviders): Promise<void> {
   let res: Response;
   try {
     res = await fetch(`${MODEL_ENDPOINTS_BASE}/${model}/endpoints`, {
@@ -133,7 +152,22 @@ export async function assertModelAvailable(model: string): Promise<void> {
       { model, status: res.status },
       "openrouter: model-metadata lookup failed — continuing without verifying the slug",
     );
+    return;
   }
+  if (pinned.length === 0) return;
+  const serving = servingProviders(pinned, await res.json());
+  if (serving === null) {
+    logger.warn({ model }, "openrouter: endpoint list unparseable — continuing without verifying the provider pin");
+    return;
+  }
+  // With allow_fallbacks=false every gate call would fail, so this is a pre-flight abort, not a per-call error.
+  if (serving.length === 0) {
+    throw new LlmUnavailableError(
+      `None of OPENROUTER_PROVIDERS (${pinned.join(", ")}) serve '${model}' on OpenRouter. ` +
+        `Pick slugs from https://openrouter.ai/${model}/providers or clear OPENROUTER_PROVIDERS.`,
+    );
+  }
+  logger.info({ model, pinned, serving }, "openrouter: provider pin verified");
 }
 
 /** Pre-flight: key present and accepted, and the configured model served. */
@@ -195,6 +229,10 @@ export async function openRouterGenerate(
           ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
           // Disable reasoning traces - avoids multiplying output tokens.
           reasoning: { enabled: false },
+          // Pin routing to the configured providers, no fallback: the prompt cache is per provider, so a bounce = a cold cache.
+          ...(config.llm.openRouterProviders.length > 0
+            ? { provider: { order: config.llm.openRouterProviders, allow_fallbacks: false } }
+            : {}),
         }),
         signal: AbortSignal.timeout(config.llm.timeoutMs),
       });
@@ -222,7 +260,7 @@ export async function openRouterGenerate(
     }
 
     const data = OpenRouterResponseSchema.parse(await res.json());
-    recordUsage(data.usage);
+    recordUsage(data);
     const content = data.choices[0]?.message.content;
     if (typeof content !== "string" || content === "") {
       throw new Error("OpenRouter returned no message content");
