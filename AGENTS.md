@@ -291,8 +291,11 @@ change.
   hit-rate is logged every 100 calls plus a total at the end of the run; watch it, since
   cached vs uncached input is roughly a 4x cost difference. **The cache is per upstream
   provider**, so requests pin `provider.order` to `OPENROUTER_PROVIDERS` (default
-  `digitalocean,together,inceptron` - cheapest hosts that answered every probe with cache hits;
-  the two cheaper ones throttle or disappear) with `allow_fallbacks:false`: letting OpenRouter load-balance
+  `together,inceptron` - the only hosts that passed `temp/providerLoadTest.ts`, a 160-call
+  8-way-concurrent gate replay, with zero wrong verdicts; DigitalOcean leaked other in-flight
+  requests' JDs into ~1-5% of answers under load, which is how a hotel receptionist posting
+  scored 0.9 as a "Frontend Engineer" on 2026-09-07. **Run that load test before pinning any
+  new host**; the cheapest hosts throttle or disappear) with `allow_fallbacks:false`: letting OpenRouter load-balance
   the model across its ~20 hosts drove the hit-rate from ~77% to ~3% (audit 2026-09-07).
   Pre-flight aborts if none of the pinned providers serve the model; the run-totals line
   lists calls per answering provider and warns when the hit-rate is under 50%.
