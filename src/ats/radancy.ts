@@ -76,9 +76,11 @@ export function parseRadancyList(html: string, company: AdapterCompany): Normali
       const externalId = parseRadancyJobId(href);
       if (!externalId || seen.has(externalId)) return;
 
+      // Newer Radancy themes (disneycareers.com) wrap the title in an <h2> beside brand/location/date spans; older ones put bare text in the anchor.
+      const $heading = $a.find('h2, h3, [class*="job-title"]').first();
       const $titleClone = $a.clone();
-      $titleClone.find('[class*="job-location"], span.location').remove();
-      const title = collapseWs($titleClone.text());
+      $titleClone.find('[class*="job-location"], span.location, [class*="job-brand"], [class*="job-date"]').remove();
+      const title = collapseWs($heading.length ? $heading.text() : $titleClone.text());
       if (!title) return;
 
       let jobUrl: string;
