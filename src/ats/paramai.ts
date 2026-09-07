@@ -31,6 +31,11 @@ function subdomain(company: AdapterCompany): string {
   throw new Error(`paramai requires apiMeta.subdomain for ${company.slug}`);
 }
 
+// Job pages live under /jobs/<slug>; /careers/<slug> 404s on every tenant (sharafdg, maruti, vigocare verified 2026-09-07).
+export function paramAiJobUrl(sub: string, slug: string | null | undefined): string {
+  return slug ? `https://${sub}.app.param.ai/jobs/${slug}` : `https://${sub}.app.param.ai/jobs/`;
+}
+
 export function normalizeParamAi(company: AdapterCompany, sub: string, j: ParamAiJob): NormalizedPosting {
   const location = (j.locations ?? []).map((l) => l.trim()).filter(Boolean).join("; ") || null;
   return {
@@ -39,7 +44,7 @@ export function normalizeParamAi(company: AdapterCompany, sub: string, j: ParamA
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: j.slug ? `https://${sub}.app.param.ai/careers/${j.slug}` : `https://${sub}.app.param.ai/careers`,
+    jobUrl: paramAiJobUrl(sub, j.slug),
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
     jdText: htmlToText(j.description ?? ""),
