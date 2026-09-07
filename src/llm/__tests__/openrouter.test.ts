@@ -72,7 +72,7 @@ test("openRouterGenerate sends one user message, json response_format, and the b
   assert.equal(body.reasoning.enabled, false);
   assert.equal(body.temperature, 0);
   // Pinned with no fallback: the prompt cache is per provider, so any bounce is a cold cache.
-  assert.deepEqual(body.provider, { order: ["openinference", "deepinfra"], allow_fallbacks: false });
+  assert.deepEqual(body.provider, { order: ["digitalocean", "together", "inceptron"], allow_fallbacks: false });
 });
 
 test("openRouterGenerate counts calls per answering provider", async (t) => {
@@ -225,21 +225,21 @@ test("openRouterGenerate keeps an ordinary 400 per-posting", async (t) => {
 const ENDPOINTS = {
   data: {
     id: "deepseek/deepseek-v4-flash-0731",
-    endpoints: [{ tag: "open-inference/fp8" }, { tag: "deepinfra/fp8" }, { tag: "fireworks" }],
+    endpoints: [{ tag: "open-inference/fp8" }, { tag: "deepinfra/fp8" }, { tag: "digitalocean" }, { tag: "together" }, { tag: "fireworks" }],
   },
 };
 
 test("assertModelAvailable accepts a model a pinned provider serves", async (t) => {
   stubFetch(t, async () => jsonResponse(ENDPOINTS));
-  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["openinference", "deepinfra"]);
+  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["digitalocean", "together", "inceptron"]);
 });
 
 // allow_fallbacks=false would then fail every gate call, so a pin nobody serves is a pre-flight abort.
 test("assertModelAvailable rejects a provider pin that nobody serves", async (t) => {
   stubFetch(t, async () => jsonResponse(ENDPOINTS));
-  await assert.rejects(assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["together"]), {
+  await assert.rejects(assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["novita"]), {
     name: "LlmUnavailableError",
-    message: /OPENROUTER_PROVIDERS \(together\)/,
+    message: /OPENROUTER_PROVIDERS \(novita\)/,
   });
 });
 
@@ -249,7 +249,7 @@ test("assertModelAvailable skips the pin check when no providers are pinned", as
 });
 
 test("servingProviders matches slugs against endpoint tags ignoring hyphens and quant suffixes", () => {
-  assert.deepEqual(servingProviders(["openinference", "deepinfra", "together"], ENDPOINTS), ["openinference", "deepinfra"]);
+  assert.deepEqual(servingProviders(["openinference", "deepinfra", "novita"], ENDPOINTS), ["openinference", "deepinfra"]);
   assert.deepEqual(servingProviders(["open-inference"], ENDPOINTS), ["open-inference"]);
   assert.equal(servingProviders(["openinference"], { nope: true }), null);
 });

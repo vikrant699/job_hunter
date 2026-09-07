@@ -46,8 +46,8 @@ export const config = {
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
     /** Pinned to a dated snapshot so the model can't change under a run's feet; pre-flight verifies it still resolves. */
     openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
-    /** OpenRouter provider slugs tried in order, NO fallback beyond them: the prompt cache lives per provider, so letting OpenRouter load-balance across ~20 hosts made the hit-rate collapse to ~0%. Pre-flight verifies at least one serves the model. */
-    openRouterProviders: envList("OPENROUTER_PROVIDERS", ["openinference", "deepinfra"]),
+    /** OpenRouter provider slugs tried in order, NO fallback beyond them: the prompt cache lives per provider, so letting OpenRouter load-balance across ~20 hosts made the hit-rate collapse to ~0%. Order = cheapest first among hosts that answered 6/6 probes with cache hits on 2026-09-07 (openinference/deepinfra/baseten/makora/wafer 429'd or vanished). Pre-flight verifies at least one serves the model. */
+    openRouterProviders: envList("OPENROUTER_PROVIDERS", ["digitalocean", "together", "inceptron"]),
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
     /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
     timeoutMs: envInt("LLM_TIMEOUT_MS", 30_000),
