@@ -8,6 +8,7 @@ import {
   getCacheStats,
   resetCacheStats,
   assertModelAvailable,
+  servingProviders,
   classifyOpenRouterStatus,
   refineVerdict,
 } from "../openrouter.js";
@@ -18,6 +19,7 @@ const SentBodySchema = z.object({
   temperature: z.number(),
   reasoning: z.object({ enabled: z.boolean() }),
   response_format: z.object({ type: z.string() }).optional(),
+  provider: z.object({ order: z.array(z.string()), allow_fallbacks: z.boolean() }).optional(),
 });
 
 function sentBody(init: RequestInit | undefined): z.infer<typeof SentBodySchema> {
@@ -69,6 +71,26 @@ test("openRouterGenerate sends one user message, json response_format, and the b
   assert.deepEqual(body.response_format, { type: "json_object" });
   assert.equal(body.reasoning.enabled, false);
   assert.equal(body.temperature, 0);
+  // Pinned with no fallback: the prompt cache is per provider, so any bounce is a cold cache.
+  assert.deepEqual(body.provider, { order: ["openinference", "deepinfra"], allow_fallbacks: false });
+});
+
+test("openRouterGenerate counts calls per answering provider", async (t) => {
+  resetCacheStats();
+  let calls = 0;
+  stubFetch(t, async () => {
+    calls++;
+    return jsonResponse({
+      provider: calls === 3 ? "DeepInfra" : "OpenInference",
+      choices: [{ message: { content: "ok" } }],
+      usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 80 } },
+    });
+  });
+  for (let i = 0; i < 3; i++) await openRouterGenerate("prompt", {});
+  const stats = getCacheStats();
+  assert.deepEqual(stats.providers, { OpenInference: 2, DeepInfra: 1 });
+  assert.equal(stats.cachedTokens, 240);
+  resetCacheStats();
 });
 
 test("openRouterGenerate omits response_format when no json format is requested", async (t) => {
@@ -200,9 +222,36 @@ test("openRouterGenerate keeps an ordinary 400 per-posting", async (t) => {
   assert.equal(refineVerdict("perCall", 400, "prompt is too long"), "perCall");
 });
 
-test("assertModelAvailable accepts a model the provider serves", async (t) => {
+const ENDPOINTS = {
+  data: {
+    id: "deepseek/deepseek-v4-flash-0731",
+    endpoints: [{ tag: "open-inference/fp8" }, { tag: "deepinfra/fp8" }, { tag: "fireworks" }],
+  },
+};
+
+test("assertModelAvailable accepts a model a pinned provider serves", async (t) => {
+  stubFetch(t, async () => jsonResponse(ENDPOINTS));
+  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["openinference", "deepinfra"]);
+});
+
+// allow_fallbacks=false would then fail every gate call, so a pin nobody serves is a pre-flight abort.
+test("assertModelAvailable rejects a provider pin that nobody serves", async (t) => {
+  stubFetch(t, async () => jsonResponse(ENDPOINTS));
+  await assert.rejects(assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["together"]), {
+    name: "LlmUnavailableError",
+    message: /OPENROUTER_PROVIDERS \(together\)/,
+  });
+});
+
+test("assertModelAvailable skips the pin check when no providers are pinned", async (t) => {
   stubFetch(t, async () => jsonResponse({ data: { id: "deepseek/deepseek-v4-flash-0731" } }));
-  await assertModelAvailable("deepseek/deepseek-v4-flash-0731");
+  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", []);
+});
+
+test("servingProviders matches slugs against endpoint tags ignoring hyphens and quant suffixes", () => {
+  assert.deepEqual(servingProviders(["openinference", "deepinfra", "together"], ENDPOINTS), ["openinference", "deepinfra"]);
+  assert.deepEqual(servingProviders(["open-inference"], ENDPOINTS), ["open-inference"]);
+  assert.equal(servingProviders(["openinference"], { nope: true }), null);
 });
 
 test("assertModelAvailable rejects an unknown model id before any scraping", async (t) => {
@@ -251,7 +300,7 @@ test("getCacheStats accumulates prompt and cached token counts", async (t) => {
   await openRouterGenerate("prompt", {});
   await openRouterGenerate("prompt", {});
 
-  assert.deepEqual(getCacheStats(), { calls: 2, promptTokens: 8600, cachedTokens: 6800 });
+  assert.deepEqual(getCacheStats(), { calls: 2, promptTokens: 8600, cachedTokens: 6800, providers: { unknown: 2 } });
 });
 
 test("getCacheStats tolerates a response with no usage block", async (t) => {
@@ -261,5 +310,5 @@ test("getCacheStats tolerates a response with no usage block", async (t) => {
 
   await openRouterGenerate("prompt", {});
 
-  assert.deepEqual(getCacheStats(), { calls: 1, promptTokens: 0, cachedTokens: 0 });
+  assert.deepEqual(getCacheStats(), { calls: 1, promptTokens: 0, cachedTokens: 0, providers: { unknown: 1 } });
 });
