@@ -72,7 +72,7 @@ test("openRouterGenerate sends one user message, json response_format, and the b
   assert.equal(body.reasoning.enabled, false);
   assert.equal(body.temperature, 0);
   // Pinned with no fallback: the prompt cache is per provider, so any bounce is a cold cache.
-  assert.deepEqual(body.provider, { order: ["digitalocean", "together", "inceptron"], allow_fallbacks: false });
+  assert.deepEqual(body.provider, { order: ["together", "inceptron"], allow_fallbacks: false });
 });
 
 test("openRouterGenerate counts calls per answering provider", async (t) => {
@@ -231,7 +231,7 @@ const ENDPOINTS = {
 
 test("assertModelAvailable accepts a model a pinned provider serves", async (t) => {
   stubFetch(t, async () => jsonResponse(ENDPOINTS));
-  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["digitalocean", "together", "inceptron"]);
+  await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["together", "inceptron"]);
 });
 
 // allow_fallbacks=false would then fail every gate call, so a pin nobody serves is a pre-flight abort.
