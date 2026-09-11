@@ -430,7 +430,9 @@ test("parseRadancyList (Disney): takes the <h2> title and ignores brand/date spa
   </ul></section>`;
   const out = parseRadancyList(html, fordCompany);
   assert.equal(out.length, 1);
-  assert.equal(out[0]?.jobTitle, "Senior Manager, Talent & Growth, India");
-  assert.equal(out[0]?.location, "Bengaluru, India");
-  assert.equal(out[0]?.externalId, "91086496512");
+  const first = out[0];
+  assert.ok(first);
+  assert.equal(first.jobTitle, "Senior Manager, Talent & Growth, India");
+  assert.equal(first.location, "Bengaluru, India");
+  assert.equal(first.externalId, "91086496512");
 });
