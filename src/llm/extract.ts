@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseJsonOrThrow } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
+import type { Caught } from "../util/errorCause.js";
 import { config } from "../config.js";
 import { render } from "./render.js";
 import { generate, generateOnce } from "./client.js";
@@ -50,8 +51,7 @@ export async function runExtract(jdText: string): Promise<ExtractResult> {
   const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
 
   // One re-ask on parse failure, mirroring runGate; worst case 3 + 1 = 4 HTTP calls, not 6.
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let lastErr: unknown;
+  let lastErr: Caught;
   for (let attempt = 0; attempt <= 1; attempt++) {
     const raw = attempt === 0
       ? await generate(prompt, { format: "json" })

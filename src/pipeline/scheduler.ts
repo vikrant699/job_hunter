@@ -11,6 +11,7 @@ import {
   insertBoardRun,
 } from "../db/index.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
+import type { Caught } from "../util/errorCause.js";
 import type { AtsAdapter } from "../ats/types.js";
 import type { AdapterCompany, Company, NormalizedPosting } from "../types.js";
 import type { Provider } from "../schemas.js";
@@ -234,8 +235,7 @@ export async function listWithTransportRetry(
   stats: RunContext,
   retry: TransportRetryPolicy,
 ): Promise<NormalizedPosting[]> {
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let lastErr: unknown;
+  let lastErr: Caught;
   for (let attempt = 0; attempt <= retry.retries; attempt++) {
     try {
       return await adapter.listPostings(adapterCompany);

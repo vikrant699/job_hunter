@@ -90,11 +90,8 @@ export async function atsFetchJson(
 
 export interface ParseCtx { provider: string; slug: string; what?: string }
 
-// generic over the SCHEMA (not a bare <T>) so z.infer<S> resolves to the post-transform type; the explicit <unknown> bound keeps parsed.data as unknown, not any
-
 /** safeParse + warn-log + throw. The word "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- the `<unknown>` bound keeps `parsed.data` as `unknown` rather than `any`
-export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: JsonValue, ctx: ParseCtx): z.infer<S> {
+export function parseOrThrow<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, raw: JsonValue, ctx: ParseCtx): Out {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "list";
@@ -105,9 +102,7 @@ export function parseOrThrow<S extends z.ZodType<unknown>>(schema: S, raw: JsonV
 }
 
 /** safeParse + warn-log + null, for detail fetches that degrade to "" instead of failing the company. */
-// Same `<unknown>`-bound rationale as parseOrThrow above.
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- the `<unknown>` bound keeps `parsed.data` as `unknown` rather than `any`
-export function parseOrNull<S extends z.ZodType<unknown>>(schema: S, raw: JsonValue, ctx: ParseCtx): z.infer<S> | null {
+export function parseOrNull<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, raw: JsonValue, ctx: ParseCtx): Out | null {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
     const what = ctx.what ?? "detail";

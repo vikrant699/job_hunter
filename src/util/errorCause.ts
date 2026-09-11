@@ -1,8 +1,10 @@
+/** A value that came out of `catch` or a rejection; TS's own type for it, read off Error.cause instead of hand-writing unknown. */
+export type Caught = Error["cause"];
+
 /** Cause chains are shallow in practice; the cap only guards a cyclic `cause`. */
 const MAX_CAUSE_DEPTH = 5;
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- narrows a caught value, so `unknown` is the input type by construction
-function hasStringCode(value: unknown): value is { code: string } {
+function hasStringCode(value: Caught): value is { code: string } {
   if (typeof value !== "object" || value === null) return false;
   // `in` narrows the property to unknown, so no assertion is needed to read it.
   if (!("code" in value)) return false;
@@ -11,13 +13,10 @@ function hasStringCode(value: unknown): value is { code: string } {
 
 // Undici's fetch collapses connection failures into an opaque "TypeError: fetch failed" and hides the real cause in err.cause, which String(err) drops.
 /** Walk `err` and its `cause` chain, outermost first. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function chain(err: unknown): unknown[] {
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  const out: unknown[] = [];
+function chain(err: Caught): Caught[] {
+  const out: Caught[] = [];
   let current = err;
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  const seen = new Set<unknown>();
+  const seen = new Set<Caught>();
   while (current !== undefined && current !== null && out.length < MAX_CAUSE_DEPTH) {
     if (seen.has(current)) break;
     seen.add(current);
@@ -28,16 +27,14 @@ function chain(err: unknown): unknown[] {
 }
 
 /** Every `code` in the cause chain; empty when the failure carries no syscall/undici code (not transport-shaped). */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function errorCauseCodes(err: unknown): string[] {
+export function errorCauseCodes(err: Caught): string[] {
   return chain(err)
     .filter(hasStringCode)
     .map((e) => e.code);
 }
 
 /** Human-readable error text that keeps the cause chain, e.g. "TypeError: fetch failed <- Error: getaddrinfo ENOTFOUND host". */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function describeError(err: unknown): string {
+export function describeError(err: Caught): string {
   const parts = chain(err).map((e) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e)));
   const codes = errorCauseCodes(err);
   const text = parts.length > 0 ? parts.join(" <- ") : String(err);
@@ -69,15 +66,13 @@ const TRANSPORT_MESSAGE_RE =
   /fetch failed|socket hang up|network socket disconnected|other side closed|terminated|client network socket|aborted due to timeout/i;
 
 /** AbortSignal.timeout rejects with a DOMException named "TimeoutError" that isn't always an Error subclass, so match by name, not instanceof. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- narrows a caught value, so `unknown` is the input type by construction
-function hasTimeoutName(value: unknown): boolean {
+function hasTimeoutName(value: Caught): boolean {
   if (typeof value !== "object" || value === null) return false;
   if (!("name" in value)) return false;
   return value.name === "TimeoutError";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function isTransportError(err: unknown): boolean {
+export function isTransportError(err: Caught): boolean {
   if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
   // A per-call timeout dies on our side of the wire; no response was read, so it says nothing about whether the board is healthy.
   if (chain(err).some(hasTimeoutName)) return true;
@@ -161,8 +156,7 @@ export function assertNotEdgeChallenge(provider: string, url: string, body: stri
 const EDGE_REFUSAL_STATUS_RE = /\bHTTP (?:406|429)\b/;
 
 // Edge-interstitial: a JSON parse failure whose body opened with an HTML tag (a WAF/rate-limit page in front of a healthy board, invisible to isTransportError since it arrives over a live 2xx socket), or an explicit bot-block signature anywhere in the text.
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function isEdgeInterstitialError(err: unknown): boolean {
+export function isEdgeInterstitialError(err: Caught): boolean {
   const text = describeError(err);
   if (looksLikeChallengePage(text)) return true;
   if (EDGE_REFUSAL_STATUS_RE.test(text)) return true;
@@ -172,7 +166,6 @@ export function isEdgeInterstitialError(err: unknown): boolean {
 }
 
 /** Infrastructure fault: network transport OR an edge interstitial, never the board's own application - retryable, never chargeable to the company's failure count. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function isInfrastructureFault(err: unknown): boolean {
+export function isInfrastructureFault(err: Caught): boolean {
   return isTransportError(err) || isEdgeInterstitialError(err);
 }

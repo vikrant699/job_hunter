@@ -3,6 +3,7 @@ import "dotenv/config";
 import { assertGoogleTokenValid } from "../src/google/auth.js";
 import { runBlast } from "../src/blast/run.js";
 import { logger } from "../src/logger.js";
+import type { Caught } from "../src/util/errorCause.js";
 
 function argValue(flag: string): string | null {
   const i = process.argv.indexOf(flag);
@@ -36,8 +37,7 @@ async function main(): Promise<void> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-main().catch((err: unknown) => {
+main().catch((err: Caught) => {
   logger.error({ err: String(err) }, "blast failed");
   process.exitCode = 1;
 });

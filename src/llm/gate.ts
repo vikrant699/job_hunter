@@ -6,6 +6,7 @@ import { generate, generateOnce } from "./client.js";
 import { logger } from "../logger.js";
 import { parseJsonOrThrow } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
+import type { Caught } from "../util/errorCause.js";
 
 
 export const GateResultSchema = z.object({
@@ -83,8 +84,7 @@ export async function runGate(input: GateInput, opts: RunGateOptions = {}): Prom
   });
 
   // Up to 2 re-asks on parse failure, each a single generateOnce() call instead of a full transport-retry cascade - worst case 5 HTTP calls, not 9.
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let lastErr: unknown;
+  let lastErr: Caught;
   for (let attempt = 0; attempt <= 2; attempt++) {
     const raw = attempt === 0
       ? await generate(prompt, { format: "json", temperature: opts.temperature })

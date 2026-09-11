@@ -5,6 +5,8 @@ import { sleep } from "../util/sleep.js";
 import { parseRetryAfterMs, isRetryableHttpStatus } from "../util/httpRetry.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import { LlmUnavailableError } from "./errors.js";
+import type { JsonValue } from "../util/json.js";
+import { JsonValueSchema } from "../util/json.js";
 
 const OpenRouterResponseSchema = z.object({
   provider: z.string().optional(),
@@ -119,8 +121,7 @@ function providerSlug(tag: string): string {
 }
 
 /** Pinned providers that actually serve this model; null when the endpoint list couldn't be read. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- raw JSON from fetch is validated right here with zod (Standard rule 3)
-export function servingProviders(pinned: readonly string[], body: unknown): string[] | null {
+export function servingProviders(pinned: readonly string[], body: JsonValue): string[] | null {
   const parsed = ModelEndpointsSchema.safeParse(body);
   if (!parsed.success) return null;
   const served = new Set(parsed.data.data.endpoints.map((e) => providerSlug(e.tag ?? "")));
@@ -155,7 +156,7 @@ export async function assertModelAvailable(model: string, pinned: readonly strin
     return;
   }
   if (pinned.length === 0) return;
-  const serving = servingProviders(pinned, await res.json());
+  const serving = servingProviders(pinned, JsonValueSchema.parse(await res.json()));
   if (serving === null) {
     logger.warn({ model }, "openrouter: endpoint list unparseable — continuing without verifying the provider pin");
     return;
