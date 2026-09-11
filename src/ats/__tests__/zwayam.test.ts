@@ -11,6 +11,7 @@ import {
 import type { ZwayamHit } from "../zwayam.js";
 import type { AdapterCompany } from "../../types.js";
 import { asJson, at, fetchSequence, jsonResponse, stubFetch } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -150,13 +151,7 @@ test("zwayamPage refuses to read a dead tenant's response as an empty board", ()
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
   // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let err: unknown;
-  try {
-    zwayamPage(DEAD_DOMAIN_RESPONSE, "cult");
-  } catch (e) {
-    err = e;
-  }
+  const err = thrownBy(() => zwayamPage(DEAD_DOMAIN_RESPONSE, "cult"));
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);

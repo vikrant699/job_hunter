@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { normalizeOracle, oracleAdapter } from "../oracle.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -86,11 +87,7 @@ test("oracleAdapter.listPostings refuses to read a 404 resource path as an empty
 test("a dead pod's HTTP status error stays chargeable to the company", async (t) => {
   // The 503 comes from the remote over a live socket, so it must count toward consecutive_failures, not be treated as infra/transport noise.
   stubFetch(t, fetchSequence(() => htmlResponse("<HTML><TITLE>Service Unavailable</TITLE></HTML>", 503)));
-  const err = await oracleAdapter.listPostings(company).then(
-    () => new Error("expected the call to reject, but it resolved"),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (e: unknown) => e,
-  );
+  const err = await rejectionOf(oracleAdapter.listPostings(company));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);

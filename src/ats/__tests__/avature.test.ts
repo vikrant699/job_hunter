@@ -12,6 +12,7 @@ import {
 } from "../avature.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -274,17 +275,6 @@ const ENGINE_ERROR_HTML = `
 <div class="title">Oops… Something went wrong</div>
 <div class="description">There was an error while processing your request. Please try again.</div>
 </body></html>`;
-
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
 
 test("avatureEngineServed accepts either the portal meta namespace or the /jscore/ asset path", () => {
   assert.equal(avatureEngineServed(EMPTY_PORTAL_HTML), true);

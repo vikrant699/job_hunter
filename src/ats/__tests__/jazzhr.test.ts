@@ -11,6 +11,7 @@ import {
 } from "../jazzhr.js";
 import type { JazzhrListing } from "../jazzhr.js";
 import { fetchSequence, htmlResponseFrom, stubFetch } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -165,17 +166,6 @@ test("parseJazzhrList skips rows with no href and rows with blank title, keeps v
 test("parseJazzhrList returns [] for HTML with no list-group at all", () => {
   assert.deepEqual(parseJazzhrList("<html><body>Nothing here</body></html>", "https://x.applytojob.com/apply"), []);
 });
-
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
 
 test("assertJazzhrOnTenantHost throws when the board answered from another host, naming both", () => {
   const err = thrownBy(() =>

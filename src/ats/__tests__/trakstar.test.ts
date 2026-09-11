@@ -13,6 +13,7 @@ import {
   isTransportError,
 } from "../../util/errorCause.js";
 import type { AdapterCompany } from "../../types.js";
+import { thrownBy } from "../../__tests__/caught.js";
 
 const company: AdapterCompany = {
   provider: "trakstar",
@@ -162,17 +163,6 @@ test("parseTrakstarList detects remote via REMOTE_RE on the location text", () =
 test("parseTrakstarList returns [] when there are no job-list-item rows (empty board / layout change)", () => {
   assert.deepEqual(parseTrakstarList("<html><body>No jobs right now.</body></html>", company), []);
 });
-
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
 
 test("parseTrakstarList throws on Trakstar's inactive-account page instead of reporting an empty board", () => {
   const err = thrownBy(() => parseTrakstarList(INACTIVE_ACCOUNT_HTML, company));

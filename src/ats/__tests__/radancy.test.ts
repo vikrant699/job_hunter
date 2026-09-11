@@ -11,6 +11,7 @@ import {
 } from "../radancy.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
+import { thrownBy, rejectionOf } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -295,17 +296,6 @@ const cargillCompany: AdapterCompany = {
   apiMeta: null,
 };
 
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
-
 test("assertRadancyBoardServed throws only when the pager state is absent entirely", () => {
   // 0 results IS a Radancy search page - Cargill's live board looks exactly so.
   assert.doesNotThrow(() =>
@@ -348,13 +338,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead board", () => {
 
 test("radancyAdapter.listPostings reports a blocked board as infrastructure, not a defect", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
-  const err = await radancyAdapter.listPostings(cargillCompany).then(
-    () => {
-      throw new Error("expected listPostings to reject");
-    },
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (e: unknown) => e,
-  );
+  const err = await rejectionOf(radancyAdapter.listPostings(cargillCompany));
   assert.ok(isInfrastructureFault(err));
 });
 

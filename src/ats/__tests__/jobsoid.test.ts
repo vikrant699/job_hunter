@@ -9,6 +9,7 @@ import {
 } from "../jobsoid.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, fetchSequence, htmlResponseFrom, stubFetch } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -177,17 +178,6 @@ test("jobsoidJdFromHtml pulls the description out of the JobPosting JSON-LD and 
 test("jobsoidJdFromHtml returns empty string when there's no JobPosting JSON-LD", () => {
   assert.equal(jobsoidJdFromHtml("<html><body><p>no ld+json here</p></body></html>"), "");
 });
-
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
 
 test("assertJobsoidTenantExists throws when the board came from Jobsoid's shared portal, naming both hosts", () => {
   const err = thrownBy(() =>

@@ -108,8 +108,7 @@ test("listPostings rejects a locale-less tenant_url before fetching anything", a
   };
   await assert.rejects(
     () => phenomAdapter.listPostings(company),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       const msg = String(err);
       // One actionable config error, not a board full of JD failures.
       assert.match(msg, /missing the \/<country>\/<lang> locale segment/);

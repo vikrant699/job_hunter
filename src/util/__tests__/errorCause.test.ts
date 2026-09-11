@@ -10,6 +10,8 @@ import {
   isTransportError,
   looksLikeChallengePage,
 } from "../errorCause.js";
+import type { Caught } from "../errorCause.js";
+import { thrownBy } from "../../__tests__/caught.js";
 
 /** The exact shape undici produces for a DNS failure inside fetch(). */
 function undiciDnsFailure(): Error {
@@ -75,14 +77,10 @@ test("isTransportError is false for board-shaped failures", () => {
 });
 
 /** Whatever this Node's V8 phrases a JSON.parse failure as, so the classifier is tested against the live message rather than a copy of it. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function jsonParseFailure(body: string): unknown {
-  try {
+function jsonParseFailure(body: string): Caught {
+  return thrownBy(() => {
     JSON.parse(body);
-  } catch (err) {
-    return err;
-  }
-  throw new Error(`expected ${body} to fail JSON.parse`);
+  });
 }
 
 /** V8's phrasing when a JSON.parse hits an HTML document. */
@@ -296,13 +294,7 @@ test("an HTTP status error whose body is a challenge page is the edge, not the b
 
 test("assertNotEdgeChallenge throws an infrastructure-shaped error, or nothing", () => {
   for (const [vendor, body] of CHALLENGE_BODIES) {
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    let thrown: unknown;
-    try {
-      assertNotEdgeChallenge("radancy", "https://careers.amgen.com/search-jobs", body);
-    } catch (err) {
-      thrown = err;
-    }
+    const thrown = thrownBy(() => assertNotEdgeChallenge("radancy", "https://careers.amgen.com/search-jobs", body));
     assert.ok(thrown instanceof Error, `${vendor} must be rejected`);
     // The round trip is the whole mechanism: whatever the guard throws has to be classifiable by the predicate the scheduler routes on.
     assert.ok(isInfrastructureFault(thrown), `${vendor} error must classify as infrastructure`);
