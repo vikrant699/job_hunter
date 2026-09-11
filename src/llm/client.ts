@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import type { Caught } from "../util/errorCause.js";
 import { makeSemaphore } from "../util/semaphore.js";
 import { sleep } from "../util/sleep.js";
 import { LlmUnavailableError } from "./errors.js";
@@ -7,8 +8,7 @@ import { assertOpenRouterAvailable, openRouterGenerate } from "./openrouter.js";
 import type { OpenRouterGenerateOpts as GenerateOpts } from "./openrouter.js";
 
 // Connection-level failure (server unreachable), distinct from a per-posting model/output error.
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function isConnectionError(err: unknown): boolean {
+export function isConnectionError(err: Caught): boolean {
   const s = String(err).toLowerCase();
   return (
     s.includes("fetch failed") ||
@@ -43,8 +43,7 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
 }
 
 // Shared post-failure bookkeeping for generate()/generateOnce(); trips the breaker on the run instead of returning.
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function recordFailureAndThrow(lastErr: unknown): never {
+function recordFailureAndThrow(lastErr: Caught): never {
   // Already-classified backend failure is fatal on its own; don't re-wrap or count it.
   if (lastErr instanceof LlmUnavailableError) throw lastErr;
   if (isConnectionError(lastErr)) {
@@ -72,8 +71,7 @@ export async function generateOnce(prompt: string, opts: GenerateOpts = {}): Pro
 }
 
 export async function generate(prompt: string, opts: GenerateOpts = {}): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let lastErr: unknown;
+  let lastErr: Caught;
   for (let attempt = 0; attempt <= config.llm.maxRetries; attempt++) {
     try {
       const out = await once(prompt, opts);

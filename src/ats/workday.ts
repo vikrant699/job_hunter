@@ -8,6 +8,7 @@ import { REMOTE_RE, parsePostedOn, paginate } from "./shared.js";
 import { discoverIndiaFacet, pinnedFacet } from "./workdayFacet.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema, getObj } from "../util/json.js";
+import type { Caught } from "../util/errorCause.js";
 import { looksLikeChallengePage } from "../util/errorCause.js";
 
 // Workday CXS adapter: per-tenant URLs like apple.wd1.myworkdayjobs.com/External.
@@ -78,13 +79,11 @@ export function parseWorkdaySites(robotsTxt: string): string[] {
 // A wrong site name in tenant_url 404s, but so can an unrelated request-burst throttle serving HTML instead of JSON (see config.ts's PROVIDER_THROTTLE_TABLE) - so an HTML body alone doesn't prove drift; only robots.txt not listing the configured site at all does (see discoverDriftedSite's containment check).
 const HTML_NOT_JSON_RE = /Unexpected token '<'|<!doctype\b|<html\b|is not valid JSON|Unexpected end of JSON input/i;
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function isWorkdayNotFoundError(err: unknown): boolean {
+function isWorkdayNotFoundError(err: Caught): boolean {
   return err instanceof Error && err.message === "workday 404";
 }
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function isWorkdayHtmlBodyError(err: unknown): boolean {
+function isWorkdayHtmlBodyError(err: Caught): boolean {
   if (!(err instanceof SyntaxError)) return false;
   if (looksLikeChallengePage(err.message)) return false;
   return HTML_NOT_JSON_RE.test(err.message);
@@ -94,8 +93,7 @@ function isWorkdayHtmlBodyError(err: unknown): boolean {
 async function discoverDriftedSite(
   company: AdapterCompany,
   parts: WorkdayUrlParts,
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  err: unknown,
+  err: Caught,
 ): Promise<WorkdayUrlParts | null> {
   if (!isWorkdayNotFoundError(err) && !isWorkdayHtmlBodyError(err)) return null;
 

@@ -9,6 +9,7 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
+import type { Caught } from "../util/errorCause.js";
 
 const API_URL = "https://moglix-api.flexiele.com/api-pub/rec/careers/list";
 const CAREERS_URL = "https://moglix.flexiele.com/careers/moglix/jobs";
@@ -152,8 +153,7 @@ export const moglixAdapter: AtsAdapter = {
   provider: "moglix",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    const json = await fetchEncryptedList().catch((err: unknown) => {
+    const json = await fetchEncryptedList().catch((err: Caught) => {
       logger.warn({ slug: company.slug, err: String(err).slice(0, 200) }, "moglix list fetch failed");
       throw err;
     });

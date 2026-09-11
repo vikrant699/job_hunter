@@ -21,6 +21,7 @@ import { extractSalary } from "../filter/salary.js";
 import { profile } from "../profile.js";
 import { sleep } from "../util/sleep.js";
 import { describeError, isInfrastructureFault } from "../util/errorCause.js";
+import type { Caught } from "../util/errorCause.js";
 import { parseStatedYoeMin } from "../filter/yoe.js";
 import type { RunContext } from "./index.js";
 // Type-only: the scheduler owns the policy and is this function's only production caller, so importing the shape back creates no runtime dependency on it.
@@ -136,8 +137,7 @@ export async function processOnePosting(
   if (!posting.jdText && adapter.fetchJd) {
     const fetchJd = adapter.fetchJd;
     // Retry infrastructure failures: a JD lost to a network blip is skipped before insertPostingIfNew and only reappears next run; board-shaped errors (404/403/schema) are not retried - the host answered.
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    let jdErr: unknown;
+    let jdErr: Caught;
     for (let attempt = 0; attempt <= retry.retries; attempt++) {
       try {
         posting.jdText = await fetchJd(adapterCompany, posting);

@@ -16,6 +16,7 @@ import { extractJsonLdJobs } from "./jsonLd.js";
 import { analyzeCareersPage } from "./pageSignals.js";
 import { htmlToText } from "../ats/htmlText.js";
 import { REMOTE_RE } from "../ats/shared.js";
+import type { Caught } from "../util/errorCause.js";
 
 const LINK_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -166,8 +167,7 @@ export function createLlmScrapeAdapter(opts: LlmScrapeFactoryOptions): AtsAdapte
         updateParsingStrategy(company.provider, company.slug, "playwright-llm-scrape");
         const inRegistry = await updateRegistryStrategy(
           company.provider, company.slug, company.name, "playwright-llm-scrape", profile.id ?? "default",
-        // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-        ).catch((err: unknown) => {
+        ).catch((err: Caught) => {
           logger.warn(
             { company: company.slug, err: String(err).slice(0, 160) },
             `${tag}: Companies-tab strategy flip failed (DB flip already applied) — will retry next zero-yield hit`,

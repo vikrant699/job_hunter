@@ -4,6 +4,7 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
+import type { Caught } from "../util/errorCause.js";
 export const HEAVY_ASSET_RE = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
 const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
 
@@ -145,8 +146,7 @@ export interface BrowserJsonStep {
 export const TRANSIENT_EVAL_ERROR_RE = /execution context was destroyed|failed to fetch|target closed/i;
 export const MAX_EVAL_ATTEMPTS = 4;
 
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-export function isTransientEvalError(err: unknown): boolean {
+export function isTransientEvalError(err: Caught): boolean {
   return TRANSIENT_EVAL_ERROR_RE.test(String(err));
 }
 
