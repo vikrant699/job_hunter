@@ -6,7 +6,8 @@ import {
   parseGohireListPage,
   gohireAdapter,
 } from "../gohire.js";
-import { logger } from "../../logger.js";
+import { captureLogs } from "../../__tests__/logCapture.js";
+import type { LogLine } from "../../__tests__/logCapture.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
 
 const company: AdapterCompany = {
@@ -276,34 +277,8 @@ test("parseGohireListPage reports the server's card count even when a card is un
   assert.deepEqual(postings.map((p) => p.externalId), ["1001", "1003"]);
 });
 
-/** One captured log call: the level is the whole point of the stall report. */
-interface LogCall {
-  level: "warn" | "info";
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
-  fields: unknown;
-  message: string | undefined;
-}
-
-/** Runs `fn` with the shared logger's warn/info swapped for recorders, since paginate logs via the module-scoped pino instance with no injection point. */
-async function captureLogs(fn: () => Promise<void>): Promise<LogCall[]> {
-  const calls: LogCall[] = [];
-  const realWarn = logger.warn;
-  const realInfo = logger.info;
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
-  logger.warn = (fields: unknown, message?: string) => { calls.push({ level: "warn", fields, message }); };
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- conforms to pino's LogFn signature; narrowing the parameter would break assignability
-  logger.info = (fields: unknown, message?: string) => { calls.push({ level: "info", fields, message }); };
-  try {
-    await fn();
-  } finally {
-    logger.warn = realWarn;
-    logger.info = realInfo;
-  }
-  return calls;
-}
-
 /** The one stall line among the captured logs. */
-function onlyStallLog(calls: LogCall[]): LogCall {
+function onlyStallLog(calls: LogLine[]): LogLine {
   const stalls = calls.filter((c) => typeof c.message === "string" && c.message.startsWith("pagination"));
   assert.equal(stalls.length, 1, `expected exactly one pagination log line, got ${JSON.stringify(calls)}`);
   const stall = stalls[0];
