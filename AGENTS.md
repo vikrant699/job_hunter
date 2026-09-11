@@ -20,7 +20,7 @@ It is run by hand (`npm run once`), not on a schedule. Not a public service, sin
 | `npm run once` | One full sweep: fetch, filter, score, record matches to the Google Sheet, draft outreach emails, post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. |
 | `npm test` | Run the test suite (`node:test`). |
 | `npm run typecheck` | `tsc --noEmit`. |
-| `npm run lint` | `eslint .` (enforces the type-hygiene rules below). |
+| `npm run lint` | `eslint . --max-warnings 0` (enforces the type-hygiene rules below; a warning also fails). |
 | `npm run extract-resume` | Re-extract `config/resume.pdf` to `config/resume.txt`. Add `-- --profile <name>` for a named profile's dir. Startup also re-extracts automatically whenever the PDF is newer than the txt. |
 | `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account (writes `data/google-token-<name>.json`). |
 | `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates bot tabs, seeds Raw Data and Companies from local files when they exist (both are gitignored), writes headers. |
@@ -56,11 +56,13 @@ npm run lint        # ZERO violations
    carry it as `JsonValue` (rule 6) — do not carry it as `unknown`. The ATS fetch helpers
    (`atsFetchJson`, `atsFetchFormJson`, `atsFetchJsonMultipart`, `browserFetchJson*`) and
    `google/rest.ts` already do this, so every adapter parse function takes `JsonValue`.
-   Two carve-outs, both requiring an `eslint-disable-next-line ... -- <reason>`:
-   - **Caught/thrown values.** TS types these `unknown` by design and there is no narrower
-     type; the predicates in `util/errorCause.ts` exist to narrow them.
-   - **Conforming to a library signature** whose parameter is `unknown` (e.g. pino's
-     `LogFn`) — narrowing it would break assignability.
+   A value that came out of `catch` or a rejection is typed `Caught` (exported from
+   `src/util/errorCause.ts`; TS's own type for a thrown value, read off `Error["cause"]`),
+   never `unknown`. `Caught` is only for caught values; JSON, DB rows and HTTP bodies still
+   go through `JsonValueSchema`. In tests, get a thrown value with `thrownBy` / `rejectionOf`
+   from `src/__tests__/caught.ts`, leave `assert.rejects` validator parameters un-annotated
+   (they are contextually typed), and capture log output with `captureLogs` from
+   `src/__tests__/logCapture.ts` instead of reassigning logger methods.
    In tests, prefer a generic (`function jsonResponse<T>(body: T)`) over `unknown`, and use
    `asJson(fixture)` from `ats/__tests__/testHelpers.ts` to hand a schema-typed fixture to a
    parser that takes `JsonValue` (it JSON round-trips, dropping `undefined` optionals).
@@ -83,6 +85,10 @@ npm run lint        # ZERO violations
     `postingPipeline.ts`. `__tests__` / `__mocks__` directories are exempt.
 11. **Tests live in `__tests__/`** next to the code they cover — enforced by
     `local/tests-in-tests-folder` from `eslint-local-plugin.js` (ported from core-ui).
+12. **No `eslint-disable` comments of any kind.** `linterOptions.noInlineConfig` in
+    `eslint.config.js` makes them inert and `npm run lint` runs with `--max-warnings 0`, so a
+    single one fails the build. If a rule is wrong for a real case, change the rule in
+    `eslint.config.js` with the reason, so the exception lives in one visible place.
 
 ## Where things live
 
@@ -137,14 +143,16 @@ src/
   scraper/     cheerio, playwright, llm-scrape, playwright-llm-scrape
   util/        semaphore, sleep, user-agent, slug, json (JsonValue), csv (parse + build),
                  probe, fs (writeFileAtomic), regex (matchGroup), env (envInt),
-                 httpRetry (Retry-After parsing), errorCause (transport vs edge vs board),
+                 httpRetry (Retry-After parsing), errorCause (transport vs edge vs board,
+                 plus the Caught type),
                  connectivity (the outage heartbeat every outbound call waits on),
                  jobUrlResolver (resolves a job URL to provider/slug/externalId, used by
                  npm run probe-url), aggregatorGuard (log-only warn when one board's
                  listing spans more than 10 distinct hiring-org names)
   schemas.ts   zod schemas + their inferred types
   types.ts     pure types/interfaces
-  config.ts profile.ts logger.ts
+  config.ts profile.ts logger.ts (logger.ts also exports setLogSink, the test seam behind
+                 src/__tests__/logCapture.ts)
   index.ts     entrypoint: pre-flight + DB sync ONLY. Must not statically import
                  anything that reaches db/db.ts (see Environment > DB sync)
   runOnce.ts   the run itself (registry sync -> tick -> outreach -> status),
@@ -159,7 +167,8 @@ Test files live in a `__tests__/` subdirectory of the module they cover rather t
 to it: `src/ats/foo.ts` is tested by `src/ats/__tests__/foo.test.ts`, and the shared ATS
 fixture helpers are at `src/ats/__tests__/testHelpers.ts`. The `npm test` glob
 (`src/**/*.test.ts`) matches at any depth, so a new `__tests__` directory needs no config
-change.
+change. Repo-wide test helpers live in `src/__tests__/`: `caught.ts` (`thrownBy`,
+`rejectionOf`) and `logCapture.ts` (`captureLogs`).
 
 ## Conventions
 
