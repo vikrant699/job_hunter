@@ -30,6 +30,9 @@ export default tseslint.config(
     ignores: IGNORES,
     languageOptions,
     plugins,
+    // Inline eslint directives are inert (and each one is a warning, which --max-warnings 0
+    // turns into a failure); change the rule here instead.
+    linterOptions: { noInlineConfig: true },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unsafe-assignment": "error",
@@ -47,18 +50,15 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/no-unnecessary-condition": "error",
-      // Mechanically enforces Standard rule 3 ("no hand-written `unknown`"), which was
-      // documented in AGENTS.md but previously unchecked. `any` is already covered by
-      // no-explicit-any above. The genuine boundaries rule 3 exempts — the zod-input
-      // helpers in ats/http.ts and the caught-error predicates in util/errorCause.ts —
-      // carry an eslint-disable with a reason, which is the documented escape hatch.
+      // Standard rule 3 (no hand-written unknown), enforced mechanically. Caught values
+      // use the Caught alias in util/errorCause.ts; JSON boundaries use JsonValue.
       "@typescript-eslint/no-restricted-types": [
         "error",
         {
           types: {
             unknown: {
               message:
-                "Standard rule 3: no hand-written `unknown`. Validate with zod and use `z.infer`, narrow with typeof/Array.isArray/in, or use JsonValue from util/json.ts. If this is a true external boundary, add an eslint-disable-next-line with a short reason.",
+                "Standard rule 3: no hand-written unknown. Validate with zod and use z.infer, narrow with typeof/Array.isArray/in, or use JsonValue from util/json.ts. A value that came out of catch is Caught (util/errorCause.ts).",
             },
           },
         },
