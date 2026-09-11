@@ -5,6 +5,7 @@ import { config } from "../../config.js";
 import { isConnectionError, assertLlmAvailable, generateOnce, generate } from "../client.js";
 import { LlmUnavailableError } from "../errors.js";
 import { stubFetch, jsonResponse } from "../../ats/__tests__/testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 
 function completion(content: string): Response {
   return jsonResponse({ choices: [{ message: { content } }] });
@@ -25,13 +26,7 @@ test("isConnectionError flags backend-down signatures", () => {
 });
 
 test("isConnectionError does NOT flag model/output errors", () => {
-  // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-  let zodErr: unknown;
-  try {
-    z.string().parse(123);
-  } catch (err) {
-    zodErr = err;
-  }
+  const zodErr = thrownBy(() => z.string().parse(123));
   for (const e of [
     "OpenRouter returned no message content",
     zodErr,

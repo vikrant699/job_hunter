@@ -130,8 +130,7 @@ test("syncRegistryFromSheet: sheet throws AND cache missing -> throws an actiona
         readTab: async () => { throw new Error("network down"); },
         cachePath,
       }),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       assert.ok(err instanceof Error);
       assert.match(err.message, /bootstrap|GOOGLE_/i);
       return true;

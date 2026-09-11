@@ -19,6 +19,7 @@ import {
 import type { PyjamahrJob } from "../pyjamahr.js";
 import type { AdapterCompany } from "../../types.js";
 import { asJson, at, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -231,11 +232,7 @@ test("assertPyjamahrTenantExists throws only for the definitive absent verdict",
 test("the dead-uuid error is charged to the company, not written off as infrastructure", async (t) => {
   // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   stubFetch(t, fetchSequence(() => htmlResponse(ABSENT_HTML)));
-  const err = await assertPyjamahrTenantExists(company, "2615584222").then(
-    () => new Error("expected the call to reject, but it resolved"),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (e: unknown) => e,
-  );
+  const err = await rejectionOf(assertPyjamahrTenantExists(company, "2615584222"));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);

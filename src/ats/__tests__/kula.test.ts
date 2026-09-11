@@ -7,6 +7,7 @@ import {
   isTransportError,
 } from "../../util/errorCause.js";
 import type { AdapterCompany } from "../../types.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 
 const company: AdapterCompany = {
   provider: "kula", slug: "avoma", name: "Avoma",
@@ -108,10 +109,7 @@ test("kulaAdapter.listPostings filters listed:false and stops on a short page", 
 test("a dead account rejects rather than reporting an empty board", async () => {
   stubFetch(async () => Response.json({ errors: ["err_account_not_found"] }, { status: 404 }));
   try {
-    const err = await kulaAdapter
-      .listPostings({ ...company, slug: "zzznosuchtenant9x" })
-      // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-      .then(() => null, (e: unknown) => e);
+    const err = await rejectionOf(kulaAdapter.listPostings({ ...company, slug: "zzznosuchtenant9x" }));
     assert.ok(err instanceof Error, "a 404 account-not-found must not resolve to []");
     // Must count toward consecutive_failures rather than be retried as an outage.
     assert.equal(isTransportError(err), false);

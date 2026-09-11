@@ -10,6 +10,7 @@ import {
 } from "../superworks.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -160,17 +161,6 @@ const EMPTY_BOARD_HTML = `<html><body>${pushScript(
     jobList: [],
   })}}]`,
 )}</body></html>`;
-
-/** Run `fn` and hand back whatever it threw, failing the test if it returned. */
-// eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-function thrownBy(fn: () => unknown): unknown {
-  try {
-    fn();
-  } catch (err) {
-    return err;
-  }
-  throw new Error("expected the call to throw, but it returned");
-}
 
 test("superworksTenantName reads the tenant name the board resolved from its subdomain", () => {
   assert.equal(superworksTenantName(LIST_HTML), "Refrens Internet Pvt Ltd.");

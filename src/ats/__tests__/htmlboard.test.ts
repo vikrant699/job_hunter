@@ -10,6 +10,7 @@ import {
 } from "../htmlboard.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
   isInfrastructureFault,
@@ -179,10 +180,7 @@ test("a paged board is only audited on page 1", async (t) => {
 
 test("the dead-page error is charged to the company, not written off as infrastructure", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(PARKED_HTML)));
-  const err = await htmlboardAdapter
-    .listPostings(company(boardMeta))
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    .then(() => null, (e: unknown) => e);
+  const err = await rejectionOf(htmlboardAdapter.listPostings(company(boardMeta)));
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
@@ -192,10 +190,7 @@ test("the dead-page error is charged to the company, not written off as infrastr
 // A block page has no items or boardSelector match, so it used to read as "not this board" - true, but charged to the company.
 test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
-  const err = await htmlboardAdapter
-    .listPostings(company(boardMeta))
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    .then(() => null, (e: unknown) => e);
+  const err = await rejectionOf(htmlboardAdapter.listPostings(company(boardMeta)));
   assert.ok(err instanceof Error);
   assert.ok(isInfrastructureFault(err), "a blocked request must not be charged to the board");
   assert.doesNotMatch(err.message, /board did not render/);
@@ -204,10 +199,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
 test("a boardSelector-less row also refuses to read a block page as an empty board", async (t) => {
   // The opt-in exists so an unverified marker cannot fail a board - a bot block isn't this board's response at all, so reporting zero openings would be wrong too.
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
-  const err = await htmlboardAdapter
-    .listPostings(company({ itemSelector: "li.card" }))
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    .then(() => null, (e: unknown) => e);
+  const err = await rejectionOf(htmlboardAdapter.listPostings(company({ itemSelector: "li.card" })));
   assert.ok(err instanceof Error);
   assert.ok(isInfrastructureFault(err));
 });

@@ -153,8 +153,7 @@ test("getAccessToken: invalid_grant from refresh -> GoogleAuthExpiredError with 
       writeFileAtomic: fake.writeFileAtomic,
       now: () => Date.now(),
     }),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       assert.ok(err instanceof GoogleAuthExpiredError);
       assert.match(err.message, /npm run google-auth -- --profile testprofile/);
       return true;
@@ -175,8 +174,7 @@ test("getAccessToken: missing token file -> GoogleAuthExpiredError", async () =>
       writeFileAtomic: fake.writeFileAtomic,
       now: () => Date.now(),
     }),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       assert.ok(err instanceof GoogleAuthExpiredError);
       assert.match(err.message, /npm run google-auth -- --profile testprofile/);
       return true;
@@ -200,8 +198,7 @@ test("getAccessToken: other non-OK refresh status -> plain Error with status and
       writeFileAtomic: fake.writeFileAtomic,
       now: () => Date.now(),
     }),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       assert.ok(err instanceof Error);
       assert.ok(!(err instanceof GoogleAuthExpiredError));
       assert.match(err.message, /500/);
@@ -250,8 +247,7 @@ test("assertGoogleTokenValid: invalid_grant -> GoogleAuthExpiredError", async ()
       writeFileAtomic: fake.writeFileAtomic,
       now: () => Date.now(),
     }),
-    // eslint-disable-next-line @typescript-eslint/no-restricted-types -- a caught/thrown value is `unknown` in TS by design (Standard rule 3)
-    (err: unknown) => {
+    (err) => {
       assert.ok(err instanceof GoogleAuthExpiredError);
       return true;
     },
