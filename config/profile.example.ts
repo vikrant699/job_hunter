@@ -7,8 +7,8 @@
  *   3. `config/profile.ts` is gitignored — your edits stay local
  *
  * Field-by-field guide:
- *   - hardDealBreakers    Conditions that SILENTLY reject a posting (no Discord ping)
- *   - softDealBreakers    Conditions that still notify, but with a yellow warning
+ *   - hardDealBreakers    Conditions that SILENTLY reject a posting (never recorded as a match)
+ *   - softDealBreakers    Conditions that still match, but only as yellow
  *   - filters             YOE bounds + the green/yellow score thresholds
  *   - location            Which locations count as in-region or acceptable remote
  *   - titleDenyPatterns   Cheap regex pre-filter before the LLM call; keep it conservative (false positives mean missed roles)

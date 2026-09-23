@@ -1,308 +1,206 @@
 # job-hunter-bot
 
-A personal job-hunting bot. It pulls postings from a list of companies you care about,
-filters them against your resume and deal-breakers, scores each with an LLM, records
-the good matches to a Google Sheet, and drafts outreach emails to the matching companies'
-recruiters (drafts only - you review and send). Discord is used only for run status.
+A personal job-hunting bot. It pulls postings from a list of companies you curate, filters
+them against your profile and resume, scores each with an LLM, and drafts outreach emails
+to the matching companies' recruiters in your Gmail (drafts only: you review and send).
+Results are tracked in a Google Sheet; Discord, if configured, gets run status only.
 
-You run it by hand with `npm run once` whenever you want a sweep. A full sweep over the
-~1,800-company registry (active rows; total rows are higher) takes roughly half an hour;
-incremental runs (most postings already seen and deduped from earlier runs) finish in
-minutes.
+You run it by hand with `npm run once`. A full sweep over ~1,700 active companies takes
+roughly half an hour and costs well under a dollar in LLM calls.
 
-## What it looks like
+Contributing, or pointing an AI agent at this repo? Read [AGENTS.md](AGENTS.md).
 
-Matches land in a Google Sheet, color-coded by confidence: green for a strong match,
-yellow for borderline (e.g. slightly over the years-of-experience cap). Each row shows
-the role, location, YOE, a one-line "why it matched", and the relevance score; matching
-companies' recruiters also get a drafted outreach email (drafts only - you review and
-send). Discord carries only run status: while a run is in flight an optional progress
-heartbeat posts every 15 minutes (how far along it is, jobs seen and relevant so far, and
-a per-strategy breakdown), and at the end of every run a single summary embed posts
-(companies scanned, postings seen, green/yellow counts, duration, and any errors).
+## Requirements
 
-## What it needs
+- Node 22+ (uses the built-in `node:sqlite`).
+- An [OpenRouter](https://openrouter.ai/keys) API key (prepaid credits).
+- A Google account plus a Google Cloud **Desktop-app OAuth client** (Gmail + Sheets + Drive
+  APIs enabled). The bot will not start without a valid Google token.
+- A Google Sheet to act as the bot's database front-end (company list, recruiter contacts,
+  draft tracking).
+- Your resume as a PDF.
+- Optional: a Discord webhook for run status.
 
-- Node 22 or newer (uses the built-in `node:sqlite`).
-- An [OpenRouter](https://openrouter.ai) API key (`OPENROUTER_API_KEY` in `.env`). The
-  default model is set by `OPENROUTER_MODEL` and routing is pinned to the providers in
-  `OPENROUTER_PROVIDERS` so prompt caching works; a full sweep costs well under a dollar.
-- Your resume as a PDF at `config/resume.pdf` (see Getting started).
-- Optionally, a Discord webhook (`DISCORD_PROGRESS_WEBHOOK_URL`) for run status: a
-  mid-run progress heartbeat every 15 minutes plus the single end-of-run summary embed.
-  It is the only Discord surface. Leave unset to skip (status is logged instead).
+## Setup
 
-## Getting started
+**1. Install.**
 
 ```
 git clone <your-fork>
-cd job-hunter-bot
+cd job_hunter
 npm install
-
-cp config/profile.example.ts config/profile.ts
+npx playwright install chromium
 cp .env.example .env
+cp config/profile.example.ts config/profile.ts
 ```
 
-Three things to set up:
+Some boards need Microsoft Edge installed (built in on Windows); they fail on their own
+without it and the rest of the run is unaffected.
 
-1. **Resume.** Put your resume PDF at `config/resume.pdf`. On the first run it is
-   extracted once to `config/resume.txt`, the plain text the relevance LLM judges
-   against. If neither file exists the bot stops with an error, because there is
-   nothing to match postings on. After you update the PDF, run `npm run extract-resume`
-   to regenerate the text.
-2. **Profile.** Open `config/profile.ts` and fill in your target roles, cities,
-   deal-breakers, and denylists. Every field has a comment explaining what it is for.
-   The shipped example is tuned for a data-analyst search in India; overwrite it.
-3. **Discord (optional).** For run-status pings, put a webhook URL into `.env` under
-   `DISCORD_PROGRESS_WEBHOOK_URL`. Leave it unset and run status is just logged instead.
+**2. Fill in `.env`.** Every variable is commented in `.env.example`. The required ones:
 
-`config/profile.ts`, `config/resume.pdf`, `config/resume.txt`, and `.env` are all
-gitignored, so they stay on your machine.
-
-**Multiple profiles.** To run more than one search (e.g. two people, or two role
-families), put each under `config/profiles/<name>/profile.ts` with its own `resume.pdf`,
-and run `npm run once -- --profile <name>`. Setting the `PROFILE` env var instead of
-passing `--profile <name>` selects the same way. Each profile can set its own
-relevance-gate prompt (`gatePrompt`) and outreach identity; postings and runs are
-stamped per profile in the DB. Without `--profile` or `PROFILE`, the bot uses
-`config/profile.ts` (the "default" profile). The whole `config/profiles/` tree is
-gitignored.
-
-## Commands
-
-| | |
+| Variable | What |
 |---|---|
-| `npm run once` | The main thing. One full sweep: fetch postings, filter, score, record matches to the Google Sheet, draft outreach emails, and post an end-of-run status embed to Discord. Add `-- --profile <name>` for a named profile. |
-| `npm test` | Runs the test suite (`node:test`). |
-| `npm run extract-resume` | Re-extract `config/resume.pdf` into `config/resume.txt`. Run it after the PDF changes. |
-| `npm run google-auth -- --profile <name>` | One-time Google OAuth consent for a profile's Gmail account; writes `data/google-token-<name>.json`. |
-| `npm run bootstrap-sheet` | Idempotent outreach-spreadsheet setup: creates the bot's tabs and seeds Raw Data/Companies from local files when present. |
-| `npm run verify-outreach -- --profile <name>` | Standalone bounce-only verify pass over one profile's mailbox, then re-projects the sheet (this also runs automatically inside `npm run once`). |
-| `npm run blast -- --profile <name>` | TEMPORARY weekly cold-email drafter over the Raw Data tab (drafts only, never sends). See AGENTS.md for flags and its deletion checklist. |
-| `npm run probe -- acme swiggy` | Looks up which ATS (if any) a company is on. Useful before adding entries to the registry. |
-| `npm run probe-url -- <url>` | "Why isn't this posting in my list?" - resolves a job posting URL to its board, then prints everything the bot knows: company health, the posting's lifecycle and gate verdict, and recent per-board fetch diffs. Add `--gate` to fetch the JD and run the real relevance gate on it (one LLM call). |
-| `npm run verify` | Checks every entry in your registry is still reachable (verifies against the local registry cache snapshot, so run it after at least one successful sync). Pass `--suggest` to re-probe failed entries against other ATSes. |
-| `npm run scrape -- <slug>` | Walks one company through the llm-scrape pipeline so you can see what cheerio finds and what the LLM picks. |
-| `npm run health` | Read-only registry health report: status/strategy/provider yield tallies from the local DB and cache. |
-| `npm run db:push -- --profile <name>` | Upload the SQLite DB to Google Drive so another machine can pick it up. |
-| `npm run db:pull -- --profile <name>` | Download it back, integrity-checked before replacing the local file. |
-| `npm run lint` | `eslint .` |
-| `npm run typecheck` | `tsc --noEmit`. |
+| `OPENROUTER_API_KEY` | Your OpenRouter key. Leave `OPENROUTER_MODEL` / `OPENROUTER_PROVIDERS` at their defaults unless you know why (they are pinned for prompt caching and answer quality). |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | From the Desktop-app OAuth client (Cloud Console > APIs & Services > Credentials). |
+| `GOOGLE_SPREADSHEET_ID` | The long id in your sheet's URL. |
 
-## How a posting moves through
+**3. Authorize Google.** Opens a browser for consent and writes `data/google-token-default.json`:
 
-The adapter layer does the fetching. Greenhouse, Lever, and Ashby return everything
-(including JD bodies) in one request. Workday, SmartRecruiters, and the other API
-providers return a listing first; the JD body comes from a second request, made only
-for postings worth keeping. For companies that do not use a known ATS, the bot falls
-back to a cheerio scrape of the careers page, and if cheerio sees too few links to
-make sense of, a Playwright variant renders the page in headless Chromium and tries
-again.
+```
+npm run google-auth
+```
 
-Each posting then runs a short gauntlet. Location filter first: if the posting's
-location is not in your `targetCities`, country hints, or accepted-remote strings, it
-is dropped without an LLM call. SQLite dedup next, keyed on `(provider, externalId)`.
-Then a cheap regex on the title to skip postings obviously outside your target role
-family (this is what `titleDenyPatterns` in your profile is for; it saves a slow LLM
-call per drop).
+If your OAuth consent screen is in Testing mode, the token expires about weekly; the bot
+tells you when, and you rerun this command.
 
-SuccessFactors boards (both the CSB JSON API and the legacy HTML board) additionally
-cross-check the tenant's `/sitemap.xml`, which lists every posting in one request;
-ids the paginated listing missed are gap-filled from it, so unstable pagination can
-no longer drop jobs.
+**4. Prepare the sheet.** In the spreadsheet, create a tab named `Recruiters List` with
+the header row `Company | Name | Phone | Email` (columns A-D). Then run:
 
-Anything that survives gets a JD fetch (if the listing did not already include one),
-then two LLM calls: a "gate" that returns a `matchScore` plus any deal-breaker hit,
-and an "extract" that pulls minimum and maximum YOE from the JD text. The gate judges
-the posting against your full resume text. The verdict is tri-state: green if the
-score clears your threshold with no soft hits, yellow for borderline matches or soft
-hits or unknown YOE, silent for hard deal-breakers and noise. Green and yellow are both
-recorded to the Google Sheet, color-coded by tier. Silent drops are still logged to the SQLite
-DB so you can audit later. A profile can also set `neverSilenceTitlePatterns` - titles
-that are floored to yellow instead of silenced even at a low score (for a rare
-sub-specialty worth eyeballing), unless they hit a hard deal-breaker or the YOE cap.
+```
+npm run bootstrap-sheet
+```
 
-When a JD states pay (Indian forms included: LPA, lakh/crore, ₹ with 2-2-3 digit
-grouping, plus USD/EUR/GBP and friends), a mechanical extractor stores the
-annualized range on the posting - no LLM involved, and never guessed when the JD
-is silent.
+This creates the `Raw Data`, `Drafts`, `Sent`, `Undrafted` and `Companies` tabs, writes
+their headers, and adds the bot's columns (E-G) to `Recruiters List`. It is safe to rerun;
+tabs that already have data are left alone.
 
-Postings also carry a lifecycle. Every successful company fetch bumps `last_seen_at`
-for each posting the board still lists; a posting missing from the snapshot gets
-`removed_at` stamped (and cleared again if it reappears). Outreach never drafts
-against a posting the board has taken down, and each company fetch writes an
-added/removed/unchanged diff row (kept for the last 60 fetches per board) that
-`npm run health` reads to surface churn and removal trends.
+**5. Add companies** to the `Companies` tab (see [The company list](#the-company-list)).
+On a fresh setup it is empty, so there is nothing to scan until you add rows.
 
-Every run ends with a single Discord message: a "run complete" embed (companies
-scanned, postings seen, new postings, green/yellow counts, duration, and any errors).
-The matched postings themselves live in the Google Sheet (one row per match with job
-title, link, score, green/yellow tier, and reason), and matching companies also get
-drafted outreach emails on the sheet's Drafts/Undrafted tabs. Companies that errored,
-are stuck on `manual`, or look like a silently-failing scrape (a fragile scraper that
-returned zero) are recorded in the DB and run logs with the reason to fix.
+**6. Add recruiter contacts** (for outreach) to `Recruiters List` (one row per contact),
+or as bulk rows in `Raw Data` (`company, email, contact_name, alt_names, flags, seen`).
+Contacts are matched to a posting's company by name (spelled as in the `Companies` tab),
+then by `alt_names` (`;`-separated), then by email domain. Matches with no contact are
+still recorded, on the `Undrafted` tab.
 
-While a run is in flight, a progress heartbeat is posted every 15 minutes to the
-`DISCORD_PROGRESS_WEBHOOK_URL` channel (companies scanned out of total, jobs
-seen, jobs relevant, and a per-strategy breakdown) so you can watch a long run without
-tailing logs.
+**7. Your profile and resume.**
 
-## The registry and adding a company
+- Put your resume at `config/resume.pdf`. It is extracted to `config/resume.txt` on the
+  first run (and again whenever the PDF is newer); the LLM judges every posting against it.
+- Edit `config/profile.ts`: target roles and cities, experience limits, deal-breakers,
+  title filters, and company denylists. Each field is commented. The shipped example is a
+  data-analyst search in India; replace it. Optional fields: `senderName`, `senderLinks`
+  and `profilePitch` (used in the outreach email), `gatePrompt` (replaces the scoring
+  prompt), `filters.silentFloor` (score below which a posting is dropped, default 0.65;
+  `matchThreshold` must be above it), and `neverSilenceTitlePatterns`.
+- Edit `config/outreach-template.md` if you want different email wording. Placeholders:
+  `{{company}}`, `{{roles_block}}`, `{{role_summary}}`, `{{s_if_plural}}`,
+  `{{contact_name_or_there}}`, `{{profile_pitch}}`, `{{sender_name}}`, `{{sender_links}}`.
+  Your resume PDF is attached to every draft.
 
-The company registry is the Companies tab of your outreach Google Sheet. It is the one
-source of truth; the bot syncs it into the SQLite `companies` table on each run, and
-writes one kind of update back to it (the SPA sentinel's llm-scrape to
-playwright-llm-scrape strategy flip). `data/registry-cache.json` is a bot-maintained
-local snapshot of the tab, used only as an offline fallback when the sheet is
-unreachable - it is not itself a source of truth, and it is not git-tracked. An ATS
-entry's columns look like (see `src/registry/sheetCodec.ts` for the exact column order):
+**8. Optional:** set `DISCORD_PROGRESS_WEBHOOK_URL` in `.env` for run status.
+
+`.env`, `config/profile.ts`, `config/resume.*`, `config/profiles/` and `data/` are
+gitignored and stay on your machine.
+
+## Running
+
+```
+npm run once
+```
+
+A run does, in order:
+
+1. Pre-flight: checks the OpenRouter key and model, and your Google token. Fails in seconds
+   if either is wrong.
+2. Pulls a newer DB from Google Drive if one exists (see below), then syncs the
+   `Companies` tab into the local SQLite DB (`data/job_hunter.db`).
+3. Fetches every active company's board, drops postings outside your locations or title
+   filters (and anything already seen), then asks the LLM to score the rest. Each posting
+   ends up **green** (strong match), **yellow** (borderline, a soft deal-breaker, or
+   unclear experience requirement) or silently dropped.
+4. Checks yesterday's drafts against your mailbox (sent, discarded, bounced), then drafts
+   one email per matching company and recruiter. A recruiter is not re-drafted within 30 days.
+5. Updates the sheet: `Drafts` and `Sent` (one row per company/recruiter, with roles,
+   green/yellow severity and score), `Undrafted` (matches that got no draft, and why).
+6. Posts one status summary to Discord (or logs it).
+
+Then open Gmail, review the drafts, and send the ones you like.
+
+If your connection drops mid-run, the run pauses and resumes by itself; look for
+"network is DOWN" in the log. Logs are timestamped in UTC.
+
+## The company list
+
+The `Companies` tab is the source of truth. The DB copy is rebuilt from it every run, so
+edit the sheet, never the DB. Columns, in order:
+
+`name, careers_url, source, source_slug, parsing_strategy, status, reason, discovered_via,
+discovered_at, evidence, tenant_url, api_meta, category, employer_type`
+
+Only the first five are required. Example:
 
 | name | careers_url | source | source_slug | parsing_strategy |
 |---|---|---|---|---|
 | Acme | https://acme.example.com/careers | greenhouse | acme | ats-api |
 
-Before adding, run `npm run probe -- acme` to find out which ATS hosts their board, and
-check the tab first - the company may already be present under a non-obvious slug. If
-none of the supported ATSes match, set `source` to `custom` and `parsing_strategy` to
-`llm-scrape`. If the careers page is a JavaScript-rendered SPA, use
-`playwright-llm-scrape` instead.
+- `source` is the job-board vendor (121 supported; see `ProviderSchema` in
+  `src/schemas.ts`). `npm run probe -- acme` checks Greenhouse, Lever and Ashby for a
+  matching slug; for other vendors, open the careers page and look where the job links go.
+- Workday rows also need `tenant_url`, e.g. `https://acme.wd1.myworkdayjobs.com/External`.
+- `parsing_strategy` is `ats-api` for any supported vendor. For a careers page with no
+  supported vendor, use source `custom` with `llm-scrape` (plain HTML) or
+  `playwright-llm-scrape` (JavaScript-rendered). `manual` keeps a row on the list without
+  fetching it.
+- `status`: blank or `active` is scanned. `denied` is never scanned (dead, duplicate, or out
+  of scope). `dormant` is a real company with no reachable board, rechecked weekly and
+  reactivated automatically once it lists jobs. Separately, the bot marks a company
+  `broken` in its DB (not the sheet) after 5 consecutive failed fetches and stops scanning
+  it; `npm run health` counts them.
+- Once the DB holds a row as `denied`, `dormant` or `broken`, setting it back to `active`
+  in the sheet does not revive it. Changing its `source`/`source_slug` does (that is a new
+  row). Otherwise, delete the row from the sheet, run `npm run resync-registry`, then add it
+  back and resync again.
+- `category` and `employer_type` (`product`/`service`) are curation labels; the bot does
+  not filter on them.
 
-Workday entries need one extra column, the tenant URL:
+## Commands
 
-```
-tenant_url: https://acme.wd1.myworkdayjobs.com/External
-```
+| Command | What it does |
+|---|---|
+| `npm run once` | One full run (above). |
+| `npm run google-auth` | Google consent; rerun when the token expires. |
+| `npm run bootstrap-sheet` | Create/prepare the sheet's tabs. Idempotent. |
+| `npm run extract-resume` | Re-extract the resume PDF to text (also automatic when the PDF is newer). |
+| `npm run verify-outreach` | Just the mailbox check (sent/discarded/bounced) plus sheet update. |
+| `npm run probe -- <name> [<name>...]` | Guess a company's Greenhouse/Lever/Ashby slug. |
+| `npm run probe-url -- <url> [--gate]` | Why isn't this job in my results? Shows what the bot knows about that posting and its board. `--gate` also scores it (one LLM call). |
+| `npm run scrape -- <slug>` | Debug the `llm-scrape` path for one company. |
+| `npm run verify [-- --suggest]` | Check every company's board is reachable (uses the local cache, so run `once` first). `--suggest` tries other vendors for failures. |
+| `npm run health` | Read-only report: company counts by status/strategy/vendor, failure streaks, yield. |
+| `npm run resync-registry` | Pull the `Companies` tab into the DB without doing a run. |
+| `npm run db:push` / `npm run db:pull` | Copy the DB to/from Google Drive (see below). |
+| `npm test` / `npm run typecheck` / `npm run lint` | Test suite, type check, lint. |
 
-Workday has no directory of tenants, so finding these means hunting around the
-company's careers page until you spot a `myworkdayjobs.com` link. The career-site
-name (the path segment, e.g. `/External`) is listed in the tenant's
-`robots.txt` (`Allow: /<site>/` lines) if you need to confirm it. If a configured
-site name goes stale, the bot reads robots.txt itself: when exactly one site
-exists there it retries against it and logs a "workday site drift" warning;
-otherwise it logs the candidates for you to repoint the row.
+Every command that touches Google or a profile takes `-- --profile <name>`.
 
-Each entry also carries a `status`. `active`/`candidate` are scanned normally.
-`denied` is excluded from every scan - used for genuine dead ends (defunct or acquired
-companies, duplicate rows already covered by another entry, and IT-services/staffing
-body-shops that are out of scope). `dormant` is a softer quarantine for a real company
-that currently has no reachable public board (careers page is email/aggregator-only,
-WAF-walled, or temporarily broken) - kept on the books to revisit if a channel opens,
-but skipped by scans for now.
+## Multiple profiles
 
-## Project layout
+To run separate searches (two people, or two role families), create
+`config/profiles/<name>/profile.ts` plus `resume.pdf` in the same folder, authorize it with
+`npm run google-auth -- --profile <name>` (its own Google account), and run
+`npm run once -- --profile <name>` (or set `PROFILE=<name>`). Profiles share the company
+list and DB; results are stamped per profile. Without `--profile`, the bot uses
+`config/profile.ts`.
 
-```
-config/
-  profile.ts             your deal-breakers + filters + locations    (gitignored)
-  profile.example.ts     template; loader falls back to it
-  profiles/<name>/       named profiles (profile.ts + resume.pdf)     (gitignored)
-  resume.pdf             your resume PDF                             (gitignored)
-  resume.txt             extracted resume text the gate judges on    (gitignored)
-data/                    SQLite DB, registry-cache.json, other caches (gitignored)
-scripts/                 ops/maintenance CLIs: slug-probe, verify-registry,
-                           scrape-probe, probe-url
-src/
-  ats/                   one file per ATS provider; registry.ts maps provider names
-                           to adapters; detect.ts holds the ATS-redirect detection
-                           patterns llm-scrape uses; workdayFacet.ts for faceted
-                           Workday search; sfSitemap.ts is the SuccessFactors
-                           /sitemap.xml completeness backstop shared by sfcsb +
-                           successfactors
-  db/                    per-table modules (companies, postings, runs, board-runs,
-                           recruiters, outreach, link-cache, api-meta) behind a
-                           barrel index.ts
-  filter/                location / title / denylist / verdict / salary
-                           (mechanical stated-salary extraction, no LLM)
-  google/                auth.ts (per-profile OAuth token refresh), rest.ts
-                           (authorized fetch + retry), sheets.ts, gmail.ts, mime.ts
-                           (RFC 5322 draft builder)
-  llm/                   the OpenRouter client (semaphore, retry, circuit breaker);
-                           prompts/ holds gate.ts, extract.ts, shortlist.ts
-  discord/               webhook helper + progress heartbeat + end-of-run status embed
-  outreach/              contact sync from the sheet (contacts.ts), the company/contact
-                           matcher (match.ts), the email template (template.ts), the
-                           post-run Gmail draft stage (run.ts), the bounce-only verify
-                           pass (verify.ts), and the DB -> sheet projection (sheetSync.ts)
-  registry/              sheetRegistry.ts syncs the Companies tab (with a
-                           registry-cache.json fallback) into the companies table;
-                           sheetCodec.ts converts between tab rows and RegistryEntry;
-                           sheetWriter.ts is the write path back to the tab (the SPA
-                           sentinel's strategy flip, and appendToRegistry for
-                           registry-maintenance sessions)
-  scraper/               cheerio + Playwright LLM fetchers for non-ATS careers pages
-  blast/                 TEMPORARY weekly cold-email drafter over the Raw Data tab;
-                           see AGENTS.md for details and its deletion checklist
-  util/                  shared helpers: semaphore, sleep, user-agent, slug, json,
-                           csv, probe, fs, regex, env, registry-file, jobUrlResolver
-                           (resolves a job URL to provider/slug/externalId, used by
-                           npm run probe-url), aggregatorGuard (log-only warn when a
-                           board's listing spans more than 10 distinct hiring-org names)
-  tools/
-    extractResume.ts    PDF-to-text extraction (run via npm run extract-resume)
-  pipeline/              run lifecycle (index.ts), scheduler.ts, postingPipeline.ts
-  config.ts              tunable knobs (workers, LLM model, fetch timeouts, ...)
-  types.ts               shared TypeScript types
-  schemas.ts             zod schemas (providers, registry entry, user profile)
-  profile.ts             loads the selected profile and attaches resume text
-  logger.ts              pino logger setup
-  index.ts               CLI entry point
-```
+## Multiple machines
 
-## Writing a new ATS adapter
+`npm run once` pulls the DB from your Google Drive before a run when Drive has a newer
+copy, and pushes it back afterwards. With more than one profile, set `DB_SYNC_PROFILE` to
+the one profile whose account holds the backup. Never run on two machines at once: a stale
+DB drafts duplicate emails. `db:push`/`db:pull` refuse unsafe transfers (older, empty, or
+much smaller copies); `--force` overrides.
 
-Look at `src/ats/types.ts` for the interface and `src/ats/greenhouse.ts` for the
-simplest existing example. The contract:
+## Troubleshooting
 
-- `listPostings(company)` is mandatory. Return one `NormalizedPosting` per role. Each
-  needs a stable `externalId` (used for dedup) and ideally a `location` string.
-- `fetchJd(company, posting)` is optional. Implement it if the listing endpoint does
-  not include the JD body. The pipeline only calls it for postings that survived the
-  location filter and dedup, so you only pay the HTTP cost for postings you would keep.
-
-After writing the adapter, wire it into two places (plus one optional step):
-
-1. Add the provider name to the `ProviderSchema` zod enum in `src/schemas.ts` - the
-   `Provider` type is inferred from it, so that one edit covers both the type and the
-   runtime validation the registry loader runs.
-2. Register the adapter in `src/ats/registry.ts` under `ATS_ADAPTERS`. This map is
-   checked against the enum at compile time (`satisfies Record<Exclude<Provider,
-   "custom">, AtsAdapter>`), so a forgotten registration is a `tsc` error instead of a
-   company that silently never gets scanned; `src/ats/__tests__/registry.test.ts` also pins the
-   enum/map completeness.
-3. Optional: if the vendor has a shared host signature (e.g. tenants live under
-   `*.vendor.com`), add a `PatternDef` to `src/ats/detect.ts` so the ATS-redirect
-   detector that llm-scrape uses can recognize boards that link out to it. Skip this
-   for single-company or custom-domain vendors.
-
-Most adapters hit a public JSON or server-rendered HTML endpoint and need nothing more.
-Some sit behind a WAF or an anti-bot host and are browser-backed via
-`src/ats/browserFetch.ts` (headless Chromium through the shared Playwright pool);
-a few decrypt an obfuscated payload or lift a token from the page bundle. Reuse the
-shared helpers (`atsFetchJson`/`atsFetchText` in `http.ts`, `paginate`/`REMOTE_RE` in
-`shared.ts`, `htmlToText`) rather than re-rolling them.
-
-There are 121 providers today, spanning the big ATSes (greenhouse, lever, ashby,
-workday, smartrecruiters, oracle, successfactors, darwinbox, phenom, avature, jibe,
-eightfold, ...), India-centric vendors (keka, peoplestrong, ripplehire, turbohire,
-zwayam, sensehq, mynexthire, freshteam, zohorecruit, ...), SMB boards (teamtailor,
-comeet, pyjamahr, goodfit, recruiterflow, bamboohr, trakstar, kula, ...), bespoke
-single-company adapters (amazonjobs, metacareers, apple, mercedes, moglix, icicibank,
-reliance, tatacareers, adityabirla, ...), and `jsonld`, a generic adapter for bespoke
-sites with no real ATS behind them - it discovers job pages via sitemap and reads
-schema.org JobPosting markup directly - plus `custom` for llm-scrape /
-playwright-llm-scrape. See `ProviderSchema` in `src/schemas.ts` for the full list.
-
-The bot creates `data/job_hunter.db` on the first run. SQLite WAL files live there too.
-The `data/` directory is gitignored entirely.
-
-LLM calls run up to 8 concurrent by default; `LLM_MAX_CONCURRENT` overrides. HTTP work
-inside one company fans out across `fetch.workersPerCompany` workers.
-
-If a careers page is bot-blocked (Cloudflare, Akamai, and the like), the bot does not
-work around it; there is no headless-evasion code. The `manual` parsing strategy exists
-for these. Entries marked manual stay in your registry but are never fetched, and they
-show up in the registry health report (`npm run health`) for hand-review.
+- **"Google auth expired"**: `npm run google-auth [-- --profile <name>]`.
+- **Drive returns 403**: your token predates the Drive scope; rerun `google-auth` once.
+- **A company returns nothing**: `npm run probe-url -- <a job URL from their site>`, then
+  check its row in `npm run health`.
+- **"llm prompt-cache hit rate is low"** at the end of a run: `OPENROUTER_PROVIDERS` was
+  changed or a pinned host dropped the model; runs cost more until it is fixed.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).

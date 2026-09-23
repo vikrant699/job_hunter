@@ -2,5 +2,7 @@
 import "dotenv/config";
 import { syncRegistryFromSheet } from "../src/registry/sheetRegistry.js";
 
-const result = await syncRegistryFromSheet("bob");
+const i = process.argv.indexOf("--profile");
+const profileId = (i >= 0 ? process.argv[i + 1] : undefined) ?? "default";
+const result = await syncRegistryFromSheet(profileId);
 console.log(JSON.stringify(result, null, 1));

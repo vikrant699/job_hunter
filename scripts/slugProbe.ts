@@ -1,4 +1,5 @@
-// For each candidate company name, tries plausible slugs against every supported ATS and reports the first hit; used during seed compilation to classify names into ats-api vs llm-scrape strategies.
+// For each candidate company name, tries plausible slugs against greenhouse, lever and ashby and reports the first hit.
+import { pathToFileURL } from "node:url";
 import { ATS_URL_BUILDERS, probeJsonBoard } from "./atsProbes.js";
 
 const PROBE_PROVIDERS = ["greenhouse", "lever", "ashby"] as const;
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, "/")}`) {
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   main().catch((err) => {
     console.error("probe failed:", err);
     process.exit(1);
