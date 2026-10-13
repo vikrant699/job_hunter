@@ -4,6 +4,7 @@ import {
   jazzhrAdapter,
   jazzhrBase,
   assertJazzhrOnTenantHost,
+  assertJazzhrAccountActive,
   parseJazzhrJobId,
   parseJazzhrList,
   normalizeJazzhr,
@@ -106,6 +107,14 @@ const MARKETING_HTML = `<!DOCTYPE html>
 <h1 class="text-primary-900 font-bold">Trying to apply for a job?</h1>
 <p>JazzHR is recruiting software used by thousands of small businesses.</p>
 </body></html>`;
+
+// A cancelled account still 200s on its own host with an empty board, so only the page itself says the board is gone (smuleinc, 2026-10-13).
+const INACTIVE_HTML = `<!DOCTYPE html>
+<html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta name="description" content="This JazzHR account is no longer active." />
+<title>JazzHR - Inactive Career Page</title>
+</head><body><div>This account is no longer active. <a href="https://www.jazzhr.com">Learn more about JazzHR.</a></div></body></html>`;
 
 const JD_HTML = `<!DOCTYPE html>
 <html><body>
@@ -252,6 +261,24 @@ test("jazzhrAdapter.listPostings rejects an off-host response even when its HTML
 test("jazzhrAdapter.listPostings returns [] for a LIVE tenant whose board has no open roles", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponseFrom("https://smuleinc.applytojob.com/apply", EMPTY_HTML)));
   assert.deepEqual(await jazzhrAdapter.listPostings(overrideCompany), []);
+});
+
+test("assertJazzhrAccountActive throws on JazzHR's inactive-account page, charged to the company", () => {
+  const err = thrownBy(() => assertJazzhrAccountActive(INACTIVE_HTML, "https://smuleinc.applytojob.com/apply"));
+  assert.ok(err instanceof Error);
+  assert.match(err.message, /jazzhr: account no longer active/);
+  assert.match(err.message, /smuleinc.applytojob.com/);
+  assert.equal(isInfrastructureFault(err), false);
+});
+
+test("assertJazzhrAccountActive stays silent on a live empty board and a populated one", () => {
+  assert.doesNotThrow(() => assertJazzhrAccountActive(EMPTY_HTML, "https://smuleinc.applytojob.com/apply"));
+  assert.doesNotThrow(() => assertJazzhrAccountActive(LIST_HTML, "https://hackerearth.applytojob.com/apply"));
+});
+
+test("jazzhrAdapter.listPostings rejects an inactive account instead of reporting an empty board", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponseFrom("https://smuleinc.applytojob.com/apply", INACTIVE_HTML)));
+  await assert.rejects(() => jazzhrAdapter.listPostings(overrideCompany), /jazzhr: account no longer active/);
 });
 
 test("jazzhrAdapter.listPostings still lists a populated board unchanged", async (t) => {

@@ -39,6 +39,13 @@ export function assertJazzhrOnTenantHost(base: string, finalUrl: string): void {
   );
 }
 
+/** Throws on JazzHR's inactive-account page: a cancelled account still 200s on its own host with no list, so it would otherwise read as an empty board. */
+export function assertJazzhrAccountActive(html: string, url: string): void {
+  const title = matchGroup(/<title[^>]*>([^<]*)<\/title>/i, html) ?? "";
+  if (!/inactive career page/i.test(title)) return;
+  throw new Error(`jazzhr: account no longer active at ${url} (JazzHR "Inactive Career Page"), so the board is dead, not empty.`);
+}
+
 export interface JazzhrListing {
   id: string;
   title: string;
@@ -116,6 +123,7 @@ export const jazzhrAdapter: AtsAdapter = {
     const { html, finalUrl } = await atsFetchHtml(`${base}/apply`, { provider: "jazzhr" });
     // Before parsing, not only when empty: a response from another host is not this tenant's board.
     assertJazzhrOnTenantHost(base, finalUrl);
+    assertJazzhrAccountActive(html, finalUrl);
     return parseJazzhrList(html, finalUrl).map((j) => normalizeJazzhr(company, j));
   },
 
