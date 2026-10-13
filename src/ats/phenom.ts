@@ -51,12 +51,14 @@ export function phenomTenantHasLocale(tenantUrl: string): boolean {
   return new URL(tenantUrl).pathname.split("/").filter(Boolean).length >= 2;
 }
 
+// null = no job object (delisted or template change); "" = a live job the tenant published without a description.
 export function phenomJobDescriptionFrom(ddo: JsonValue): string | null {
   const parseResult = JsonValueSchema.safeParse(ddo);
   const d: JsonValue | null = parseResult.success ? parseResult.data : null;
   const job = getObj(getObj(getObj(d, "jobDetail"), "data"), "job");
-  const description = job?.["description"];
-  return typeof description === "string" && description.length > 0 ? description : null;
+  if (job === null) return null;
+  const description = job["description"];
+  return typeof description === "string" ? description : "";
 }
 
 export function phenomJobsFrom(ddo: JsonValue): { jobs: JsonValue[]; totalHits: number } {
@@ -206,6 +208,7 @@ export const phenomAdapter: AtsAdapter = {
         // Large global board: prefer the India-filtered widget XHR over walking thousands of eager-load pages.
         // A zero-hit India answer is trusted only once the unfiltered widget call confirms the endpoint is live for this tenant; otherwise fall back to the full eager-load walk.
         if (page === 0 && totalHits >= WIDGETS_PREFER_THRESHOLD) {
+          let indialess = false;
           try {
             const india = await fetchWidgetsPage(from);
             if (india.jobs.length > 0) {
@@ -217,17 +220,17 @@ export const phenomAdapter: AtsAdapter = {
               return { items: toItems(india.jobs), total: india.totalHits, rawCount: india.jobs.length };
             }
             const unfiltered = await fetchWidgetsPage2(from, false);
-            if (unfiltered.jobs.length > 0) {
-              logger.info(
-                { company: company.slug, boardTotal: totalHits },
-                "phenom: large board has zero India-tagged jobs (verified via widgets) - skipping the full walk",
-              );
-              return { items: [], total: 0 };
-            }
+            if (unfiltered.jobs.length > 0) indialess = true;
           } catch (err) {
             logger.warn(
               { company: company.slug, err: describeError(err) },
               "phenom: widgets probe failed on a large board - falling back to the eager-load walk",
+            );
+          }
+          // Thrown outside the try so the fallback walk can't swallow it; an India-less board is a mis-seeded row, not an empty board.
+          if (indialess) {
+            throw new Error(
+              `phenom: ${company.slug} board lists ${totalHits} jobs but none tagged India - point tenant_url at the tenant's India site (e.g. /in/en)`,
             );
           }
         }
@@ -242,10 +245,12 @@ export const phenomAdapter: AtsAdapter = {
     const url = phenomJobPageUrl(company.tenantUrl, posting.externalId);
     const html = await atsFetchText(url, { provider: "phenom" });
     const ddo = extractPhenomDdo(html);
+    if (ddo === null) throw new Error(`phenom: no phApp.ddo island at ${url} for ${company.slug}`);
     const description = phenomJobDescriptionFrom(ddo);
     if (description === null) {
-      throw new Error(`phenom: no jobDetail description at ${url} for ${company.slug}`);
+      throw new Error(`phenom: job ${posting.externalId} not found in jobDetail at ${url} for ${company.slug}`);
     }
-    return htmlToText(description);
+    // Returned, not thrown, so the pipeline stores it as no-jd and rechecks it weekly.
+    return description === "" ? "" : htmlToText(description);
   },
 };

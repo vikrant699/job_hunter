@@ -13,6 +13,8 @@ import {
   phenomAdapter,
 } from "../phenom.js";
 import type { AdapterCompany } from "../../types.js";
+import { fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 
 const company: AdapterCompany = {
   provider: "phenom", slug: "abbott", name: "Abbott India",
@@ -153,4 +155,75 @@ test("phenomJobsFrom reads the widget XHR response shape, not just the eager ddo
   // and the same parser still handles the server-rendered eager shape
   const eager = { eagerLoadRefineSearch: { totalHits: 5, data: { jobs: [{ jobId: "x", title: "T" }] } } };
   assert.equal(phenomJobsFrom(eager).totalHits, 5);
+});
+
+test("phenomJobDescriptionFrom returns empty for a live job published with no description", () => {
+  // Live shape: IDFC FIRST / Titan CRM-sourced reqs carry the job object but description "" (the listing teaser is empty too).
+  const blank = extractPhenomDdo(`<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-230420","title":"Banker","description":""}}}};</script>`);
+  assert.equal(phenomJobDescriptionFrom(blank), "");
+  const missing = extractPhenomDdo(`<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-104278","title":"GET"}}}};</script>`);
+  assert.equal(phenomJobDescriptionFrom(missing), "");
+  const notFound = extractPhenomDdo(`<script>phApp.ddo = {"jobDetail":{"status":200,"hits":0,"totalHits":0,"data":{}}};</script>`);
+  assert.equal(phenomJobDescriptionFrom(notFound), null);
+});
+
+const idfc: AdapterCompany = {
+  provider: "phenom", slug: "idfcfirst", name: "IDFC FIRST Bank",
+  careersUrl: "https://careers.idfcfirst.bank.in/in/en/search-results",
+  tenantUrl: "https://careers.idfcfirst.bank.in/in/en/search-results", apiMeta: null,
+};
+const idfcPosting = {
+  provider: "phenom" as const, externalId: "P-230420", companySlug: "idfcfirst", companyName: "IDFC FIRST Bank",
+  jobTitle: "Banker-Customer Experience", jobUrl: "https://careers.idfcfirst.bank.in/in/en/job/P-230420",
+  location: "Jaipur, Rajasthan, India", isRemote: false, jdText: "", postedAt: null,
+};
+
+test("fetchJd returns an empty JD (stored as no-jd, rechecked weekly) when the job is published without one", async (t) => {
+  // The ddo is followed by more phApp statements, not </script>, so the anchored island regex must fall back.
+  stubFetch(t, fetchSequence(() => htmlResponse(
+    `<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-230420","description":""}}}}; phApp.sessionParams = {"a":1}; /*--&gt;*/</script>`,
+  )));
+  assert.ok(phenomAdapter.fetchJd);
+  assert.equal(await phenomAdapter.fetchJd(idfc, idfcPosting), "");
+});
+
+test("fetchJd still extracts a populated description", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(
+    `<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-224718","description":"<p>Job <b>Purpose</b></p>"}}}};</script>`,
+  )));
+  assert.ok(phenomAdapter.fetchJd);
+  assert.match(await phenomAdapter.fetchJd(idfc, { ...idfcPosting, externalId: "P-224718" }), /Job Purpose/);
+});
+
+test("fetchJd names a job missing from jobDetail as not found rather than a missing description", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(
+    `<script>phApp.ddo = {"jobDetail":{"status":200,"hits":0,"totalHits":0,"data":{}}};</script>`,
+  )));
+  assert.ok(phenomAdapter.fetchJd);
+  const err = await rejectionOf(phenomAdapter.fetchJd(idfc, idfcPosting));
+  assert.match(String(err), /job P-230420 not found in jobDetail/);
+});
+
+test("fetchJd reports a page with no ddo island as a template problem", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse("<html><body>maintenance</body></html>")));
+  assert.ok(phenomAdapter.fetchJd);
+  const err = await rejectionOf(phenomAdapter.fetchJd(idfc, idfcPosting));
+  assert.match(String(err), /no phApp\.ddo island/);
+});
+
+test("listPostings fails loudly when a large board has zero India jobs instead of yielding an empty board", async (t) => {
+  // Lowe's: talent.lowes.com/us/en is the US store board (4442 jobs, none in India); India lives on the /in/en site.
+  const lowes: AdapterCompany = {
+    provider: "phenom", slug: "lowes", name: "Lowe's India",
+    careersUrl: "https://talent.lowes.com/us/en/search-results",
+    tenantUrl: "https://talent.lowes.com/us/en/search-results", apiMeta: null,
+  };
+  const usJob = { jobId: "JR-1", title: "Sales Associate", cityStateCountry: "Kahului, HI, United States" };
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(`<script>phApp.ddo = {"eagerLoadRefineSearch":{"totalHits":4442,"data":{"jobs":[${JSON.stringify(usJob)}]}}};</script>`),
+    () => jsonResponse({ refineSearch: { totalHits: 0, data: { jobs: [] } } }),
+    () => jsonResponse({ refineSearch: { totalHits: 4442, data: { jobs: [usJob] } } }),
+  ));
+  const err = await rejectionOf(phenomAdapter.listPostings(lowes));
+  assert.match(String(err), /lowes board lists 4442 jobs but none tagged India/);
 });
