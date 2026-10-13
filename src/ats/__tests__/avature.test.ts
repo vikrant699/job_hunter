@@ -9,6 +9,7 @@ import {
   parseAvatureNextHref,
   parseAvatureSearch,
   parseAvatureJd,
+  parseAvatureDetailLocation,
 } from "../avature.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
@@ -423,4 +424,92 @@ test("parseAvatureSearch leaves location null when neither the subtitle nor a Lo
   const html = LABELLED_FIELD_HTML.replace("Location: ", "Career Field: ");
   const { postings } = parseAvatureSearch(html, "https://koch.avature.net/en_US/careers/SearchJobs", company);
   assert.equal(at(postings, 0).location, null);
+});
+
+function subtitleArticle(subtitle: string, id = "19196"): string {
+  return `<html><body><article class="article article--result"><div class="article__header"><div class="article__header__text">
+    <h3 class="article__header__text__title"><a href="https://synopsys.avature.net/careers/JobDetail/Role-${id}/${id}">Role</a></h3>
+    <div class="article__header__text__subtitle">${subtitle}</div>
+  </div></div></article></body></html>`;
+}
+
+function locationOf(subtitle: string): string | null {
+  return at(parseAvatureSearch(subtitleArticle(subtitle), "https://synopsys.avature.net/careers/SearchJobs", company).postings, 0).location;
+}
+
+// Synopsys's skin lists no place at all: Job ID, hire type and posted date, joined by "•" separator spans.
+const SYNOPSYS_SUBTITLE = `
+  <span class="list-item-jobId">Job ID 19196</span>
+  <span class="separator" aria-hidden="true">&nbsp;•&nbsp;</span>
+  <span class="list-item-hireType">Employee</span>
+  <span class="separator" aria-hidden="true">&nbsp;•&nbsp;</span>
+  <span class="list-item-posted">Posted 07-Oct-2026</span>`;
+
+test("parseAvatureSearch never takes a separator or a non-location field as the location", () => {
+  const p = at(parseAvatureSearch(subtitleArticle(SYNOPSYS_SUBTITLE), "https://synopsys.avature.net/careers/SearchJobs", company).postings, 0);
+  assert.equal(p.location, null);
+  assert.equal(p.postedAt, new Date("07-Oct-2026").toISOString());
+});
+
+test("parseAvatureSearch skips punctuation-only and label-only spans and strips a leading location label", () => {
+  for (const sep of ["•", "|", "-", "·"]) {
+    assert.equal(locationOf(`<span>${sep}</span><span>Pune, India</span>`), "Pune, India");
+  }
+  assert.equal(locationOf(`<span>Location:</span><span>Pune, India</span>`), "Pune, India");
+  assert.equal(locationOf(`<span>Location: Pune, India</span>`), "Pune, India");
+  assert.equal(locationOf(`<span>Job Location: Pune, India</span>`), "Pune, India");
+  assert.equal(locationOf(`<span>•</span><span>Req #: 1</span>`), null);
+});
+
+test("parseAvatureSearch strips the bold label inside Harman's list-item-location and reads its Date Posted", () => {
+  const p = at(parseAvatureSearch(subtitleArticle(`
+    <span class="list-item-location"><strong> Location:</strong> Aarhus - Central Jutland, Denmark</span>
+    <span class="separator" aria-hidden="true">&nbsp;•&nbsp;</span>
+    <span class="list-item-ref"><strong> Ref #</strong> R-55686-2026</span>
+    <span class="separator" aria-hidden="true">&nbsp;•&nbsp;</span>
+    <span class="list-item-posted"><strong> Date Posted:</strong> 24-Sep-2026</span>`), "https://jobsearch.harman.com", company).postings, 0);
+  assert.equal(p.location, "Aarhus - Central Jutland, Denmark");
+  assert.equal(p.postedAt, new Date("24-Sep-2026").toISOString());
+});
+
+test("parseAvatureSearch keeps the already-right layouts: Tesco's located span, MetLife's bare posted date, Deloitte's plain spans", () => {
+  assert.equal(locationOf(`
+    <span class="list-item-legalEntity">Tesco UK</span><span class="separator">&nbsp;•&nbsp;</span>
+    <span class="list-item-location">Amersham</span><span class="separator">&nbsp;•&nbsp;</span>
+    <span class="list-item-contractType">Permanent</span>`), "Amersham");
+  const metlife = at(parseAvatureSearch(subtitleArticle(`
+    <span class="list-item-location">Tokyo, Japan</span><span class="separator">&nbsp;•&nbsp;</span>
+    <span class="list-item-ref">Job ID: 15319</span><span class="separator">&nbsp;•&nbsp;</span>
+    <span class="list-item-posted">02-Feb-2026</span>`), "https://www.metlifecareers.com", company).postings, 0);
+  assert.equal(metlife.location, "Tokyo, Japan");
+  assert.equal(metlife.postedAt, new Date("02-Feb-2026").toISOString());
+  assert.equal(
+    locationOf(`<span> Deloitte I Deloitte US – India Offices </span> | <span> Deloitte Tax Services India Private Limited </span> | <span>Multiple Locations</span>`),
+    "Deloitte I Deloitte US – India Offices",
+  );
+});
+
+// Synopsys's detail page carries the place the listing omits, as labelled view fields.
+const PLACE_JD_HTML = `
+<html><body><div class="section__content"><article class="article article--details"><div class="article__content"><div class="article__content__view">
+  <div class="article__content__view__field"><div class="article__content__view__field__label">Job ID</div><div class="article__content__view__field__value">19196</div></div>
+  <div class="article__content__view__field"><div class="article__content__view__field__label">Country</div><div class="article__content__view__field__value"> India </div></div>
+  <div class="article__content__view__field"><div class="article__content__view__field__label">City</div><div class="article__content__view__field__value">Bengaluru</div></div>
+  <div class="article__content__view__field"><div class="article__content__view__field__label">Hire Type</div><div class="article__content__view__field__value">Employee</div></div>
+</div></div></article></div></body></html>`;
+
+test("parseAvatureDetailLocation joins the detail page's place fields and ignores the rest", () => {
+  assert.equal(parseAvatureDetailLocation(PLACE_JD_HTML), "Bengaluru, India");
+  assert.equal(parseAvatureDetailLocation(JD_HTML), null);
+});
+
+test("avatureAdapter.fetchJd backfills a listing that carried no location, and leaves a listed one alone", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(PLACE_JD_HTML), () => htmlResponse(PLACE_JD_HTML)));
+  const missing = at(parseAvatureSearch(subtitleArticle(SYNOPSYS_SUBTITLE), "https://synopsys.avature.net/careers/SearchJobs", company).postings, 0);
+  await avatureAdapter.fetchJd?.(company, missing);
+  assert.equal(missing.location, "Bengaluru, India");
+
+  const listed = { ...missing, location: "Pune, India" };
+  await avatureAdapter.fetchJd?.(company, listed);
+  assert.equal(listed.location, "Pune, India");
 });

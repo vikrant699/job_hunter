@@ -72,20 +72,39 @@ export function parseAvatureNextHref(html: string, baseUrl: string): string | nu
   }
 }
 
-/** First subtitle span text that isn't a "Req #:" / "Posted" / "Job ID:" label. */
-function pickLocationFromSpans(spanTexts: string[]): string | null {
-  for (const t of spanTexts) {
-    if (!t || /^(req\s*#|posted\b|job\s*id)/i.test(t)) continue;
-    return t;
+const PUNCT_ONLY_RE = /^[\s\p{P}\p{S}]*$/u;
+const LABEL_ONLY_RE = /^[^:]{1,40}:$/;
+const LOCATION_LABEL_RE = /^(?:job\s+|work\s+)?location\s*:\s*/i;
+// classed subtitle spans are named fields; the only place among them, .list-item-location, is read separately
+const NAMED_FIELD_RE = /\b(?:separator|list-item-[\w-]+)\b/;
+const NON_PLACE_RE = /^(?:req\s*#|(?:date\s+)?posted\b|job\s*id)/i;
+const POSTED_RE = /^(?:date\s+)?posted(?:\s+since)?\s*:?\s*(.+)$/i;
+
+interface SubtitleSpan {
+  text: string;
+  cls: string;
+}
+
+function stripLocationLabel(text: string): string {
+  return text.replace(LOCATION_LABEL_RE, "").trim();
+}
+
+/** First unclassed subtitle span naming a place: never a separator, a bare label, or a "Req #" / "Posted" / "Job ID" field. */
+function pickLocationFromSpans(spans: SubtitleSpan[]): string | null {
+  for (const { text, cls } of spans) {
+    if (NAMED_FIELD_RE.test(cls) || PUNCT_ONLY_RE.test(text) || LABEL_ONLY_RE.test(text) || NON_PLACE_RE.test(text)) continue;
+    const place = stripLocationLabel(text);
+    if (place) return place;
   }
   return null;
 }
 
-/** Subtitle span text matching "Posted <date>" / "Posted since <date>". */
-function pickPostedFromSpans(spanTexts: string[]): string | null {
-  for (const t of spanTexts) {
-    const m = t.match(/^posted\s*(?:since)?\s*:?\s*(.+)$/i);
+/** "Posted <date>" / "Date Posted: <date>" span, else the bare date of a .list-item-posted span. */
+function pickPostedFromSpans(spans: SubtitleSpan[]): string | null {
+  for (const { text, cls } of spans) {
+    const m = text.match(POSTED_RE);
     if (m?.[1]) return m[1].trim();
+    if (/\blist-item-posted\b/.test(cls) && text) return text;
   }
   return null;
 }
@@ -128,10 +147,10 @@ export function parseAvatureSearch(
     }
 
     const $subtitle = $art.find(".article__header__text__subtitle").first();
-    const spanTexts: string[] = [];
-    $subtitle.find("span").each((_i, el) => {
-      spanTexts.push(collapseWs($(el).text()));
-    });
+    const spans: SubtitleSpan[] = $subtitle.find("span").toArray().map((el) => ({
+      text: collapseWs($(el).text()),
+      cls: $(el).attr("class") ?? "",
+    }));
 
     const $loc = $subtitle.find(".list-item-location").first();
     let location: string | null;
@@ -141,12 +160,12 @@ export function parseAvatureSearch(
         const t = collapseWs($(el).text());
         if (t) parts.push(t);
       });
-      location = parts.length ? parts.join(", ") : collapseWs($loc.text()) || null;
+      location = parts.length ? parts.join(", ") : stripLocationLabel(collapseWs($loc.text())) || null;
     } else {
-      location = pickLocationFromSpans(spanTexts) ?? pickLabelledLocation($, $art);
+      location = pickLocationFromSpans(spans) ?? pickLabelledLocation($, $art);
     }
 
-    const postedRaw = pickPostedFromSpans(spanTexts);
+    const postedRaw = pickPostedFromSpans(spans);
 
     postings.push({
       provider: "avature",
@@ -173,6 +192,22 @@ export function parseAvatureJd(html: string): string {
   if (!el.length) return "";
   const inner = el.html();
   return inner ? htmlToText(inner) : collapseWs(el.text());
+}
+
+const DETAIL_PLACE_LABELS = [/^(?:job\s+)?location$/i, /^city$/i, /^(?:state|province|region)$/i, /^country$/i] as const;
+
+/** City/State/Country (or Location) view fields of a JobDetail page, joined city-first; null when it shows none. */
+export function parseAvatureDetailLocation(html: string): string | null {
+  const $ = cheerio.load(html);
+  const ranked: { rank: number; value: string }[] = [];
+  for (const field of $(".article__content__view__field").toArray()) {
+    const label = collapseWs($(field).find(".article__content__view__field__label").first().text()).replace(/\s*:$/, "");
+    const rank = DETAIL_PLACE_LABELS.findIndex((re) => re.test(label));
+    const value = collapseWs($(field).find(".article__content__view__field__value").first().text());
+    if (rank >= 0 && value) ranked.push({ rank, value });
+  }
+  if (!ranked.length) return null;
+  return ranked.sort((a, b) => a.rank - b.rank).map((r) => r.value).join(", ");
 }
 
 export const avatureAdapter: AtsAdapter = {
@@ -220,6 +255,8 @@ export const avatureAdapter: AtsAdapter = {
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "avature" });
+    // a listing with no place (Synopsys) is resolved here so lateLocationCheck applies the strict metadata check
+    if (posting.location === null) posting.location = parseAvatureDetailLocation(html);
     return parseAvatureJd(html);
   },
 };
