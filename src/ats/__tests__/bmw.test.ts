@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl } from "../bmw.js";
+import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl, parseBmwPrefilter, scopeBmwFragmentUrl } from "../bmw.js";
 import { at } from "./testHelpers.js";
 
 // Trimmed from the live India fragment (2026-07-18).
@@ -49,4 +49,39 @@ test("bmwFragmentPageUrl sets rowIndex, preserving the captured filter", () => {
   assert.equal(u.searchParams.get("rowIndex"), "10");
   assert.equal(u.searchParams.get("filterSearch"), "location_IN");
   assert.equal(u.searchParams.get("blockCount"), "5");
+});
+
+// India page with no India vacancies: the location_IN facet is not rendered, so the page's own request drops the prefilter and asks for the global board.
+const NO_INDIA_PAGE = `
+<div class="grp-jobfinder" data-jobfinder-path="/_jcr_content/main/x/jobfinder30.jobfinder_table.content.html">
+  <div class="grp-jobfinder-filter-area" data-location-counters="4,4" data-prefilter="location=IN">
+    <div class="grp-jobfinder__filter-item grp-hidden" data-prefilter="location_DE/Munich"></div>
+  </div>
+</div>`;
+const GLOBAL_FRAG = "https://www.bmwgroup.jobs/in/en/jobs/_jcr_content/main/x/jobfinder30.jobfinder_table.content.html?rowIndex=0&blockCount=5";
+
+test("parseBmwPrefilter reads the filter area's prefilter as filterSearch terms", () => {
+  assert.deepEqual(parseBmwPrefilter(NO_INDIA_PAGE), ["location_IN"]);
+  assert.deepEqual(
+    parseBmwPrefilter(`<div class="grp-jobfinder-filter-area" data-prefilter="location=IN,DE&&jobType=General"></div>`),
+    ["location_IN", "location_DE", "jobType_General"],
+  );
+});
+
+test("parseBmwPrefilter skips fullText and stops at a non-whitelisted key like the page does", () => {
+  assert.deepEqual(parseBmwPrefilter(`<div class="grp-jobfinder-filter-area" data-prefilter="fullText=engineer&&location=IN"></div>`), ["location_IN"]);
+  assert.deepEqual(parseBmwPrefilter(`<div class="grp-jobfinder-filter-area" data-prefilter="location=IN&&bogus=x&&jobType=General"></div>`), ["location_IN"]);
+  assert.deepEqual(parseBmwPrefilter(`<div class="grp-jobfinder-filter-area"></div>`), []);
+});
+
+test("scopeBmwFragmentUrl restores a prefilter the page dropped, so an empty India board is not read as the global one", () => {
+  const u = new URL(scopeBmwFragmentUrl(GLOBAL_FRAG, ["location_IN"]));
+  assert.equal(u.searchParams.get("filterSearch"), "location_IN");
+  assert.equal(u.searchParams.get("blockCount"), "5");
+});
+
+test("scopeBmwFragmentUrl keeps an already-scoped URL and leaves an unscoped page alone", () => {
+  const scoped = `${GLOBAL_FRAG}&filterSearch=location_IN`;
+  assert.equal(new URL(scopeBmwFragmentUrl(scoped, ["location_IN"])).searchParams.get("filterSearch"), "location_IN");
+  assert.equal(scopeBmwFragmentUrl(GLOBAL_FRAG, []), GLOBAL_FRAG);
 });

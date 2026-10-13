@@ -1,4 +1,4 @@
-// list: capture the page's own jobfinder fragment URL (India filter baked in), then page it via rowIndex -> HTML keyed by `.grp-jobfinder__wrapper[data-job-id]`; `data-counter` is the true total
+// list: capture the page's own jobfinder fragment URL, re-scoped by the page's data-prefilter (location=IN), then page it via rowIndex -> HTML keyed by `.grp-jobfinder__wrapper[data-job-id]`; `data-counter` is the true total
 // plain Node fetch is TLS-refused by Akamai Bot Manager - runs through the shared headless browser to clear the WAF
 import * as cheerio from "cheerio";
 import type { Page } from "playwright";
@@ -62,6 +62,33 @@ export function extractBmwJd(html: string): string {
   return htmlToText(main.length > 0 ? (main.html() ?? "") : $("body").html() ?? "");
 }
 
+const PREFILTER_KEYS: readonly string[] = ["employeeStatus", "fullText", "hotJob", "jobField", "jobLevel", "jobType", "location", "refNo", "schedule", "legalEntity"];
+
+/** The country page's `data-prefilter` ("location=IN&&jobType=A,B") as filterSearch terms, parsed like the jobfinder script does. */
+export function parseBmwPrefilter(html: string): string[] {
+  const raw = cheerio.load(html)(".grp-jobfinder-filter-area").first().attr("data-prefilter") ?? "";
+  const terms: string[] = [];
+  for (const group of raw.split("&&")) {
+    const [head = "", ...more] = group.split(",");
+    const eq = head.indexOf("=");
+    if (eq <= 0) continue;
+    const key = head.slice(0, eq);
+    if (!PREFILTER_KEYS.includes(key)) break;
+    if (key.toLowerCase() === "fulltext") continue;
+    for (const v of [head.slice(eq + 1), ...more]) if (v !== "") terms.push(`${key}_${v}`);
+  }
+  return terms;
+}
+
+// The page silently drops a prefilter whose facet has zero vacancies and then requests the global board, so it is re-applied here.
+export function scopeBmwFragmentUrl(fragUrl: string, prefilter: readonly string[]): string {
+  if (prefilter.length === 0) return fragUrl;
+  const u = new URL(fragUrl);
+  const have = (u.searchParams.get("filterSearch") ?? "").split(",").filter((t) => t !== "");
+  u.searchParams.set("filterSearch", [...new Set([...have, ...prefilter])].join(","));
+  return u.toString();
+}
+
 export function bmwFragmentPageUrl(fragUrl: string, rowIndex: number): string {
   const u = new URL(fragUrl);
   u.searchParams.set("rowIndex", String(rowIndex));
@@ -89,11 +116,13 @@ export const bmwAdapter: AtsAdapter = {
     return withBrowserPage(
       pageUrl,
       async (page) => {
-        const fragUrl = await fragUrlPromise;
-        if (!fragUrl) {
+        const capturedUrl = await fragUrlPromise;
+        if (!capturedUrl) {
           logger.warn({ slug: company.slug }, "bmw: no jobfinder fragment request observed");
           return [];
         }
+        const fragUrl = scopeBmwFragmentUrl(capturedUrl, parseBmwPrefilter(await page.content()));
+        if (fragUrl !== capturedUrl) logger.info({ slug: company.slug, fragUrl }, "bmw: re-applied the page prefilter its own request dropped");
 
         const blockCount = Number(new URL(fragUrl).searchParams.get("blockCount") ?? "5") || 5;
 
