@@ -36,3 +36,10 @@ test("normalizeParamAi wires the /jobs url and joins locations", () => {
   assert.equal(p.location, "Hyderabad");
   assert.equal(p.externalId, "f4486ac6");
 });
+
+test("apiMeta.country tags each bare town so an India-only tenant's Kharkhoda/Manesar roles stay in region", () => {
+  const maruti: AdapterCompany = { ...company, slug: "maruti-suzuki-india", apiMeta: { subdomain: "maruti", country: "India" } };
+  const job = { id: "1", title: "Buyer", slug: "buyer", locations: ["Kharkhoda", "Manesar ", "Pan-India"] };
+  assert.equal(normalizeParamAi(maruti, "maruti", job).location, "Kharkhoda, India; Manesar, India; Pan-India");
+  assert.equal(normalizeParamAi(company, "sharafdg", job).location, "Kharkhoda; Manesar; Pan-India");
+});

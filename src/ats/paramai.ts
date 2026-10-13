@@ -1,5 +1,5 @@
 // src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai): one unauthenticated GET returns every posting grouped by department, with the JD inline.
-// apiMeta.subdomain selects the tenant.
+// apiMeta.subdomain selects the tenant; apiMeta.country (optional) suffixes a single-country tenant's bare towns ("Kharkhoda") the location filter cannot place.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -37,7 +37,13 @@ export function paramAiJobUrl(sub: string, slug: string | null | undefined): str
 }
 
 export function normalizeParamAi(company: AdapterCompany, sub: string, j: ParamAiJob): NormalizedPosting {
-  const location = (j.locations ?? []).map((l) => l.trim()).filter(Boolean).join("; ") || null;
+  const country = company.apiMeta?.country;
+  const location =
+    (j.locations ?? [])
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => (country && !l.toLowerCase().includes(country.toLowerCase()) ? `${l}, ${country}` : l))
+      .join("; ") || null;
   return {
     provider: "paramai",
     externalId: String(j.id),
