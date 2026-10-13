@@ -84,7 +84,7 @@ export function normalizeKula(company: AdapterCompany, j: JobPost): NormalizedPo
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: kulaJobUrl(company.slug, j.id),
+    jobUrl: kulaJobUrl(company.apiMeta?.boardSlug ?? company.slug, j.id),
     location,
     isRemote,
     jdText: htmlToText(j.ats_job?.job_description ?? ""),

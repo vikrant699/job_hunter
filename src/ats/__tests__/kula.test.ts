@@ -67,6 +67,11 @@ test("normalizeKula maps an India office posting", () => {
   assert.equal(p.postedAt, null);
 });
 
+test("normalizeKula links the job under apiMeta.boardSlug, not the registry slug (which 404s on Kula)", () => {
+  const multiplier: AdapterCompany = { ...company, slug: "multiplier", apiMeta: { boardSlug: "usemultiplier" } };
+  assert.equal(normalizeKula(multiplier, indiaJob).jobUrl, "https://careers.kula.ai/usemultiplier/2941/");
+});
+
 test("normalizeKula flags remote via ats_job.workplace when offices is empty", () => {
   const p = normalizeKula(company, remoteJob);
   assert.equal(p.location, null);
