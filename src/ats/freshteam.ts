@@ -42,7 +42,9 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
     if (!parsed) return;
     if (seen.has(parsed.id)) return;
 
-    const title = collapseWs($a.find(".job-title").first().text());
+    // Customized portal templates prefix the class (e.g. "pc-job-title"); the data-portal-title attr is a squashed lowercase key, not a title.
+    const title =
+      collapseWs($a.find(".job-title").first().text()) || collapseWs($a.find('[class*="job-title"]').first().text());
     if (!title) return;
 
     let jobUrl: string;
@@ -126,7 +128,8 @@ export function parseFreshteamList(html: string, company: AdapterCompany): Norma
 /** Extract the JD body (`.job-details-content`, apply form stripped) as plain text. */
 export function parseFreshteamJd(html: string): string {
   const $ = cheerio.load(html);
-  const el = $(".job-details-content").first();
+  const exact = $(".job-details-content").first();
+  const el = exact.length ? exact : $('[class*="job-details-content"]').first();
   if (!el.length) return "";
   el.find(".application-form, script, style").remove();
   const inner = el.html();

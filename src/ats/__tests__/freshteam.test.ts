@@ -294,3 +294,33 @@ test("parseFreshteamList also parses the legacy template (bare a.job-title rows,
   assert.equal(hrbp?.location, "Remote");
   assert.equal(hrbp.isRemote, true);
 });
+
+const PREFIXED_TITLE_HTML = `<html><body>
+  <div data-portal-id="jobs_list">
+    <a href="/jobs/7Y3ZjXzWjuE8/sales-enablement-lead" class="heading" data-portal-title="salesenablementlead"
+       data-portal-location="Mumbai, India" data-portal-job-type="2" data-portal-remote-location=false>
+      <div class="pc-row">
+        <div class="pc-job-list-info"><div class="pc-job-title">Sales Enablement lead</div></div>
+        <div class="pc-job-location"><div class="location-info">Mumbai<span>, Full Time</span></div></div>
+      </div>
+    </a>
+  </div>
+</body></html>`;
+
+test("parseFreshteamList reads the title from a customized template's prefixed title class (pc-job-title, peppercontent-style)", () => {
+  const postings = parseFreshteamList(PREFIXED_TITLE_HTML, company);
+  assert.equal(postings.length, 1);
+  assert.equal(postings[0]?.jobTitle, "Sales Enablement lead");
+  assert.equal(postings[0].location, "Mumbai, India");
+  assert.equal(postings[0].externalId, "7Y3ZjXzWjuE8");
+});
+
+test("parseFreshteamJd reads a customized template's prefixed JD container (pc-job-details-content) and strips its form", () => {
+  const html = `<html><body><div class="pc-job-details-content">
+    <p>Own the SDR pipeline.</p>
+    <div class="application-form">Submit Your Application</div>
+  </div></body></html>`;
+  const jd = parseFreshteamJd(html);
+  assert.match(jd, /Own the SDR pipeline/);
+  assert.doesNotMatch(jd, /Submit Your Application/);
+});
