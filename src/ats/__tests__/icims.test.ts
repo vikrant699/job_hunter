@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  icimsPageCount,
   icimsSearchUrl,
   icimsTenant,
   parseIcimsList,
@@ -75,7 +76,7 @@ test("parseIcimsList extracts id, title, location and a cleaned canonical link",
   assert.equal(j0.jdText, ""); // filled by fetchJd
   const j1 = at(jobs, 1);
   assert.equal(j1.externalId, "54800");
-  assert.equal(j1.location, "IN-TN-Chennai");
+  assert.equal(j1.location, "IN-TN-Chennai, India");
   assert.equal(j1.jobUrl, "https://globalcareers-lennox.icims.com/jobs/54800/devops-engineer/job");
 });
 
@@ -90,4 +91,65 @@ test("parseIcimsJd concatenates all expandable sections (not just the first)", (
 
 test("parseIcimsJd returns empty string when no content block is present", () => {
   assert.equal(parseIcimsJd("<html><body><div>nothing</div></body></html>"), "");
+});
+
+// DocuSign-style card: the header slot holds the Job ID; the location sits in the additionalFields dl.
+const DL_CARD_HTML = `<html><body><ul>
+  <li class="iCIMS_JobCardItem"><div class="row">
+    <div class="col-xs-6 header left"><span class="sr-only field-label">Job ID</span><span > 2026-30533</span></div>
+    <div class="col-xs-12 title"><a href="https://indiacareers-docusign.icims.com/jobs/30533/senior-manager%2c-partner-solution-architect/job?in_iframe=1" class="iCIMS_Anchor"><span class="sr-only field-label">External Title</span><h3 > Senior Manager, Partner Solution Architect</h3></a></div>
+    <div class="col-xs-12 additionalFields"><dl class="iCIMS_JobHeaderGroup">
+      <div class="iCIMS_JobHeaderTag"><dt class="iCIMS_JobHeaderField"><span class="glyphicons glyphicons-map-marker"></span><span class="sr-only field-label">Job Locations</span></dt><dd class="iCIMS_JobHeaderData"><span > IN-KA-Bengaluru</span></dd></div>
+      <div class="iCIMS_JobHeaderTag"><dt class="iCIMS_JobHeaderField">Category</dt><dd class="iCIMS_JobHeaderData"><span > Sales</span></dd></div>
+    </dl></div>
+  </div></li>
+  <li class="iCIMS_JobCardItem"><div class="row">
+    <div class="col-xs-6 header left"><span class="sr-only field-label">Job ID</span><span > 2026-30453</span></div>
+    <div class="col-xs-12 title"><a href="https://indiacareers-docusign.icims.com/jobs/30453/ai-engineer/job?in_iframe=1" class="iCIMS_Anchor"><h3 > AI Engineer</h3></a></div>
+  </div></li>
+</ul></body></html>`;
+
+test("parseIcimsList reads the labelled Job Locations field, never the Job ID header slot", () => {
+  const jobs = parseIcimsList(DL_CARD_HTML, company);
+  assert.equal(jobs.length, 2);
+  assert.equal(at(jobs, 0).externalId, "30533");
+  assert.equal(at(jobs, 0).location, "IN-KA-Bengaluru, India");
+  assert.equal(at(jobs, 1).location, null);
+});
+
+test("icimsPageCount reads the portal's Page X of N header", () => {
+  assert.equal(icimsPageCount(`<h2 class="iCIMS_SubHeader iCIMS_SubHeader_Jobs">\nSearch Results\nPage 2 of 24 \n</h2>`), 24);
+  assert.equal(icimsPageCount(`<h2 class="iCIMS_SubHeader iCIMS_SubHeader_Jobs">Search Results Page 1 of 1</h2>`), 1);
+  assert.equal(icimsPageCount("<html><body>no header</body></html>"), null);
+});
+
+test("parseIcimsList spells out India on IN-coded locations so bare-town GCC postings stay in region", () => {
+  const html = LIST_HTML.replace("IN-TN-Chennai", "US-TX-Irving | IN-Chennai");
+  const jobs = parseIcimsList(html, company);
+  assert.equal(at(jobs, 1).location, "US-TX-Irving | IN-Chennai, India");
+  assert.equal(at(jobs, 0).location, "US-AZ-Tucson");
+});
+
+test("parseIcimsList joins a 'Location' header label with 'Additional Locations' (Kinaxis layout)", () => {
+  const html = `<ul><li class="iCIMS_JobCardItem"><div class="row">
+    <div class="col-xs-6 header left"><span class="sr-only field-label">Location</span><span > CA-ON-Toronto</span></div>
+    <div class="col-xs-6 header right"><span class="sr-only field-label">ID</span><span > 2026-35517</span></div>
+    <div class="col-xs-12 title"><a href="https://careers-kinaxis.icims.com/jobs/35517/risk-intern/job?in_iframe=1" class="iCIMS_Anchor"><h3 > Risk Intern</h3></a></div>
+    <div class="col-xs-12 additionalFields"><dl class="iCIMS_JobHeaderGroup">
+      <div class="iCIMS_JobHeaderTag"><dt class="iCIMS_JobHeaderField">Category</dt><dd class="iCIMS_JobHeaderData"><span > Legal</span></dd></div>
+      <div class="iCIMS_JobHeaderTag"><dt class="iCIMS_JobHeaderField"><span class="sr-only field-label">Additional Locations</span></dt><dd class="iCIMS_JobHeaderData"><span > IN-TN-Chennai</span></dd></div>
+    </dl></div>
+  </div></li></ul>`;
+  assert.equal(at(parseIcimsList(html, company), 0).location, "CA-ON-Toronto | IN-TN-Chennai, India");
+});
+
+test("parseIcimsList reads a 'Location : Location' label and the 3-letter IND code (MaxLinear layout)", () => {
+  const html = `<ul><li class="iCIMS_JobCardItem"><div class="row">
+    <div class="col-xs-6 header left"><span class="sr-only field-label">Location : Location</span><span > IND-KA-Bangalore</span></div>
+    <div class="col-xs-12 title"><a href="https://careersintl-maxlinear.icims.com/jobs/3085/dsp-fw/job?in_iframe=1" class="iCIMS_Anchor"><h3 > DSP FW</h3></a></div>
+    <div class="col-xs-12 additionalFields"><dl class="iCIMS_JobHeaderGroup">
+      <div class="iCIMS_JobHeaderTag"><dt class="iCIMS_JobHeaderField">ID</dt><dd class="iCIMS_JobHeaderData"><span > 2026-3085</span></dd></div>
+    </dl></div>
+  </div></li></ul>`;
+  assert.equal(at(parseIcimsList(html, company), 0).location, "IND-KA-Bangalore, India");
 });

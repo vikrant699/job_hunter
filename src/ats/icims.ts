@@ -1,4 +1,4 @@
-// list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N> (0-based, 17 rows/page)
+// list: GET <host>/jobs/search?ss=1&in_iframe=1&pr=<N> (0-based; walk to the "Page X of N" header count)
 // jd: description split across several .iCIMS_Expandable_Text sections inside .iCIMS_JobContent, concatenated
 import * as cheerio from "cheerio";
 import { chromium } from "playwright";
@@ -12,7 +12,7 @@ import { awaitNetwork } from "../util/connectivity.js";
 import { REMOTE_RE } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-const PAGE_ROWS = 17; // server-fixed rows per portal page
+const MAX_PAGES = 5000; // runaway backstop only, never truncate
 const WAF_SETTLE_MS = 10_000; // let the AWS WAF JS challenge solve + set cookies
 
 /** Tenant token = the first label of the *.icims.com host. */
@@ -46,6 +46,31 @@ function cleanJobUrl(href: string): string {
   }
 }
 
+/** Total page count from the portal's "Page X of N" results header; null when the header is absent. */
+export function icimsPageCount(html: string): number | null {
+  const n = matchGroup(/Page\s+\d+\s+of\s+(\d+)/i, cheerio.load(html)(".iCIMS_SubHeader_Jobs").first().text());
+  return n === null ? null : Number(n);
+}
+
+const LOCATION_LABEL_RE = /\bLocations?\b/i;
+
+// Layouts differ per tenant (header slot vs additionalFields dl; "Job Locations", "Location : Location", "Additional Locations"), so find values by label.
+function cardLocation($: cheerio.CheerioAPI, row: ReturnType<cheerio.CheerioAPI>): string | null {
+  const parts: string[] = [];
+  row.find(".field-label").each((_i, el) => {
+    const label = $(el);
+    if (!LOCATION_LABEL_RE.test(label.text())) return;
+    const dt = label.closest("dt");
+    const value = dt.length > 0 ? dt.next("dd").find("span").first() : label.siblings("span").not(".sr-only").first();
+    for (const part of value.text().split(" | ")) {
+      const p = part.trim();
+      // "IN-Chennai" / "IND-KA-Bangalore" carry India only as an ISO code the location filter can't read
+      if (p !== "") parts.push(/^IND?-/.test(p) ? `${p}, India` : p);
+    }
+  });
+  return parts.length > 0 ? parts.join(" | ") : null;
+}
+
 /** Parse one portal search page into postings (jdText filled by fetchJd). */
 export function parseIcimsList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const $ = cheerio.load(html);
@@ -58,8 +83,7 @@ export function parseIcimsList(html: string, company: AdapterCompany): Normalize
     const externalId = matchGroup(/\/jobs\/(\d+)\//, href);
     if (externalId === null) return;
     const title = row.find(".col-xs-12.title h3").first().text().trim();
-    // The location value is the span in .header.left that is NOT the sr-only label.
-    const location = row.find(".col-xs-6.header.left span").not(".sr-only").first().text().trim() || null;
+    const location = cardLocation($, row);
     jobs.push({
       provider: "icims",
       externalId,
@@ -153,7 +177,7 @@ export const icimsAdapter: AtsAdapter = {
     const origin = icimsOrigin(company);
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
-    for (let pr = 0; pr < 500; pr++) {
+    for (let pr = 0; pr < MAX_PAGES; pr++) {
       const html = await icimsFetch(origin, icimsSearchUrl(origin, pr));
       const rows = parseIcimsList(html, company);
       for (const r of rows) {
@@ -161,7 +185,9 @@ export const icimsAdapter: AtsAdapter = {
         seen.add(r.externalId);
         out.push(r);
       }
-      if (rows.length < PAGE_ROWS) break; // last (or only) page
+      // Page size varies (20, 37) and mid-board pages run short, so only the header's page count says when to stop.
+      const pages = icimsPageCount(html);
+      if (pages === null ? rows.length === 0 : pr + 1 >= pages) break;
     }
     return out;
   },
