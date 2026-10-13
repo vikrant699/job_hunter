@@ -122,6 +122,12 @@ import { googleAdapter } from "./google.js";
 import { jioAdapter } from "./jio.js";
 import { sirionAdapter } from "./sirion.js";
 import { jsonldAdapter } from "./jsonld.js";
+import { happyfoxAdapter } from "./happyfox.js";
+import { qwikbuildAdapter } from "./qwikbuild.js";
+import { saveinAdapter } from "./savein.js";
+import { reczeeAdapter } from "./reczee.js";
+import { ibmAdapter } from "./ibm.js";
+import { manappuramAdapter } from "./manappuram.js";
 import { llmScrapeAdapter } from "../scraper/llmScrape.js";
 import { playwrightScrapeAdapter } from "../scraper/playwrightLlmScrape.js";
 
@@ -247,6 +253,12 @@ export const ATS_ADAPTERS = {
   jio: jioAdapter,
   sirion: sirionAdapter,
   jsonld: jsonldAdapter,
+  happyfox: happyfoxAdapter,
+  qwikbuild: qwikbuildAdapter,
+  savein: saveinAdapter,
+  reczee: reczeeAdapter,
+  ibm: ibmAdapter,
+  manappuram: manappuramAdapter,
 } as const satisfies Record<Exclude<Provider, "custom">, AtsAdapter>;
 
 export function resolveAdapter(c: Company): AtsAdapter | null {

@@ -228,7 +228,7 @@ it). `src/ats/greenhouse.ts` is the simplest example. Wiring:
 
 Write fixture tests first with `testHelpers.ts`. Reuse `atsFetchJson`/`atsFetchText`,
 `paginate`, `REMOTE_RE`, `unixToIso`, `jsonList.ts` for one-shot boards, and
-`browserFetch.ts` for WAF/anti-bot hosts. There are 121 providers (`ProviderSchema` minus
+`browserFetch.ts` for WAF/anti-bot hosts. There are 127 providers (`ProviderSchema` minus
 `custom`); some are browser-backed, a few crack an encrypted payload or lift a token from
 the page bundle (`icicibank`, `moglix`, `magicpin`, `metacareers`), and `icims`/`sirion`
 launch Playwright with `channel: "msedge"` because bundled Chromium is WAF-blocked.
