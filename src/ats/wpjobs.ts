@@ -92,7 +92,7 @@ function firstStringLocationField(fields: Record<string, JsonValue> | null | und
 
 function locationFromContent(html: string | null | undefined): string | null {
   const text = htmlToText(html);
-  const m = /(?:job\s*)?location\s*:\s*([^\n]+)/i.exec(text);
+  const m = /(?:job\s*)?locations?\s*:\s*([^\n]+)/i.exec(text);
   const found = m?.[1]?.trim();
   return found ? found : null;
 }

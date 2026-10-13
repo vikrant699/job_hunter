@@ -89,6 +89,11 @@ test("wpjobsLocation falls back to a 'Location:' label embedded in the body copy
   assert.equal(wpjobsLocation(postWithContentLocation), "Pune");
 });
 
+test("wpjobsLocation reads a plural 'Locations:' label (Shiprocket's body copy)", () => {
+  const post: WpPost = { ...postWithContentLocation, content: { rendered: "<p>Locations: Gurugram (on-site)</p><p>Sell.</p>" } };
+  assert.equal(wpjobsLocation(post), "Gurugram (on-site)");
+});
+
 test("wpjobsLocation returns null when no signal is available anywhere", () => {
   const post: WpPost = { ...postWithContentLocation, content: { rendered: "<p>No location mentioned.</p>" } };
   assert.equal(wpjobsLocation(post), null);
