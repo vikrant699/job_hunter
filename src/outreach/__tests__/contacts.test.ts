@@ -113,7 +113,6 @@ test("syncContactsFromSheet dedups across tabs: manual wins and never downgrades
 
   const row = selectAllRecruiters().find((r) => r.email === email);
   assert.ok(row);
-  // manual-sheet (verified) processed after raw-csv (unverified) must win.
   assert.equal(row.status, "verified");
   assert.equal(row.source, "manual-sheet");
 });
@@ -132,7 +131,6 @@ test("re-sync never un-verifies or wipes verified_at for a contact already marke
   const bouncedAt = new Date().toISOString();
   setRecruiterStatus(email, "bounced", bouncedAt);
 
-  // Re-sync from the same raw-csv source (still 'unverified' proposal).
   await syncContactsFromSheet("default", { readTab });
 
   const row = selectAllRecruiters().find((r) => r.email === email);
@@ -154,7 +152,6 @@ test("a bounced contact still present in the manual Recruiters List tab is NOT r
   const bouncedAt = new Date().toISOString();
   setRecruiterStatus(email, "bounced", bouncedAt);
 
-  // The stale manual row re-imports as 'verified' — bounced must win.
   await syncContactsFromSheet("default", { readTab });
 
   const row = selectAllRecruiters().find((r) => r.email === email);

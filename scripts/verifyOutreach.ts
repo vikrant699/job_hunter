@@ -1,4 +1,3 @@
-// Standalone verify pass for one profile's mailbox, outside the daily tick.
 import "dotenv/config";
 import { runVerify } from "../src/outreach/verify.js";
 import { projectToSheet } from "../src/outreach/sheetSync.js";
@@ -14,7 +13,6 @@ function argValue(flag: string): string | null {
 async function main(): Promise<void> {
   const profileId = argValue("--profile") ?? "default";
 
-  // Same identity guard runOutreach uses: catch a mismatch before touching Gmail.
   const loadedProfileId = profile.id ?? "default";
   if (profileId !== loadedProfileId) {
     throw new Error(

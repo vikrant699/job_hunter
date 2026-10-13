@@ -7,7 +7,7 @@ import { syncBeforeRun, syncAfterRun } from "./db/sync.js";
 import { startConnectivityMonitor } from "./util/connectivity.js";
 import { profile } from "./profile.js";
 
-// No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces) - the run body lives in ./runOnce.ts, reached via dynamic import after the sync; pinned by indexImportGraph.test.ts.
+// No static import here may reach src/db/db.ts (it opens the SQLite file on load, which syncBeforeRun replaces); pinned by indexImportGraph.test.ts.
 
 function printUsage(): void {
   console.log(`Usage: npm run <command> [-- --profile <name>]
@@ -36,21 +36,19 @@ async function main(): Promise<void> {
 
   const profileId = profile.id ?? "default";
 
-  // Start before pre-flights so a run launched mid-outage waits (unbounded) instead of exiting; every outbound call resumes where it left off.
+  // Start before pre-flights so a run launched mid-outage waits instead of exiting.
   const stopConnectivity = startConnectivityMonitor();
 
-  // Fail-fast pre-flights before the ~30s registry sync: bad LLM backend or expired Google token must surface in seconds, not after a multi-hour tick.
+  // Fail fast before the ~30s registry sync.
   await assertLlmAvailable();
   await assertGoogleTokenValid(profileId);
 
-  // Pull a newer DB from Drive before anything opens it, or a stale DB re-scores postings the other machine already handled.
+  // Pull before anything opens the DB, or a stale DB re-scores postings the other machine handled.
   await syncBeforeRun(profileId);
 
-  // Only now is it safe to load the DB-backed half of the app.
   const { runOnceAfterSync, releaseDbForSync } = await import("./runOnce.js");
   await runOnceAfterSync(profileId);
 
-  // Best-effort: a Drive push failure here must not fail an already-completed run.
   releaseDbForSync();
   await syncAfterRun(profileId);
   stopConnectivity();
@@ -58,7 +56,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  // Pre-flight guards are expected, actionable stops - log just the message, no stack noise.
   if (err instanceof LlmUnavailableError || err instanceof GoogleAuthExpiredError) {
     logger.error(`aborting — ${err.message}`);
   } else {

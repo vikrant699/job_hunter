@@ -1,4 +1,4 @@
-// src/ats/nineninegames.ts — 99Games' careers board: one unauthenticated GET (blogbackend.99games.in/BackendCms/jobOpportunities/opportunities) returns a bare JSON array with full HTML description inline, so no fetchJd.
+// GET blogbackend.99games.in/.../opportunities -> bare JSON array, full HTML description inline
 // There is no per-job public URL (the board opens an in-page modal instead of navigating), so jobUrl is synthesized as the careers page plus a `#job-<id>` fragment.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";

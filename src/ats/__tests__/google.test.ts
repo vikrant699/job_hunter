@@ -44,7 +44,7 @@ test("parseGoogleList maps each card: numeric id, clean h3 title, absolute jobUr
   assert.equal(se.jobTitle, "Software Engineer, PhD, Early Career, 2026");
   assert.equal(se.location, "India");
   assert.match(se.jobUrl, /\/jobs\/results\/107018346561446598-software-engineer-phd-early-career-2026$/);
-  assert.equal(se.jdText, ""); // JD comes from fetchJd
+  assert.equal(se.jdText, "");
 });
 
 test("parseGoogleList dedupes a repeated id and skips a card with no h3 title", () => {
@@ -62,7 +62,7 @@ test("parseGoogleList returns [] on a page past the end (no job cards)", () => {
   assert.deepEqual(parseGoogleList(company, "<html><body><p>No results</p></body></html>"), []);
 });
 
-// JD extraction keys on stable <h3> heading text, not on Google's rotating CSS classes.
+// JD extraction keys on stable <h3> heading text, not Google's rotating CSS classes.
 const DETAIL_HTML = `<html><body>
   <header><a>share link</a><a>Copy link</a></header>
   <div class="X">

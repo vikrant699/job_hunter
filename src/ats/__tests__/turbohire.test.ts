@@ -73,7 +73,7 @@ test("parseTurboHireLocation returns null for null/empty/malformed input", () =>
   assert.equal(parseTurboHireLocation(undefined), null);
   assert.equal(parseTurboHireLocation(""), null);
   assert.equal(parseTurboHireLocation("not json"), null);
-  assert.equal(parseTurboHireLocation("{}"), null); // not an array
+  assert.equal(parseTurboHireLocation("{}"), null);
 });
 
 test("normalizeTurboHire maps fields, strips JD HTML, converts location + posted date", () => {
@@ -86,7 +86,7 @@ test("normalizeTurboHire maps fields, strips JD HTML, converts location + posted
   assert.equal(p.location, "Bengaluru, Karnataka, India");
   assert.equal(p.isRemote, false);
   assert.equal(p.jdText.includes("Able to lead a team of Engineers"), true);
-  assert.equal(p.jdText.includes("<li>"), false); // HTML stripped
+  assert.equal(p.jdText.includes("<li>"), false);
   assert.equal(p.postedAt, "2026-06-15T07:23:10.588Z");
 });
 
@@ -141,6 +141,5 @@ test("mergeTurboHirePages throws (not warn+truncate) on a mid-pagination schema 
     () => mergeTurboHirePages(company, out, [{ Total: 5, Result: "not-an-array" }], 5),
     /turbohire page \(fetched \d+\/\d+ so far\) response failed schema for flipkart/,
   );
-  // Must not silently keep only the partial list.
   assert.equal(out.length, 1);
 });

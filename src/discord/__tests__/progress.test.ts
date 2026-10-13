@@ -58,11 +58,10 @@ test("buildProgressEmbed sums buckets, computes pct, and formats counts/elapsed"
     ["playwright-llm-scrape", { total: 140, scanned: 19 }],
   ]);
   const ctx = ctxWith(bp, { postingsSeen: 1234, postingsGreen: 12, postingsYellow: 5 });
-  // 3h 25m after start.
   const embed = buildProgressEmbed(ctx, (3 * 60 + 25) * 60_000);
 
   assert.equal(fieldVal(embed, "Profile"), "bob");
-  assert.equal(fieldVal(embed, "Companies"), "307 / 860 (36%)"); // 307/860 = 35.7% -> 36
+  assert.equal(fieldVal(embed, "Companies"), "307 / 860 (36%)");
   assert.equal(fieldVal(embed, "Elapsed"), "3h 25m");
   assert.equal(fieldVal(embed, "Jobs seen"), "1234");
   assert.equal(fieldVal(embed, "Jobs relevant"), "17 (12g / 5y)");

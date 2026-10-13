@@ -1,7 +1,6 @@
 import { profile } from "../profile.js";
 import { NOISE_DENYLIST_SLUGS, isNoiseSlug } from "./noiseDenylist.js";
 
-/** Hard deny (LLM gate never invoked) if on the services/staffing denylist or the confirmed-noise denylist. */
 export function isDeniedCompany(name: string, slug: string): { denied: boolean; reason: string | null } {
   const slugLc = slug.toLowerCase();
 

@@ -1,4 +1,4 @@
-// src/ats/peoplestrong.ts — PeopleStrong (Altone) career portals (<tenant>.peoplestrong.com): a clean unauthenticated JSON API, paginated offset+=45 on the list endpoint.
+// paginated offset+=45 unauthenticated JSON API
 // The JD endpoint's `part=` list requires the vendor's misspelling "descriprion" verbatim.
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -9,9 +9,8 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 45; // vendor-fixed page size
-// Safety cap only (PAGE 45 x MAX_PAGES 5000 = 225,000 jobs); largest known tenant is ~1311 jobs (~30 pages) — listPostings logs if this is ever hit.
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const PAGE = 45;
+const MAX_PAGES = 5000;
 
 export const PeoplestrongJobSchema = z.object({
   jobCode: z.string().nullable().optional(),
@@ -66,7 +65,6 @@ export function peoplestrongLocation(j: PeoplestrongJob): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-// Null when the job has no jobCode (no stable id / JD key), so the caller can skip it.
 export function normalizePeoplestrong(
   company: AdapterCompany,
   j: PeoplestrongJob,
@@ -98,7 +96,6 @@ export const peoplestrongAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const base = tenantOrigin(company);
-    // Boxed in an object so TS narrows it correctly at each read (a bare `let` mutated only inside the fetchPage closure defeats TS's narrowing).
     const state: { total: number | null } = { total: null };
 
     const postings = await paginate<NormalizedPosting>({

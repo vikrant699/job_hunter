@@ -19,7 +19,7 @@ function normalize(parsed: JsonValue): JsonValue {
   for (const key of ["yoeMin", "yoeMax"]) {
     const val = p[key];
     if (typeof val === "string") {
-      // Empty/placeholder strings mean "unspecified"; must become null, not 0 (Number("") === 0).
+      // Empty/placeholder strings must become null, not 0 (Number("") === 0).
       const s = val.trim().toLowerCase();
       if (s === "" || s === "null" || s === "none") {
         p[key] = null;
@@ -32,7 +32,6 @@ function normalize(parsed: JsonValue): JsonValue {
   return p;
 }
 
-/** Parse + normalize one raw model response. Pure — unit tested. */
 export function parseExtractResponse(raw: string): ExtractResult {
   const parsed: JsonValue = parseJsonOrThrow(raw, "extract");
 
@@ -50,7 +49,7 @@ export function parseExtractResponse(raw: string): ExtractResult {
 export async function runExtract(jdText: string): Promise<ExtractResult> {
   const prompt = render(config.prompts.extract, { jdText: jdText.slice(0, config.llm.jdMaxChars) });
 
-  // One re-ask on parse failure, mirroring runGate; worst case 3 + 1 = 4 HTTP calls, not 6.
+  // One re-ask: worst case 3 + 1 = 4 HTTP calls, not 6.
   let lastErr: Caught;
   for (let attempt = 0; attempt <= 1; attempt++) {
     const raw = attempt === 0

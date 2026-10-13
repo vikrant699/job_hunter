@@ -1,5 +1,4 @@
-// generic adapter for careers pages shipping jobs as a JS literal or escaped-JSON blob baked into HTML/a JS asset; per-company config lives in apiMeta (JsVarConfig)
-// JS literals (single quotes/backticks/unquoted keys) aren't valid JSON, so they run in a locked-down `vm` context (no globals, 1s timeout); escaped-JSON blobs (unescape:true) go through JSON.parse instead
+// JS literals aren't valid JSON, so they run in a locked-down `vm` context (no globals, 1s timeout)
 import { createContext, runInContext } from "node:vm";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -56,7 +55,7 @@ export function jsVarConfig(company: AdapterCompany): JsVarConfig {
   };
 }
 
-/** vm eval result may hold undefined/array holes/NaN/Date (not representable as JsonValue), so it's round-tripped through JSON first to normalize it the way real wire JSON would (holes/NaN -> null, Date -> ISO). */
+/** Round-trip through JSON so vm results (undefined/holes/NaN/Date) normalize like wire JSON. */
 export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
   if (viaJson) return JsonValueSchema.parse(JSON.parse(literal));
   const sandbox = createContext({ __proto__: null });
@@ -65,7 +64,6 @@ export function parseLiteral(literal: string, viaJson: boolean): JsonValue {
   );
 }
 
-// startPattern anchors on the literal's own shape (e.g. `[{id:"..",title:`) and the literal starts at the first `open` at or after the match, so minifier renames don't break it
 function locateLiteral(haystack: string, cfg: JsVarConfig): string | null {
   if (cfg.startPattern) {
     const m = cfg.startPattern.exec(haystack);

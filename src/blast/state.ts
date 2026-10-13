@@ -1,4 +1,4 @@
-// JSON-file state for the TEMPORARY Raw Data blast tool, deliberately not the job_hunter SQLite DB, so the whole blast can be deleted cleanly when the campaign ends.
+// Deliberately not the job_hunter SQLite DB, so the whole blast can be deleted cleanly.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -12,9 +12,7 @@ export const BlastRecordSchema = z.object({
   company: z.string(),
   contactName: z.string().nullable(),
   status: BlastStatusSchema,
-  /** 1-based weekly batch number this record was processed in. */
   batch: z.number().int(),
-  /** e.g. "S2/O1" or "S2/O1-fallback"; null for skipped_invalid. */
   variant: z.string().nullable(),
   draftId: z.string().nullable(),
   at: z.string(),
@@ -36,7 +34,7 @@ export function statePathFor(profileId: string): string {
   return `data/blast-state-${profileId}.json`;
 }
 
-/** Missing file -> fresh empty state; malformed file throws (silently restarting would re-draft everyone). */
+/** A malformed file throws: silently restarting would re-draft everyone. */
 export function loadState(path: string): BlastState {
   if (!existsSync(path)) return emptyState();
   try {
@@ -46,12 +44,11 @@ export function loadState(path: string): BlastState {
   }
 }
 
-/** Write-then-rename so a crash mid-write can't truncate the campaign state. */
+/** Write-then-rename so a crash mid-write can't truncate the state. */
 export function saveState(path: string, state: BlastState): void {
   writeFileAtomic(path, JSON.stringify(state, null, 2));
 }
 
-/** All profiles' campaign states, sorted by profile id; a run by one profile must never wipe another's rows. */
 export function loadAllStates(dir = "data"): { profileId: string; state: BlastState }[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
@@ -65,7 +62,6 @@ export function knownEmails(state: BlastState): Set<string> {
   return new Set(state.records.map((r) => r.email));
 }
 
-/** Count of addresses ever drafted (still-drafted or later bounced); the rotation index base. */
 export function draftedEverCount(state: BlastState): number {
   return state.records.filter((r) => r.status !== "skipped_invalid").length;
 }

@@ -100,7 +100,6 @@ test("normalizeWorkdayListing stays null when there are no bulletFields either",
   assert.equal(p.location, null);
 });
 
-// Modeled on the real Genpact (wd108) facets response.
 const jobFamilyGroupFacet: JsonValue = {
   facetParameter: "jobFamilyGroup",
   values: [
@@ -184,7 +183,6 @@ const genpactCompany: AdapterCompany = {
 };
 
 test("crawlWorkdayPostings does a plain crawl with no behavior change when total is not exactly 2000", async () => {
-  // First page must be full (20) so pagination doesn't stop early, masking whether the offset-based fetch works.
   const page0 = Array.from({ length: 20 }, (_, i) => posting(`p${i}`));
   const calls: Array<{ offset: number; facets: Record<string, string[]> }> = [];
   const items = await crawlWorkdayPostings(genpactCompany, {}, null, async (offset, facets) => {
@@ -210,7 +208,6 @@ test("crawlWorkdayPostings partitions by the selected facet when total is exactl
   const items = await crawlWorkdayPostings(genpactCompany, {}, null, async (offset, facets) => {
     calls.push({ offset, facets });
     if (Object.keys(facets).length === 0) {
-      // initial unfiltered peek: reports the latched total + facets
       return { items: [posting("peek-a")], total: 2000, facets: genpactStyleFacets };
     }
     if (facets.jobFamilyGroup?.[0] === "fam-1") {
@@ -220,7 +217,7 @@ test("crawlWorkdayPostings partitions by the selected facet when total is exactl
       return { items: [posting("fam2-a")], total: 643, facets: null };
     }
     if (facets.jobFamilyGroup?.[0] === "fam-3") {
-      return { items: [posting("fam1-a")], total: 337, facets: null }; // duplicate of fam1-a, must dedup
+      return { items: [posting("fam1-a")], total: 337, facets: null };
     }
     if (facets.jobFamilyGroup?.[0] === "fam-4") {
       return { items: [], total: 63, facets: null };
@@ -229,7 +226,6 @@ test("crawlWorkdayPostings partitions by the selected facet when total is exactl
   });
   const ids = items.map((p) => p.externalId).sort();
   assert.deepEqual(ids, ["fam1-a", "fam1-b", "fam2-a"]);
-  // the unfiltered peek's own item must NOT leak into the result (partitioned crawl replaces it)
   assert.ok(!ids.includes("peek-a"));
   const partitionCalls = calls.filter((c) => "jobFamilyGroup" in c.facets);
   assert.equal(partitionCalls.length, 4);
@@ -263,7 +259,7 @@ test("crawlWorkdayPostings still returns results (without throwing) when a parti
       };
     }
     if (facets.jobFamilyGroup?.[0] === "fam-huge") {
-      return { items: [posting("huge-a")], total: 2000, facets: null }; // still latched — logs a warning, keeps going
+      return { items: [posting("huge-a")], total: 2000, facets: null };
     }
     return { items: [posting("small-a")], total: 5, facets: null };
   });
@@ -271,7 +267,6 @@ test("crawlWorkdayPostings still returns results (without throwing) when a parti
   assert.deepEqual(ids, ["huge-a", "small-a"]);
 });
 
-// A stub jobPosting (no title/externalPath) must not fail the whole board - it was costing 1000+ postings per tenant per run.
 const completePosting = {
   title: "Software Engineer",
   externalPath: "/job/Pune/Software-Engineer_R-1",
@@ -317,14 +312,12 @@ test("parseWorkdayListPage still throws when the envelope itself is wrong", () =
   assert.throws(() => parseWorkdayListPage(asJson({ error: "nope" }), "barclays"), /schema/);
 });
 
-// --- parseWorkdaySites ------------------------------------------------------
-
 test("parseWorkdaySites extracts sites from a mix of Allow and Sitemap lines, deduped in order", () => {
   const robots = [
     "User-agent: *",
     "Allow: /wday/",
     "Allow: /External/",
-    "Allow: /External/", // duplicate, must not repeat in output
+    "Allow: /External/",
     "Sitemap: https://acme.wd1.myworkdayjobs.com/wday/sitemap/External/siteMap.xml",
     "Sitemap: https://acme.wd1.myworkdayjobs.com/wday/sitemap/Campus/siteMap.xml",
   ].join("\n");
@@ -345,7 +338,7 @@ test("parseWorkdaySites excludes wday/refreshFacet/events and dotted names, case
     "allow: /wday/",
     "ALLOW: /refreshFacet/",
     "Allow: /events/",
-    "Allow: /sitemap.External/", // dotted, excluded
+    "Allow: /sitemap.External/",
     "Allow: /External/",
   ].join("\r\n");
   assert.deepEqual(parseWorkdaySites(robots), ["External"]);
@@ -356,8 +349,6 @@ test("parseWorkdaySites tolerates \\r\\n line endings", () => {
   assert.deepEqual(parseWorkdaySites(robots), ["External", "Campus"]);
 });
 
-// --- workdayAdapter.listPostings: site-drift fallback ----------------------
-
 const driftCompany: AdapterCompany = mkAdapterCompany(
   {
     provider: "workday",
@@ -367,7 +358,6 @@ const driftCompany: AdapterCompany = mkAdapterCompany(
   },
   {
     tenantUrl: "https://acme.wd1.myworkdayjobs.com/External",
-    // Pinned facet so discoverIndiaFacet's own probe request never runs - keeps the fetch sequence in these tests down to exactly the listing calls being exercised.
     apiMeta: { facetParam: "locationCountry", facetValueIds: "in-1" },
   },
 );
@@ -389,7 +379,6 @@ function driftListResponse(site: string) {
   };
 }
 
-/** Routes each fetch call by matching the end of its URL, in the given order; records every URL seen. */
 function routeFetch(routes: Array<[suffix: string, make: () => Response]>, calls: string[]): typeof globalThis.fetch {
   return (input) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -487,7 +476,6 @@ test("workday listPostings rethrows the original 404 when robots.txt still lists
 });
 
 test("workday listPostings never fetches robots.txt on a 429 (throttle, not drift)", async (t) => {
-  // fetchOk itself retries a 429 (transient status) a few times before giving up - every one of those retries must still land on the listing URL, never robots.txt.
   const calls: string[] = [];
   stubFetch(
     t,

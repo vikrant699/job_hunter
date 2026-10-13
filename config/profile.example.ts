@@ -1,19 +1,4 @@
-/**
- * User profile — everything personal about who you are and what roles you want.
- *
- * Setup:
- *   1. Copy this file to `config/profile.ts`
- *   2. Edit the fields below to match your resume, target roles, and locations
- *   3. `config/profile.ts` is gitignored — your edits stay local
- *
- * Field-by-field guide:
- *   - hardDealBreakers    Conditions that SILENTLY reject a posting (never recorded as a match)
- *   - softDealBreakers    Conditions that still match, but only as yellow
- *   - filters             YOE bounds + the green/yellow score thresholds
- *   - location            Which locations count as in-region or acceptable remote
- *   - titleDenyPatterns   Cheap regex pre-filter before the LLM call; keep it conservative (false positives mean missed roles)
- *   - servicesDenylist    Companies you never want to see (e.g. staffing agencies)
- */
+// Copy to config/profile.ts (gitignored) and edit to match your resume, target roles and locations.
 
 import type { UserProfile } from "../src/types.js";
 export type { UserProfile };
@@ -24,14 +9,14 @@ export const profile: UserProfile = {
   // resumeText is NOT set here - put your resume at config/resume.pdf, it is extracted automatically at startup.
 
   hardDealBreakers: [
-    // Things you ABSOLUTELY do not want to see — these silently reject a posting.
+    // Conditions that silently reject a posting.
     "Internship / fresher / trainee / 0–1 YOE roles",
     "Roles requiring a MINIMUM of 6 or more years of relevant experience (e.g., 'minimum 6 years', '6+ years', '7 to 10 years'). NOTE: ranges that start below 6 (e.g., '3-5 years', '4+ years') are FINE.",
     "Third-party hiring / staffing / recruitment-agency posts where the role is for an unnamed 'client' or 'partner company'. The actual employer must be visible.",
   ],
 
   softDealBreakers: [
-    // Things you'd PROBABLY skip but still want to see flagged for review.
+    // Still matched, but only as yellow.
     "Senior leadership / people-management roles (Lead, Principal, Staff, Head of, Director, VP). NOTE: 'Senior X' titles (e.g., 'Senior Data Analyst') are individual-contributor seniority levels — do NOT flag those.",
     "US-shift / night-shift / non-local-timezone working hours",
   ],
@@ -81,8 +66,7 @@ export const profile: UserProfile = {
     ],
   },
 
-  // Pre-filter regexes that silently drop matching titles before the LLM call; adjust for your target role family.
-  // Defaults target a data-analyst hunt (drop SWE/SRE/QA/design/hardware) - swap them if you're hunting a different role.
+  // Pre-filter regexes that silently drop matching titles before the LLM call; defaults target a data-analyst hunt.
   titleDenyPatterns: [
     /\b(?:senior |staff |principal |lead |sr\.? |junior |jr\.? )?(?:backend|back[- ]end|frontend|front[- ]end|fullstack|full[- ]stack|full stack|mobile|ios|android|embedded|firmware|hardware|kernel|graphics|game|3d|blockchain|web3|crypto)\s+(?:software\s+)?(?:engineer|engineering|developer|dev|programmer)\b/i,
     /\b(?:senior |staff |principal |lead |sr\.? |junior |jr\.? )?(?:software|application|applications|product)\s+(?:engineer|engineering|developer|dev|programmer)\b/i,
@@ -104,13 +88,11 @@ export const profile: UserProfile = {
       "genpact", "deloitte", "kpmg", "pwc", "pricewaterhousecoopers", "ernst-young",
       "quess", "randstad", "manpower", "teamlease", "antal", "kelly-services",
       "abc-consultants", "michael-page",
-      // Indian gov / PSU
       "bhel", "bpcl", "bsnl", "coal-india", "cowin-negd", "digilocker-negd",
       "digital-india-corporation", "drdo", "isro", "hal-aerospace",
       "reserve-bank-information-technology", "hpcl", "india-post-payments-bank",
       "indian-oil-corporation", "nhpc", "nic-india", "ntpc-limited", "ongc",
       "power-grid-corporation", "sjvn", "stpi", "uidai",
-      // Eternal-owned (Zomato Ltd. rebrand, 2025)
       "zomato", "blinkit", "hyperpure",
       // referral-only / no public hiring
       "zerodha",

@@ -1,4 +1,4 @@
-// src/ats/setu.ts — Setu (setu.co, Pine Labs group) careers SPA, fed by a public CSV in a GitHub content repo (SetuHQ/website-content). `Link` is the public TurboHire job page; `Description` is a login-walled Google Doc, never used.
+// public CSV in GitHub SetuHQ/website-content; `Link` is the TurboHire job page, `Description` is a login-walled Google Doc, never used
 // The CSV carries no location (fixed HQ string used instead); JD comes from the TurboHire page's schema.org JobPosting JSON-LD block.
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -14,10 +14,8 @@ import { kebabCase } from "../util/slug.js";
 export const SETU_CSV_URL =
   "https://raw.githubusercontent.com/SetuHQ/website-content/main/careers/Setu%20Website%20-%20CurrentOpenings.csv";
 
-// Setu HQ (Bangalore); the CSV has no per-role location field.
 export const SETU_LOCATION = "Bengaluru, India";
 
-// Hand-rolled CSV parser (no new dependency); handles quoted fields (commas or doubled "" quotes), CRLF/LF, and blank lines.
 export function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
@@ -64,7 +62,6 @@ export function parseCsvRows(text: string): string[][] {
       continue;
     }
     if (c === "\r") {
-      // Swallow bare \r; \n ends the row regardless.
       i += 1;
       continue;
     }
@@ -76,10 +73,8 @@ export function parseCsvRows(text: string): string[][] {
     field += c;
     i += 1;
   }
-  // Last field/row (file may or may not end with a newline).
   if (field.length > 0 || row.length > 0) endRow();
 
-  // Drop fully-blank rows (e.g. trailing newline produced an empty row).
   return rows.filter((r) => !(r.length === 1 && r[0] === ""));
 }
 
@@ -100,7 +95,6 @@ const HEADER_KEYS: Record<string, keyof SetuRow> = {
   "sub-category": "subCategory",
 };
 
-/** Maps columns by header name (not position) so reordering upstream can't silently corrupt data; throws if a column is missing. */
 export function parseSetuCsv(text: string): SetuRow[] {
   const rows = parseCsvRows(text);
   if (rows.length === 0) throw new Error("setu: empty CSV");
@@ -111,7 +105,6 @@ export function parseSetuCsv(text: string): SetuRow[] {
     if (idx === -1) throw new Error(`setu: CSV missing expected column "${headerKey}"`);
     colIndex[field] = idx;
   }
-  // Every field was assigned an index above (or the loop threw) - this never actually throws, it just gives TS a non-undefined number.
   const col = (field: keyof SetuRow): number => {
     const idx = colIndex[field];
     if (idx === undefined) throw new Error(`setu: internal: column index for "${field}" not resolved`);
@@ -136,7 +129,6 @@ export function parseSetuCsv(text: string): SetuRow[] {
 
 const TURBOHIRE_CODE_RE = /\/get\/([^/?#]+)/;
 
-/** TurboHire job code from the Link URL (…/get/<code>); falls back to a kebab-cased role when the URL doesn't match. */
 export function setuExternalId(row: SetuRow): string {
   return matchGroup(TURBOHIRE_CODE_RE, row.link) ?? kebabCase(row.role);
 }

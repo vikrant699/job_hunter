@@ -7,14 +7,11 @@ import { logger } from "../logger.js";
 import { describeError, errorCauseCodes } from "./errorCause.js";
 import type { Caught } from "./errorCause.js";
 
-/** OpenSSL's verdicts for "the server never sent the cert that issued this one", the only failures AIA fetching can mend. */
 const INCOMPLETE_CHAIN_CODES = new Set(["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY"]);
 
-/** Real chains are leaf + 1-2 intermediates; the cap stops a looping or hostile AIA walk. */
 const MAX_FETCHED_LEVELS = 3;
 const PEEK_TIMEOUT_MS = 10_000;
 const CERT_FETCH_TIMEOUT_MS = 10_000;
-/** A certificate is a few KB; anything larger is not one. */
 const MAX_CERT_BYTES = 64 * 1024;
 
 const CA_ISSUERS_RE = /^CA Issuers - URI:(https?:\/\/\S+)$/gim;
@@ -23,13 +20,11 @@ export function isIncompleteChainError(err: Caught): boolean {
   return errorCauseCodes(err).some((code) => INCOMPLETE_CHAIN_CODES.has(code));
 }
 
-/** The http(s) CA Issuers URLs from an X509Certificate.infoAccess string (OCSP and ldap entries are skipped). */
 export function aiaIssuerUrls(infoAccess: string | undefined): string[] {
   if (infoAccess === undefined) return [];
   return [...infoAccess.matchAll(CA_ISSUERS_RE)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]));
 }
 
-/** A certificate from DER or PEM bytes; null for anything else (an error page, a PKCS#7 bundle). */
 export function parseCert(bytes: Uint8Array): X509Certificate | null {
   if (bytes.length === 0) return null;
   try {
@@ -43,7 +38,7 @@ function isSelfIssued(cert: X509Certificate): boolean {
   return cert.subject === cert.issuer || cert.checkIssued(cert);
 }
 
-/** `candidate` is a non-self-signed CA cert whose key actually signed `child`; a self-signed cert in `ca` would become a trust anchor, so it is never accepted. */
+/** A self-signed cert in `ca` would become a trust anchor, so it is never accepted as `candidate`. */
 export function isIssuingIntermediate(child: X509Certificate, candidate: X509Certificate): boolean {
   if (!candidate.ca || isSelfIssued(candidate)) return false;
   return child.checkIssued(candidate) && child.verify(candidate.publicKey);
@@ -61,7 +56,6 @@ async function fetchIssuer(cert: X509Certificate, fetchCert: (url: string) => Pr
   return null;
 }
 
-/** The intermediates to add so `presented` (leaf first) reaches one of `roots`; null when nothing is missing or no verified path to a root exists. */
 export async function missingIntermediates(
   presented: readonly X509Certificate[],
   roots: readonly X509Certificate[],
@@ -69,7 +63,6 @@ export async function missingIntermediates(
 ): Promise<X509Certificate[] | null> {
   let current = presented[0];
   const added: X509Certificate[] = [];
-  // the step cap also ends a cycle among presented cross-signs
   for (let step = 0; current !== undefined && step <= presented.length + MAX_FETCHED_LEVELS; step++) {
     if (isAnchored(current, roots)) return added.length > 0 ? added : null;
     const child = current;
@@ -102,7 +95,7 @@ function presentedChain(leaf: DetailedPeerCertificate): X509Certificate[] {
   return out;
 }
 
-/** The certificates `host` presents, leaf first; verification is off only to read them, and the socket closes right after the handshake. */
+/** Verification is off only to read the presented certs; the socket closes right after the handshake. */
 function peekPeerChain(host: string, port: number): Promise<X509Certificate[]> {
   return new Promise((resolve, reject) => {
     const socket = tls.connect({ host, port, rejectUnauthorized: false, ...(isIP(host) === 0 ? { servername: host } : {}) });
@@ -131,7 +124,7 @@ async function downloadCert(url: string): Promise<Uint8Array> {
 /** Statuses whose Response must carry a null body (the constructor throws otherwise). */
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 
-/** fetch() through `agent` via undici's own fetch (its Agent does not type-check as the global fetch's dispatcher), re-wrapped as a global Response that keeps the post-redirect url. */
+/** undici's own fetch (its Agent doesn't type-check as the global fetch's dispatcher), re-wrapped as a global Response keeping the post-redirect url. */
 export async function fetchViaAgent(agent: Agent, url: string, init: RequestInit): Promise<Response> {
   const req = new Request(url, init);
   const body = req.body === null ? null : new Uint8Array(await req.arrayBuffer());
@@ -155,16 +148,13 @@ export async function fetchViaAgent(agent: Agent, url: string, init: RequestInit
 export type RepairedFetch = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface ChainRepairDeps {
-  /** The process's default trust store; a repaired chain must still end at one of these. */
   trustedRootPems: () => readonly string[];
   peerChain: (host: string, port: number) => Promise<X509Certificate[]>;
   fetchCert: (url: string) => Promise<Uint8Array>;
 }
 
 export interface ChainRepair {
-  /** The repaired fetch for this URL's host, once one has been built. */
   fetcherFor: (url: string) => RepairedFetch | undefined;
-  /** Fetch the host's missing intermediates via AIA and build a verifying fetch; null when the chain cannot be completed. */
   repair: (url: string) => Promise<RepairedFetch | null>;
 }
 
@@ -200,7 +190,6 @@ export function createChainRepair(deps: ChainRepairDeps): ChainRepair {
   }
 
   return {
-    // an unparseable URL is left for fetch() itself to reject
     fetcherFor: (url) => (URL.canParse(url) ? repaired.get(hostKey(new URL(url))) : undefined),
     repair: (url) => {
       if (!URL.canParse(url)) return Promise.resolve(null);
@@ -225,7 +214,6 @@ export const chainRepair = createChainRepair({
   fetchCert: downloadCert,
 });
 
-/** fetch() that, like a browser, completes a server's missing intermediate via AIA and retries once with full verification; every other failure is rethrown untouched. */
 export async function fetchRepairingChain(url: string, init: RequestInit, repair: ChainRepair = chainRepair): Promise<Response> {
   const known = repair.fetcherFor(url);
   if (known !== undefined) return known(url, init);

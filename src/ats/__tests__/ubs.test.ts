@@ -26,9 +26,7 @@ const PAYLOAD = {
           { QuestionName: "jobdescription", Value: "<p>Build test automation.</p>" },
         ],
       },
-      // Duplicate reqid - must dedup.
       { Questions: [{ QuestionName: "reqid", Value: "330284" }, { QuestionName: "jobtitle", Value: "dup" }] },
-      // Missing title - skipped.
       { Questions: [{ QuestionName: "reqid", Value: "999" }] },
     ],
   },
@@ -69,7 +67,6 @@ test("ubsTruncationWarning fires when fewer jobs came back than the server repor
 
 test("ubsTruncationWarning stays silent on a complete response", () => {
   assert.equal(ubsTruncationWarning(20, 20), null);
-  // Dedup/skipped rows legitimately shrink the count; only a shortfall vs the server count means truncation.
   assert.equal(ubsTruncationWarning(20, null), null);
   assert.equal(ubsTruncationWarning(21, 20), null);
 });

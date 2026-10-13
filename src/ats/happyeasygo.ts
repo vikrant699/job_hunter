@@ -9,7 +9,6 @@ import { BROWSER_UA } from "../util/userAgent.js";
 
 const LIST_URL = "https://www.happyeasygo.com/heg_api/join/getDepartmentJobList.do";
 const CAREERS_URL = "https://www.happyeasygo.com/Careers/";
-// Company HQ; used only when a position's workPlace is null (none observed live, but the field is nullable).
 const DEFAULT_LOCATION = "Gurugram, India";
 
 const PositionSchema = z.object({
@@ -36,7 +35,6 @@ const ListSchema = z.object({
   data: z.array(DepartmentSchema),
 });
 
-/** Flatten one department's joinUsMessages into postings; deptIndex feeds the externalId fallback (departmentId+index) when a position has no own id. */
 export function flattenDepartment(company: AdapterCompany, dept: HappyEasyGoDepartment): NormalizedPosting[] {
   const positions = dept.joinUsMessages ?? [];
   return positions.map((p, i) => normalizeHappyEasyGo(company, p, dept, i));
@@ -79,5 +77,4 @@ export const happyeasygoAdapter: AtsAdapter = {
     for (const dept of parsed.data) out.push(...flattenDepartment(company, dept));
     return out;
   },
-  // The list response carries the full description — no fetchJd needed.
 };

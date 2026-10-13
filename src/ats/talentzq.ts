@@ -1,5 +1,4 @@
-// src/ats/talentzq.ts — TalentzQ career boards (e.g. pratilipi.talentzq.io), a Blazor WebAssembly SPA fronting a per-tenant JSON API.
-// List: GET <subdomain>.talentzq.io/api/<tenantId>/jd, whole board in one call (no pagination), body a double-JSON-encoded string. Detail: GET .../api/<tenantId>/jd/<Jdcode>, singly-encoded JSON string of the JD HTML; the public job page is .../JobView/<Jdcode>.
+// List: GET <subdomain>.talentzq.io/api/<tenantId>/jd, whole board, body double-JSON-encoded. Detail: GET .../jd/<Jdcode>, singly-encoded JSON string of the JD HTML; public page .../JobView/<Jdcode>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -9,7 +8,7 @@ import { REMOTE_RE, dateToIso, joinLocation } from "./shared.js";
 import { tryParseJson } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 
-// Every request carries a `?v=<token>` query param on the live site; verified that omitting it (or passing garbage) returns identical 200 data and the same value recurs across unrelated image requests too — it's a cache-busting stamp, not a session token, so these URLs omit it.
+// The live site's `?v=<token>` param is a cache-busting stamp (omitting it returns identical data), so URLs omit it.
 export function talentzqListUrl(origin: string, tenantId: string): string {
   return `${origin}/api/${tenantId}/jd`;
 }
@@ -37,7 +36,6 @@ export const TalentzqJobSchema = z.object({
 });
 export type TalentzqJob = z.infer<typeof TalentzqJobSchema>;
 
-// Unwraps the double-JSON-encoded list body. Never throws — anything that isn't a valid JSON string parsing to an array yields [].
 export function talentzqJobsFrom(raw: JsonValue): JsonValue[] {
   if (typeof raw !== "string") return [];
   const parsed = tryParseJson(raw);
@@ -69,7 +67,6 @@ export function normalizeTalentzq(company: AdapterCompany, origin: string, j: Ta
   };
 }
 
-// Strips HTML from the (singly-encoded) detail response; "" on anything not a string.
 export function talentzqJdText(raw: JsonValue): string {
   return htmlToText(typeof raw === "string" ? raw : "");
 }

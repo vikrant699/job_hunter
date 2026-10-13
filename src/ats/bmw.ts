@@ -10,8 +10,8 @@ import { htmlToText } from "./htmlText.js";
 import { REMOTE_RE } from "./shared.js";
 
 const FRAG_RE = /jobfinder\d*\.jobfinder_table\.content\.html/i;
-const MAX_FRAG_PAGES = 200; // runaway backstop, India never approaches this
-const MAX_JD_FETCHES = 60; // cap so a pathologically large board can't stall the tick; rest keep title+location only
+const MAX_FRAG_PAGES = 200;
+const MAX_JD_FETCHES = 60;
 
 export interface BmwTile {
   externalId: string;
@@ -37,7 +37,7 @@ export function parseBmwFragment(html: string, origin: string): { tiles: BmwTile
     const href = $w.find("a.grp-jobfinder__link-jobdescription").first().attr("href") ?? "";
     let detailUrl = origin;
     try { detailUrl = new URL(href, origin).toString(); } catch { /* keep origin */ }
-    const postingDate = $cell.attr("data-posting-date") ?? null; // YYYYMMDD
+    const postingDate = $cell.attr("data-posting-date") ?? null;
     const postedAt =
       postingDate && /^\d{8}$/.test(postingDate)
         ? `${postingDate.slice(0, 4)}-${postingDate.slice(4, 6)}-${postingDate.slice(6, 8)}`
@@ -64,7 +64,6 @@ export function extractBmwJd(html: string): string {
 
 const PREFILTER_KEYS: readonly string[] = ["employeeStatus", "fullText", "hotJob", "jobField", "jobLevel", "jobType", "location", "refNo", "schedule", "legalEntity"];
 
-/** The country page's `data-prefilter` ("location=IN&&jobType=A,B") as filterSearch terms, parsed like the jobfinder script does. */
 export function parseBmwPrefilter(html: string): string[] {
   const raw = cheerio.load(html)(".grp-jobfinder-filter-area").first().attr("data-prefilter") ?? "";
   const terms: string[] = [];
@@ -110,7 +109,6 @@ export const bmwAdapter: AtsAdapter = {
     const pageUrl = company.tenantUrl ?? company.careersUrl;
     const origin = new URL(pageUrl).origin;
 
-    // Registered from beforeGoto (pre-navigation) since the fragment request can fire during initial load.
     let fragUrlPromise: Promise<string | null> = Promise.resolve(null);
 
     return withBrowserPage(
@@ -143,7 +141,6 @@ export const bmwAdapter: AtsAdapter = {
           if (total !== null && tiles.length >= total) break;
         }
 
-        // Fetch every JD in the SAME cleared session (board is tiny).
         const out: NormalizedPosting[] = [];
         for (const t of tiles) {
           let jdText = "";
@@ -172,8 +169,8 @@ export const bmwAdapter: AtsAdapter = {
       },
       {
         navTimeoutMs: 45_000,
-        waitUntil: "networkidle", // Akamai interstitial / slow settle is swallowed; the fragment may still fire
-        settleMs: 0, // captureFirstRequest's own timeout below replaces the fixed settle wait
+        waitUntil: "networkidle",
+        settleMs: 0,
         blockHeavyAssets: false,
         // 51_000 = navTimeoutMs (45_000) + ~6_000 polling margin, timed from listener registration (pre-goto).
         beforeGoto: (page) => { fragUrlPromise = captureFirstRequest(page, FRAG_RE, 51_000); },

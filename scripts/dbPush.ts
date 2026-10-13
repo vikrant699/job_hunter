@@ -1,4 +1,3 @@
-// Uploads data/job_hunter.db to Google Drive; checkpoints the WAL first so the upload is self-contained. `--profile` selects the token only - the Drive backup itself is shared, not per-profile.
 import "dotenv/config";
 import { pushDb, checkState, syncSkipReason } from "../src/db/sync.js";
 import { assertGoogleTokenValid } from "../src/google/auth.js";

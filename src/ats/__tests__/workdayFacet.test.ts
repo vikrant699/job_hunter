@@ -52,7 +52,6 @@ test("descriptorIsIndia is a token match, never substring", () => {
   assert.equal(descriptorIsIndia("India, Gurgaon"), true);
   assert.equal(descriptorIsIndia("Indianapolis"), false);
   assert.equal(descriptorIsIndia("USA - Indiana"), false);
-  // abcfinancial: the 10-posting Hyderabad leaf ends in a period, beside a bare 2-posting India leaf
   assert.equal(descriptorIsIndia("Hyderabad Office, India."), true);
   assert.equal(descriptorIsIndia("Bengaluru (India)"), true);
   assert.equal(descriptorIsIndia("India_Bangalore"), true);
@@ -84,7 +83,6 @@ test("pinnedFacet is null when either key is absent, empty, or api_meta is null"
   assert.equal(pinnedFacet({ facetParam: "locations" }), null);
   assert.equal(pinnedFacet({ facetValueIds: "aaa" }), null);
   assert.equal(pinnedFacet({ facetParam: "locations", facetValueIds: " , " }), null);
-  // Unrelated api_meta keys (workday rows don't usually carry any) stay inert.
   assert.equal(pinnedFacet({ domain: "x.com" }), null);
 });
 

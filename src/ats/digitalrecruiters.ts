@@ -12,11 +12,8 @@ const PAGE = 100;
 
 export interface DigitalRecruitersMeta {
   domainName: string;
-  /** API locale (e.g. "en_GB"). Default "en_GB". */
   locale: string;
-  /** URL path locale segment (e.g. "en"). Default "en". */
   localePath: string;
-  /** Tenant's jobs-listing route slug (config jobs_link). Default "annonces". */
   jobPathSlug: string;
 }
 
@@ -50,7 +47,6 @@ const DetailBodySchema = z.object({
   description: z.string().nullable().optional(),
   profile: z.string().nullable().optional(),
 });
-// Root usually carries description/profile directly; tolerate an {item:{...}} envelope as fallback.
 const DetailResponseSchema = DetailBodySchema.extend({
   item: DetailBodySchema.optional(),
 });
@@ -67,8 +63,8 @@ export function normalizeDigitalRecruiters(company: AdapterCompany, m: DigitalRe
     jobUrl: `https://${m.domainName}/${m.localePath}/${m.jobPathSlug}/${slug}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: "", // fetched lazily via fetchJd
-    postedAt: null, // list omits the publish date; detail has it but we don't need it here
+    jdText: "",
+    postedAt: null,
   };
 }
 
@@ -103,7 +99,6 @@ export const digitalRecruitersAdapter: AtsAdapter = {
     const raw = await atsFetchJson(url, { provider: "digitalrecruiters" });
     const parsed = parseOrNull(DetailResponseSchema, raw, { provider: "digitalrecruiters", slug: company.slug });
     if (!parsed) return "";
-    // Fall back to the {item:{...}} envelope only when the root carries neither field.
     const d = (parsed.description || parsed.profile) ? parsed : (parsed.item ?? parsed);
     return htmlToText([d.description ?? "", d.profile ?? ""].filter(Boolean).join("\n\n"));
   },

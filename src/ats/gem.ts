@@ -110,12 +110,10 @@ export type GemGraphqlRequest = {
   query: string;
 };
 
-/** Body for the board's job-list query. Pure — unit tested. */
 export function gemListRequestBody(slug: string): GemGraphqlRequest {
   return { operationName: "JobBoardList", variables: { boardId: slug }, query: JOB_BOARD_LIST_QUERY };
 }
 
-/** Body for a single posting's description query. Pure — unit tested. */
 export function gemJdRequestBody(slug: string, extId: string): GemGraphqlRequest {
   return {
     operationName: "ExternalJobPostingQuery",
@@ -124,18 +122,15 @@ export function gemJdRequestBody(slug: string, extId: string): GemGraphqlRequest
   };
 }
 
-/** Human-facing board URL for one posting: jobs.gem.com/<slug>/<extId>. */
 export function gemJobUrl(slug: string, extId: string): string {
   return `${GEM_ORIGIN}/${slug}/${extId}`;
 }
 
-/** Unwrap the `data.oatsExternalJobPostings.jobPostings` envelope. Throws on shape mismatch. */
 export function parseGemJobBoardList(json: JsonValue): GemJobStub[] {
   const parsed = GemJobBoardListSchema.parse(json);
   return parsed.data.oatsExternalJobPostings.jobPostings;
 }
 
-/** Unwrap a job-detail response's `descriptionHtml`. Null when the posting was pulled/unlisted. */
 export function parseGemJobDetail(json: JsonValue): string | null {
   const parsed = GemJobDetailSchema.safeParse(json);
   if (!parsed.success) return null;

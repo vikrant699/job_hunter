@@ -1,4 +1,4 @@
-// Pulls the Companies tab into the DB; run after any registry write since the prune pass removes stale provider/slug rows a repoint left behind. `pruned` is only non-zero when every row validated - check `invalidRows` first if you expect prunes and see zero.
+// Run after any registry write: prune removes stale provider/slug rows a repoint left; `pruned` is 0 unless every row validated (check `invalidRows`).
 import "dotenv/config";
 import { syncRegistryFromSheet } from "../src/registry/sheetRegistry.js";
 

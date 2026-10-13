@@ -19,7 +19,7 @@ const JOBS_URL = "https://www.metacareers.com/jobs/";
 const LOCATION_QUERY_NAME = "CareersJobSearchLocationFilterV3Query";
 const RESULTS_QUERY_NAME = "CareersJobSearchResultsV2DataQuery";
 const NAV_TIMEOUT_MS = 30_000;
-const SETTLE_MS = 4_000; // let the page's own queries land after networkidle
+const SETTLE_MS = 4_000;
 
 // Some FB GraphQL endpoints prefix the JSON body with this to block naive <script> inclusion.
 export function stripForLoopPrefix(text: string): string {
@@ -233,7 +233,6 @@ export function normalizeMetaJob(company: AdapterCompany, j: MetaJob): Normalize
     jobUrl: `${JOBS_URL}${j.id}/`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    // The search result carries no JD or date field; fetchJd fills the JD, postedAt stays null.
     jdText: "",
     postedAt: null,
   };
@@ -281,7 +280,6 @@ export const metacareersAdapter: AtsAdapter = {
         const html = await page.content();
         return extractMetaJd(html);
       },
-      // unlike fetchIndiaJobs, this route has no observed CF interstitial; no goto catch/settle, rethrow + settleMs:0 preserved as-is
       { settleMs: 0, rethrowGotoErrors: true },
     );
   },

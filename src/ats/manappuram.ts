@@ -86,7 +86,6 @@ export function normalizeManappuram(company: AdapterCompany, r: ManappuramRow): 
   };
 }
 
-/** Plain-text JD assembled from the detail rows; "" when the detail is empty or malformed (no-jd recheck picks it up later). */
 export function manappuramJdFromDetail(raw: JsonValue): string {
   let rows: Array<z.infer<typeof DetailRowSchema>>;
   try {

@@ -239,9 +239,8 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
-        // Every page is "full" so only the total check can terminate the loop.
         if (calls === 1) return { items: [1, 2], total: 3 };
-        if (calls === 2) return { items: [3, 4], total: 999 }; // ignored: total already latched at 3
+        if (calls === 2) return { items: [3, 4], total: 999 };
         throw new Error("should not be called a third time");
       },
     });
@@ -287,12 +286,10 @@ describe("paginate", () => {
       provider: "test",
       company: "acme",
       pageSize: 5,
-      // Phenom-style: a page can be capped below pageSize without that meaning "last page".
       shortPageEndsPagination: false,
       interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
-        // Server caps each page at 3 despite pageSize 5, so termination must rely on total.
         if (offset === 0) return { items: [1, 2, 3], total: 6 };
         if (offset === 3) return { items: [4, 5, 6], total: 6 };
         throw new Error("should not be called again");
@@ -311,9 +308,8 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
-        // 3 raw records per page, but one is filtered out (e.g. missing stable id), so items.length < rawCount.
         if (offset === 0) return { items: [1, 2], total: null, rawCount: 3 };
-        if (offset === 3) return { items: [4], total: null, rawCount: 2 }; // short raw page -> stop
+        if (offset === 3) return { items: [4], total: null, rawCount: 2 };
         throw new Error("should not be called again");
       },
     });
@@ -322,7 +318,6 @@ describe("paginate", () => {
   });
 
   it("stops when a board ignores the offset and re-serves the identical page", async () => {
-    // Mirrors a tenant that ignores the offset and re-serves identical rows every page.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -341,7 +336,6 @@ describe("paginate", () => {
   });
 
   it("does NOT truncate a board that re-serves seen rows but still has more", async () => {
-    // Unstable ordering can re-serve a fully-duplicate page mid-run then resume with new ids; must not truncate on an all-seen page alone.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -354,7 +348,6 @@ describe("paginate", () => {
         calls++;
         if (calls === 1) return { items: [1, 2], total: 12, rawCount: 2 };
         if (calls === 2) return { items: [3, 4], total: 12, rawCount: 2 };
-        // All-seen page, but NOT an exact repeat of page 2 -> must continue.
         if (calls === 3) return { items: [2, 3], total: 12, rawCount: 2 };
         if (calls === 4) return { items: [5, 6], total: 12, rawCount: 2 };
         if (calls === 5) return { items: [7, 8], total: 12, rawCount: 2 };
@@ -426,7 +419,6 @@ describe("paginate", () => {
       pageSize: 2,
       fetchPage: async (_offset) => {
         calls++;
-        // total=0 on a full first page must stop immediately, not be treated as "not yet known".
         return { items: [1, 2], total: 0 };
       },
     });
@@ -445,9 +437,7 @@ describe("paginate", () => {
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
         if (offset === 0) return { items: [{ id: "a", n: 1 }, { id: "b", n: 2 }], total: null };
-        // "b" repeats (e.g. a job that moved pages while crawling) and must be dropped from the result.
         if (offset === 2) return { items: [{ id: "b", n: 2 }, { id: "c", n: 3 }], total: null };
-        // Offset still advances by the raw page size (2), not the deduped count, so a duplicate never shifts later offsets.
         if (offset === 4) return { items: [{ id: "d", n: 4 }], total: null };
         throw new Error("should not be called again");
       },
@@ -466,7 +456,6 @@ describe("paginate", () => {
       interPageDelayMs: 0,
       fetchPage: async () => {
         calls++;
-        // Every page is full and total stays unknown, so only maxPages ends the loop (the runaway-cap log line isn't spied on here).
         return { items: [calls], total: null };
       },
     });
@@ -508,7 +497,7 @@ describe("paginate", () => {
       fetchPage: async (offset) => {
         offsetsSeen.push(offset);
         if (offset === 0) return { items: [1, 2, 3, 4], total: null };
-        if (offset === 4) return { items: [5, 6], total: null }; // short vs the inferred 4
+        if (offset === 4) return { items: [5, 6], total: null };
         throw new Error("should not be called again");
       },
     });
@@ -517,7 +506,6 @@ describe("paginate", () => {
   });
 
   it("pageSize 'infer' does not treat a board smaller than one page as a short page", async () => {
-    // The first page DEFINES the page size, so it can never be "short"; a one-page board ends on the empty page after it.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -552,7 +540,6 @@ describe("paginate", () => {
   });
 
   it("the stall guard is inert without dedupeBy: a repeating board is then bounded only by the cap", async () => {
-    // Without dedupeBy the stall guard has no per-item key, so an offset-ignoring board is bounded only by maxPages.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -591,7 +578,6 @@ describe("paginate", () => {
     assert.equal(INTER_PAGE_DELAY_MS, 150);
     let calls = 0;
     const start = Date.now();
-    // Deliberately omits interPageDelayMs to exercise the real default; kept to a single short page pair since it pays the actual delay.
     const result = await paginate<number>({
       provider: "test",
       company: "acme",
@@ -611,7 +597,6 @@ describe("paginate", () => {
     );
   });
 
-  // These three stall shapes differ only in the reported total, which decides the log level; the break (fetch count) stays identical.
   it("a stall short of the reported total stops on the repeat and is a warning", async () => {
     let calls = 0;
     const result = await paginate<number>({
@@ -636,7 +621,6 @@ describe("paginate", () => {
   });
 
   it("a stall on a board that exposes no total still stops, and is not a warning", async () => {
-    // A small board can clamp at its last page, re-serving it if asked beyond the end; nothing suggests loss here.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -666,7 +650,6 @@ describe("paginate", () => {
       dedupeBy: (n) => String(n),
       fetchPage: async () => {
         calls++;
-        // total=3 is reached by page 0's rows, but offset advances by rawCount (2), so one more page is fetched and repeats the last.
         if (calls === 1) return { items: [1, 2, 3], total: 3, rawCount: 2 };
         return { items: [1, 2, 3], total: 3, rawCount: 2 };
       },
@@ -677,7 +660,6 @@ describe("paginate", () => {
   });
 
   it("a page declaring no pagination control changes the log line, never the break", async () => {
-    // The flag is reporting-only; it must not become a fourth stop condition.
     let calls = 0;
     const result = await paginate<number>({
       provider: "test",
@@ -708,7 +690,6 @@ describe("describePaginationStall", () => {
     const { level, message } = describePaginationStall({ total: null, collected: 3 });
     assert.equal(level, "info");
     assert.match(message, /unverifiable/);
-    // Re-serving the last page is indistinguishable from ignoring the offset when only one page exists, so no cause is asserted.
     assert.doesNotMatch(message, /ignores the offset/);
   });
 
@@ -720,7 +701,6 @@ describe("describePaginationStall", () => {
   });
 
   it("does not warn when more was collected than the reported total", () => {
-    // Boards under-report (a stale count, or a facet the total ignores); more than promised is not a truncation.
     assert.equal(describePaginationStall({ total: 5, collected: 9 }).level, "info");
   });
 
@@ -729,7 +709,6 @@ describe("describePaginationStall", () => {
   });
 
   it("states plainly that a board with no pagination control is complete in one page", () => {
-    // Not a hedge: absence of a pager element PROVES the single page is the whole board.
     const { level, message } = describePaginationStall({
       total: null,
       collected: 3,
@@ -742,7 +721,6 @@ describe("describePaginationStall", () => {
   });
 
   it("keeps hedging when nothing proved the board lacks a pagination control", () => {
-    // The flag is positive evidence only; false (or absent) means "unknown".
     const { level, message } = describePaginationStall({
       total: null,
       collected: 3,
@@ -754,7 +732,6 @@ describe("describePaginationStall", () => {
   });
 
   it("still warns about a shortfall even if the board also claims no pagination control", () => {
-    // Contradictory inputs resolve toward the loud branch: a missed warning is the costlier mistake.
     const { level, message } = describePaginationStall({
       total: 40,
       collected: 10,

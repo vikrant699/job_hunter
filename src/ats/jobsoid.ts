@@ -9,7 +9,6 @@ import { extractJsonLdJobs } from "../scraper/jsonLd.js";
 import { REMOTE_RE, tenantOrigin, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-/** Pull the numeric job id out of a `/j/<id>/<slug>` href. */
 export function jobsoidIdFromHref(href: string): string | null {
   return matchGroup(/\/j\/(\d+)\b/, href);
 }
@@ -17,20 +16,17 @@ export function jobsoidIdFromHref(href: string): string | null {
 // Jobsoid's shared, cross-tenant job portal; every subdomain the vendor does not host redirects here, and no tenant board is ever served from it.
 const JOBSOID_PORTAL_HOST = "portal.jobsoid.com";
 
-/** Host of an absolute URL, `www.`-insensitive. Null when unparseable. */
 function hostOf(url: string): string | null {
   try {
-    // URL already lowercases the host and drops path/query, so comparing this is inherently insensitive to a trailing slash or a ?notfound=true.
     return new URL(url).host.replace(/^www\./, "");
   } catch {
     return null;
   }
 }
 
-/** Throws when the board was served from JOBSOID_PORTAL_HOST instead of the tenant: a dead subdomain 200s and redirects there instead of 404ing, and the portal embeds other employers' postings, so this must be checked before parsing. */
+/** Throws when the board was served from JOBSOID_PORTAL_HOST: a dead subdomain 200s and redirects there, and the portal embeds other employers' postings. */
 export function assertJobsoidTenantExists(base: string, finalUrl: string): void {
   const actual = hostOf(finalUrl);
-  // An unparseable URL says nothing about the board, so stay quiet rather than turn it into a company failure.
   // Keyed on the portal host specifically (not "left the tenant host") since custom-domain redirects are normal and legitimate here.
   if (actual === null || actual !== JOBSOID_PORTAL_HOST) return;
 
@@ -41,7 +37,6 @@ export function assertJobsoidTenantExists(base: string, finalUrl: string): void 
   );
 }
 
-/** Parse the tenant's board HTML into postings; `baseUrl` should be the post-redirect URL so relative `/j/...` links resolve to the real (possibly custom-domain) host. */
 export function parseJobsoidList(html: string, baseUrl: string, company: AdapterCompany): NormalizedPosting[] {
   const $ = cheerio.load(html);
   const out: NormalizedPosting[] = [];
@@ -87,7 +82,6 @@ export function parseJobsoidList(html: string, baseUrl: string, company: Adapter
   return out;
 }
 
-/** Extract + flatten the JD body from a job detail page's JobPosting JSON-LD. */
 export function jobsoidJdFromHtml(html: string): string {
   const jobs = extractJsonLdJobs(html);
   const withDescription = jobs.find((j) => j.description) ?? jobs[0];

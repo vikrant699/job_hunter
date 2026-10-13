@@ -1,5 +1,4 @@
-// src/ats/sfcsb.ts — SAP SuccessFactors CSB (Career Site Builder) JSON API; distinct from successfactors.ts, which scrapes the legacy jobs2web HTML board.
-// List: POST <host>/services/recruiting/v1/jobs (0-based pageNumber, page size fixed at 10, sortBy "date"; India cut done by the pipeline's location filter). JD: GET <host>/job/<slug>/<id>-<locale>/ for CSB ids or /job/<slug>/<id>/ for jobs2web req ids; richest itemprop="description" span, else joblayouttoken value.
+// List: POST <host>/services/recruiting/v1/jobs (0-based pageNumber, size fixed at 10, sortBy "date"). JD: GET <host>/job/<slug>/<id>-<locale>/ (CSB ids) or /job/<slug>/<id>/ (jobs2web req ids).
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
@@ -11,12 +10,11 @@ import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import { fetchSfSitemapIds, sitemapOnlyEntries, titleFromSitemapUrl } from "./sfSitemap.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 10; // server-fixed
+const PAGE = 10;
 const LOCALE = "en_US";
 
 const MONTHS_MDY_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/;
 
-/** Parse the CSB "M/D/YY" start date to a UTC-midnight ISO (timezone-stable). */
 export function sfcsbDate(s: string | null | undefined): string | null {
   const m = MONTHS_MDY_RE.exec((s ?? "").trim());
   if (!m) return null;
@@ -38,19 +36,18 @@ const SfcsbResponseSchema = z.object({
   jobSearchResult: z.array(z.object({ response: SfcsbJobSchema })).nullable().optional(),
 });
 
-/** POST body for a 0-based page; the default relevance sort reshuffles ties between requests (tuv-sud: 302 unique of 381) while "date" is stable. Locale is a TENANT setting (indegene needs en_GB) - apiMeta.locale overrides. */
+/** Default relevance sort reshuffles ties between requests (tuv-sud: 302 unique of 381); "date" is stable. Locale is per tenant (indegene needs en_GB). */
 export function sfcsbSearchBody(pageNumber: number, locale: string = LOCALE): JsonValue {
   return { keywords: "", locale, pageNumber, sortBy: "date" };
 }
 
-/** Canonical public job URL for a CSB id; the slug segment is cosmetic. */
 export function sfcsbJobUrl(company: AdapterCompany, id: string, slug: string | null | undefined): string {
   const seg = slug !== undefined && slug !== null && slug !== "" ? slug : "x";
   const locale = company.apiMeta?.locale ?? LOCALE;
   return `${tenantOrigin(company)}/job/${seg}/${id}-${locale}/`;
 }
 
-/** The jobs2web req-id form of a sfcsbJobUrl (drops the -<locale> suffix); on req-id tenants the suffixed form can redirect-loop (indegene). */
+/** On req-id tenants the locale-suffixed URL can redirect-loop (indegene). */
 export function sfcsbReqIdJobUrl(csbJobUrl: string): string {
   return csbJobUrl.replace(/\/(\d+)-[A-Za-z]{2}_[A-Za-z]{2}\/$/, "/$1/");
 }
@@ -65,7 +62,6 @@ function sfcsbLocation(j: z.infer<typeof SfcsbJobSchema>): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-/** Parse one page into postings + the totalJobs count (jdText filled by fetchJd). */
 export function parseSfcsbPage(
   raw: JsonValue,
   company: AdapterCompany,
@@ -89,7 +85,6 @@ export function parseSfcsbPage(
   return { jobs, total: page.totalJobs ?? null };
 }
 
-/** Placeholder posting for a sitemap id the JSON listing never returned: jobUrl is the sitemap's own canonical URL, title is derived from its slug segment, location stays null (the pipeline's late location check handles that), jdText is filled by fetchJd like every other posting. */
 function sfcsbPostingFromSitemap(company: AdapterCompany, id: string, url: string): NormalizedPosting {
   const jobTitle = titleFromSitemapUrl(url);
   return {
@@ -115,7 +110,6 @@ function richestText($: cheerio.CheerioAPI, selector: string): string {
   return best;
 }
 
-/** Extract the JD from a CSB job page: the richest itemprop="description" span, else (req-id pages carry no itemprop) the richest joblayouttoken value. */
 export function parseSfcsbJd(html: string): string {
   const $ = cheerio.load(html);
   const described = richestText($, "span[itemprop=description]");
@@ -126,7 +120,7 @@ export const sfcsbAdapter: AtsAdapter = {
   provider: "sfcsb",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // CSB pagination order is unstable (jobs recur, pages can fully repeat, totalJobs can be inflated) - don't hand dedupeBy to paginate since its stall guard would break on the first repeat page; walk to the natural empty page and dedupe here instead.
+    // Pagination order is unstable (repeat pages, inflated totalJobs): skip dedupeBy, whose stall guard breaks on a repeat page; dedupe here.
     const raw = await paginate<NormalizedPosting>({
       provider: "sfcsb",
       company: company.slug,
@@ -151,7 +145,7 @@ export const sfcsbAdapter: AtsAdapter = {
     }
     const apiCount = out.length;
 
-    // Completeness backstop, valid only when the API speaks the sitemap's id space: tuv-sud's API returns CSB ids (5311) while its sitemap lists jobs2web req ids (1350177555) for the SAME jobs.
+    // Only valid when API ids match sitemap ids: tuv-sud's API returns CSB ids while its sitemap lists jobs2web req ids for the same jobs.
     const sitemapIds = await fetchSfSitemapIds(company, "sfcsb");
     let gapFilled = 0;
     if (sitemapIds) {

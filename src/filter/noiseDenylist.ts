@@ -1,4 +1,4 @@
-/** Companies removed from the registry for confirmed noise (dead/non-tech/duplicate); keyed by source_slug so they're never re-added. Hand-researched, not telemetry-driven. */
+/** Keyed by source_slug so they're never re-added. Hand-researched, not telemetry-driven. */
 export const NOISE_DENYLIST_SLUGS: Record<string, string> = {
   "koo": "defunct: Koo shut down July 2024 (dormant-audit 2026-07-10)",
   "vauld": "defunct: suspended trading 2022, court-supervised restructuring (dormant-audit 2026-07-10)",

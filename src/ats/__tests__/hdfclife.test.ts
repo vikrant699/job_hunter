@@ -29,7 +29,7 @@ test("hdfcEncrypt/hdfcDecrypt round-trip under the same token+iv (AES-256-GCM, 1
 });
 
 test("hdfcDecrypt uses the response's own rotating token+iv", () => {
-  // The server returns {token, iv} in cleartext alongside the payload; decrypt must key off those, not the static request token.
+  // The server returns {token, iv} in cleartext alongside the payload; decrypt keys off those, not the static request token.
   const respToken = "0123456789abcdef0123456789abcdefEXTRA-IGNORED-TAIL";
   const respIv = REQUEST_IV;
   const payload = hdfcEncrypt({ ok: true }, respToken, respIv);
@@ -55,7 +55,6 @@ const listPayload = {
         TOTAL: 1,
         REQUISITION: { results: [{ REQID: "70050", DESIGNATION: "Corporate Agency Manager", CITY: "Pune", DEPT_NAME: "Banca" }] },
       },
-      // A bucket with no requisitions must not break the flatten.
       { JOB_ROLE: "Empty", TOTAL: 0, REQUISITION: { results: [] } },
     ],
   },
@@ -81,7 +80,7 @@ test("normalizeHdfc maps designation/city/reqid and suffixes India onto the bare
   assert.equal(p.jobTitle, "Full Stack Engineer");
   assert.equal(p.location, "Mumbai, India");
   assert.match(p.jobUrl, /find-your-fit\.html#job-69962$/);
-  assert.equal(p.jdText, ""); // JD comes from fetchJd
+  assert.equal(p.jdText, "");
 });
 
 test("normalizeHdfc falls back to LOC_NAME when CITY is blank", () => {
@@ -89,7 +88,7 @@ test("normalizeHdfc falls back to LOC_NAME when CITY is blank", () => {
   assert.equal(p.location, "Gurugram Corp, India");
 });
 
-// The JD endpoint's 'results' is a FLAT object; JOBDESCRIPTION is a NESTED OBJECT on this tenant, so the extractor must ignore non-string values.
+// JD endpoint's 'results' is a flat object; JOBDESCRIPTION is a nested object on this tenant, so the extractor must ignore non-strings.
 test("hdfcJdFromDetail extracts the JOB_DESC HTML body as plain text", () => {
   const detail = { results: { REQID: "69962", JOB_DESC: "<p>Build <strong>APIs</strong>.</p>", JOBDESCRIPTION: { nested: "object" } } };
   const jd = hdfcJdFromDetail(asJson(detail));
@@ -98,7 +97,6 @@ test("hdfcJdFromDetail extracts the JOB_DESC HTML body as plain text", () => {
 });
 
 test("hdfcJdFromDetail ignores a non-string JOBDESCRIPTION and a blank JOB_DESC, using JOBDESCRIPTION only when it is a string", () => {
-  // JOB_DESC blank, JOBDESCRIPTION a real string -> use it.
   const detail = { results: { REQID: "1", JOB_DESC: "", JOBDESCRIPTION: "<p>Only body.</p>" } };
   assert.match(hdfcJdFromDetail(asJson(detail)), /Only body\./);
 });

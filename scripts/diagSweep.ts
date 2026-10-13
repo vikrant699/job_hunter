@@ -1,4 +1,3 @@
-// Read-only diagnostic sweep (NOT part of the pipeline, safe to delete); writes NDJSON incrementally so a crash loses nothing.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
@@ -170,7 +169,6 @@ async function diagnoseCompany(adapter: AtsAdapter, company: Company): Promise<C
     postings.length > 0 &&
     (COMMON_PAGE_SIZES.has(postings.length) || (postings.length >= 200 && postings.length % 100 === 0));
 
-  // JD sampling: reuse list-provided text when present, otherwise fetchJd.
   const samples = pickSamples(postings);
   const jdBodies: string[] = [];
   for (const p of samples) {
@@ -215,7 +213,6 @@ async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
   const resultsPath = join(outDir, "results.ndjson");
 
-  // Resume: skip companies already present in an existing results file.
   const alreadyDone = new Set<string>();
   if (existsSync(resultsPath)) {
     for (const line of readFileSync(resultsPath, "utf-8").split("\n")) {
@@ -249,7 +246,6 @@ async function main(): Promise<void> {
 
   console.error(`diag sweep: ${apiCompanies.length} ats-api companies (${scrapeRows.length} scrape rows listed separately)`);
 
-  // Bucket by provider, mirroring the production scheduler; gentler caps.
   const buckets = new Map<string, Company[]>();
   for (const c of apiCompanies) {
     const b = buckets.get(c.provider);
@@ -314,7 +310,7 @@ async function main(): Promise<void> {
       return;
     }
     const adapter: AtsAdapter = adapterProbe;
-    // Workday: proven edge throttle on bursts — strictly sequential with 2.5s gaps.
+    // Workday throttles bursts at the edge: strictly sequential with 2.5s gaps.
     const cap = provider === "workday" ? 1 : 2;
     const gapMs = provider === "workday" ? 2_500 : 300;
     let cursor = 0;
@@ -332,7 +328,6 @@ async function main(): Promise<void> {
 
   await Promise.all(bucketTasks);
 
-  // One paced retry pass for infrastructure failures, like the production run.
   if (failedInfra.length > 0) {
     console.error(`retry pass: ${failedInfra.length} infra-failed boards, sequential 3s apart`);
     const retryPath = join(outDir, "retry.ndjson");

@@ -22,7 +22,6 @@ export type GreythrJob = z.infer<typeof GreythrJobSchema>;
 
 const ListResponseSchema = z.object({ data: z.array(GreythrJobSchema) });
 
-/** Tenant host origin, e.g. "https://firstclub.greythr.com"; prefers an explicit tenant_url host, else builds it from the slug. */
 export function greythrBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.greythr.com`);
 }
@@ -40,7 +39,6 @@ export const greythrAdapter: AtsAdapter = {
   },
 };
 
-// Stops at tag/line boundaries so it doesn't swallow the next field.
 const JD_LOCATION_RE = /\blocation\s*:\s*([^\n<,;|]{2,60})/i;
 export function greythrLocationFromJd(jdText: string): string | null {
   const m = JD_LOCATION_RE.exec(jdText);

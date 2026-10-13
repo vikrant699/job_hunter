@@ -7,7 +7,6 @@ import { parseJsonOrThrow } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 
-/** Per-element tolerant shape for body-text job items. */
 export const TextJobSchema = z.object({
   title: z.string().optional(),
   location: z.string().nullable().optional(),
@@ -24,10 +23,9 @@ export interface RunShortlistFromTextInput {
   bodyText: string;
 }
 
-/** Tolerant top-level shape — only fails when there's no `jobs` array at all. */
 const JobsArraySchema = z.object({ jobs: z.array(JsonValueSchema) });
 
-// Last-line defense against prompt-following slips: nav phrases the LLM sometimes returns as "titles".
+// Nav phrases the LLM sometimes returns as titles.
 export const NAV_TITLE_RE = /^(apply( now| for this job)?|save( job)?|share|view (all|details|role|job)|browse (jobs|openings|all)|see (more|all|jobs)|sort by|all filters|skip to content|loading|next|previous|page \d+|home|back|menu|search|sign in|log ?in)$/i;
 export const NON_LOCATION_RE = /^(full[ -]?time|part[ -]?time|contract|temporary|intern(ship)?|permanent|hybrid|on[- ]?site|new|featured|posted .*ago|\d+ days? ago)$/i;
 
@@ -54,7 +52,6 @@ export function postProcessTextJobs(jobs: ParsedTextJob[]): TextJob[] {
   return out;
 }
 
-/** Per-item tolerant selection: one malformed item never discards the batch. */
 export function selectTextJobs(rawJobs: JsonValue[]): TextJob[] {
   const items: ParsedTextJob[] = [];
   for (const item of rawJobs) {
@@ -64,7 +61,6 @@ export function selectTextJobs(rawJobs: JsonValue[]): TextJob[] {
   return postProcessTextJobs(items);
 }
 
-/** Extract job postings from rendered body text, for SPAs that don't expose jobs as <a> anchors. */
 export async function runShortlistFromText(input: RunShortlistFromTextInput): Promise<TextJob[]> {
   const text = input.bodyText.slice(0, config.llm.jdMaxChars);
   if (text.trim().length < 100) return [];

@@ -29,7 +29,6 @@ function company(apiMeta: Record<string, string>): AdapterCompany {
   };
 }
 
-// Detail-link board (like doceree/scaler): cards link out to a JD page.
 const LINKED_HTML = `
 <html><body><ul>
   <li class="card">
@@ -43,7 +42,6 @@ const LINKED_HTML = `
   <li class="card"><a href="/careers/senior-engineer"><h3 class="roleTitle">Senior Engineer</h3></a></li>
 </ul></body></html>`;
 
-// Inline-JD board (like cashkaro/mahindra-susten): each block carries its JD.
 const INLINE_HTML = `
 <html><body>
   <div class="tab-pane" id="career-pills-1">
@@ -79,7 +77,7 @@ test("parseHtmlBoardListing extracts linked cards with dedup", () => {
     locationSelector: ".loc",
   }));
   const items = parseHtmlBoardListing(LINKED_HTML, cfg);
-  assert.equal(items.length, 2); // duplicate senior-engineer dropped
+  assert.equal(items.length, 2);
   const item0 = at(items, 0);
   assert.equal(item0.jobTitle, "Senior Engineer");
   assert.equal(item0.jobUrl, "https://acme.example/careers/senior-engineer");
@@ -102,13 +100,11 @@ test("parseHtmlBoardListing extracts inline-JD blocks with location regex", () =
   assert.equal(item0.jobTitle, "Solar Design Lead");
   assert.match(item0.jdText, /Own PV layouts/);
   assert.equal(item0.location, "Mumbai");
-  // Second block has no Location line -> fixedLocation fallback.
   assert.equal(item1.location, "India");
-  // No links on this board -> title-slug ids.
   assert.equal(item0.externalId, "solar-design-lead");
 });
 
-// A LIVE board with every role filled - wrapper and vendor's empty state remain, only the cards are gone. Must keep returning [].
+// LIVE board with every role filled: wrapper and empty state remain, no cards; must return [].
 const EMPTY_BOARD_HTML = `
 <html><body>
   <section id="jobs">
@@ -118,7 +114,7 @@ const EMPTY_BOARD_HTML = `
   </section>
 </body></html>`;
 
-// A lapsed domain's registrar park page at HTTP 200 - no wrapper, no items, so it used to parse as "healthy, nothing open" forever.
+// Registrar park page at HTTP 200: no wrapper, no items.
 const PARKED_HTML = `
 <html><head><title>acme.example</title></head><body>
   <h1>acme.example</h1>
@@ -139,7 +135,6 @@ test("assertHtmlBoardRendered accepts a genuinely empty board that still rendere
 });
 
 test("assertHtmlBoardRendered never fires on a page that produced items", () => {
-  // A board that yielded rows is live regardless of markup, so a stale/mistyped boardSelector can never fail it.
   const cfg = htmlBoardConfig(company({ ...boardMeta, boardSelector: "#selector-that-is-gone" }));
   assert.doesNotThrow(() => assertHtmlBoardRendered(LINKED_HTML, cfg, 2, "acme"));
 });
@@ -171,7 +166,6 @@ test("a boardSelector-less row is unaffected by a page with no board at all", as
 });
 
 test("a paged board is only audited on page 1", async (t) => {
-  // Page 2 is where a pager runs out; whatever it serves must end the loop quietly, not quarantine a board that already produced postings.
   stubFetch(t, fetchSequence(() => htmlResponse(LINKED_HTML), () => htmlResponse(PARKED_HTML)));
   const postings = await htmlboardAdapter.listPostings(
     company({ ...boardMeta, boardSelector: "ul", pageParam: "page" }),
@@ -188,7 +182,6 @@ test("the dead-page error is charged to the company, not written off as infrastr
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A block page has no items or boardSelector match, so it used to read as "not this board" - true, but charged to the company.
 test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await rejectionOf(htmlboardAdapter.listPostings(company(boardMeta)));
@@ -198,7 +191,7 @@ test("a WAF challenge page is an edge refusal, NOT a dead page", async (t) => {
 });
 
 test("a boardSelector-less row also refuses to read a block page as an empty board", async (t) => {
-  // The opt-in exists so an unverified marker cannot fail a board - a bot block isn't this board's response at all, so reporting zero openings would be wrong too.
+  // Opt-in: a bot block isn't this board's response, so reporting zero openings would be wrong.
   stubFetch(t, fetchSequence(() => htmlResponse(CHALLENGE_PAGE_HTML)));
   const err = await rejectionOf(htmlboardAdapter.listPostings(company({ itemSelector: "li.card" })));
   assert.ok(err instanceof Error);
@@ -229,7 +222,6 @@ test("detailJdRegex captures a script-payload JD and unescapes it (shopify RSC s
   assert.equal(extractHtmlBoardJd(page, cfg), 'Build "commerce" tools.');
 });
 
-// GitBook-style two-level board (wifidabba): root lists section pages, sections list jobs.
 const SECTION_ROOT_HTML = `
 <html><body><nav>
   <a class="toc" href="/open-positons/engineering">Engineering</a>
@@ -315,7 +307,7 @@ test("jdUrlSuffix fetches the JD from jobUrl + suffix (GitBook .md)", async (t) 
 });
 
 const FORM = "https://docs.google.com/forms/d/e/1FAIpQLSfAAA/viewform";
-// Hyperverge shape: the card IS the jdSelector, apply links go to LinkedIn or one Google Form shared by several roles, one href pasted twice.
+// Hyperverge shape: the card IS the jdSelector; apply links go to LinkedIn or one shared Google Form.
 const APPLY_FORM_HTML = `
 <html><body>
   <div class="job-col"><p class="job-title">Engineering Manager</p><span>Bengaluru</span><span>Full-time</span>

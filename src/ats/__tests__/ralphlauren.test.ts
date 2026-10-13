@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { indiaCityFromLatlon, ralphLaurenDetailLocation } from "../ralphlauren.js";
 
-// Avature's job-detail page carries the true location in the first article--details block; the list API only gives lat/lon and dumps many jobs into an ungeocoded "," bucket, so this is the only place a real location exists for them.
+// The list API only gives lat/lon and an ungeocoded "," bucket; the true location is in the detail page's first article--details block.
 const DETAIL_HTML = `
 <article class="article article--details">
   <div class="article__content__view">
@@ -34,12 +34,12 @@ test("indiaCityFromLatlon maps Bangalore coords to a city string", () => {
 });
 
 test("indiaCityFromLatlon returns 'India' for other in-box coords", () => {
-  assert.equal(indiaCityFromLatlon("28.6139,77.2090"), "India"); // Delhi
+  assert.equal(indiaCityFromLatlon("28.6139,77.2090"), "India");
 });
 
 test("indiaCityFromLatlon rejects foreign coords", () => {
-  assert.equal(indiaCityFromLatlon("40.7128,-74.0060"), null); // NYC
-  assert.equal(indiaCityFromLatlon("51.5099,-0.1413"), null); // London
+  assert.equal(indiaCityFromLatlon("40.7128,-74.0060"), null);
+  assert.equal(indiaCityFromLatlon("51.5099,-0.1413"), null);
 });
 
 test("indiaCityFromLatlon returns null for empty / ungeocoded", () => {

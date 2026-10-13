@@ -12,8 +12,8 @@ const cands: CandidateLink[] = [
 test("one malformed item does not discard the whole batch", () => {
   const raw = [
     { url: "https://x.com/jobs/1", title: "Senior Data Analyst" },
-    { url: "not-a-url", title: "Broken" }, // malformed url → dropped
-    { title: "No URL at all" }, // missing url → dropped
+    { url: "not-a-url", title: "Broken" },
+    { title: "No URL at all" },
     { url: "https://x.com/jobs/2", title: "BA" },
   ];
   const out = selectShortlistItems(raw, cands);

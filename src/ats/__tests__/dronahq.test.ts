@@ -38,7 +38,6 @@ test("stripDronahqShortcodes leaves plain text with no brackets untouched", () =
   assert.equal(stripDronahqShortcodes("<p>No shortcodes here.</p>"), "<p>No shortcodes here.</p>");
 });
 
-// Trimmed from a live DronaHQ posting.
 const SAMPLE_CONTENT_HTML = `[vc_row][vc_column]
     <div class="job-hero-banner-wrapper">
         <div class="job-title-and-description">

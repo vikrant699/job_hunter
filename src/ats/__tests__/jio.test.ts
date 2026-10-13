@@ -25,7 +25,6 @@ test("parseJioFunctions extracts the job-function links, absolutized, with names
   assert.match(at(fns, 0).url, /^https:\/\/careers\.jio\.com\/frmfuncwisejob\.aspx\?func=AAA=&desc=BBB=&flag=/);
 });
 
-// Job rows: an <a id="…hylUser_N"> with text "Title ( jobcode )", plus a sibling <span id="…Label2_N"> location.
 const ROWS_HTML = `<html><body><table>
   <tr>
     <td><a id="MainContent_lstJoblist_hylUser_0" href="frmjobdescription.aspx?JBTITLE=T1&amp;jbID=J1&amp;funcCode=F1">Frontend Engineer ( 86701445 )</a></td>
@@ -42,7 +41,7 @@ test("parseJioRows maps each row: jobcode externalId, clean title, location, abs
   assert.equal(rows.length, 2);
   const fe = at(rows, 0);
   assert.equal(fe.provider, "jio");
-  assert.equal(fe.externalId, "86701445"); // the numeric jobcode from "( … )"
+  assert.equal(fe.externalId, "86701445");
   assert.equal(fe.jobTitle, "Frontend Engineer");
   assert.equal(fe.location, "Mumbai");
   assert.match(fe.jobUrl, /^https:\/\/careers\.jio\.com\/frmjobdescription\.aspx\?JBTITLE=T1&jbID=J1&funcCode=F1$/);
@@ -51,7 +50,7 @@ test("parseJioRows maps each row: jobcode externalId, clean title, location, abs
 
 test("parseJioRows falls back to the jbID when a title carries no ( jobcode )", () => {
   const rows = parseJioRows(company, ROWS_HTML);
-  assert.equal(at(rows, 1).externalId, "J2"); // no "( … )" -> jbID token
+  assert.equal(at(rows, 1).externalId, "J2");
   assert.equal(at(rows, 1).jobTitle, "Data Analyst");
 });
 

@@ -27,7 +27,6 @@ function posting(over: Partial<NormalizedPosting> = {}): NormalizedPosting {
   };
 }
 
-// A counter keeps externalIds unique across calls in one test process, so the same (provider, external_id, profile_id) row is never re-inserted.
 let orchPostingCounter = 0;
 function mkNormalizedPosting(overrides: Partial<NormalizedPosting> = {}): NormalizedPosting {
   orchPostingCounter++;
@@ -98,7 +97,6 @@ function mkCompany(overrides: Partial<Company> = {}): Company {
   };
 }
 
-// The real JD backoff is 5s/10s/20s, which tests must not wait for; `retries: 1` keeps production's shape (attempts = 1 + retries) at millisecond scale.
 const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 const orchAdapterCompany = mkAdapterCompany({
@@ -108,14 +106,11 @@ const orchAdapterCompany = mkAdapterCompany({
   careersUrl: "https://acme.com/careers",
 });
 
-// An adapter may only learn the real location while fetching the JD; that metadata must face the strict check, not the no-metadata text fallback, or a foreign role could defer to the LLM gate.
 test("lateLocationCheck applies the strict metadata check when fetchJd resolved a location", () => {
-  // "hong kong" is a listed rejectRegion, so that rule fires first.
   const listed = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon, Hong Kong SAR" }));
   assert.equal(listed.accept, false);
   assert.equal(listed.reason, "geo-rejected");
 
-  // A foreign place not on the reject list still fails for want of any in-region signal.
   const unlisted = lateLocationCheck(posting({ location: "Tsim Sha Tsui, Kowloon" }));
   assert.equal(unlisted.accept, false);
   assert.equal(unlisted.reason, "out-of-region");
@@ -220,8 +215,6 @@ test("verdictResult: duplicate shape prefixes reason and carries extract yoe", (
   });
 });
 
-// These pin the LLM-free stages against the real test DB using the checked-in example profile's location/title-deny config.
-
 test("processOnePosting drops an out-of-region posting before any DB write", async () => {
   const outOfRegionPosting = mkNormalizedPosting({ location: "Berlin, Germany" });
   const adapter: AtsAdapter = { provider: "greenhouse", listPostings: async () => [] };
@@ -231,7 +224,6 @@ test("processOnePosting drops an out-of-region posting before any DB write", asy
 });
 
 test("processOnePosting counts a prior-notified duplicate and skips the title/JD stages", async () => {
-  // Title also matches a titleDenyPatterns entry, to prove cross-run dedup is checked before title-deny (else this would report titleDenied instead).
   const dupPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Frontend Engineer" });
   const stats = mkRunContext();
   stats.priorNotifyKeys.add(notifyKey(dupPosting.companyName, dupPosting.jobTitle, dupPosting.location));
@@ -245,7 +237,6 @@ test("processOnePosting counts a prior-notified duplicate and skips the title/JD
 });
 
 test("processOnePosting title-deny drops before fetchJd", async () => {
-  // First titleDenyPatterns entry in config/profile.example.ts denies "(software) engineer" titles; "Backend Engineer" matches it verbatim.
   const deniedPosting = mkNormalizedPosting({ location: "Bengaluru, India", jobTitle: "Backend Engineer" });
   const stats = mkRunContext();
   const adapter: AtsAdapter = {
@@ -270,7 +261,6 @@ test("a JD lost to an edge interstitial is retried, and the posting survives", a
     fetchJd: async () => {
       calls++;
       if (calls === 1) throw new SyntaxError(EDGE_INTERSTITIAL);
-      // An empty JD is a legitimate result and halts the pipeline at the "no-jd" write, after insertPostingIfNew, before any LLM call.
       return "";
     },
   };
@@ -298,14 +288,12 @@ test("a board-shaped JD failure is not retried", async () => {
 
   await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
 
-  // The host answered, so a second identical request only wastes a round trip.
   assert.equal(calls, 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
 });
 
 test("processOnePosting stores annualized salary columns for a posting with a stated LPA range", async () => {
-  // 8+ years trips the yoe-deny hard cap (profile.example.ts hardYoeCap=6) before any gate/extract LLM call, so this stays a fast deterministic test while still exercising the write path.
   const p = mkNormalizedPosting({
     location: "Bengaluru, India",
     jdText: "We need 8+ years of experience. CTC: 10-12 LPA.",
@@ -361,7 +349,6 @@ test("an edge interstitial that never clears still gives up inside the retry bud
 
   await processOnePosting(adapter, orchAdapterCompany, p, mkCompany(), stats, FAST);
 
-  // Widening which errors qualify must not widen how many attempts they get: the budget stays 1 + retries.
   assert.equal(calls, FAST.retries + 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
@@ -431,7 +418,6 @@ test("a due no-jd posting whose JD now exists runs the full gauntlet and overwri
   await storeAsNoJd(p, stats);
   ageRow(p, stats.profileId, 8);
 
-  // 8+ years trips the deterministic yoe-deny stage, proving the recovered JD reached the post-no-jd gauntlet without an LLM call.
   const { adapter } = jdAdapter(() => "We need 8+ years of experience. CTC: 10-12 LPA.");
   await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
 
@@ -501,7 +487,6 @@ test("a gate-error posting from an earlier run is re-fetched and re-gated, not c
   const stats = mkRunContext();
   storeAsGateError(p, stats.profileId, 2 * 60 * 60 * 1000);
 
-  // 8+ years trips the deterministic yoe-deny stage, proving the retry reached the gauntlet without an LLM call.
   const { adapter, calls } = jdAdapter(() => "We need 8+ years of experience.");
   await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
 

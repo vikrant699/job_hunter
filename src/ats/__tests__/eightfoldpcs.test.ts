@@ -40,7 +40,6 @@ const position2: EightfoldPcsPosition = {
   positionUrl: "/careers/job/446719370031",
 };
 
-// Real (trimmed) `data.positions` shape from careers.qualcomm.com/api/pcsx/search.
 const searchFixture = {
   status: 200,
   error: { message: "", body: "" },
@@ -110,7 +109,7 @@ test("normalizeEightfoldPcs maps list metadata: id, url from positionUrl, locati
   assert.equal(p.jobUrl, "https://careers.qualcomm.com/careers/job/446718579822");
   assert.equal(p.location, "Bangalore, Karnataka, India");
   assert.equal(p.isRemote, false);
-  assert.equal(p.jdText, ""); // absent from list; populated by fetchJd
+  assert.equal(p.jdText, "");
   assert.equal(p.postedAt, new Date(1779148800 * 1000).toISOString());
 });
 
@@ -126,7 +125,6 @@ test("normalizeEightfoldPcs synthesizes the job URL from id when positionUrl is 
   assert.equal(p.jobUrl, "https://careers.qualcomm.com/careers/job/446718579822");
 });
 
-// fetchJd just does atsFetchJson + DetailSchema.safeParse + this extraction, so exercise it directly rather than mocking the network call.
 test("position_details jobDescription extraction is html-stripped (mirrors fetchJd)", () => {
   const jd = htmlToText(detailsFixture.data.jobDescription);
   assert.match(jd, /Role Overview/);

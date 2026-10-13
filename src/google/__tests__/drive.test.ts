@@ -4,7 +4,6 @@ import { findDbFile } from "../drive.js";
 
 const NOW = 1_770_000_000_000;
 
-/** A token file the auth module accepts without touching the network. */
 function authStub(): {
   fetchFn: typeof fetch;
   tokenPath: string;
@@ -46,7 +45,6 @@ test("an API-disabled 403 explains the one-time console step and names the proje
       assert.match(err.message, /not enabled/);
       assert.match(err.message, /123456789012/, "names the project so the link is usable");
       assert.match(err.message, /console\.cloud\.google\.com/);
-      // Easy to mistake for the permission error it is not.
       assert.match(err.message, /separate from consent/);
       return true;
     },

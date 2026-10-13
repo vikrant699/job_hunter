@@ -28,7 +28,6 @@ function pageHtml<T>(pageProps: T): string {
   return `<!DOCTYPE html><html><body><div id="__next"></div><script id="__NEXT_DATA__" type="application/json">${JSON.stringify(nextData)}</script></body></html>`;
 }
 
-// Real shape from careers.peerlist.io - board is live with zero postings; companyData trimmed to fields this adapter reads.
 const REAL_EMPTY_ISLAND_HTML = pageHtml({
   companyData: { name: "Peerlist", domain: "peerlist.io", profileHandle: "peerlist" },
   careersList: [],
@@ -37,7 +36,6 @@ const REAL_EMPTY_ISLAND_HTML = pageHtml({
   isCustomDomain: true,
 });
 
-// Synthetic (no live board has openings) - exercises the tolerant per-item schema across two alias sets (id/title/string-location vs slug/role/array-location).
 const SYNTHETIC_TWO_JOBS_HTML = pageHtml({
   companyData: { name: "Acme" },
   careersList: [

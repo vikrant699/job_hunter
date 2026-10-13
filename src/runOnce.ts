@@ -1,4 +1,4 @@
-// Body of `npm run once`, split from index.ts and loaded only via dynamic import post-sync because these modules transitively open db/db.ts at load, which the pre-run Drive pull must not race; db/openState.ts enforces the rule at runtime.
+// Loaded via dynamic import post-sync: these modules open db/db.ts at load, which the pre-run Drive pull must not race.
 import { logger } from "./logger.js";
 import { syncRegistryFromSheet } from "./registry/sheetRegistry.js";
 import type { RegistrySyncResult } from "./registry/sheetRegistry.js";
@@ -24,7 +24,7 @@ async function runTickAndOutreach(
   let outreachResult: RunOutreachResult | null = null;
   let outreachError: string | null = null;
   try {
-    // Verify runs first so yesterday's bounces mark 'bounced' before today's contact matching, or a dead address gets re-drafted.
+    // Verify first so yesterday's bounces are marked before today's contact matching.
     verifyResult = await runVerify({ profileId, runId: outcome.runId });
     outreachResult = await runOutreach({ profileId, sinceIso: outcome.startedAtIso, runId: outcome.runId });
     await projectToSheet(profileId, outcome.runId);
@@ -40,7 +40,7 @@ async function runTickAndOutreach(
     );
   } catch (err) {
     if (err instanceof GoogleAuthExpiredError) {
-      // Scrape results are already saved; a stale/revoked Google token must not crash the process.
+      // A stale/revoked Google token must not crash the process after scrape results are saved.
       logger.error({ err: err.message }, "outreach skipped — Google auth expired");
       outreachError = err.message;
     } else {
@@ -66,13 +66,12 @@ async function runTickAndOutreach(
 const CACHE_WARN_MIN_CALLS = 50;
 const CACHE_WARN_BELOW_PCT = 50;
 
-/** Report the hosted provider's prompt cache totals for the run (cached vs uncached input is a ~4x cost difference). */
 function logCacheStats(): void {
   const stats = getCacheStats();
   if (stats.calls === 0) return;
   const cachedPct = cachedPercent(stats);
   logger.info({ ...stats, cachedPct, model: config.llm.openRouterModel }, "llm run totals");
-  // The resume+rubric prefix is ~80% of a gate prompt; well under that means the pin isn't holding or the provider dropped its cache.
+  // The resume+rubric prefix is ~80% of a gate prompt; a much lower cache rate means the pin isn't holding.
   if (stats.calls >= CACHE_WARN_MIN_CALLS && cachedPct < CACHE_WARN_BELOW_PCT) {
     logger.warn(
       { cachedPct, providers: stats.providers, pinned: config.llm.openRouterProviders },
@@ -81,14 +80,13 @@ function logCacheStats(): void {
   }
 }
 
-/** The whole run, from registry sync to Discord status. Assumes the DB is current. */
 export async function runOnceAfterSync(profileId: string): Promise<void> {
   const registryResult = await syncRegistryFromSheet(profileId);
   await runTickAndOutreach(profileId, registryResult);
   logCacheStats();
 }
 
-/** Close the DB before the post-run push, which WAL-checkpoints it; still-open reports busy and half-checkpoints silently. Terminal - nothing may touch the DB after this. */
+/** Close before the post-run push, which WAL-checkpoints; a still-open DB reports busy and half-checkpoints silently. */
 export function releaseDbForSync(): void {
   closeDb();
 }

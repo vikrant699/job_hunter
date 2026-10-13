@@ -4,11 +4,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// index.ts must run the Drive sync before db/db.ts opens the SQLite file (the pull replaces that file, and an open handle means EPERM on Windows or a stale read on Linux) - db.ts opens on module load, so nothing in index.ts's static import graph may reach it; the run body lives in runOnce.ts, reached by dynamic import after the sync. A comment can't enforce that, so this test does.
+// index.ts must sync Drive before db/db.ts opens the SQLite file (pull replaces it: EPERM on Windows, stale read on Linux); db.ts opens on module load, so index.ts's static imports must not reach it (run body is dynamically imported from runOnce.ts).
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Static specifiers that actually execute the target module; `import type` and dynamic `import()` are excluded, but `export ... from` counts since a re-export loads the module too. */
+// `export ... from` counts (a re-export loads the module); `import type` and dynamic import() do not.
 function staticImportsOf(file: string): string[] {
   const source = readFileSync(file, "utf-8");
   const specs: string[] = [];
@@ -20,7 +20,6 @@ function staticImportsOf(file: string): string[] {
   return specs;
 }
 
-/** Resolve a TS-style "./x.js" specifier back to the .ts file on disk. */
 function resolveSpec(fromFile: string, spec: string): string | null {
   const base = resolve(dirname(fromFile), spec);
   for (const candidate of [base.replace(/\.js$/, ".ts"), base, `${base}.ts`, resolve(base, "index.ts")]) {
@@ -29,7 +28,6 @@ function resolveSpec(fromFile: string, spec: string): string | null {
   return null;
 }
 
-/** Every module reachable from `entry` through executing imports, plus the path there. */
 function reachableFrom(entry: string): Map<string, string[]> {
   const seen = new Map<string, string[]>([[entry, [entry]]]);
   const queue = [entry];
@@ -64,7 +62,6 @@ test("index.ts does not open the database through its static imports", () => {
   );
 });
 
-// The other half of the contract: index.ts's dynamic-import target must genuinely be the DB-backed half.
 test("runOnce.ts is the module that owns the database half of the run", () => {
   const reachable = reachableFrom(resolve(srcDir, "runOnce.ts"));
   assert.ok(
@@ -73,7 +70,7 @@ test("runOnce.ts is the module that owns the database half of the run", () => {
   );
 });
 
-// db/sync.ts is imported before the sync runs, so it must stay clear of db.ts too (it uses openState.ts instead).
+// sync.ts runs before the sync, so it must avoid db.ts too (uses openState.ts).
 test("db/sync.ts does not itself open the database", () => {
   const reachable = reachableFrom(resolve(srcDir, "db", "sync.ts"));
   assert.ok(

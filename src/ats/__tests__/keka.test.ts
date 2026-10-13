@@ -33,7 +33,6 @@ test("extractKekaOrgGuid pulls the first GUID from careers-page HTML", () => {
 });
 
 test("discovery extraction path: page HTML -> orgGuid -> embed URL the adapter will call", () => {
-  // Realistic careers-page shape: the GUID appears inside an inline script blob.
   const html = `<script>window.__org = {"orgId":"FA11C430-C96C-447F-9F68-D05AB3867C12","theme":"dark"}</script>`;
   const guid = extractKekaOrgGuid(html);
   assert.equal(guid, "FA11C430-C96C-447F-9F68-D05AB3867C12");

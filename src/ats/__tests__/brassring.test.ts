@@ -74,7 +74,7 @@ test("parseBrassringPage flattens Questions, inlines JD, builds fields", () => {
   const j0 = at(jobs, 0);
   assert.equal(j0.provider, "brassring");
   assert.equal(j0.externalId, "3383210");
-  assert.equal(j0.jobTitle, "Associate Director & Lead"); // entity-decoded
+  assert.equal(j0.jobTitle, "Associate Director & Lead");
   assert.equal(j0.location, "Bengaluru, India");
   assert.equal(j0.jobUrl, "https://sjobs.brassring.com/TGnewUI/Search/home/HomeWithPreLoad?partnerid=25416&siteid=5429&PageType=JobDetails&jobid=3383210");
   assert.match(j0.jdText, /Your Responsibilities/);
@@ -95,7 +95,7 @@ test("listPostings paginates by pageNumber to the JobsCount total", async (t) =>
   assert.equal(postings.length, 3);
   assert.equal(pages[0], "1");
   assert.equal(pages[1], "2+");
-  assert.equal(at(postings, 2).isRemote, true); // "Remote" in title
+  assert.equal(at(postings, 2).isRemote, true);
 });
 
 test("an empty board (JobsCount 0, no Job array) yields nothing", async (t) => {

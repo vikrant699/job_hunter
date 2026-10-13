@@ -11,7 +11,6 @@ import { JsonValueSchema } from "../util/json.js";
 
 const RegistryFileSchema = z.array(RegistryEntrySchema);
 
-/** Reads+validates a JSON array of RegistryEntry from disk; used by the sheet-backed cache fallback in sheetRegistry.ts. */
 export function readRegistryFile(path: string): RegistryEntry[] {
   if (!existsSync(path)) return [];
   const raw = readFileSync(path, "utf-8");
@@ -35,9 +34,7 @@ export interface SyncEntriesResult {
   pruned: number;
 }
 
-/** Shared upsert+prune core behind the sheet sync; `opts.prune` gates the delete-orphans pass so a quarantined row can't wipe out companies it doesn't mention. */
 export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }): SyncEntriesResult {
-  // Map dedups in case the source carries duplicate keys.
   const merged = new Map<string, RegistryEntry>();
   for (const e of entries) merged.set(registryKey(e), e);
 
@@ -45,7 +42,6 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
   let denied = 0;
   let pruned = 0;
 
-  // One transaction so a mid-loop crash can't leave the DB partially synced to the new source.
   db.exec("BEGIN");
   try {
     for (const entry of merged.values()) {
@@ -73,7 +69,6 @@ export function syncEntries(entries: RegistryEntry[], opts: { prune: boolean }):
       });
     }
 
-    // Prune DB rows no longer in the source-of-truth (removed companies, or ones whose provider/slug changed on conversion).
     if (opts.prune) {
       const valid = new Set(merged.keys());
       for (const c of selectAllCompanies()) {

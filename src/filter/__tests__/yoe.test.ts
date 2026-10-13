@@ -16,7 +16,6 @@ test("takes the LOW end of a range, which is the actual entry bar", () => {
   assert.equal(parseStatedYoeMin("between 4 and 7 years of experience"), 4);
 });
 
-// Multiple stated minimums are separate requirements, not a stacked bar - the entry bar is the smallest one.
 test("takes the smallest minimum when a JD states several", () => {
   assert.equal(
     parseStatedYoeMin("- 3+ years of non-internship professional software development experience\n- 2+ years of design or architecture experience"),
@@ -32,7 +31,6 @@ test("returns null when no experience requirement is stated", () => {
 });
 
 test("ignores numbers that are not years of experience", () => {
-  // Founded/copyright years, team sizes, salary, and product versions all put bare numbers near "years".
   assert.equal(parseStatedYoeMin("Founded in 2019, we serve 10 million customers"), null);
   assert.equal(parseStatedYoeMin("© 2026 Acme Corp. All rights reserved."), null);
   assert.equal(parseStatedYoeMin("A team of 12 engineers"), null);
@@ -44,7 +42,6 @@ test("ignores implausible year counts", () => {
   assert.equal(parseStatedYoeMin("0 years of experience"), null);
 });
 
-// "years of age", tenure and company-age phrasing are not candidate experience.
 test("ignores 'years' that describe something other than the candidate", () => {
   assert.equal(parseStatedYoeMin("must be 18 years of age"), null);
   assert.equal(parseStatedYoeMin("We have been in business for 30 years"), null);

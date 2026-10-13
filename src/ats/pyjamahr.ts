@@ -1,5 +1,4 @@
-// src/ats/pyjamahr.ts — PyjamaHR career boards (app.pyjamahr.com/careers?company=<slug>&company_uuid=<uuid>): a public unauthenticated DRF API keyed by company_uuid (api_meta.companyUuid), list paginated via `next` (10/page).
-// The JD comes from a separate per-job GET; see assertPyjamahrTenantExists for why an unknown company_uuid looks like an empty live board rather than an error.
+// public DRF API keyed by company_uuid (api_meta.companyUuid), list paginated via `next` (10/page)
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -52,7 +51,6 @@ export function pyjamahrCompanyUuid(company: AdapterCompany): string {
   return uuid;
 }
 
-// 1-based page.
 export function pyjamahrListUrl(uuid: string, page: number): string {
   return `${API_ORIGIN}/api/career/jobs/?company_uuid=${encodeURIComponent(uuid)}&page=${page}&is_careers_page=true`;
 }
@@ -61,7 +59,6 @@ export function pyjamahrJdUrl(uuid: string, jobId: string): string {
   return `${API_ORIGIN}/api/career/jobs/${encodeURIComponent(jobId)}/?company_uuid=${encodeURIComponent(uuid)}`;
 }
 
-// The board's ?company= display slug — taken from the registry careersUrl when present, else the slug.
 export function pyjamahrBoardParam(company: AdapterCompany): string {
   try {
     const fromUrl = new URL(company.careersUrl).searchParams.get("company");
@@ -79,7 +76,6 @@ export function pyjamahrJobUrl(company: AdapterCompany, j: PyjamahrJob): string 
   return `${BOARD_ORIGIN}/careers/${encodeURIComponent(seg)}?${params}`;
 }
 
-/** location + other_locations + country, deduped; country only when no part already names it. */
 export function pyjamahrLocation(j: PyjamahrJob): string | null {
   const parts: string[] = [];
   const push = (s: string | null | undefined): void => {
@@ -97,7 +93,6 @@ export function pyjamahrLocation(j: PyjamahrJob): string | null {
   return parts.length > 0 ? parts.join("; ") : null;
 }
 
-/** Unwrap + validate one DRF list page. Throws on shape mismatch. */
 export function parsePyjamahrList(json: JsonValue): PyjamahrList {
   return PyjamahrListSchema.parse(json);
 }
@@ -132,15 +127,12 @@ export function pyjamahrTenantVerdict(html: string): PyjamahrTenantVerdict {
 }
 
 // company_uuid is a filter on a shared API, not a tenant address: an unknown value returns HTTP 200 {"count":0} identical to a live empty board, so the list response alone can't tell a dead uuid from a real empty one.
-// The board page's own SSR can tell (it resolves the uuid to a company name); consulted only when page 1 returned zero rows.
-// Only a definitive "vendor lookup 404ed" verdict fails the company — a transport failure or unrecognised payload leaves the empty result as-is.
 export async function assertPyjamahrTenantExists(company: AdapterCompany, uuid: string): Promise<void> {
   let verdict: PyjamahrTenantVerdict;
   try {
     const html = await atsFetchText(pyjamahrBoardPageUrl(company, uuid), { provider: "pyjamahr" });
     verdict = pyjamahrTenantVerdict(html);
   } catch (err) {
-    // A failure on this confirmation probe is evidence about the probe, not about the tenant.
     logger.warn({ slug: company.slug, err: String(err) }, "pyjamahr tenant-existence probe failed - leaving the empty board as-is");
     return;
   }
@@ -153,7 +145,6 @@ export async function assertPyjamahrTenantExists(company: AdapterCompany, uuid: 
   );
 }
 
-/** Pull the HTML description from a detail response. Null when absent. */
 export function parsePyjamahrDetail(json: JsonValue): string | null {
   const parsed = PyjamahrDetailSchema.safeParse(json);
   if (!parsed.success) return null;
@@ -172,8 +163,8 @@ export function normalizePyjamahr(company: AdapterCompany, j: PyjamahrJob): Norm
     jobUrl: pyjamahrJobUrl(company, j),
     location,
     isRemote: /^remote$/i.test(workplace) || (location !== null && REMOTE_RE.test(location)),
-    jdText: "", // list payload has no description; fetchJd fills it
-    postedAt: null, // API exposes no posting date
+    jdText: "",
+    postedAt: null,
   };
 }
 
@@ -204,7 +195,6 @@ export const pyjamahrAdapter: AtsAdapter = {
       }
     }
 
-    // url still non-null here means the loop exhausted MAX_PAGES rather than completing naturally.
     if (url !== null && page === MAX_PAGES) {
       logger.warn(
         { slug: company.slug, maxPages: MAX_PAGES },

@@ -1,8 +1,6 @@
 import { ProviderSchema } from "../schemas.js";
 import type { Provider } from "../schemas.js";
 
-// Universal ATS detection + pattern extraction. "Supported" providers have an AtsAdapter and can be promoted to
-// ats-api; "detect-only" providers are recognized for reporting but need an adapter first.
 export type DetectableProvider =
   | Provider
   | "icims" | "personio" | "jobvite" | "consider" | "talentzq" | "successfactors-ui5";
@@ -10,7 +8,6 @@ export type DetectableProvider =
 interface PatternDef {
   provider: DetectableProvider;
   re: RegExp;
-  // careersUrl lets a pattern fall back to the careers page's own host when its match carries none (see "consider").
   parse(match: string, careersUrl: string): { url: string; slug: string } | null;
 }
 
@@ -96,7 +93,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "ainterviews",
-    // ainterviews.com/job_board/<slug>/ or /api/job_board/<slug>/ — single shared host.
     re: /https?:\/\/(?:www\.)?ainterviews\.com\/(?:api\/)?job_board\/[a-z0-9._-]+/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -139,7 +135,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "gem",
-    // Public career boards at jobs.gem.com/<slug>, e.g. PromptQL, Fireflies, Bolna.
     re: /https?:\/\/jobs\.gem\.com\/[a-z0-9._-]+/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -149,7 +144,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "dover",
-    // Shared host keyed by slug in the path: app.dover.com/jobs/<slug>.
     re: /https?:\/\/app\.dover\.com\/jobs\/[a-z0-9._-]+/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -160,7 +154,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "unberry",
-    // Shared host keyed by an opaque company id: app.unberry.com/careers/<companyId>.
     re: /https?:\/\/app\.unberry\.com\/careers\/[a-f0-9]+/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -171,7 +164,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "ycombinator",
-    // YC startup job board; slug is the SECOND path segment (first is "companies").
     re: /https?:\/\/(?:www\.)?ycombinator\.com\/companies\/[a-z0-9-]+(?:\/jobs)?\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -282,7 +274,6 @@ const PATTERNS: PatternDef[] = [
     parse(m) {
       const u = safeUrl(m);
       if (!u) return null;
-      // host: "careers-foo.icims.com" or "foo.icims.com"
       const first = u.host.split(".")[0];
       if (!first) return null;
       return { url: `https://${u.host}/jobs`, slug: first.replace(/^careers-/, "") };
@@ -311,7 +302,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "talentzq",
-    // <tenant>.talentzq.io shared host (e.g. pratilipi.talentzq.io/api/1009/jd). No adapter yet.
     re: /https?:\/\/([a-z0-9-]+)\.talentzq\.io\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -476,7 +466,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "greythr",
-    // <tenant>.greythr.com/hire/... public recruitment board.
     re: /https?:\/\/[a-z0-9-]+\.greythr\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -503,7 +492,6 @@ const PATTERNS: PatternDef[] = [
   },
   {
     provider: "peoplestrong",
-    // <tenant>.peoplestrong.com Altone career portal. The subdomain is the slug.
     re: /https?:\/\/[a-z0-9-]+\.peoplestrong\.com\b/gi,
     parse(m) {
       const u = safeUrl(m);
@@ -531,13 +519,11 @@ const PATTERNS: PatternDef[] = [
 
 export interface AtsCandidate {
   provider: DetectableProvider;
-  /** Canonical, deduped URL we'd save in YAML. */
   url: string;
   slug: string;
   hasAdapter: boolean;
 }
 
-/** HTML often double-escapes ATS URLs ("https:\/\/..." in inline JSON, "&amp;" in attributes) - normalize first. */
 function normalize(html: string): string {
   return html
     .replace(/\\\//g, "/")
@@ -551,11 +537,11 @@ const KNOWN_PROVIDERS: ReadonlySet<string> = new Set(ProviderSchema.options);
 
 export function extractAtsCandidates(html: string, careersUrl: string): AtsCandidate[] {
   const haystack = normalize(html) + " " + careersUrl;
-  const seen = new Set<string>();  // dedup by `${provider}::${url}`
+  const seen = new Set<string>();
   const out: AtsCandidate[] = [];
 
   for (const pat of PATTERNS) {
-    pat.re.lastIndex = 0;  // global regex must be reset
+    pat.re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = pat.re.exec(haystack)) !== null) {
       const parsed = pat.parse(m[0], careersUrl);

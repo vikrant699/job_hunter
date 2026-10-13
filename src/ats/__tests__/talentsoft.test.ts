@@ -31,7 +31,7 @@ test("talentsoftListingUrl prefers tenantUrl over careersUrl", () => {
   assert.equal(u.origin + u.pathname, "https://jobs.ca-cib.com/pages/offre/listeoffre.aspx");
   assert.equal(u.searchParams.get("lcid"), "2057");
   assert.equal(u.searchParams.get("facet_Country"), "96");
-  assert.equal(u.searchParams.get("mode"), "list"); // forced
+  assert.equal(u.searchParams.get("mode"), "list");
 });
 
 test("talentsoftListingUrl falls back to careersUrl when tenantUrl is null", () => {
@@ -56,8 +56,8 @@ test("talentsoftPageUrl appends &page=N for page > 1", () => {
   const url = talentsoftPageUrl(company.careersUrl, 3);
   const u = new URL(url);
   assert.equal(u.searchParams.get("page"), "3");
-  assert.equal(u.searchParams.get("lcid"), "2057"); // untouched
-  assert.equal(u.searchParams.get("facet_Country"), "96"); // untouched
+  assert.equal(u.searchParams.get("lcid"), "2057");
+  assert.equal(u.searchParams.get("facet_Country"), "96");
 });
 
 test("talentsoftIdFromUrl extracts the trailing numeric id", () => {

@@ -1,5 +1,5 @@
-// src/ats/sirion.ts — SirionLabs careers (sirion.ai), a self-hosted WordPress "jobs" CPT board fronted by Akamai (not an external ATS, despite gh_* theme class names).
-// Akamai blocks non-browser/datacenter clients, so we warm one Edge (playwright channel:"msedge") context per origin first, same approach as icims.ts. List paginates /careers/page/<n>/ until empty; JD is in .gh-job-single/.entry-content, and location (resolved in fetchJd, not the list) comes from the WP body class "gh_office-<city>" so lateLocationCheck can drop non-India offices.
+// Akamai blocks non-browser clients: warm an Edge (channel msedge) context per origin first. List: /careers/page/<n>/ until empty.
+// JD in .gh-job-single/.entry-content; location (resolved in fetchJd) from WP body class gh_office-<city>.
 import type { Browser, BrowserContext } from "playwright";
 import { chromium } from "playwright";
 import * as cheerio from "cheerio";
@@ -14,7 +14,7 @@ import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 const ORIGIN = "https://www.sirion.ai";
 const WAF_SETTLE_MS = 4000;
-const MAX_PAGES = 100; // runaway guard; the board is far smaller
+const MAX_PAGES = 100;
 
 export function sirionListUrl(page: number): string {
   return page <= 1 ? `${ORIGIN}/careers/` : `${ORIGIN}/careers/page/${page}/`;
@@ -26,7 +26,6 @@ function absolute(href: string): string {
   return href.startsWith("http") ? href : `${ORIGIN}/${href.replace(/^\/+/, "")}`;
 }
 
-/** "senior-frontend-engineer" -> "Senior Frontend Engineer". */
 function deKebab(slug: string): string {
   return slug.split("-").filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
@@ -50,7 +49,7 @@ export function parseSirionList(company: AdapterCompany, html: string): Normaliz
       companyName: company.name,
       jobTitle: title,
       jobUrl: absolute(href),
-      location: null, // resolved in fetchJd; lateLocationCheck filters offices
+      location: null,
       isRemote: REMOTE_RE.test(title),
       jdText: "",
       postedAt: null,
@@ -59,7 +58,7 @@ export function parseSirionList(company: AdapterCompany, html: string): Normaliz
   return out;
 }
 
-/** One list page's rows; a zero-row page that is an Akamai block page throws so an edge refusal never reads as an empty board. */
+/** A zero-row page that is an Akamai block page throws, so an edge refusal never reads as an empty board. */
 export function sirionPagePostings(company: AdapterCompany, url: string, html: string): NormalizedPosting[] {
   const rows = parseSirionList(company, html);
   if (rows.length === 0) assertNotEdgeChallenge("sirion", url, html);
@@ -70,12 +69,10 @@ export function parseSirionJobTitle(html: string): string {
   const $ = cheerio.load(html);
   const h1 = $("h1").first().text().trim();
   if (h1) return h1;
-  // Fall back to <title>, trimming a " - SirionLabs" / " | …" suffix.
   const t = $("title").first().text();
   return t.split(/\s+[-|]\s+/)[0]?.trim() ?? "";
 }
 
-/** Office/location from the WP body class "gh_office-<city>", title-cased ("gh_office-san_francisco" -> "San Francisco"). Null when absent. */
 export function parseSirionJobLocation(html: string): string | null {
   const m = html.match(/gh_office-([a-z0-9_]+)/i);
   const raw = m?.[1];
@@ -115,7 +112,6 @@ async function getEdgeBrowser(): Promise<Browser> {
   return edgeBoot;
 }
 
-/** A context that has cleared Akamai for sirion.ai (warmed via the homepage). */
 async function warmContext(): Promise<BrowserContext> {
   if (warmCtx) return warmCtx;
   warmCtx = (async () => {
@@ -151,10 +147,10 @@ export const sirionAdapter: AtsAdapter = {
     for (let page = 1; page <= MAX_PAGES; page++) {
       const url = sirionListUrl(page);
       const rows = sirionPagePostings(company, url, await sirionFetch(url));
-      if (rows.length === 0) break; // past the last page (or empty board)
+      if (rows.length === 0) break;
       const before = out.size;
       for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r);
-      if (out.size === before) break; // a page that adds nothing new -> stop
+      if (out.size === before) break;
     }
     logger.info({ company: company.slug, jobs: out.size }, "sirion: board crawled");
     return [...out.values()];
@@ -163,7 +159,6 @@ export const sirionAdapter: AtsAdapter = {
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await sirionFetch(posting.jobUrl);
     assertNotEdgeChallenge("sirion", posting.jobUrl, html);
-    // Resolve the office/location the list deferred, so lateLocationCheck runs.
     const loc = parseSirionJobLocation(html);
     if (loc) posting.location = loc;
     return parseSirionJd(html);

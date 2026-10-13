@@ -1,5 +1,3 @@
-// Shared fetch-with-timeout plumbing for ops scripts (slug-probe, verify-registry); each keeps its own status/body interpretation.
-
 export interface ProbeOptions {
   timeoutMs?: number;
   headers?: Record<string, string>;
@@ -9,17 +7,12 @@ export interface ProbeOptions {
 }
 
 export interface ProbeResponse {
-  /** HTTP status code, or 0 when the request failed before a response (network error/timeout). */
   status: number;
-  /** Post-redirect URL (falls back to the requested URL when unavailable). */
   finalUrl: string;
-  /** Response body as text. Empty string when the request failed or the body couldn't be read. */
   body: string;
-  /** true for a 2xx response. */
   ok: boolean;
 }
 
-/** Fetches a URL with a timeout, never throwing; network errors, aborts, and body-read failures all collapse into `{ ok: false, status: 0 }`. */
 export async function probeWithTimeout(url: string, opts: ProbeOptions = {}): Promise<ProbeResponse> {
   try {
     const res = await fetch(url, {

@@ -53,11 +53,9 @@ const noDrafts = (): null => null;
 
 test("tier c is EXACT-only: generic and substring domain labels never match (wrong-recipient guard)", () => {
   const cases: Array<[string, string]> = [
-    // generic labels that substring-matched dozens of real registry companies
     ["Polygon Tech", "hr@tech-staffing.com"],
     ["AgNext Technologies", "jobs@tech.co.in"],
     ["Made In India Corp", "careers@india-jobs.com"],
-    // short company name inside a longer domain label (the reverse direction)
     ["Axio", "people@axiomconsulting.com"],
     ["Meta", "talent@metadataworks.com"],
   ];
@@ -72,7 +70,6 @@ test("tier c is EXACT-only: generic and substring domain labels never match (wro
     assert.equal(result.eligible.length, 0, `${companyName} must NOT match ${email}`);
     assert.equal(result.ineligible.length, 0);
   }
-  // ...while the exact collapsed-name === label case still works.
   const exact = findContacts({
     companyName: "Adda247",
     candidates: [mkRecruiter({ email: "hr@adda247.com", companyNorm: "something unrelated" })],
@@ -182,7 +179,7 @@ test("bounced matched contact is ineligible with reason bounced_contact", () => 
 test("matched contact drafted within cooldown window is ineligible with reason cooldown", () => {
   const email = "recruiter@acme.com";
   const candidates = [mkRecruiter({ email, companyNorm: "acme", status: "verified" })];
-  const recentDraft = new Date(NOW - 5 * 24 * 60 * 60 * 1000).toISOString(); // 5 days ago
+  const recentDraft = new Date(NOW - 5 * 24 * 60 * 60 * 1000).toISOString();
   const result = findContacts({
     companyName: "Acme Inc",
     candidates,

@@ -1,4 +1,4 @@
-// src/ats/redbus.ts — redBus careers (MMT-group proxy API): POST /careers/api/getJobsList and /careers/api/getJobDesc, both signed with a `hash` query param computed as sha512(salt + timestampSeconds) (salt lifted from the site's own jobs.bundle.js — helper/career.js).
+// POST /careers/api/getJobsList and getJobDesc, signed with a `hash` query param = sha512(salt + timestampSeconds), salt from the site's jobs.bundle.js
 // An invalid hash isn't rejected with an error status — the server just silently returns an empty Data array — and no per-job URL exists, so jobUrl falls back to the listing page.
 import { createHash } from "node:crypto";
 import { z } from "zod";

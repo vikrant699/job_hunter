@@ -1,4 +1,4 @@
-// One weekly blast run: bounce sweep -> safety guards -> candidate pool -> MX gate -> render + create drafts -> Blast Log projection. TEMPORARY tool; never sends mail, touches no job_hunter DB tables.
+// TEMPORARY tool; never sends mail, touches no job_hunter DB tables.
 import { readFileSync } from "node:fs";
 import { logger } from "../logger.js";
 import { config } from "../config.js";
@@ -21,9 +21,7 @@ import { sweepBounces } from "./bounces.js";
 
 export const BLAST_LOG_TAB = "Blast Log";
 const DRAFT_GAP_MS = 1_000;
-/** Refuse a new batch when the newest drafted record is younger than this many days (override with --force). */
 const SAME_WEEK_DAYS = 5;
-/** Stop-loss: refuse to draft when the last batch bounced above this rate. */
 const MAX_BOUNCE_RATE_PCT = 10;
 
 export interface BlastDeps {
@@ -34,9 +32,8 @@ export interface BlastDeps {
   searchMessages: (profileId: string, q: string) => Promise<MessageRef[]>;
   getMessageMetadata: (profileId: string, id: string) => Promise<MessageMetadata>;
   readFile: (path: string) => Buffer;
-  /** undefined -> MxChecker's real node:dns resolver. */
   mxResolver: MxResolver | undefined;
-  /** All profiles' states for the shared Blast Log projection; a rewrite from one profile must never wipe another's rows. */
+  /** A rewrite from one profile must never wipe another's rows. */
   listStates: () => { profileId: string; state: BlastState }[];
   now: () => Date;
   sleepMs: (ms: number) => Promise<void>;
@@ -60,9 +57,7 @@ function defaultDeps(): BlastDeps {
 
 export interface BlastPaths {
   template: string;
-  /** Per-profile subjects/openers/attachment-filename (user-approved wording). */
   content: string;
-  /** The profile's job_hunter resume — the same PDF the outreach pipeline attaches. */
   resume: string;
   state: string;
 }
@@ -82,19 +77,16 @@ export interface BlastOptions {
   verifyOnly?: boolean;
   force?: boolean;
   deps?: Partial<BlastDeps>;
-  /** Test override; production callers use blastPathsFor(profileId). */
   paths?: BlastPaths;
 }
 
 export interface BlastSummary {
-  /** Batch number drafted this run; null in verify-only mode. */
   batch: number | null;
   drafted: number;
   skippedInvalid: number;
   sweepChecked: number;
   newlyBounced: number;
   lastBatchBounceRatePct: number | null;
-  /** Pool addresses still untouched after this run. */
   remaining: number;
 }
 
@@ -188,7 +180,6 @@ export async function runBlast(options: BlastOptions): Promise<BlastSummary> {
     remaining = pool.length - index;
   }
 
-  // Merge every profile's state so this rewrite can't wipe another profile's rows.
   const allRows = deps.listStates().flatMap(({ profileId: pid, state: s }) =>
     s.records.map((r) => [
       pid, r.email, r.company, r.contactName ?? "", r.status, String(r.batch), r.variant ?? "", r.at, r.note ?? "",

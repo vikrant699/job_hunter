@@ -12,7 +12,6 @@ import { istDate } from "./run.js";
 import { RECRUITERS_LIST_COLS } from "./tabs.js";
 import type { OutreachStatus, RecruiterStatus, RecruiterSource } from "../schemas.js";
 
-/** How far back the verify pass re-checks 'discarded' rows for a late-indexed sent message. */
 const DISCARDED_RECHECK_DAYS = 14;
 
 /** Gmail's `after:` takes epoch seconds, not ms; passing ms anchors the query decades in the future. */
@@ -20,14 +19,13 @@ export function epochSeconds(iso: string): number {
   return Math.floor(new Date(iso).getTime() / 1000);
 }
 
-/** Minimal recruiter lookup verify.ts needs, avoiding the full RecruiterRow shape. */
 export interface VerifyRecruiterLookup {
   email: string;
   company: string;
   contactName: string | null;
   phone: string | null;
   source: RecruiterSource;
-  /** Live status at lookup time; setRecruiterStatus refuses bounced->verified, so a row marked 'verified' here can still belong to a globally-bounced recruiter. */
+  /** setRecruiterStatus refuses bounced->verified, so 'verified' here can still be a globally-bounced recruiter. */
   status: RecruiterStatus;
   registrySlug: string | null;
 }
@@ -86,7 +84,7 @@ function defaultAppendRows(profileId: string, tab: string, rows: string[][]): Pr
 
 export interface VerifyOptions {
   profileId: string;
-  /** Unused inside this pass: undrafted rows on draft_discarded carry the row's original drafting runId, not this one. */
+  /** Unused: undrafted rows on draft_discarded carry the original drafting runId. */
   runId: number | null;
   deps?: Partial<VerifyDeps>;
 }
@@ -99,17 +97,15 @@ export interface VerifyResult {
   verified: number;
 }
 
-/** Gmail query for "did we send a message to this recipient after the draft was created". */
 function sentSearchQuery(recipientEmail: string, draftedAtIso: string): string {
   return `in:sent to:${recipientEmail} after:${epochSeconds(draftedAtIso)}`;
 }
 
-/** Gmail query for a bounce notification about this recipient, arriving after we sent; quoted so Gmail treats it as one phrase. */
+/** Gmail query for a bounce notice about this recipient after we sent; quoted so Gmail treats it as one phrase. */
 function bounceSearchQuery(recipientEmail: string, sentAtIso: string): string {
   return `from:(mailer-daemon OR postmaster) "${recipientEmail}" after:${epochSeconds(sentAtIso)}`;
 }
 
-/** Picks the newest message ref by internalDate (ms) among metadata-fetched hits. */
 async function newestMessage(
   deps: VerifyDeps,
   profileId: string,
@@ -132,7 +128,6 @@ async function resolveDraftRow(
   nowIso: string,
 ): Promise<"unchanged" | "sent" | "discarded"> {
   if (row.gmailDraftId === null) {
-    // Nothing to check against Gmail; just refresh last_checked_at.
     deps.updateOutreachStatus({ id: row.id, status: "draft", lastCheckedAt: nowIso });
     return "unchanged";
   }
@@ -158,14 +153,14 @@ async function resolveDraftRow(
     }
   }
 
-  // Gone with no matching sent message means the draft was deleted unsent; discard does not reset the cooldown.
+  // Gone with no sent message means the draft was deleted unsent; discard does not reset the cooldown.
   deps.updateOutreachStatus({ id: row.id, status: "discarded", lastCheckedAt: nowIso });
 
   const roles = parseRoles(row.rolesJson);
   for (const role of roles) {
     deps.insertUndrafted({
       profileId: row.profileId,
-      // runId/runDate point at the run that originally drafted this, not the verify pass's own run.
+      // runId/runDate point at the originally drafting run.
       runId: row.runId,
       runDate: row.runDate,
       company: row.companyName,
@@ -223,7 +218,7 @@ async function resolveSentRow(
   return "unchanged";
 }
 
-// Bounce-only verification (draft exists? sent message followed? bounce followed sent? verifyAfterHours elapsed?); must run before runOutreach in the daily tick so yesterday's bounces gate today's drafts.
+// Must run before runOutreach so yesterday's bounces gate today's drafts.
 export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
   const deps: VerifyDeps = { ...defaultDeps(), ...options.deps };
   const { profileId } = options;
@@ -249,7 +244,7 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
     else if (outcome === "discarded") discarded++;
   }
 
-  // Gmail's search index can lag a just-sent message, misclassifying a sent draft as discarded; re-check recent discarded rows for a late-appearing sent hit and recover them.
+  // Gmail's index can lag a just-sent message and misclassify it as discarded; re-check recent discarded rows.
   const recheckCutoffMs = now.getTime() - DISCARDED_RECHECK_DAYS * 24 * 3_600_000;
   const discardedRows = deps.selectOutreachByStatus("discarded", profileId);
   for (const row of discardedRows) {
@@ -302,7 +297,6 @@ export async function runVerify(options: VerifyOptions): Promise<VerifyResult> {
   return { checkedDrafts, sent, discarded, bounced, verified };
 }
 
-/** Splits "Company/Email" style cells the same way contacts.ts does. */
 function splitTabEmails(cell: string): string[] {
   return cell
     .split(/[/,]/)
@@ -310,7 +304,6 @@ function splitTabEmails(cell: string): string[] {
     .filter((e) => e.length > 0);
 }
 
-/** Appends newly-verified raw-csv-sourced recruiters to the Recruiters List tab if not already there. */
 async function promoteNewlyVerified(deps: VerifyDeps, profileId: string, newlyVerified: OutreachRow[], now: Date): Promise<void> {
   const candidates = newlyVerified
     .map((row) => deps.lookupRecruiter(row.recruiterEmail))

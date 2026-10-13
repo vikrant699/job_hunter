@@ -1,4 +1,3 @@
-// Read-only job-URL diagnostic: resolves a job posting URL to (provider, slug hint, external id), then reports everything the DB (and, if needed, the live board) knows about it. Never writes to the DB.
 import "dotenv/config";
 import { z } from "zod";
 import { db, queryAll, selectAllCompanies } from "../src/db/index.js";
@@ -61,7 +60,7 @@ function toAdapterCompany(c: Company): AdapterCompany {
   };
 }
 
-// Hosts shared by every tenant of a multi-tenant ATS (tenant lives in the PATH, not the host) — a substring match on one of these would "match" every company on that provider, so the host fallback below is skipped for them.
+// Multi-tenant ATS hosts (tenant in the path): a host substring match would hit every company on them.
 const SHARED_ATS_HOSTS = new Set([
   "boards.greenhouse.io",
   "job-boards.greenhouse.io",
@@ -70,7 +69,6 @@ const SHARED_ATS_HOSTS = new Set([
   "jobs.smartrecruiters.com",
 ]);
 
-/** (provider + exact slug) when the URL resolved to one; otherwise a careers_url/tenant_url substring match on the URL's host, narrowed by provider when known, skipping shared multi-tenant ATS hosts (see SHARED_ATS_HOSTS). */
 function findCompanies(provider: string | null, slugHint: string | null, rawUrl: string): Company[] {
   const all = selectAllCompanies();
   if (provider && slugHint) {
@@ -109,7 +107,6 @@ const PostingRowSchema = z.object({
 });
 type PostingRow = z.infer<typeof PostingRowSchema>;
 
-/** host + path, query/hash and trailing slash stripped — for a LIKE fallback when the exact (provider, external_id) key doesn't apply or doesn't hit. */
 function normalizedForLike(rawUrl: string): string | null {
   const u = safeUrl(rawUrl);
   if (!u) return null;
@@ -240,7 +237,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Live listing: needed whenever the DB has no posting row, and always needed for --gate since postings.jd_text is never persisted (see db/schema.sql).
+  // Needed when the DB has no row, and for --gate since postings.jd_text is never persisted.
   let liveMatch: NormalizedPosting | null = null;
   let liveAdapter: AtsAdapter | null = null;
   let liveAdapterCompany: AdapterCompany | null = null;
@@ -278,7 +275,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // --gate spends real LLM calls to run the actual relevance gate + YOE extract; requires the selected profile's resume.
   if (gate) {
     console.log("\nGATE");
     if (!company) {

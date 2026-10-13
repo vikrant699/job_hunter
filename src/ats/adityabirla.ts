@@ -17,7 +17,7 @@ const TENANT_ORIGIN = "https://careers.adityabirla.com";
 const JOB_SEARCH_URL = `${TENANT_ORIGIN}/job-search`;
 const JOBS_API_PATH = "/api/v3/jobs";
 const PAGE_SIZE = 100;
-const TOKEN_TTL_MS = 20 * 60 * 1000; // token observed static; re-check well before any plausible rotation
+const TOKEN_TTL_MS = 20 * 60 * 1000;
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
@@ -63,8 +63,8 @@ async function captureAuthToken(): Promise<string> {
     },
     {
       blockHeavyAssets: false,
-      waitUntil: "networkidle", // WAF interstitial or slow settle is swallowed (default); token may still arrive below
-      settleMs: 0, // the poll loop above replaces the fixed settle wait
+      waitUntil: "networkidle",
+      settleMs: 0,
       beforeGoto: (page) => {
         onRequest = (req: PlaywrightRequest): void => {
           if (captured.token) return;
@@ -131,7 +131,6 @@ export const adityabirlaAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const orgunitMeta = company.apiMeta?.orgunit;
     if (!orgunitMeta) throw new Error(`adityabirla: company ${company.slug} is missing apiMeta.orgunit`);
-    // Explicit annotation: narrowing doesn't cross into the closure below.
     const orgunit: string = orgunitMeta;
 
     let token = await getAuthToken(false);
@@ -161,5 +160,4 @@ export const adityabirlaAdapter: AtsAdapter = {
       },
     });
   },
-  // The list response carries the full jobDescription HTML — no fetchJd needed.
 };

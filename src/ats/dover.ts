@@ -114,12 +114,11 @@ export function normalizeDover(company: AdapterCompany, j: DoverJob): Normalized
     jobUrl: doverJobUrl(company.slug, j.id),
     location: locationText(j),
     isRemote: isRemoteJob(j),
-    jdText: "", // two-phase — filled in by fetchJd
-    postedAt: null, // not exposed by the careers-page/jobs list endpoint
+    jdText: "",
+    postedAt: null,
   };
 }
 
-/** Prefers the finished user-facing copy, then raw employer HTML, then Dover's AI-generated structured sections. */
 export function extractDoverJd(detail: DoverJobDescription): string {
   const facing = (detail.user_facing_description ?? "").trim();
   if (facing) return htmlToText(facing);

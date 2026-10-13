@@ -17,8 +17,8 @@ test("isJunkJd flags letterless junk (dots-only JDs)", () => {
 });
 
 test("isJunkJd keeps real JDs, however short, and empty strings", () => {
-  assert.equal(isJunkJd(""), false); // empty stays on the existing no-jd path
-  assert.equal(isJunkJd("CSA"), false); // thin-but-real (hrone) is a source problem, not junk
+  assert.equal(isJunkJd(""), false);
+  assert.equal(isJunkJd("CSA"), false);
   assert.equal(isJunkJd("Java, AWS, MongoDB, spring"), false);
   assert.equal(isJunkJd("We are hiring a senior engineer to build our payments stack."), false);
 });

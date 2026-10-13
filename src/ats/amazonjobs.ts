@@ -1,4 +1,3 @@
-// src/ats/amazonjobs.ts — Amazon's public jobs search API (www.amazon.jobs).
 // GET /en/search.json?country=<cc>&result_limit=N&offset=M&sort=recent; full JD inline; result_limit caps at 100.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -10,8 +9,8 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 
 const BASE = "https://www.amazon.jobs";
-const RESULT_LIMIT = 100; // server max for result_limit
-const MAX_PAGES = 5000; // runaway backstop only, never truncate
+const RESULT_LIMIT = 100;
+const MAX_PAGES = 5000;
 
 export const AmazonJobSchema = z.object({
   id_icims: z.string(),
@@ -93,5 +92,4 @@ export const amazonJobsAdapter: AtsAdapter = {
       },
     });
   },
-  // The list response carries the full description — no fetchJd needed.
 };

@@ -1,4 +1,4 @@
-// src/ats/ralphlauren.ts — Ralph Lauren careers = Avature's React SPA (careers.ralphlauren.com) behind Cloudflare; a plain fetch gets HTTP 202 + empty body, so this runs the board's JSON API inside the shared headless browser.
+// Avature React SPA behind Cloudflare: plain fetch gets 202 + empty body, so the JSON API runs inside the shared headless browser
 // GET /en_US/CareersCorporate/SearchJobsCorporateData/ returns every job grouped by location as lat/lon only; many India jobs land in an ungeocoded "," bucket with no country field, kept with location=null for the pipeline's JD-based filter to decide.
 import * as cheerio from "cheerio";
 import { z } from "zod";
@@ -28,16 +28,13 @@ const DataSchema = z.object({
   totalCount: z.union([z.number(), z.string()]).nullable().optional(),
 });
 
-/** Map an Avature "lat,lon" to an India location string, or null if not in India. */
 export function indiaCityFromLatlon(latlon: string | null | undefined): string | null {
   if (!latlon) return null;
   const parts = latlon.split(",");
   const lat = Number((parts[0] ?? "").trim());
   const lon = Number((parts[1] ?? "").trim());
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  // India bounding box (rough): lat 6–36 N, lon 68–98 E.
   if (lat <= 6 || lat >= 36 || lon <= 68 || lon >= 98) return null;
-  // Only Bangalore observed so far; refine if other India hubs appear.
   if (lat > 12.8 && lat < 13.2 && lon > 77.3 && lon < 77.9) return "Bengaluru, India";
   return "India";
 }
@@ -61,7 +58,6 @@ export function normalizeRalphLauren(
   };
 }
 
-// The true location of an ungeocoded posting, read from the labelled City/State/Region/Location fields in the job-detail page's first article--details block.
 // This is the only place a real location exists for the "," bucket, so fetchJd resolves it there and the pipeline re-applies the strict check (lateLocationCheck) — otherwise a foreign role reaches the LLM gate as unknown-defer.
 export function ralphLaurenDetailLocation(html: string): string | null {
   if (!html.trim()) return null;
@@ -90,7 +86,6 @@ export const ralphlaurenAdapter: AtsAdapter = {
       const latlon = (loc.latlon ?? "").trim();
       const ungeocoded = latlon === "" || latlon === ",";
       const city = ungeocoded ? null : indiaCityFromLatlon(latlon);
-      // Geocoded but not India: confirmed foreign, skip. Ungeocoded: keep with location=null.
       if (!ungeocoded && !city) continue;
       for (const job of loc.jobs ?? []) {
         const p = normalizeRalphLauren(company, job, city);
@@ -102,7 +97,6 @@ export const ralphlaurenAdapter: AtsAdapter = {
     return out;
   },
 
-  // Also resolves posting.location for the ungeocoded bucket — see ralphLaurenDetailLocation.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     // React-hydrated content: an XHR returns an empty shell, so navigate and read the rendered DOM.
     return withBrowserPage(
@@ -113,7 +107,6 @@ export const ralphlaurenAdapter: AtsAdapter = {
         } catch { /* fall through: parse whatever rendered */ }
         await page.waitForTimeout(1500);
         const html = await page.content();
-        // Backfill the location the list API couldn't give us.
         if (!posting.location) {
           const resolved = ralphLaurenDetailLocation(html);
           if (resolved) posting.location = resolved;

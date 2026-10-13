@@ -8,12 +8,10 @@ import { atsFetchFormHtml, atsFetchText } from "./http.js";
 import { extractJsonLdJobs } from "../scraper/jsonLd.js";
 import { REMOTE_RE, paginate, dateToIso, collapseWs } from "./shared.js";
 
-/** Board URL for a tenant, e.g. "https://jobs.gohire.io/<slug>/" (slug = registry source_slug). */
 export function gohireBoardUrl(company: AdapterCompany): string {
   return `https://jobs.gohire.io/${company.apiMeta?.boardSlug ?? company.slug}/`;
 }
 
-/** Stable id is the numeric suffix on the job-slug path segment, e.g. ".../senior-content-marketer-292750/" -> "292750". */
 export function gohireExternalId(href: string): string | null {
   const m = href.match(/-(\d+)\/?$/);
   return m ? (m[1] ?? null) : null;
@@ -25,13 +23,11 @@ export type GohirePager =
   | { kind: "unparsed" }
   | { kind: "present"; page: number; totalPages: number; totalJobs: number };
 
-// Matches "Page 1 of 3, Total 26 jobs" against whitespace-collapsed text (tag-agnostic); anything else is unparsed, never guessed.
 const PAGER_RE = /page\s+(\d+)\s+of\s+(\d+)\s*,?\s*total\s+(\d+)\s+jobs?/i;
 
 // Class-substring match (not the literal tag) so a class-prefix change still finds it; not .jobs-pagination, whose Prev/Next buttons carry no counts.
 const PAGER_SELECTOR = '[class*="pagination-results"]';
 
-/** Read the pager's three numbers out of its rendered text. */
 function parseGohirePager($: cheerio.CheerioAPI): GohirePager {
   const el = $(PAGER_SELECTOR).first();
   if (el.length === 0) return { kind: "absent" };
@@ -41,12 +37,10 @@ function parseGohirePager($: cheerio.CheerioAPI): GohirePager {
   const page = Number(m[1]);
   const totalPages = Number(m[2]);
   const totalJobs = Number(m[3]);
-  // A too-large number or missing regex group (NaN) lands here as unparsed, not a bogus authoritative total; "Page 1 of 0" isn't a one-page board.
   if (![page, totalPages, totalJobs].every(Number.isSafeInteger) || totalPages < 1) return { kind: "unparsed" };
   return { kind: "present", page, totalPages, totalJobs };
 }
 
-/** rawCount is the server's card count (not postings.length, since unparseable cards are dropped) so pagination isn't fooled by an early stop; pager is the board's own size, see GohirePager. */
 export function parseGohireListPage(
   html: string,
   company: AdapterCompany,
@@ -59,7 +53,6 @@ export function parseGohireListPage(
     const href = $(el).attr("href");
     const externalId = href ? gohireExternalId(href) : null;
     const title = $(el).find("h3.job-title").text().trim();
-    // No stable id or title — skip rather than emit a posting that would collide on the (provider, external_id) dedup key.
     if (!href || !externalId || !title) return;
 
     const location = $(el).find("p.careers-location").text().trim() || null;
@@ -90,7 +83,6 @@ export const gohireAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "gohire",
       company: company.slug,
-      // Page size inferred from page 1: nothing in the request declares a size, so a fixed guess would truncate a tenant serving fewer.
       pageSize: "infer",
       // Needed because a tenant that clamps an out-of-range page back to page 1 relies on the exact-page-repeat stall guard, which needs a stable key.
       dedupeBy: (p) => p.externalId,
@@ -109,7 +101,6 @@ export const gohireAdapter: AtsAdapter = {
         const { postings, rawCount, pager } = parseGohireListPage(html, company);
         return {
           items: postings,
-          // The board's own count, so a stall that loses rows is visible.
           total: pager.kind === "present" ? pager.totalJobs : null,
           rawCount,
           noPaginationControl: pager.kind === "absent",
@@ -120,7 +111,6 @@ export const gohireAdapter: AtsAdapter = {
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "gohire" });
-    // Preferred: schema.org JobPosting island; falls back to div.jp-text for tenants that stopped emitting it.
     const [job] = extractJsonLdJobs(html);
     if (job?.description) return htmlToText(job.description);
     const $ = cheerio.load(html);

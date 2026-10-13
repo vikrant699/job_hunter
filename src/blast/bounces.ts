@@ -1,8 +1,7 @@
-// Bounce sweep for blast drafts: one precise per-address Gmail query (duplicated from verify.ts's bounceSearchQuery so the blast tool stays deletable). Bounced is terminal.
+// Duplicated from verify.ts's bounceSearchQuery on purpose so the blast tool stays deletable.
 import type { MessageRef, MessageMetadata } from "../google/gmail.js";
 import type { BlastState } from "./state.js";
 
-/** How many days back a drafted address keeps being re-checked. */
 const RECHECK_DAYS = 21;
 
 /** Gmail `after:` takes epoch SECONDS (ms silently matches nothing). */
@@ -10,7 +9,6 @@ function epochSeconds(iso: string): number {
   return Math.floor(new Date(iso).getTime() / 1000);
 }
 
-/** The address is quoted so Gmail treats it as one phrase. */
 export function bounceQuery(email: string, draftedAtIso: string): string {
   return `from:(mailer-daemon OR postmaster) "${email}" after:${String(epochSeconds(draftedAtIso))}`;
 }
@@ -24,11 +22,10 @@ export interface SweepDeps {
 export interface SweepResult {
   checked: number;
   newlyBounced: number;
-  /** Stats for the most recent batch, the stop-loss guard's input; null when nothing was ever drafted. */
   lastBatch: { batch: number; total: number; bounced: number; ratePct: number } | null;
 }
 
-/** Mutates `state` records in place (drafted -> bounced); the caller saves. */
+/** Mutates `state` records in place; the caller saves. */
 export async function sweepBounces(profileId: string, state: BlastState, deps: SweepDeps): Promise<SweepResult> {
   const cutoffMs = deps.now().getTime() - RECHECK_DAYS * 86_400_000;
   const toCheck = state.records.filter(

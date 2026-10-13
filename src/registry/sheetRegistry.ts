@@ -36,7 +36,6 @@ function defaultDeps(_profileId: string): SyncRegistryFromSheetDeps {
   };
 }
 
-/** Decodes data rows into valid entries + quarantined issues, keyed by 1-based sheet row index (row 1 = header). */
 function decodeRows(rows: string[][]): { entries: RegistryEntry[]; invalidRows: InvalidRow[] } {
   const entries: RegistryEntry[] = [];
   const invalidRows: InvalidRow[] = [];
@@ -54,7 +53,6 @@ function decodeRows(rows: string[][]): { entries: RegistryEntry[]; invalidRows: 
   return { entries, invalidRows };
 }
 
-/** Syncs the registry from the Companies tab; a bad row is quarantined and disables prune for the run (a partial read must never look like "everything else was deleted"). Valid syncs are snapshotted to a local cache for offline fallback. */
 export async function syncRegistryFromSheet(
   profileId: string,
   deps: SyncRegistryFromSheetDeps = defaultDeps(profileId),
@@ -87,7 +85,7 @@ export async function syncRegistryFromSheet(
       "registry sync: quarantined invalid Companies-tab rows — prune disabled this run",
     );
   }
-  // A read with ZERO valid entries is treated as suspect, not "delete everything" - pruning would wipe both the DB and the offline cache.
+  // Zero valid entries is a suspect read; pruning would wipe the DB and offline cache.
   if (entries.length === 0) {
     logger.warn(
       { profileId },
@@ -97,7 +95,6 @@ export async function syncRegistryFromSheet(
   const trustworthy = invalidRows.length === 0 && entries.length > 0;
   const result = syncEntries(entries, { prune: trustworthy });
 
-  // Snapshot only fully-valid syncs - a partial snapshot would let a later offline run prune still-valid companies.
   if (trustworthy) {
     writeAtomic(deps.cachePath, entries);
   } else {

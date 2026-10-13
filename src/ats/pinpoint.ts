@@ -1,4 +1,4 @@
-// src/ats/pinpoint.ts — Pinpoint hosted career sites (<tenant>.pinpointhq.com): GET /postings.json returns the full board with the complete HTML JD inline, no auth/pagination.
+// GET /postings.json returns the full board with complete HTML JD inline, no auth/pagination
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -61,7 +61,7 @@ export function normalizePinpoint(company: AdapterCompany, p: PinpointPosting): 
     location,
     isRemote,
     jdText: htmlToText(p.description ?? ""),
-    postedAt: null, // the postings feed carries no posting date.
+    postedAt: null,
   };
 }
 
@@ -78,5 +78,4 @@ export const pinpointAdapter: AtsAdapter = {
     const raw = await atsFetchJson(url, { provider: "pinpoint" });
     return postingsFromPinpointJson(company, raw);
   },
-  // description is inline in the list feed — no fetchJd needed.
 };

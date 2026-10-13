@@ -19,7 +19,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup: leading-asterisk title, plain state location, and a "2 Locations" jv-meta row.
 function listHtml(rows: string, paginationText: string | null): string {
   return `
 <html><body><div class="jv-wrapper">
@@ -47,7 +46,6 @@ const ROWS_PAGE_1 = `
     <td class="jv-job-list-location">  Bengaluru, India  </td>
   </tr>`;
 
-// Trimmed real markup: meta is department then locations, separated by jv-inline-separator spans.
 const JD_HTML = `
 <html><body>
   <h2 class="jv-header">  * Sales Renewals Representative  </h2>
@@ -82,7 +80,6 @@ test("parseJobviteList extracts rows, ids and the pagination total", () => {
   assert.equal(first.id, "o9TtAfwP");
   assert.equal(first.title, "* Sales Renewals Representative");
   assert.equal(first.location, "Campbell, California");
-  // "2 Locations" placeholder rows keep the placeholder; fetchJd refines it.
   assert.equal(at(jobs, 1).location, "2 Locations");
 });
 

@@ -18,7 +18,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real fixture: a "PIPE" (evergreen Retail pipeline) result, single location.
 const pipeResult: AppleSearchResult = {
   id: "PIPE-200313970",
   positionId: "200313970",
@@ -34,7 +33,7 @@ const pipeResult: AppleSearchResult = {
   ],
 };
 
-// Real fixture: a "REQ" result; id carries a per-location suffix ("-0321") that positionId doesn't, which is why id is used as externalId.
+// id carries a per-location suffix ("-0321") that positionId lacks, hence id as externalId.
 const reqResult: AppleSearchResult = {
   id: "200615971-0321",
   positionId: "200615971",

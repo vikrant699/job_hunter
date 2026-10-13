@@ -14,7 +14,6 @@ const FUNCTIONS_URL = `${ORIGIN}/frmJobCategories.aspx`;
 const PAGE_SIZE_SELECT = "#MainContent_ddlentries";
 // The DataPager's Next is an ASP.NET <input type="submit">, disabled on the last page via a `disabled` attribute + the `aspNetDisabled` class.
 const NEXT_SELECTOR = "input[id$='lnkNext']";
-// Runaway guard only — a function with this many pages of 25 is 125k jobs.
 const MAX_PAGES_PER_FUNCTION = 5000;
 
 export interface JioFunction {
@@ -22,12 +21,10 @@ export interface JioFunction {
   name: string;
 }
 
-/** Decode the HTML entities cheerio leaves in an href attribute value. */
 function unentity(s: string): string {
   return s.replace(/&amp;/g, "&");
 }
 
-/** Absolute URL for a relative careers.jio.com path (frmfuncwisejob/frmjobdescription). */
 function absolute(href: string): string {
   const clean = unentity(href);
   return clean.startsWith("http") ? clean : `${ORIGIN}/${clean.replace(/^\/+/, "")}`;
@@ -43,7 +40,6 @@ export function parseJioFunctions(html: string): JioFunction[] {
     if (!href) return;
     const url = absolute(href);
     if (seen.has(url)) return;
-    // Name = anchor text without a trailing job-count number/badge.
     const name = $a.text().replace(/\s*\d[\d,]*\s*(jobs?)?\s*$/i, "").replace(/\s+/g, " ").trim();
     if (!name) return;
     seen.add(url);
@@ -52,14 +48,12 @@ export function parseJioFunctions(html: string): JioFunction[] {
   return out;
 }
 
-/** "Frontend Engineer ( 86701445 )" -> { title, jobcode }; jobcode null when the " ( <digits> )" suffix is absent. */
 export function splitJioTitle(raw: string): { title: string; jobcode: string | null } {
   const m = raw.match(/^(.*?)\s*\(\s*(\d+)\s*\)\s*$/);
   if (m?.[1] && m[2]) return { title: m[1].trim(), jobcode: m[2] };
   return { title: raw.replace(/\s+/g, " ").trim(), jobcode: null };
 }
 
-/** The jbID query token from a frmjobdescription href (fallback external id). */
 function jbIdOf(href: string): string | null {
   const m = unentity(href).match(/[?&]jbID=([^&]+)/i);
   return m?.[1] ? decodeURIComponent(m[1]) : null;
@@ -80,7 +74,6 @@ export function parseJioRows(company: AdapterCompany, html: string): NormalizedP
     const externalId = jobcode ?? jbIdOf(href);
     if (!externalId || seen.has(externalId)) return;
 
-    // Location: the sibling Label2_<same index> span (holds the city).
     const loc = idx !== undefined
       ? cheerioText($, `span[id$='Label2_${idx}']`)
       : null;
@@ -122,7 +115,6 @@ export function parseJioJd(html: string): string {
   return parts.join("\n\n").trim();
 }
 
-/** Whether the pager's Next submit-button is live, vs disabled (attribute or `aspNetDisabled` class) or absent. */
 export function jioNextIsClickable(html: string): boolean {
   const $ = cheerio.load(html);
   const next = $(NEXT_SELECTOR).first();
@@ -131,11 +123,9 @@ export function jioNextIsClickable(html: string): boolean {
   return !(next.attr("class") ?? "").split(/\s+/).includes("aspNetDisabled");
 }
 
-/** Walk ONE job function to the end in a browser: set 25/page, click Next until the pager stops, dedupe by externalId. */
 async function crawlJioFunction(company: AdapterCompany, fn: JioFunction): Promise<NormalizedPosting[]> {
   return withBrowserPage(fn.url, async (page) => {
     const rows = new Map<string, NormalizedPosting>();
-    // Raise the page size to the pager's max so we do fewer round trips.
     try {
       if (await page.locator(PAGE_SIZE_SELECT).count()) {
         await page.selectOption(PAGE_SIZE_SELECT, "25");
@@ -152,13 +142,12 @@ async function crawlJioFunction(company: AdapterCompany, fn: JioFunction): Promi
 
       if (!jioNextIsClickable(html)) break;
       const added = rows.size - before;
-      // A live Next that adds nothing new means the pager looped — stop rather than spin.
       if (pageNo > 0 && added === 0) break;
 
       const next = page.locator(NEXT_SELECTOR).first();
       try {
         await next.click();
-        await page.waitForTimeout(1500); // async postback DOM swap
+        await page.waitForTimeout(1500);
       } catch {
         break;
       }

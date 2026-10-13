@@ -67,7 +67,6 @@ test("updateOutreachStatus patches only provided fields", () => {
   assert.equal(row.verifiedAt, null);
   assert.equal(row.failureDetail, null);
 
-  // Second patch: only verifiedAt provided, sentAt must be preserved untouched.
   const verifiedAt = new Date().toISOString();
   updateOutreachStatus({ id, status: "verified", verifiedAt });
   const rows2 = selectOutreachByStatus("verified");
@@ -94,7 +93,6 @@ test("selectLastDraftedAt returns MAX(drafted_at) across multiple rows, scoped t
   const newer = new Date().toISOString();
   insertOutreach(baseRow({ recruiterEmail: email, profileId: "p1", draftedAt: older, status: "sent" }));
   insertOutreach(baseRow({ recruiterEmail: email, profileId: "p1", draftedAt: newer, status: "draft" }));
-  // different profile, should not affect p1's result
   insertOutreach(baseRow({ recruiterEmail: email, profileId: "p2", draftedAt: new Date(Date.now() + 50_000).toISOString(), status: "draft" }));
 
   const last = selectLastDraftedAt(email, "p1");

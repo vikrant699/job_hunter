@@ -1,4 +1,3 @@
-// factory for the "one-shot JSON board" shape: a single GET/POST returns the whole list, no pagination; each vendor supplies its own zod schema + normalize fn
 import type { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -10,10 +9,8 @@ export interface JsonListAdapterSpec<R, I> {
   url: (c: AdapterCompany) => string;
   schema: z.ZodType<R>;
   items: (parsed: R) => I[];
-  /** Optional pre-normalize filter (e.g. publish/active/status flags). */
   keep?: (item: I) => boolean;
   normalize: (c: AdapterCompany, item: I) => NormalizedPosting | null;
-  /** Override the bot UA for vendors whose stack rejects it. */
   userAgent?: string;
 }
 

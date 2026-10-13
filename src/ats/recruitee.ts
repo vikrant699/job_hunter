@@ -1,5 +1,4 @@
-// src/ats/recruitee.ts — Recruitee hosted career sites (<tenant>.recruitee.com): GET /api/offers/ returns the full board with description + requirements (both full HTML) inline, no auth/pagination.
-// Filtered defensively to status:"published" even though nothing else has been observed.
+// GET /api/offers/ returns the full board, description + requirements inline, no auth/pagination
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -69,5 +68,4 @@ export const recruiteeAdapter: AtsAdapter = {
     const raw = await atsFetchJson(url, { provider: "recruitee" });
     return postingsFromRecruiteeJson(company, raw);
   },
-  // Both description and requirements are inline — no fetchJd needed.
 };

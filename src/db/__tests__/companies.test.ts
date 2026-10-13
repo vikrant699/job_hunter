@@ -5,7 +5,6 @@ import {
 } from "../companies.js";
 import type { CompanyStatus } from "../../schemas.js";
 
-/** Insert a fresh company row; fresh inserts take `status` verbatim (the status-preserving CASE only fires ON CONFLICT). */
 function seed(
   slug: string,
   status: CompanyStatus,
@@ -66,7 +65,6 @@ test("markFetchSuccess does not disturb a denied company that happens to yield p
   assert.equal(statusOf(slug), "denied");
 });
 
-// minStreak is deliberately high so this table-wide call can't park other fixtures.
 test("applyDormancy parks an active scrape company after a long zero-yield streak", () => {
   const STREAK = 7;
   const slug = `park-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -77,7 +75,6 @@ test("applyDormancy parks an active scrape company after a long zero-yield strea
   assert.equal(statusOf(slug), "dormant");
 });
 
-// A suspect URL is no longer an exemption from parking; streak exceeds the test above's so neither can park the other's row.
 test("applyDormancy parks url_suspect boards that have never yielded", () => {
   const STREAK = 11;
   const slug = `park-suspect-${Date.now()}-${Math.random().toString(36).slice(2)}`;

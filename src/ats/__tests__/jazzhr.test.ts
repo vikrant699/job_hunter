@@ -29,7 +29,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Smule's JazzHR subdomain (smuleinc) is NOT the slug (smule-india), so the expected host can only come from the row's URL.
 const overrideCompany: AdapterCompany = {
   provider: "jazzhr",
   slug: "smule-india",
@@ -75,7 +74,6 @@ const EMPTY_HTML = `<!DOCTYPE html>
 </div>
 </body></html>`;
 
-// A row missing the detail link and a row with no heading text - both must be skipped rather than crashing the parse.
 const MALFORMED_HTML = `<!DOCTYPE html>
 <html><body>
 <ul class='list-group'>
@@ -97,7 +95,7 @@ const MALFORMED_HTML = `<!DOCTYPE html>
 </ul>
 </body></html>`;
 
-// A slug JazzHR does not host lands on the vendor's own job-seeker marketing page (www.jazzhr.com), with no list-group items, so it used to parse as a board with zero openings.
+// An unhosted slug lands on the www.jazzhr.com marketing page with no list-group items.
 const MARKETING_HTML = `<!DOCTYPE html>
 <html><head>
 <title>For Job Seekers | JazzHR</title>
@@ -108,7 +106,7 @@ const MARKETING_HTML = `<!DOCTYPE html>
 <p>JazzHR is recruiting software used by thousands of small businesses.</p>
 </body></html>`;
 
-// A cancelled account still 200s on its own host with an empty board, so only the page itself says the board is gone (smuleinc, 2026-10-13).
+// A cancelled account still 200s on its own host with an empty board; only the page text says so.
 const INACTIVE_HTML = `<!DOCTYPE html>
 <html><head>
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -185,13 +183,11 @@ test("assertJazzhrOnTenantHost throws when the board answered from another host,
   );
   assert.ok(err instanceof Error);
   assert.match(err.message, /jazzhr: tenant does not exist/);
-  // Both hosts, so the stored error alone says which tenant and where it went.
   assert.match(err.message, /hackerearth\.applytojob\.com/);
   assert.match(err.message, /www\.jazzhr\.com/);
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // Must count toward consecutive_failures, or the scheduler would retry the board forever and never quarantine it.
   const err = thrownBy(() =>
     assertJazzhrOnTenantHost(
       "https://hackerearth.applytojob.com",
@@ -225,7 +221,6 @@ test("assertJazzhrOnTenantHost tolerates www./path differences on the SAME host"
 });
 
 test("assertJazzhrOnTenantHost stays silent when either URL is unparseable", () => {
-  // A URL-shape oddity is not evidence about the board, so it must not fail one.
   assert.doesNotThrow(() => assertJazzhrOnTenantHost("not a url", "https://www.jazzhr.com/"));
   assert.doesNotThrow(() =>
     assertJazzhrOnTenantHost("https://hackerearth.applytojob.com", "not a url"),
@@ -233,7 +228,6 @@ test("assertJazzhrOnTenantHost stays silent when either URL is unparseable", () 
 });
 
 test("assertJazzhrOnTenantHost takes the expected host from a tenant_url override, not the slug", () => {
-  // smule-india.applytojob.com is nobody's board; smuleinc.applytojob.com is.
   assert.doesNotThrow(() =>
     assertJazzhrOnTenantHost(jazzhrBase(overrideCompany), "https://smuleinc.applytojob.com/apply"),
   );
@@ -253,7 +247,6 @@ test("jazzhrAdapter.listPostings rejects a dead tenant that landed on JazzHR's m
 });
 
 test("jazzhrAdapter.listPostings rejects an off-host response even when its HTML parses", async (t) => {
-  // The host is the whole signal; a parseable body from the wrong tenant must not excuse it.
   stubFetch(t, fetchSequence(() => htmlResponseFrom("https://www.jazzhr.com/job-seekers", LIST_HTML)));
   await assert.rejects(() => jazzhrAdapter.listPostings(company), /jazzhr: tenant does not exist/);
 });
@@ -291,7 +284,6 @@ test("jazzhrAdapter.listPostings still lists a populated board unchanged", async
 });
 
 test("jazzhrAdapter.listPostings accepts a tenant_url override's host on a populated board", async (t) => {
-  // No res.url at all: finalUrl falls back to the requested URL, which is the override host - the check must pass, not fire.
   stubFetch(t, fetchSequence(() => htmlResponseFrom("", LIST_HTML)));
   const postings = await jazzhrAdapter.listPostings(overrideCompany);
   assert.equal(postings.length, 2);

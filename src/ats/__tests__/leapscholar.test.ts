@@ -10,7 +10,6 @@ const company: AdapterCompany = {
   careersUrl: "https://careers.leapfinance.com", tenantUrl: null, apiMeta: null,
 };
 
-// Captured live 2026-07-11 from https://careers-api-eight.vercel.app/api/jobs
 const job: LeapscholarJob = {
   JobId: "21afc854-ff00-45d2-9700-169a262bba6d",
   JobTitle: "SDE -II",

@@ -110,7 +110,6 @@ test("buildRipplingJd concatenates company then role and strips HTML", () => {
   assert.match(jd, /About the role/);
   assert.match(jd, /key partner to the executive team/);
   assert.ok(!jd.includes("<p>"), "HTML tags should be stripped");
-  // company blurb precedes role body
   assert.ok(jd.indexOf("Join Us at Centricity Research") < jd.indexOf("About the role"));
 });
 

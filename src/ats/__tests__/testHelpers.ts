@@ -1,10 +1,8 @@
-// Shared fetch-stubbing helpers for adapter tests; not imported by production code.
 import type { TestContext } from "node:test";
 import type { AdapterCompany } from "../../types.js";
 import type { JsonValue } from "../../util/json.js";
 import { JsonValueSchema } from "../../util/json.js";
 
-/** Replace globalThis.fetch for the duration of one test; restores via t.after. */
 export function stubFetch(t: TestContext, handler: typeof globalThis.fetch): void {
   const real = globalThis.fetch;
   globalThis.fetch = handler;
@@ -13,7 +11,6 @@ export function stubFetch(t: TestContext, handler: typeof globalThis.fetch): voi
   });
 }
 
-/** Serve canned responses in order; throws on any extra call. Each entry is a thunk so Response bodies are fresh per call. */
 export function fetchSequence(...responses: Array<() => Response>): typeof globalThis.fetch {
   let i = 0;
   return () => {
@@ -40,12 +37,10 @@ export function htmlResponseFrom(finalUrl: string, html: string, status = 200): 
   return res;
 }
 
-/** A bot-blocker's challenge page (HTTP 200) that dead-tenant guards must tell apart from a genuinely gone board. */
 export const CHALLENGE_PAGE_HTML =
   `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head>` +
   `<body><h1>Sorry, you have been blocked</h1><p>Cloudflare Ray ID: 8f2a1c</p></body></html>`;
 
-/** Indexed access for test fixtures: throws with a clear message instead of `!`. */
 export function at<T>(arr: readonly T[], i: number): T {
   const v = arr[i];
   if (v === undefined) throw new Error(`test fixture: expected element at index ${i} (length ${arr.length})`);
@@ -59,7 +54,6 @@ export function mkAdapterCompany(
   return { tenantUrl: null, apiMeta: null, ...base, ...overrides };
 }
 
-/** JSON round-trips a typed fixture to drop undefined optionals, producing a genuine `JsonValue` as parsers under test expect. */
 export function asJson<T>(value: T): JsonValue {
   return JsonValueSchema.parse(JSON.parse(JSON.stringify(value)));
 }

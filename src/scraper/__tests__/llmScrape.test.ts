@@ -46,10 +46,9 @@ test("fetchJd prefers the JD page's JSON-LD description over stripped main text"
     location: null, isRemote: false, jdText: "", postedAt: null,
   });
   assert.match(jd, /Build pipelines/);
-  assert.doesNotMatch(jd, /<p>/); // html stripped
+  assert.doesNotMatch(jd, /<p>/);
 });
 
-// YC company pages embed job links for OTHER YC companies ("similar jobs" rails) that must not be attributed to this company.
 test("dropCrossCompanyYcLinks drops other YC companies' job links, keeps own + external", () => {
   const items = [
     { url: "https://www.ycombinator.com/companies/drdroid/jobs/abc-backend-engineer", text: "Backend Engineer" },

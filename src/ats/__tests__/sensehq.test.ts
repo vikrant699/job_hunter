@@ -33,7 +33,6 @@ const row: SenseHqRow = {
   code: "DEV03891",
 };
 
-// Trimmed real initial-page __NEXT_DATA__ island (props.buildId + jobsData).
 function initialHtml<T>(rows: T[], count: number, buildId = "jEPRsaxO17zCozEuBEAkW"): string {
   const data = {
     props: { pageProps: { jobsData: { rows, count } } },

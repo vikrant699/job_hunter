@@ -7,7 +7,7 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 
 const LIST_URL = "https://autohire.internal.svc.uat.glkmny.tech/public/jobs";
 const BOARD_URL = "https://candid.hub.gullak.money/jobs/";
-const FIXED_LOCATION = "Bengaluru, India"; // no location field on the API
+const FIXED_LOCATION = "Bengaluru, India";
 
 export const GullakJobSchema = z.object({
   id: z.union([z.string(), z.number()]),
@@ -58,7 +58,7 @@ export const gullakAdapter: AtsAdapter = {
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();
     for (const j of parsed.pipelines) {
-      if (j.status && j.status !== "active") continue; // only active pipelines are live postings
+      if (j.status && j.status !== "active") continue;
       const p = normalizeGullakJob(company, j);
       if (seen.has(p.externalId)) continue;
       seen.add(p.externalId);

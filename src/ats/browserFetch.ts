@@ -6,7 +6,7 @@ import { JsonValueSchema } from "../util/json.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 import type { Caught } from "../util/errorCause.js";
 export const HEAVY_ASSET_RE = /\.(?:png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|otf|mp4|webm|css)(?:\?|$)/i;
-const SETTLE_MS = 5_000; // let Cloudflare challenge clear + session cookie set
+const SETTLE_MS = 5_000;
 
 // blockHeavyAssets (default true) aborts images/fonts/video/css; some tenant SPAs (e.g. TurboHire's Ola board) treat ANY aborted request as fatal and reload the frame mid-evaluate - those callers pass blockHeavyAssets: false
 export async function withBrowserPage<T>(
@@ -15,13 +15,9 @@ export async function withBrowserPage<T>(
   opts: {
     blockHeavyAssets?: boolean;
     navTimeoutMs?: number;
-    /** Wait after `goto` before invoking `run`; default 5000ms settle, pass 0 when `run` does its own settle/poll. */
     settleMs?: number;
-    /** Passed to `page.goto` (default "domcontentloaded"); some tenant apps need "networkidle" to let background XHRs quiesce first. */
     waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
-    /** Run right before `goto` to register a listener before navigation fires the requests it watches for. */
     beforeGoto?: (page: Page) => void;
-    /** When true, a `goto` failure propagates instead of being swallowed as a presumed WAF/CF interstitial. */
     rethrowGotoErrors?: boolean;
   } = {},
 ): Promise<T> {
@@ -47,7 +43,6 @@ export async function withBrowserPage<T>(
         await page.goto(pageUrl, { waitUntil: opts.waitUntil ?? "domcontentloaded" });
         reportNetworkSuccess();
       } catch (err) {
-        // A network drop is otherwise indistinguishable from the interstitial this swallow path assumes.
         reportNetworkFailure();
         if (opts.rethrowGotoErrors) throw err;
       }
@@ -61,7 +56,6 @@ export async function withBrowserPage<T>(
   }
 }
 
-/** Resolves with the first in-flight request matching `urlRe`, or null after `timeoutMs`; register before `goto`. */
 export function captureFirstRequest(page: Page, urlRe: RegExp, timeoutMs: number): Promise<string | null> {
   return new Promise((resolve) => {
     const onRequest = (req: Request): void => {
@@ -81,7 +75,6 @@ export function captureFirstRequest(page: Page, urlRe: RegExp, timeoutMs: number
   });
 }
 
-/** Runs an in-page `fetch` for each apiPath after the browser clears Cloudflare - for gated JSON APIs (Darwinbox) that reject plain Node fetch. */
 export async function browserFetchJson(
   pageUrl: string,
   apiPaths: string[],
@@ -101,16 +94,12 @@ export async function browserFetchJson(
   }, opts);
 }
 
-/** One in-page fetch (GET, or POST with a JSON body) to run after the page has cleared the WAF. */
 export interface BrowserJsonRequest {
   path: string;
-  /** Defaults to GET. */
   method?: "GET" | "POST";
-  /** JSON-serialized and sent with a `Content-Type: application/json` header. */
   body?: JsonValue;
 }
 
-/** Like {@link browserFetchJson} but each request may be a POST with a JSON body. */
 export async function browserFetchJsonRequests(pageUrl: string, requests: BrowserJsonRequest[]): Promise<JsonValue[]> {
   return withBrowserPage(pageUrl, async (page) => {
     const out: JsonValue[] = [];
@@ -162,7 +151,6 @@ export async function runWithEvalRetry<T>(run: () => Promise<T>, settle: () => P
 }
 
 async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise<JsonValue> {
-  // Stringify on the Node side - see the matching comment in browserFetchJsonRequests (TS2589 risk).
   const bodyJson = step.body !== undefined ? JSON.stringify(step.body) : undefined;
   return JsonValueSchema.parse(await runWithEvalRetry(
     () =>
@@ -186,7 +174,6 @@ async function evaluateStepWithRetry(page: Page, step: BrowserJsonStep): Promise
   ));
 }
 
-// runs a sequence of in-page fetches in one session; buildStep gets results-so-far (can thread e.g. a bearer token from an earlier step) and returns null to stop
 export async function browserFetchJsonSteps(
   pageUrl: string,
   buildStep: (resultsSoFar: JsonValue[]) => BrowserJsonStep | null,
@@ -204,20 +191,15 @@ export async function browserFetchJsonSteps(
 }
 
 export interface InPageRequest {
-  /** Absolute URL to fetch from inside the page. */
   url: string;
-  /** Extra request headers (e.g. a tenant-context header the SPA normally adds). */
   headers?: Record<string, string>;
 }
 
 export interface BrowserCapture {
-  /** Raw response text per request (not JSON, so callers can decrypt an encrypted body before parsing). */
   bodies: string[];
-  /** Every response URL observed during load, so callers can locate a JS bundle without a second navigation. */
   responseUrls: string[];
 }
 
-// boots the SPA and returns raw response text per request (e.g. to decrypt TalentRecruit's NaCl-encrypted payload in Node) plus every response URL seen, to locate the seed-bearing bundle
 export async function browserCaptureText(
   pageUrl: string,
   requests: InPageRequest[],

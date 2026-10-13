@@ -125,7 +125,6 @@ test("normalizeZwayamPublic maps title/location/remote/jobUrl, preferring the fu
     "https://career.axismaxlife.com/axismaxlife/jobview/regional-head-affluent-banking-west-bengal-2026062612093862",
   );
   assert.equal(p.isRemote, false);
-  // shortDescription equals the title here, so mediumDescriptionWithoutHtml (the longer field) wins.
   assert.match(p.jdText, /Regional Head full body\./);
   assert.equal(p.postedAt, new Date(1782455389000).toISOString());
 });
@@ -187,7 +186,6 @@ const recordOnlyHit: ZwayamPublicHit = {
   },
 };
 
-/** The same posting shape with one `jobLocationRecord` of the given raw code + geocoded string. */
 function hitWithRecords(records: { location: string; formattedLocation: string }[]): ZwayamPublicHit {
   return {
     _id: 9001,
@@ -224,7 +222,6 @@ test("normalizeZwayamPublic treats the marker as head office however the tenant 
   }
 });
 
-// The marker also appears with a name appended ("HO Commerce Zone"), which geocodes to Akita, Japan - same class of bad data, same verdict.
 test("normalizeZwayamPublic leaves location null for a named head-office code (HO Commerce Zone -> Japan)", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -235,7 +232,6 @@ test("normalizeZwayamPublic leaves location null for a named head-office code (H
   assert.equal(p.location, null);
 });
 
-// The marker is an all-caps abbreviation; "Ho Chi Minh City" is a name and must not be swallowed by the guard.
 test("normalizeZwayamPublic does not mistake a genuine Ho Chi Minh City code for the head-office marker", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -269,7 +265,6 @@ test("normalizeZwayamPublic falls back to jobLocationRecord when the slash field
   assert.equal(p.location, "Bengaluru, Karnataka, India");
 });
 
-// The head-office artefact is often the first entry with the real city second, so naive [0] would drop the good row.
 test("normalizeZwayamPublic skips a head-office entry to reach the real city in a multi-entry record", () => {
   const p = normalizeZwayamPublic(
     bajaj,
@@ -310,10 +305,8 @@ test("normalizeZwayamPublic yields null (not a throw) for an absent, empty or un
   };
   assert.equal(normalizeZwayamPublic(bajaj, nullField, origin, "bajajgeneral").location, null);
 
-  // 2 of Bajaj's 338 postings ship the array empty.
   assert.equal(normalizeZwayamPublic(bajaj, hitWithRecords([]), origin, "bajajgeneral").location, null);
 
-  // Field-less / blank entries must be skipped, not emitted as "".
   const sparse: ZwayamPublicHit = {
     _id: 9005,
     _source: { ...recordOnlyHit._source, jobLocationRecord: [{}, { formattedLocation: "  " }] },
@@ -352,7 +345,6 @@ function searchResponse(pageHits: ZwayamPublicHit[], totalCount: number): Respon
   );
 }
 
-/** The multipart fields the adapter POSTed, as a plain map. */
 function formFields(init: RequestInit | undefined): Record<string, string> {
   const body = init?.body;
   if (!(body instanceof FormData)) throw new Error("expected a multipart FormData body");
@@ -363,7 +355,6 @@ function formFields(init: RequestInit | undefined): Record<string, string> {
 
 const FilterCriSchema = z.object({ paginationStartNo: z.number() });
 
-/** The offset the adapter asked for on this call, read back out of filterCri. */
 function requestedOffset(init: RequestInit | undefined): number {
   const raw = formFields(init).filterCri ?? "";
   return FilterCriSchema.parse(JSON.parse(raw)).paginationStartNo;
@@ -380,7 +371,6 @@ test("listPostings targets apiMeta.apiHost, passing the tenant host as `domain`"
 
   assert.equal(calls.length, 1);
   assert.equal(at(calls, 0).url, "https://apic2.zwayam.com/jobs/search");
-  // Only the API host is overridden - `domain` stays the tenant host, which selects the board.
   assert.equal(at(calls, 0).fields.domain, "jobs.bajajgeneral.com");
   assert.equal(postings.length, 3);
   assert.equal(
@@ -403,7 +393,6 @@ test("listPostings still targets public.zwayam.com when no apiMeta.apiHost is se
 });
 
 test("listPostings walks every page of a tenant that serves 10 rows at a time", async (t) => {
-  // Page size is a per-tenant property: apic2 serves 10 per page where public.zwayam.com serves 5.
   const TOTAL = 25;
   const PER_PAGE = 10;
   const offsets: number[] = [];
@@ -422,7 +411,6 @@ test("listPostings walks every page of a tenant that serves 10 rows at a time", 
 });
 
 test("listPostings does not truncate a tenant serving fewer rows per page than the declared page size", async (t) => {
-  // paginate() checks the short-page rule before totalCount, so a guessed-too-high page size would end the board on page 1 with total unread.
   const TOTAL = 9;
   const PER_PAGE = 3;
   let calls = 0;
@@ -439,7 +427,6 @@ test("listPostings does not truncate a tenant serving fewer rows per page than t
 });
 
 test("listPostings stops on a board that ignores the offset and re-serves page 1", async (t) => {
-  // The stall guard needs a dedupeBy key or an offset-ignoring board gets walked to totalCount, re-fetching the same rows.
   let calls = 0;
   stubFetch(t, () => {
     calls++;

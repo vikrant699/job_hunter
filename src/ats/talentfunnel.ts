@@ -1,5 +1,4 @@
-// src/ats/talentfunnel.ts — Talent Funnel (multi-tenant UK ATS). Every customer's board is backed by one shared JSON API keyed by a per-customer Tenant UUID (apiMeta.tenant).
-// List: POST ats-api.talent-funnel.com/js/search/vacancy, header Tenant:<uuid> (required, else 403), body {"limit":5000} returns the whole board in one shot. Detail: GET .../js/vacancy/<vacancyId> -> positionProfile.description (HTML), since the list response carries no description.
+// List: POST ats-api.talent-funnel.com/js/search/vacancy with header Tenant:<uuid> (else 403), body {"limit":5000} returns the whole board. Detail: GET .../js/vacancy/<vacancyId> -> positionProfile.description (HTML).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -10,8 +9,8 @@ import { REMOTE_RE, dateToIso } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
 const SEARCH_URL = "https://ats-api.talent-funnel.com/js/search/vacancy";
-const DETAIL_URL = "https://ats-api.talent-funnel.com/js/vacancy"; // + /<vacancyId>
-const PAGE_LIMIT = 5000; // the board's own client default; returns the full board in one call
+const DETAIL_URL = "https://ats-api.talent-funnel.com/js/vacancy";
+const PAGE_LIMIT = 5000;
 
 const TalentfunnelLocationSchema = z
   .object({
@@ -37,7 +36,6 @@ const TalentfunnelResponseSchema = z.object({
   totalResults: z.number().nullable().optional(),
 });
 
-// Per-job detail: the JD HTML lives at positionProfile.description.
 const TalentfunnelDetailSchema = z.object({
   positionProfile: z
     .object({ description: z.string().nullable().optional() })
@@ -45,7 +43,6 @@ const TalentfunnelDetailSchema = z.object({
     .optional(),
 });
 
-// The per-customer Tenant UUID (apiMeta.tenant), sent as the `Tenant` header.
 export function talentfunnelTenant(company: AdapterCompany): string {
   const tenant = company.apiMeta?.tenant;
   if (tenant === undefined || tenant === "") {
@@ -61,7 +58,6 @@ function locationString(loc: TalentfunnelVacancy["location"]): string | null {
   return parts.length > 0 ? parts.join(", ") : null;
 }
 
-// Maps the shared-API response into normalized postings (jdText filled later by fetchJd).
 export function parseTalentfunnelList(raw: JsonValue, company: AdapterCompany): NormalizedPosting[] {
   const body = parseOrThrow(TalentfunnelResponseSchema, raw, { provider: "talentfunnel", slug: company.slug });
   return body.results.map((v) => {
@@ -86,7 +82,7 @@ export const talentfunnelAdapter: AtsAdapter = {
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const tenant = talentfunnelTenant(company);
-    // The `?country[0]=IN` URL facet is client-side only and not honored server-side, so this fetches the whole board and relies on the location filter to cut India.
+    // The `?country[0]=IN` facet is client-side only, so fetch the whole board and let the location filter cut India.
     const raw = await atsFetchJson(SEARCH_URL, {
       method: "POST",
       body: { limit: PAGE_LIMIT },

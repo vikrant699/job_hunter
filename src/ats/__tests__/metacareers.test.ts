@@ -29,7 +29,7 @@ test("normalizeMetaJob maps id/title/url and joins multi-location", () => {
   assert.equal(p.location, "Bangalore, India; Gurgaon, India");
   assert.equal(p.isRemote, false);
   assert.equal(p.jdText, "");
-  assert.equal(p.postedAt, null); // search result carries no date — documented limitation
+  assert.equal(p.postedAt, null);
 });
 
 test("normalizeMetaJob maps a single location and remote text", () => {
@@ -44,7 +44,6 @@ test("normalizeMetaJob handles a missing locations array", () => {
   assert.equal(p.isRemote, false);
 });
 
-// Fixture: the live CareersJobSearchResultsV2DataQuery response shape, offices filtered to the discovered India office ids.
 const SEARCH_RESULTS_FIXTURE = {
   data: {
     job_search_with_featured_jobs_v2: {
@@ -67,7 +66,6 @@ test("SearchResultsResponseSchema parses the live all_jobs response shape", () =
   assert.equal(parsed.data.job_search_with_featured_jobs_v2.all_jobs[0]?.title, "ASIC Engineer, Design");
 });
 
-// Fixture: the live CareersJobSearchLocationFilterV3Query response shape, trimmed to a few entries spanning multiple countries.
 const LOCATION_FILTER_FIXTURE = {
   data: {
     job_search_filters: {
@@ -120,7 +118,6 @@ test("indiaSearchVariables builds the search_input shape with offices filled and
   assert.equal(v.isLoggedIn, false);
 });
 
-// Fixture: the live job-detail page's schema.org JobPosting JSON-LD block, server-rendered inside the "for (;;);"-free HTML at domcontentloaded.
 const JOB_DETAIL_HTML = `<!doctype html><html><head>
 <script type="application/ld+json" nonce="abc123">{"@context":"http://schema.org/","@type":"JobPosting","title":"ASIC Engineer, Design","description":"The Infra-Silicon team at Meta designs ASICs.\\n","responsibilities":"Develop RTL designs&nbsp;Collaborate with verification engineers","hiringOrganization":{"@type":"Organization","name":"Meta"},"datePosted":"2026-07-07T22:04:31-07:00","jobLocation":[{"@type":"Place","name":"Bangalore, India"}],"qualifications":"Bachelor's degree&nbsp;2+ years of experience","employmentType":"FULL_TIME"}</script>
 </head><body>other page chrome</body></html>`;
@@ -129,7 +126,7 @@ test("extractMetaJd flattens description + responsibilities + qualifications and
   const jd = extractMetaJd(JOB_DETAIL_HTML);
   assert.match(jd, /Infra-Silicon team at Meta designs ASICs/);
   assert.match(jd, /Responsibilities/);
-  assert.match(jd, /Develop RTL designs Collaborate with verification engineers/); // &nbsp; decoded to space
+  assert.match(jd, /Develop RTL designs Collaborate with verification engineers/);
   assert.match(jd, /Minimum Qualifications/);
   assert.match(jd, /Bachelor's degree 2\+ years of experience/);
 });

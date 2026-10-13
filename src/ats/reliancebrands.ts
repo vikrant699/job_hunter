@@ -1,4 +1,4 @@
-// src/ats/reliancebrands.ts — Reliance Brands careers: rblcareers.in redirects to Reliance's group-wide "PeopleFirst / OPMP" candidate portal (peoplefirst.ril.com), an Angular SPA.
+// rblcareers.in redirects to Reliance's PeopleFirst/OPMP Angular portal (peoplefirst.ril.com)
 // Jobs come from POST .../opmp/api/tagcan-home-i/jobSearch, unauthenticated but WAF-guarded against plain Node fetch, so this runs inside the shared headless browser.
 import type { Page } from "playwright";
 import { z } from "zod";
@@ -21,7 +21,6 @@ const ID_KEYS = ["ReqId", "reqId", "reqid", "JobId", "jobId", "id", "PositionId"
 const LOCATION_KEYS = ["Location", "location", "City", "city", "WorkLocation", "workLocation", "JobLocation"];
 // Kept out of LOCATION_KEYS: a bare ISO code like "IN" carries no signal checkLocation() can match against the profile's "india"/"in," hints, so it's expanded and appended to the city instead (see composeLocation).
 const COUNTRY_KEYS = ["Country", "country", "CountryCode", "countryCode"];
-// Only the codes this adapter actually filters on; anything else passes through verbatim.
 const COUNTRY_CODE_NAMES: Record<string, string> = { IN: "India" };
 const JD_KEYS = ["JobDescription", "jobDescription", "Description", "description", "JD", "jd", "RoleDescription"];
 const DATE_KEYS = ["PostedDate", "postedDate", "PostingDate", "postingDate", "CreatedDate", "createdDate", "lastUpdated", "LastUpdated"];
@@ -35,7 +34,6 @@ function pick(job: Record<string, JsonValue>, keys: string[]): string | null {
   return null;
 }
 
-// City-ish location plus the country, deduplicated: "Mumbai" + "IN" -> "Mumbai, India".
 export function composeLocation(city: string | null, country: string | null): string | null {
   const countryName = country ? (COUNTRY_CODE_NAMES[country.toUpperCase()] ?? country) : null;
   if (!city) return countryName;
@@ -79,7 +77,6 @@ const JobRowSchema = z.record(z.string(), JsonValueSchema);
 
 async function postJobSearch(page: Page, body: JsonValue): Promise<{ result: JsonValue[] }> {
   // Both the Arg and the return cross the Playwright boundary as strings: a JsonValue-typed Arg would make Playwright's recursive Unboxed<Arg> type recurse into JsonValue's own union and exceed TS's instantiation-depth limit (same reason as browserFetch.ts).
-  // Validating the response text back on the Node side also keeps the parse in one place.
   const bodyJson = JSON.stringify(body);
   const raw = await page.evaluate(
     async ({ url, bodyJson }) => {

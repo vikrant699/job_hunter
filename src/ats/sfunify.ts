@@ -1,5 +1,4 @@
-// src/ats/sfunify.ts — SAP SuccessFactors CSB "Unify" skin (e.g. careers.wipro.com, careers.hcltech.com, jobs.standardchartered.com, careers.skyworksinc.com).
-// List: POST <origin>/services/recruiting/v1/jobs (page size server-fixed at 10). Detail: GET <origin>/job/<urlTitle>/<id>-<locale>, SSR HTML with the JD in one or more <span itemprop="description"> blocks.
+// List: POST <origin>/services/recruiting/v1/jobs (page size fixed at 10). Detail: GET <origin>/job/<urlTitle>/<id>-<locale>, JD in <span itemprop="description"> blocks.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -16,9 +15,7 @@ export const SfunifyJobSchema = z.object({
   unifiedStandardTitle: z.string(),
   urlTitle: z.string().nullable().optional(),
   unifiedUrlTitle: z.string().nullable().optional(),
-  // Present on Skyworks/Wipro/Standard Chartered as one pre-joined "City, State, Country" string.
   jobLocationShort: z.array(z.string()).nullable().optional(),
-  // HCLTech has no jobLocationShort - carries city + country in separate custom fields instead.
   custprimecity: z.string().nullable().optional(),
   custCountryRegion: z.array(z.string()).nullable().optional(),
   unifiedStandardStart: z.string().nullable().optional(),
@@ -30,7 +27,7 @@ const SfunifyListSchema = z.object({
   totalJobs: z.number().nullable().optional(),
 });
 
-// Body for one page; locale defaults to apiMeta.locale else en_US (listPostings passes the resolved one). The flat `location` field narrows by country on most tenants, but HCLTech ignores it entirely (0 results for any value) and instead needs the country facet routed through `facetFilters` via apiMeta.locationFacetField.
+// HCLTech ignores the flat `location` field (0 results), so its country facet goes through `facetFilters` via apiMeta.locationFacetField.
 export function sfunifyRequestBody(
   company: AdapterCompany,
   pageNumber: number,
@@ -53,7 +50,6 @@ export function sfunifyRequestBody(
   };
 }
 
-/** The homepage's script `defaultLocale: 'xx_YY'` (not served on every render), else its root `<html lang="xx-YY">`; null when neither is present. */
 export function sfunifyDefaultLocale(html: string): string | null {
   const scripted = html.match(/defaultLocale\s*:\s*['"]([a-z]{2}_[A-Z]{2})['"]/)?.[1];
   if (scripted) return scripted;
@@ -61,7 +57,7 @@ export function sfunifyDefaultLocale(html: string): string | null {
   return lang ? `${lang[1] ?? ""}_${lang[2] ?? ""}` : null;
 }
 
-// Some tenants list jobs only under their default locale and answer {"totalJobs":0} for en_US, so an unconfigured tenant asks its homepage first.
+// Some tenants answer {"totalJobs":0} for en_US and list only under their default locale, so ask the homepage first.
 async function resolveSfunifyLocale(company: AdapterCompany): Promise<string> {
   const configured = company.apiMeta?.locale;
   if (configured) return configured;
@@ -73,13 +69,12 @@ async function resolveSfunifyLocale(company: AdapterCompany): Promise<string> {
   }
 }
 
-/** Parse a list-page response body into its raw job entries + totalJobs. */
 export function sfunifyPageJobs(pageJson: JsonValue): { jobs: SfunifyJob[]; totalJobs: number | null } {
   const parsed = SfunifyListSchema.parse(pageJson);
   return { jobs: (parsed.jobSearchResult ?? []).map((j) => j.response), totalJobs: parsed.totalJobs ?? null };
 }
 
-/** "M/D/YY" (2-digit year, en_US tenants) or "DD/MM/YYYY" (4-digit year, Standard Chartered's en_GB) -> ISO; which layout applies is inferred from the year digit count, not the request locale. Null otherwise. */
+/** Layout inferred from the year digit count: "M/D/YY" (en_US) or "DD/MM/YYYY" (Standard Chartered en_GB). */
 export function parseSfunifyStartDate(s: string | null | undefined): string | null {
   if (!s) return null;
   const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
@@ -93,13 +88,13 @@ export function parseSfunifyStartDate(s: string | null | undefined): string | nu
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-/** `urlTitle`/`unifiedUrlTitle` arrive already percent-encoded from the API - interpolate as-is; re-encoding would double-encode the existing "%" escapes and 404. */
+/** urlTitle arrives already percent-encoded; re-encoding would double-encode and 404. */
 export function sfunifyJobUrl(company: AdapterCompany, job: SfunifyJob, locale: string): string {
   const slug = job.urlTitle ?? job.unifiedUrlTitle ?? "";
   return `${tenantOrigin(company)}/job/${slug}/${job.id}-${locale}`;
 }
 
-/** Prefers the pre-joined `jobLocationShort`, falling back to joining HCLTech's separate custom fields; some tenants (Wipro) embed a stray "<br/>" in jobLocationShort, so HTML is stripped either way. */
+/** Some tenants (Wipro) embed a stray "<br/>" in jobLocationShort, so HTML is stripped either way. */
 export function sfunifyLocation(job: SfunifyJob): string | null {
   const short = job.jobLocationShort?.[0];
   if (short) {
@@ -128,7 +123,7 @@ export function normalizeSfunify(company: AdapterCompany, job: SfunifyJob, local
   };
 }
 
-/** Joins every itemprop="description" span's text (the JD is rendered as 1-3 such spans); tracks span open/close depth rather than a naive match to the next </span>, since some tenants (Standard Chartered) nest inline <span style> runs that would otherwise truncate the JD. */
+/** Track span depth, not the next </span>: some tenants (Standard Chartered) nest inline <span style> runs that would truncate the JD. */
 export function extractSfunifyJd(html: string): string {
   const blocks: string[] = [];
   const openRe = /<span\b[^>]*itemprop="description"[^>]*>/gi;
@@ -178,14 +173,13 @@ export const sfunifyAdapter: AtsAdapter = {
       provider: "sfunify",
       company: company.slug,
       pageSize: PAGE,
-      // KNOWN LIMITATION: pageNumber-based pagination isn't fully deterministic (the same page can return a different 10-item slice on repeat requests, i.e. backend replicas with different orderings), so slicing isn't reliably tied to pageSize - only an empty page or reaching totalJobs ends pagination.
+      // Pagination isn't deterministic (a repeated page can return a different 10-item slice), so only an empty page or reaching totalJobs ends it.
       shortPageEndsPagination: false,
-      // dedupeBy handles cross-page accumulation; `seen` is tracked separately only so fetchPage can know BEFORE filtering whether a page was 100% already-collected, to decide the retry below.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
         let { jobs, totalJobs } = await fetchOnce(page);
         const allDuplicate = jobs.length > 0 && jobs.every((j) => seen.has(j.id));
-        // Retry once on an all-duplicate page - resampling the same pageNumber sometimes surfaces a different backend replica's ordering.
+        // Retry once on an all-duplicate page: resampling can hit a different backend replica's ordering.
         if (allDuplicate && (totalJobs === null || seen.size < totalJobs)) {
           ({ jobs, totalJobs } = await fetchOnce(page));
         }

@@ -10,7 +10,7 @@ import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 const API_ORIGIN = "https://app.advantageclub.ai";
 const PUBLIC_ORIGIN = "https://www.advantageclub.ai";
 const PAGE_SIZE = 50;
-const MAX_PAGES = 5000; // runaway backstop only, never truncate
+const MAX_PAGES = 5000;
 
 const AdvantageClubJobSchema = z.object({
   id: z.number(),

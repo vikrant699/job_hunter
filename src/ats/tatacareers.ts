@@ -1,5 +1,4 @@
-// src/ats/tatacareers.ts — Tata Group shared careers board (www.tata.com), aggregating live openings across ~20 Tata operating companies; apiMeta.company selects the tenant.
-// POST /bin/tata/jobPostingsFilterServlet? (form-urlencoded, browser UA + Referer/Origin/X-Requested-With required or the WAF 403s) -> { response: { totalJobPostingsCount, jobPostings: [...] } }; the detail page is a constructed URL from the job's own fields, no separate detail fetch.
+// POST /bin/tata/jobPostingsFilterServlet? (form-urlencoded; browser UA + Referer/Origin/X-Requested-With required or the WAF 403s) -> { response: { totalJobPostingsCount, jobPostings } }; detail URL is built from the job's own fields.
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -15,11 +14,11 @@ const SEARCH_URL = `${HOST}/bin/tata/jobPostingsFilterServlet?`;
 const REFERER = `${HOST}/careers/jobs/joblisting`;
 const DETAIL_PATH = `${HOST}/careers/jobs/jobdetails`;
 
-const PAGE = 10; // server-fixed page size
-// Server-enforced ceiling on totalJobPostingsCount regardless of term-list breadth — tenants with >100 open roles (e.g. TCS) only ever surface their top-100 relevance-ranked matches, since the servlet requires a non-empty searchTerm and has no browse-all mode.
+const PAGE = 10;
+// Server caps results at 100 relevance-ranked matches (no browse-all mode; searchTerm must be non-empty), so tenants with >100 roles (TCS) are truncated.
 const MAX_RESULTS = 100;
 
-// Broad OR-matched vocabulary approximating "every open role": the servlet does a fuzzy/full-text match, not a strict title substring, so a wide net of common role words is the closest thing to a wildcard this endpoint supports.
+// Fuzzy full-text OR-match: a wide net of common role words is the closest thing to a wildcard.
 export const BROAD_SEARCH_TERMS = [
   "Engineer", "Developer", "Manager", "Analyst", "Executive", "Associate",
   "Consultant", "Specialist", "Lead", "Officer", "Director", "Coordinator",
@@ -47,17 +46,16 @@ const TataResponseSchema = z.object({
   }),
 });
 
-// The exact company string the servlet expects, e.g. "Tata Elxsi". Required.
+// Exact company string the servlet expects, e.g. "Tata Elxsi".
 export function tataCompanyName(company: AdapterCompany): string {
   const name = company.apiMeta?.company;
   if (!name) throw new Error(`tatacareers requires apiMeta.company for ${company.slug}`);
   return name;
 }
 
-// Builds the form-urlencoded body for one page of the shared search. `start` is 1-indexed.
 export function tataSearchParams(company: AdapterCompany, start: number): URLSearchParams {
   const params = new URLSearchParams();
-  // The company name matches nearly every JD body, catching titles no role word covers
+  // The company name matches nearly every JD body, catching titles no role word covers.
   params.set("searchTerm", [...BROAD_SEARCH_TERMS, tataCompanyName(company)].join(", "));
   params.set("companies", JSON.stringify([tataCompanyName(company)]));
   params.set("searchMode", "search");
@@ -74,7 +72,6 @@ export function parseTataPage(json: JsonValue): { jobs: TataJob[]; total: number
   };
 }
 
-// Job detail page URL, matching the site's own link construction exactly.
 export function tataJobDetailUrl(company: AdapterCompany, j: TataJob): string {
   const params = new URLSearchParams({
     jobId: String(j.jobId),
@@ -102,7 +99,6 @@ export function normalizeTataCareers(company: AdapterCompany, j: TataJob): Norma
   };
 }
 
-// POST one page to the shared servlet.
 async function tataFetchPage(company: AdapterCompany, start: number): Promise<JsonValue> {
   const form = Object.fromEntries(tataSearchParams(company, start));
   return atsFetchFormJson(SEARCH_URL, form, {
@@ -142,5 +138,5 @@ export const tatacareersAdapter: AtsAdapter = {
       },
     });
   },
-  // shortDescription is the entirety of the JD even on the detail page — nothing fuller to fetch.
+  // shortDescription is the entire JD even on the detail page.
 };

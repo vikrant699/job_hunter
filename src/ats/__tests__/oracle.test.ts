@@ -31,7 +31,7 @@ test("normalizeOracle maps list metadata and builds the CE job URL", () => {
   assert.equal(p.postedAt, "2026-06-02");
 });
 
-// A stale siteNumber does not filter the board to empty -- the pod ignores an unknown site rather than matching nothing, so it can over-collect but never look like [] (a dead pod fails loudly instead: 503/ENOTFOUND/timeout/404, never a well-formed empty page); these tests pin that a genuinely empty result stays [].
+// An unknown siteNumber is ignored by the pod rather than emptying the board; a dead pod fails loudly (503/ENOTFOUND/timeout/404).
 
 const emptyListResponse = {
   items: [{ SiteNumber: "CX_1", TotalJobsCount: 0, requisitionList: [] }],
@@ -52,7 +52,7 @@ test("oracleAdapter.listPostings returns [] for a live pod with no open requisit
 });
 
 test("oracleAdapter.listPostings tolerates requisitionList being absent rather than empty", async (t) => {
-  // Without the adapter's `expand` param the pod omits the key entirely; `?? []` keeps that an empty board rather than a crash.
+  // Without the adapter's `expand` param the pod omits the key entirely.
   stubFetch(t, fetchSequence(() => jsonResponse({ items: [{ SiteNumber: "CX_1", TotalJobsCount: 0 }] })));
   assert.deepEqual(await oracleAdapter.listPostings(company), []);
 });
@@ -69,7 +69,6 @@ test("oracleAdapter.listPostings still lists a populated board unchanged", async
 });
 
 test("oracleAdapter.listPostings refuses to read a dead pod's 503 as an empty board", async (t) => {
-  // three canned 503s: fetchOk retries retryable statuses before surfacing the error (Retry-After keeps the test fast)
   const dead = (): Response =>
     new Response("<HTML><HEAD><TITLE>Service Unavailable</TITLE></HEAD><BODY>DNS failure</BODY></HTML>", {
       status: 503,
@@ -85,7 +84,6 @@ test("oracleAdapter.listPostings refuses to read a 404 resource path as an empty
 });
 
 test("a dead pod's HTTP status error stays chargeable to the company", async (t) => {
-  // The 503 comes from the remote over a live socket, so it must count toward consecutive_failures, not be treated as infra/transport noise.
   stubFetch(t, fetchSequence(() => htmlResponse("<HTML><TITLE>Service Unavailable</TITLE></HTML>", 503)));
   const err = await rejectionOf(oracleAdapter.listPostings(company));
   assert.equal(isTransportError(err), false);
@@ -117,7 +115,6 @@ test("oracleAdapter.listPostings sends the row's own base and siteNumber inside 
     return Promise.resolve(jsonResponse(emptyListResponse));
   });
   assert.deepEqual(await oracleAdapter.listPostings(icertis), []);
-  // The trailing slash on tenant_url is stripped, not doubled.
   assert.match(requested, /^https:\/\/iaaviz\.fa\.ocs\.oraclecloud\.com\/hcmRestApi\//);
   assert.match(requested, /finder=findReqs;siteNumber=1,limit=200,offset=0/);
 });

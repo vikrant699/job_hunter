@@ -1,12 +1,10 @@
 import { readFileSync } from "node:fs";
 
-/** Parsed template: subject + body, both still containing {{placeholder}} tokens. */
 export interface OutreachTemplate {
   subject: string;
   body: string;
 }
 
-/** Reads a template file: first line `Subject: ...`, blank line, then body; throws if malformed. */
 export function loadTemplate(path: string): OutreachTemplate {
   const raw = readFileSync(path, "utf-8");
   const newlineIndex = raw.indexOf("\n");
@@ -94,7 +92,6 @@ function fill(text: string, placeholders: Record<string, string>): string {
   });
 }
 
-/** Fills {{placeholders}} in the template's subject and body; throws on an unknown placeholder. */
 export function renderDraft(input: RenderDraftInput): RenderedDraft {
   const placeholders = buildPlaceholders(input);
   return {

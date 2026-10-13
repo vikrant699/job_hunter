@@ -1,5 +1,4 @@
-// src/ats/talentrecruit.ts — TalentRecruit career boards (Zepto, Voltas, ...), browser-backed + encrypted.
-// List: load the Angular SPA (a bare fetch 500s without its `shortname` header) then GET app.api.talentrecruit.com/api/v1/career/template/job/list (paginate by offset, limit 200); each response body is a TweetNaCl `box` blob {text,iv,key} decrypted with the global backend seed into { data: { data: { noOfTotalRecords:{count}, data:[jobs] } } }, and each job carries its full description inline (no separate detail endpoint).
+// List: load the Angular SPA (a bare fetch 500s without its `shortname` header), then GET app.api.talentrecruit.com/api/v1/career/template/job/list (offset-paged); bodies are TweetNaCl box blobs decrypted with the global seed, JD inline.
 import { z } from "zod";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -16,7 +15,7 @@ import { config } from "../config.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 
-// Global backend seed, verified identical across tenants; the 32-byte seed lives in the tenant's main.<hash>.js bundle and rotates on redeploy (cached on disk by bundleHash, re-extracted only on a cache miss or decrypt failure) - DEFAULT_SEED is a last-resort fallback only, runtime prefers the seed extracted from the live bundle (see resolveSeed).
+// DEFAULT_SEED is a last-resort fallback: the real seed lives in the tenant's main.<hash>.js bundle and rotates on redeploy.
 export const DEFAULT_SEED: readonly number[] = [
   98, 89, 42, 106, 113, 112, 94, 50, 73, 100, 114, 53, 108, 83, 52, 52,
   87, 73, 89, 98, 75, 56, 121, 90, 57, 86, 68, 86, 94, 68, 85, 113,
@@ -35,7 +34,7 @@ function b64ToBytes(s: string): Uint8Array {
   return Uint8Array.from(Buffer.from(s, "base64"));
 }
 
-// {text=ciphertext, key=nonce, iv=sender ephemeral public key} — TalentRecruit's field naming is intentionally misleading; this is the verified mapping.
+// {text=ciphertext, key=nonce, iv=sender ephemeral public key}: TalentRecruit's field naming is misleading.
 export const EncryptedBlobSchema = z.object({
   text: z.string(),
   iv: z.string(),
@@ -43,12 +42,11 @@ export const EncryptedBlobSchema = z.object({
 });
 export type EncryptedBlob = z.infer<typeof EncryptedBlobSchema>;
 
-// Low-level NaCl box open. Null means wrong seed (or corrupt blob) — callers re-extract on null.
 export function boxOpen(blob: EncryptedBlob, seed: Uint8Array): Uint8Array | null {
   return nacl.box.open(b64ToBytes(blob.text), b64ToBytes(blob.key), b64ToBytes(blob.iv), seed);
 }
 
-// Decrypt a blob to parsed JSON. Null iff box.open fails (wrong seed); throws only if decryption succeeds but the plaintext isn't valid JSON (re-extracting wouldn't fix that).
+// Null iff box.open fails (wrong seed); invalid JSON after a successful decrypt throws, since re-extracting wouldn't fix it.
 export function decryptToJson(blob: EncryptedBlob, seed: Uint8Array): JsonValue | null {
   const opened = boxOpen(blob, seed);
   if (!opened) return null;
@@ -58,7 +56,6 @@ export function decryptToJson(blob: EncryptedBlob, seed: Uint8Array): JsonValue 
 
 const SEED_RE = /backendseed\s*:\s*\{\s*secretKey\s*:\s*\[([0-9,\s]+)\]/;
 
-// Pulls the 32-byte seed array out of a `main.<hash>.js` bundle. Null if absent.
 export function extractSeedFromBundle(js: string): number[] | null {
   const m = js.match(SEED_RE);
   if (!m || !m[1]) return null;
@@ -66,15 +63,12 @@ export function extractSeedFromBundle(js: string): number[] | null {
   return nums.length === 32 ? nums : null;
 }
 
-// The seed-bearing bundle is served from the tenant host as `main.<hash>.js`; pick that URL from the observed responses, the hash being the cache key.
 export function bundleUrlFromResponses(urls: string[], tenantHost: string): string | null {
   const onHost = urls.filter((u) => u.includes(tenantHost) && /\/main\.[0-9a-f]+\.js(?:\?|$)/i.test(u));
   if (onHost[0]) return onHost[0];
-  // Fallback: any main.<hash>.js anywhere (still carries the same global seed).
   return urls.find((u) => /\/main\.[0-9a-f]+\.js(?:\?|$)/i.test(u)) ?? null;
 }
 
-// Stable cache key for a bundle URL — its filename (`main.<hash>.js`).
 export function bundleKey(bundleUrl: string): string {
   return bundleUrl.split("/").pop()?.split("?")[0] ?? bundleUrl;
 }
@@ -84,7 +78,6 @@ export interface SeedStore {
   set(key: string, seed: number[]): void;
 }
 
-// File-backed seed cache; data/ is gitignored, safe to delete (re-extracts on miss).
 export function fileSeedStore(path: string = SEED_CACHE_PATH): SeedStore {
   const read = (): Record<string, number[]> => {
     try {
@@ -111,7 +104,6 @@ export function fileSeedStore(path: string = SEED_CACHE_PATH): SeedStore {
   };
 }
 
-// Resolve the decryption seed: cache hit returns without a network call; a miss (or `force`) fetches the bundle once and extracts + caches the seed, falling back to DEFAULT_SEED (logged) if extraction fails.
 export async function resolveSeed(
   key: string,
   fetchBundle: () => Promise<string>,
@@ -132,7 +124,6 @@ export async function resolveSeed(
   return seedBytes(DEFAULT_SEED);
 }
 
-// Decrypt with self-healing: cached seed, then a forced re-extraction, then the hardcoded default. Throws only if all three fail (scheme change, not just a rotation).
 export async function decryptWithHealing(
   blob: EncryptedBlob,
   key: string,
@@ -187,7 +178,6 @@ export interface JobListPage {
   total: number | null;
 }
 
-// Unwrap the decrypted `{data:{data:{noOfTotalRecords,data:[...]}}}` envelope.
 export function parseJobListPage(decrypted: JsonValue): JobListPage {
   const parsed = JobListEnvelopeSchema.parse(decrypted);
   return {
@@ -200,7 +190,7 @@ export function normalizeTalentRecruit(company: AdapterCompany, j: TalentRecruit
   const location = (j.joblocation && j.joblocation.trim())
     || (j.officelocation && j.officelocation.trim())
     || joinLocation(j.city, j.state, j.country);
-  // `code` is the stable requisition code; `jobid` is a per-request AES token, so prefer code.
+  // `jobid` is a per-request AES token; the stable requisition `code` is preferred.
   const externalId = String(
     (j.code !== null && j.code !== undefined && j.code !== "" && j.code)
     || (j.jobid !== null && j.jobid !== undefined && j.jobid),
@@ -226,7 +216,7 @@ function jobListUrl(offset: number): string {
 }
 
 async function fetchBundle(bundleUrl: string): Promise<string> {
-  // The bundle is ~25MB; give it well beyond the standard ATS timeout.
+  // The bundle is ~25MB; allow well beyond the standard ATS timeout.
   return withAtsTimeout(async (signal) => {
     const res = await fetch(bundleUrl, { headers: { "User-Agent": BROWSER_UA }, signal });
     if (!res.ok) throw new Error(`talentrecruit bundle HTTP ${res.status}`);
@@ -240,9 +230,8 @@ export const talentRecruitAdapter: AtsAdapter = {
     const origin = tenantOrigin(company);
     const tenantHost = new URL(origin).host;
     const careerPage = `${origin}/career-page`;
-    const shortname = origin; // the tenant-context header value the SPA sends
+    const shortname = origin;
 
-    // First page (offset 0) both reveals the total and the bundle URL for the seed.
     const first = await browserCaptureText(careerPage, [
       { url: jobListUrl(0), headers: { shortname } },
     ]);
@@ -266,7 +255,6 @@ export const talentRecruitAdapter: AtsAdapter = {
     const out: NormalizedPosting[] = page0.jobs.map((j) => normalizeTalentRecruit(company, j));
     const total = page0.total ?? out.length;
 
-    // Remaining pages (rare — only tenants with >200 active jobs) in one more browser session.
     if (out.length < total && page0.jobs.length > 0) {
       const offsets: number[] = [];
       for (let off = out.length; off < total; off += PAGE_LIMIT) offsets.push(off);
@@ -285,5 +273,4 @@ export const talentRecruitAdapter: AtsAdapter = {
     }
     return out;
   },
-  // The list response carries the full description inline — no fetchJd needed.
 };

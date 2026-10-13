@@ -27,7 +27,6 @@ beforeEach(() => {
   __resetTokenCacheForTests();
 });
 
-// sheets.ts accepts an optional authDeps override so tests never read real files off disk.
 function fakeAuthDeps(): {
   fetchFn: typeof fetch;
   tokenPath: string;
@@ -58,7 +57,6 @@ interface CapturedRequest {
   body: string | undefined;
 }
 
-/** noUncheckedIndexedAccess-safe array access for test assertions. */
 function nth<T>(arr: T[], i: number): T {
   const v = arr[i];
   assert.ok(v !== undefined, `expected element at index ${i}`);

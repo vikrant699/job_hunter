@@ -21,7 +21,6 @@ const company: AdapterCompany = {
   tenantUrl: "https://emeritus.darwinbox.in/ms/candidate/careers", apiMeta: null,
 };
 
-// candidatev2 fixture, modeled on the live LG Soft India tenant.
 const v2Company: AdapterCompany = {
   provider: "darwinbox", slug: "lg-soft-india", name: "LG Soft India",
   careersUrl: "https://lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/home",
@@ -61,7 +60,7 @@ test("normalizeDarwinbox falls back to designation when title empty", () => {
   assert.equal(p.jobTitle, "Team Leader");
 });
 
-// Darwinbox writes the literal placeholder "Multiple locations" on multi-city listings; nulling it defers to the recall-safe title/JD/URL filter instead of dropping as out-of-region.
+// Darwinbox writes the literal placeholder "Multiple locations"; nulling it defers to the recall-safe title/JD/URL filter instead of dropping as out-of-region.
 test("darwinboxLocation nulls the 'Multiple locations' placeholder", () => {
   assert.equal(darwinboxLocation("Multiple locations"), null);
   assert.equal(darwinboxLocation("Multiple Locations"), null);
@@ -71,7 +70,6 @@ test("darwinboxLocation nulls the 'Multiple locations' placeholder", () => {
 
 test("darwinboxLocation keeps a real location and nulls empty/missing ones", () => {
   assert.equal(darwinboxLocation("Mumbai, Maharashtra, India"), "Mumbai, Maharashtra, India");
-  // A location that merely CONTAINS the phrase still carries real geo signal.
   assert.equal(darwinboxLocation("Multiple locations - Mumbai, Pune"), "Multiple locations - Mumbai, Pune");
   assert.equal(darwinboxLocation(""), null);
   assert.equal(darwinboxLocation("   "), null);
@@ -90,11 +88,10 @@ test("normalizeDarwinboxV2 emits null location for the placeholder", () => {
   assert.equal(p.location, null);
 });
 
-// The legacy list API serves 10 jobs/page; the cap is a runaway backstop only, never a truncation - matches turbohire's "fetch every page" rule.
+// List API serves 10 jobs/page; the cap is a runaway backstop, never a truncation.
 test("darwinboxPagesNeeded covers the whole board without truncating", () => {
   assert.equal(darwinboxPagesNeeded(684, 10), 69);
   assert.equal(darwinboxPagesNeeded(20, 10), 2);
-  // >100 pages must NOT be clamped to 100 (the old silent 1000-job ceiling).
   assert.equal(darwinboxPagesNeeded(4000, 10), 400);
 });
 
@@ -131,13 +128,11 @@ test("mergeDarwinboxPages throws (not warn+truncate) on a mid-pagination schema 
     () => mergeDarwinboxPages(company, out, [{ status: "ok", message: { jobs: "not-an-array" } }], 5),
     /darwinbox page \(fetched \d+\/\d+ so far\) response failed schema for emeritus/,
   );
-  // Must not silently keep only the partial list - the throw happens before any further mutation from this malformed page.
   assert.equal(out.length, 1);
 });
 
 test("darwinboxV2Token extracts the per-tenant token from a candidatev2 URL", () => {
   assert.equal(darwinboxV2Token(v2Company), "a6914476a29263");
-  // "main" is a valid token too (e.g. the Duroflex registry row).
   const mainTokenCompany: AdapterCompany = {
     ...v2Company,
     careersUrl: "https://duroflex.darwinbox.in/ms/candidatev2/main/careers/allJobs",
@@ -158,7 +153,6 @@ test("normalizeDarwinboxV2 maps fields, prefers title, and inlines the decoded J
   assert.equal(p.location, "Noida, Uttar Pradesh, India (LOC_02)");
   assert.equal(p.postedAt, "2026-07-07T09:02:58.000Z");
   assert.equal(p.jobUrl, "https://lgsihrms.darwinbox.in/ms/candidatev2/a6914476a29263/careers/jobDetails/a6a4cc0c2b4e8d");
-  // JD arrives already inline — no fetchJd round trip needed for candidatev2.
   assert.equal(p.jdText, "EMC Lab – In Charge");
 });
 
@@ -244,7 +238,7 @@ test("darwinboxDetailJd decodes the double HTML-encoded jd of a legacy detail re
   assert.match(darwinboxDetailJd(raw), /Job Overview\s+Lead training for ops teams\./);
 });
 
-// live shapes (delhivery, 1mg, gommt, bigbasket, au-small-finance-bank) where the recruiter saved no JD; the hosted job page renders an empty Job Description too
+// Live shapes where the recruiter saved no JD; the hosted page renders an empty Job Description too.
 test("darwinboxDetailJd returns empty for a JD that is empty at the source", () => {
   for (const jd of ["", " ", "&lt;p&gt;&lt;br&gt;&lt;/p&gt;", "&lt;p&gt;&lt;br /&gt;&lt;/p&gt;", "Please enter job description"]) {
     assert.equal(darwinboxDetailJd(detail({ jd })), "", JSON.stringify(jd));
@@ -258,7 +252,7 @@ test("darwinboxDetailJd tolerates a flat message and alternate JD keys", () => {
   assert.equal(darwinboxDetailJd(null), "");
 });
 
-// Cloudflare intermittently 403s one in-page fetch in an otherwise healthy session (emeritus in run 2026-10-13, timesinternet in a live sweep); the same request succeeds from a fresh session
+// Cloudflare intermittently 403s one in-page fetch in a healthy session; a fresh session succeeds.
 test("darwinboxRetryForbidden retries a 403 once in a fresh session, then succeeds", async () => {
   let calls = 0;
   const waits: number[] = [];

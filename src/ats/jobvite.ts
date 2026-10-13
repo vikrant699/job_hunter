@@ -19,7 +19,6 @@ export interface JobviteJob {
   location: string;
 }
 
-/** Tenant token from the board URL (jobs.jobvite.com/<tenant>/...). */
 export function jobviteTenant(company: AdapterCompany): string {
   for (const url of [company.tenantUrl, company.careersUrl]) {
     if (!url) continue;
@@ -36,7 +35,6 @@ export function jobviteSearchUrl(tenant: string, page: number): string {
   return `${ORIGIN}/${encodeURIComponent(tenant)}/search/?p=${page}`;
 }
 
-/** Parse one search page: rows + the "1-50 of 53" total (null when the board fits one page, no pagination control). */
 export function parseJobviteList(html: string): { jobs: JobviteJob[]; total: number | null } {
   const $ = cheerio.load(html);
   const jobs: JobviteJob[] = [];
@@ -59,7 +57,6 @@ export function parseJobviteList(html: string): { jobs: JobviteJob[]; total: num
   return { jobs, total };
 }
 
-/** Parse a job page: JD text plus the meta locations (department stripped). */
 export function parseJobviteJd(html: string): { jdText: string; location: string | null } {
   const $ = cheerio.load(html);
   const jdText = htmlToText($(".jv-job-detail-description").first().html() ?? "");

@@ -53,7 +53,7 @@ test("normalizeZappyhireNew maps fields, uses the API's job_url, strips HTML fro
   assert.equal(p.jobTitle, newJob.title);
   assert.equal(p.jobUrl, "https://fedregister.zappyhire.com/start/3218/cl/la");
   assert.equal(p.location, "Anywhere in India");
-  assert.equal(p.isRemote, true); // "Anywhere" matches REMOTE_RE
+  assert.equal(p.isRemote, true);
   assert.match(p.jdText, /sales professionals/);
   assert.doesNotMatch(p.jdText, /<p>|<strong>/);
   assert.equal(p.postedAt, "2026-04-13T00:00:00.000Z");
@@ -132,7 +132,7 @@ test("zappyhireAdapter.listPostings (new-gen): malformed response (no results) r
 });
 
 test("zappyhireAdapter.fetchJd (new-gen): returns the already-inline jdText without any network call", async (t) => {
-  stubFetch(t, fetchSequence()); // any fetch call here is a bug -- fail loudly if hit
+  stubFetch(t, fetchSequence());
   const posting: NormalizedPosting = {
     provider: "zappyhire", externalId: "3218", companySlug: "federalbank", companyName: "Federal Bank",
     jobTitle: "x", jobUrl: "https://x", location: null, isRemote: false,
@@ -154,7 +154,6 @@ test("zappyhireAdapter.listPostings (legacy): dept dashboard then per-dept jobs,
         });
       },
       () => jsonResponse({ status: 1, errors: "", results: [legacyJob, { id: 900, title: "Teller", locations: "Kochi" }] }),
-      // Second department re-lists job 804 -- must collapse to one posting.
       () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }),
     ),
   );
@@ -180,8 +179,8 @@ test("zappyhireAdapter.listPostings (legacy): one malformed department's jobs re
     t,
     fetchSequence(
       () => jsonResponse({ status: 1, errors: "", results: [{ id: 2, name: "A" }, { id: 11, name: "B" }] }),
-      () => jsonResponse({ status: 0 }), // dept 2's jobs call: malformed
-      () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }), // dept 11's jobs call: fine
+      () => jsonResponse({ status: 0 }),
+      () => jsonResponse({ status: 1, errors: "", results: [legacyJob] }),
     ),
   );
   const postings = await zappyhireAdapter.listPostings(legacyCompany);

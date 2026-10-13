@@ -1,4 +1,3 @@
-// One-time (idempotent) bootstrap of the outreach spreadsheet: creates the bot-managed tabs, seeds Raw Data and Companies from local files when empty, writes headers into empty lifecycle tabs, and adds the bot's extra columns to Recruiters List. Safe to re-run - tabs with data are left untouched.
 import "dotenv/config";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -41,7 +40,6 @@ async function main(): Promise<void> {
   await ensureTabs(profileId, [t.rawData, t.drafts, t.sent, t.undrafted, t.companies]);
   console.log(`tabs before: ${before.join(" | ")}`);
 
-  // Raw Data: local-only, never committed - the live tab is the source once seeded.
   const csvPath = resolve(process.cwd(), "config/recruiters-raw.csv");
   if (existsSync(csvPath)) {
     const csvRows = parseCsv(readFileSync(csvPath, "utf-8").replace(/^﻿/, ""));
@@ -54,7 +52,6 @@ async function main(): Promise<void> {
     console.log(`${t.rawData}: no local csv at ${csvPath} — leaving as-is`);
   }
 
-  // Companies: seed from the local cache if one exists; a brand-new setup with no cache starts empty for manual curation.
   const registryPath = resolve(process.cwd(), config.storage.registryPath);
   if (existsSync(registryPath)) {
     const entries = z.array(RegistryEntrySchema).parse(JSON.parse(readFileSync(registryPath, "utf-8")));
@@ -63,12 +60,10 @@ async function main(): Promise<void> {
     console.log(`${t.companies}: no local cache at ${registryPath} — leaving as-is`);
   }
 
-  // Empty lifecycle tabs get their headers so humans see the schema immediately.
   await seedIfEmpty(profileId, t.drafts, DRAFTS_HEADER, []);
   await seedIfEmpty(profileId, t.sent, SENT_HEADER, []);
   await seedIfEmpty(profileId, t.undrafted, UNDRAFTED_HEADER, []);
 
-  // Recruiters List: add the bot's E1:G1 columns once, never touch manual data.
   const recruiters = await readTab(profileId, t.recruiters);
   const headerRow = recruiters[0] ?? [];
   if ((headerRow[4] ?? "").trim() === "") {

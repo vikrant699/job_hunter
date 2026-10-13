@@ -27,7 +27,6 @@ test("atsHttpError builds 404 and generic errors", () => {
 });
 
 test("atsFetchHtml returns the response body, falling back to the requested URL when res.url is empty", async (t) => {
-  // Response's .url is read-only (populated by real fetch), so this exercises the res.url || url fallback.
   stubFetch(t, async () => new Response("<html>hi</html>", { status: 200 }));
   const { html, finalUrl } = await atsFetchHtml("https://example.com/careers", { provider: "phenom" });
   assert.equal(html, "<html>hi</html>");
@@ -43,7 +42,6 @@ test("atsFetchHtml throws atsHttpError on a non-OK response", async (t) => {
   });
 });
 
-// atsHttpError keeps only 200 chars of body, truncating before WAF markers - the full body must be scanned for challenge evidence before the snippet is cut.
 test("a non-OK response whose body is a WAF block page throws an edge-refusal error, not a board defect", async (t) => {
   const cloudFrontBody =
     `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n` +
@@ -76,7 +74,6 @@ test("atsFetchText is a thin wrapper that discards finalUrl", async (t) => {
   assert.equal(text, "plain text body");
 });
 
-// withAtsTimeout's default duration is untestable without config injection; these two tests pin what is pinnable: the signal reaches fetch, and abort propagates.
 test("atsFetchJson passes an abortable timeout signal to fetch", async (t) => {
   let sawSignal = false;
   stubFetch(t, (_url, init) => {
@@ -106,7 +103,6 @@ test("parseOrNull returns null on mismatch", () => {
   assert.equal(parseOrNull(S, { a: "no" }, { provider: "x", slug: "acme" }), null);
 });
 
-// The whole gate exists so a board fetch WAITS out an outage instead of failing and letting the run march on.
 test("atsFetchJson waits out a network outage instead of failing the board", async (t) => {
   let online = false;
   t.after(stopConnectivityMonitor);
@@ -135,7 +131,6 @@ test("atsFetchJson waits out a network outage instead of failing the board", asy
   assert.deepEqual(result, { ok: true });
 });
 
-// A board that answers, even with a block page, proves the connection is fine, so one hostile host must never pause everything else.
 test("a blocked board reports success to the monitor and does not pause the run", async (t) => {
   t.after(stopConnectivityMonitor);
   startConnectivityMonitor({ intervalMs: 10_000, downIntervalMs: 10_000, probe: async () => true });
@@ -147,7 +142,6 @@ test("a blocked board reports success to the monitor and does not pause the run"
   assert.equal(connectivityStatus().down, false, "a 403 is the board's problem, not the network's");
 });
 
-// Retry-After is clamped to a 250ms floor (util/httpRetry.ts), which is what keeps these fast enough to assert for real.
 test("fetchOk retries a 429 with Retry-After then returns the 200 that follows", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {
@@ -184,7 +178,6 @@ test("fetchOk does not retry a non-retryable status like 404", async (t) => {
   assert.equal(calls, 1);
 });
 
-// Edge-challenge classification must still fire off the FINAL attempt's body — it is what powers the deferred end-of-run retry pass.
 test("fetchOk still classifies an edge challenge after exhausting retries", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {

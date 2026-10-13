@@ -1,5 +1,5 @@
-// src/ats/procmart.ts — ProcMart careers (www.procmart.com): each opening is a WordPress page at slug `job-opening-<N>`; list is GET /wp-json/wp/v2/pages without the `content` field (any collection query requesting `content` hangs the origin — Elementor render stalls PHP).
-// Detail is a per-page GET with `_fields=...,content`; page.title.rendered is always "Job Opening", so the real title is the content's first <h2>.
+// list: GET /wp-json/wp/v2/pages WITHOUT `content` (a collection query requesting it hangs the origin)
+// detail: GET per page with _fields=...,content; title.rendered is always "Job Opening", so the title is the content's first <h2>
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

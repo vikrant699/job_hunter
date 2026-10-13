@@ -87,7 +87,6 @@ const job2 = {
   jobdescriptionurl: null,
 };
 
-/** Wrap an island object in a realistic page: junk before/after the script tag. */
 function pageWith<T>(island: T): string {
   return [
     "<!DOCTYPE html><html><head><title>Careers</title></head><body>",
@@ -115,7 +114,6 @@ test("decodeWebbtreeEntities round-trips text containing both & and \" via the e
 });
 
 test("decodeWebbtreeEntities does not re-scan a decoded &a; as the start of a new entity", () => {
-  // A naive two-pass (first &a;->&, then re-scan for &q;) would wrongly fuse "&a;q;" into a decoded quote.
   assert.equal(decodeWebbtreeEntities("&a;q;"), "&q;");
 });
 
@@ -123,7 +121,7 @@ test("extractServerAppStateIsland finds the island script contents", () => {
   const raw = extractServerAppStateIsland(pageWith(fullIsland()));
   assert.ok(raw !== null);
   assert.match(raw, /^\{/);
-  assert.match(raw, /&q;/); // still entity-escaped at this point
+  assert.match(raw, /&q;/);
 });
 
 test("extractServerAppStateIsland returns null when the island is absent", () => {
@@ -149,7 +147,6 @@ test("parseServerAppState throws an actionable error on non-JSON garbage", () =>
 });
 
 test("parseServerAppState throws an actionable error when the shape is wrong", () => {
-  // A top-level array (not a Record<string, {url, body}>) means the TransferState serialization changed shape.
   assert.throws(
     () => parseServerAppState(encodeIsland([1, 2, 3]), SLUG),
     /webbtree serverApp-state island response failed schema for ideaforge/,
@@ -393,7 +390,6 @@ test("webbtreeAdapter.fetchJd returns '' and logs a warning on a malformed getjo
   stubFetch(async (url) => {
     const u = String(url);
     if (u.includes("/company/")) return new Response(pageWith(fullIsland()), { status: 200 });
-    // jobdescription as a number (not a string) fails WebbtreeJobDetailsResponseSchema.
     return new Response(
       JSON.stringify({ status: "success", message: { details: { jobdescription: 12345 } } }),
       { status: 200 },

@@ -1,5 +1,5 @@
-// src/ats/radancy.ts — Radancy enterprise career sites (e.g. careers.ford.com, jobs.intuit.com): the landing page's #search-results attributes carry the query, which is POSTed with CurrentPage=N to its data-ajax-post-url (JSON {results: html}); pages without that endpoint fall back to `?p=N`.
-// JD comes from a per-job page fetch; both tenants' WAF/CDN blocks the plain bot UA on some routes, so every request uses a browser UA.
+// POST the landing page's #search-results query with CurrentPage=N to data-ajax-post-url (JSON {results: html}); pages without it fall back to ?p=N
+// every request uses a browser UA: WAF/CDN blocks the bot UA on some routes
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -12,12 +12,11 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import type { JsonValue } from "../util/json.js";
 
-const NOMINAL_PAGE_SIZE = 15; // informational only; pagination relies on data-total-results, not this
+const NOMINAL_PAGE_SIZE = 15;
 
 const TOTAL_PAGES_RE = /data-total-pages="(\d+)"/;
 const TOTAL_RESULTS_RE = /data-total-results="(\d+)"/;
 
-// "No job cards" alone can't signal a dead board: a live search page can legitimately match zero India results (data-total-results="0"), same as the board being gone.
 // data-total-results is emitted whatever the count, so its total absence (not a zero count) is what means the board is dead; a WAF challenge page also lacks it, so that's checked first and treated as infrastructure rather than charged to the row.
 export function assertRadancyBoardServed(
   totalResults: number | null,
@@ -34,10 +33,8 @@ export function assertRadancyBoardServed(
   );
 }
 
-// Checked in order; the first tier with any match wins.
 const JD_CLASS_TIERS = ["ats-description", "job-description", "__description"];
 
-// Page 1 is the bare careersUrl, unmodified.
 export function radancyListUrl(careersUrl: string, page: number): string {
   if (page <= 1) return careersUrl;
   const sep = careersUrl.includes("?") ? "&" : "?";
@@ -151,7 +148,6 @@ export function parseRadancyTotals(html: string): { totalPages: number | null; t
   };
 }
 
-// jobId is the trailing numeric segment of a "/job/<city>/<slug>/<orgId>/<jobId>" href.
 export function parseRadancyJobId(href: string): string | null {
   const path = href.split(/[?#]/)[0] ?? "";
   const segs = path.split("/").filter(Boolean);
@@ -159,7 +155,6 @@ export function parseRadancyJobId(href: string): string | null {
   return last && /^\d+$/.test(last) ? last : null;
 }
 
-// Scopes card search to elements whose id/class contains "search-results" (excludes Ford's unrelated "similar jobs" widget) and dedups by externalId (nested containers can revisit the same anchor).
 export function parseRadancyList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const base = tenantOrigin(company);
   const $ = cheerio.load(html);
@@ -244,7 +239,6 @@ export const radancyAdapter: AtsAdapter = {
       provider: "radancy",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // Termination is a zero-job page (defensive backstop) or reaching data-total-results, read once from page 1 and never reconsidered.
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,

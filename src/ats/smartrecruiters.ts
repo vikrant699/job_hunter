@@ -6,11 +6,9 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, parseOrThrow } from "./http.js";
 import { paginate, joinLocation } from "./shared.js";
 
-// SmartRecruiters public Posting API: GET .../postings (paginated list) and .../postings/<id> (detail); two-phase like Workday so fetchJd only runs for new in-region postings.
-
 const PAGE_LIMIT = 100;
 
-/** SR company token; defaults to the registry slug, overridden by apiMeta.boardSlug when the registry slug isn't the SR id (e.g. coding-ninjas -> "CodingNinjas"). */
+/** Override when the registry slug isn't the SR id (e.g. coding-ninjas -> "CodingNinjas"). */
 function srToken(company: AdapterCompany): string {
   return company.apiMeta?.boardSlug ?? company.slug;
 }
@@ -104,7 +102,6 @@ export const smartRecruitersAdapter: AtsAdapter = {
       return "";
     }
 
-    // Replace the synthesized list-time URL with the canonical one from the API.
     posting.jobUrl = srPostingUrl(srToken(company), posting.externalId, parsed.data);
 
     const sections = parsed.data.jobAd?.sections;
@@ -118,7 +115,7 @@ export const smartRecruitersAdapter: AtsAdapter = {
   },
 };
 
-/** Canonical posting URL: detail endpoint's postingUrl/applyUrl wins; otherwise synthesize jobs.smartrecruiters.com (the old careers.smartrecruiters.com form didn't resolve for tenants with their own front-end, e.g. Bosch). */
+/** The old careers.smartrecruiters.com form didn't resolve for tenants with their own front-end (e.g. Bosch). */
 export function srPostingUrl(
   slug: string,
   id: string,
@@ -130,7 +127,7 @@ export function srPostingUrl(
 }
 
 function normalize(company: AdapterCompany, p: Posting): NormalizedPosting {
-  // SR returns lower-case country codes (e.g. "in"); upper-case to match the location filter.
+  // SR returns lower-case country codes (e.g. "in").
   const loc = p.location;
   const location = joinLocation(loc?.city, loc?.region, loc?.country?.toUpperCase());
   const isRemote = loc?.remote === true;

@@ -10,7 +10,6 @@ const company: AdapterCompany = {
   apiMeta: { orgunit: "Cement" },
 };
 
-// Trimmed from a live fetch of /api/v3/jobs?orgunit=Cement (2026-07-11).
 const cementJob: AdityaBirlaJob = {
   id: "610461",
   organizationUnitComplete: "Cement>Cement>Cement>Cement>Secretarial",

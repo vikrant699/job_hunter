@@ -1,5 +1,4 @@
-// src/ats/skuad.ts — Skuad careers (skuad.io/careers), a Webflow site whose job list comes from a Google Apps Script web app (Sheet-backed; exec URL baked into Skuad's JS bundle). No pagination, no auth - site slices client-side.
-// No JD text exists anywhere on skuad.io (apply_link points to a third-party board) - jdText is synthesized from the structured fields so postings stay gate-able.
+// No JD text exists on skuad.io (apply_link is a third-party board), so jdText is synthesized from structured fields.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { makeJsonListAdapter } from "./jsonList.js";
@@ -35,7 +34,7 @@ export function normalizeSkuadJob(company: AdapterCompany, j: SkuadJob): Normali
     .join("\n");
   return {
     provider: "skuad",
-    // No server id exists — the role+location pair is the only stable key.
+    // No server id: role+location is the only stable key.
     externalId: `${j.job_role}::${location ?? ""}`.toLowerCase().replace(/[^a-z0-9:]+/g, "-"),
     companySlug: company.slug,
     companyName: company.name,

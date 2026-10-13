@@ -61,7 +61,7 @@ test("parseCsvRows handles a file with no trailing newline", () => {
   ]);
 });
 
-// Trimmed excerpt of the real CSV, plus one synthetic row with an empty Description/Sub-category (a verified live shape).
+// Includes a synthetic row with empty Description/Sub-category (a live shape).
 const REAL_CSV = `Role,Description,Link,Category,Sub-category
 SDE -II,https://docs.google.com/document/d/1wqbbzRAOxwIY8IjhLlAiVeoKHVFNFyWEib8gKmcsa38/edit?usp=sharing,https://pinelabsgroup.turbohire.co/get/YXQ5M3d,Engineering,Platform
 Senior Manager - Strategic Accounts,,https://pinelabsgroup.turbohire.co/get/OGk2WWZ,Sales,
@@ -122,7 +122,6 @@ test("normalizeSetuRow builds a posting with the fixed HQ location", () => {
   assert.equal(p.jdText, "");
 });
 
-// Trimmed live-captured shape: head + the schema.org JobPosting script carrying the full plain-text JD.
 const REAL_JOB_PAGE_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>TurboHire</title>
 <meta property="og:title" content="[Hiring For]: SDE II(DT_210)"/>

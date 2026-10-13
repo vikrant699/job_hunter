@@ -16,19 +16,15 @@ import { findDbFile, uploadDbFile, downloadDbFile } from "../google/drive.js";
 import type { DriveDeps, DriveFileMeta } from "../google/drive.js";
 import { isDbOpen } from "./openState.js";
 
-/** Which side is ahead. Drives both the CLI scripts and the pre-flight guard. */
 export type SyncVerdict = "in-sync" | "remote-newer" | "local-newer" | "no-remote" | "no-local";
 
-/** Clock skew between two machines shouldn't read as a real difference. */
 const SKEW_TOLERANCE_MS = 5_000;
 
-/** A push below this fraction of the remote's size is refused as data loss rather than progress; --force overrides a deliberate shrink. */
+/** A push below this fraction of the remote's size is refused as data loss; --force overrides. */
 const SHRINK_REFUSE_RATIO = 0.5;
 
 export interface SyncDeps extends DriveDeps {
-  /** Overrides config.storage.dbPath; tests set it so a sync never touches the real database. */
   dbPath?: string;
-  /** Skip the safety refusals in pushDb. Only ever set from an explicit --force. */
   force?: boolean;
 }
 
@@ -36,7 +32,6 @@ function dbPathOf(deps: SyncDeps): string {
   return deps.dbPath ?? config.storage.dbPath;
 }
 
-/** Pure decision: given the two modified times, who is ahead? Kept separate from I/O so it's unit-testable. */
 export function compareState(
   localMtimeMs: number | null,
   remoteMtimeMs: number | null,
@@ -51,13 +46,12 @@ export function compareState(
 export interface LocalDbState {
   mtimeMs: number | null;
   bytes: number;
-  /** Rows in `postings`; null if no file/table, 0 if the file exists but was never used (db.ts creates it on import). */
+  /** null if no file/table; 0 if never used (db.ts creates it on import). */
   postings: number | null;
 }
 
 const CountSchema = z.object({ n: z.number() });
 
-/** Read everything about the local DB the decisions below need. Never throws. */
 export function readLocalState(dbPath: string): LocalDbState {
   if (!existsSync(dbPath)) return { mtimeMs: null, bytes: 0, postings: null };
   const stat = statSync(dbPath);
@@ -70,20 +64,18 @@ export function readLocalState(dbPath: string): LocalDbState {
       handle.close();
     }
   } catch (err) {
-    // No postings table yet, or an unreadable file - either way, not worth pushing over the backup.
     logger.debug({ err: String(err).slice(0, 120) }, "db sync: could not count local postings");
   }
   return { mtimeMs: stat.mtimeMs, bytes: stat.size, postings };
 }
 
-/** compareState plus the one thing timestamps can't express: a local file with no postings is a fresh machine, not one that's ahead. */
+/** A local file with no postings is a fresh machine, not one that's ahead. */
 export function decideBeforeRun(local: LocalDbState, remoteMtimeMs: number | null): SyncVerdict {
   if (remoteMtimeMs === null) return "no-remote";
   if (local.postings === null || local.postings === 0) return "no-local";
   return compareState(local.mtimeMs, remoteMtimeMs);
 }
 
-/** May this local file replace the remote one? Throws (not a boolean) so no caller can forget to check. */
 export function assertPushSafe(
   local: LocalDbState,
   remoteBytes: number | null,
@@ -113,7 +105,7 @@ function remoteBytesOf(remote: DriveFileMeta | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Stamp the local file with the remote's mtime after a transfer, or the upload-duration gap would exceed skew tolerance and every run would re-download what it just uploaded. */
+/** Stamp local with the remote's mtime, else the upload-duration gap exceeds skew tolerance and every run re-downloads. */
 function alignMtimeToRemote(dbPath: string, remote: DriveFileMeta): void {
   const ms = Date.parse(remote.modifiedTime);
   if (!Number.isFinite(ms)) return;
@@ -121,17 +113,16 @@ function alignMtimeToRemote(dbPath: string, remote: DriveFileMeta): void {
   utimesSync(dbPath, seconds, seconds);
 }
 
-/** `PRAGMA wal_checkpoint` returns busy (gave up?), log (WAL frame count), checkpointed (frames moved to the main file). */
+/** PRAGMA wal_checkpoint columns: busy, log (WAL frames), checkpointed (frames moved to the main file). */
 const CheckpointSchema = z.object({
   busy: z.number(),
   log: z.number(),
   checkpointed: z.number(),
 });
 
-/** How long to keep waiting for another connection to let go. */
 const CHECKPOINT_TIMEOUT_MS = 30_000;
 const CHECKPOINT_RETRY_DELAY_MS = 1_000;
-/** Deliberately short: node:sqlite is synchronous, so a longer value here would freeze the process; waiting happens between attempts instead. */
+/** Deliberately short: node:sqlite is synchronous, so a longer value freezes the process. */
 const CHECKPOINT_BUSY_TIMEOUT_MS = 1_000;
 
 export interface CheckpointOpts {
@@ -140,7 +131,6 @@ export interface CheckpointOpts {
   busyTimeoutMs?: number;
 }
 
-/** One attempt. Returns what SQLite reported, or null if the result was unreadable. */
 function attemptCheckpoint(dbPath: string, busyTimeoutMs: number): z.infer<typeof CheckpointSchema> | null {
   const handle = new DatabaseSync(dbPath);
   try {
@@ -152,7 +142,7 @@ function attemptCheckpoint(dbPath: string, busyTimeoutMs: number): z.infer<typeo
   }
 }
 
-/** Folds the WAL into the main file before upload; busy=1 during TRUNCATE means another connection holds the DB (retried for 30s), not a failure - only truly uncopied frames fail the push. */
+/** busy=1 during TRUNCATE means another connection holds the DB (retried 30s), not a failure. */
 export async function checkpointWal(dbPath: string, opts: CheckpointOpts = {}): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? CHECKPOINT_TIMEOUT_MS;
   const retryDelayMs = opts.retryDelayMs ?? CHECKPOINT_RETRY_DELAY_MS;
@@ -163,7 +153,6 @@ export async function checkpointWal(dbPath: string, opts: CheckpointOpts = {}): 
   for (;;) {
     attempts++;
     const result = attemptCheckpoint(dbPath, busyTimeoutMs);
-    // Unreadable result: no evidence of a problem, so do not invent one.
     if (result === null || result.busy === 0) return;
 
     if (Date.now() >= deadline) {
@@ -190,7 +179,6 @@ export async function checkpointWal(dbPath: string, opts: CheckpointOpts = {}): 
   }
 }
 
-/** Reject a download that isn't a healthy SQLite database before it replaces anything. */
 function assertHealthyDb(path: string): void {
   const handle = new DatabaseSync(path);
   try {
@@ -211,7 +199,6 @@ export interface SyncResult {
   remote: DriveFileMeta | null;
 }
 
-/** Push the local DB to Drive, creating the remote file on first use. */
 export async function pushDb(profileId: string, deps: SyncDeps = {}): Promise<SyncResult> {
   const dbPath = dbPathOf(deps);
   if (!existsSync(dbPath)) throw new Error(`no local database at ${dbPath}`);
@@ -231,10 +218,9 @@ export async function pushDb(profileId: string, deps: SyncDeps = {}): Promise<Sy
   return { verdict: "local-newer", action: "uploaded", bytes: bytes.byteLength, remote };
 }
 
-/** Downloads to a sibling temp file, integrity-checks it, then swaps - a half-finished or corrupt download can never clobber a working database. */
 export async function pullDb(profileId: string, deps: SyncDeps = {}): Promise<SyncResult> {
   const dbPath = dbPathOf(deps);
-  // Swap is only safe while nothing holds the file open: Windows rejects the rename with EPERM, Linux silently keeps reading the replaced file.
+  // Swap is only safe while nothing holds the file open: Windows rejects with EPERM, Linux keeps reading the replaced file.
   if (isDbOpen()) {
     throw new Error(
       "refusing to pull: the SQLite connection in db/db.ts is already open, so replacing " +
@@ -259,7 +245,7 @@ export async function pullDb(profileId: string, deps: SyncDeps = {}): Promise<Sy
     throw err;
   }
 
-  // Stale -wal/-shm describe the OLD file; leaving them would corrupt the new one.
+  // Stale -wal/-shm describe the old file and would corrupt the new one.
   for (const suffix of ["-wal", "-shm"]) {
     if (existsSync(`${dbPath}${suffix}`)) unlinkSync(`${dbPath}${suffix}`);
   }
@@ -270,7 +256,6 @@ export async function pullDb(profileId: string, deps: SyncDeps = {}): Promise<Sy
   return { verdict: "remote-newer", action: "downloaded", bytes: bytes.byteLength, remote };
 }
 
-/** Compare the local DB against the Drive copy without transferring the file. */
 export async function checkState(
   profileId: string,
   deps: SyncDeps = {},
@@ -281,14 +266,14 @@ export async function checkState(
   return { verdict: decideBeforeRun(local, remoteMs), remote, local };
 }
 
-/** Profiles are separate Google accounts; an unpinned second profile would fork its own backup and pull it over the shared local DB, so DB_SYNC_PROFILE pins the owning profile and others skip sync. */
+/** An unpinned second profile would fork its own backup over the shared local DB. */
 export function syncSkipReason(profileId: string): string | null {
   const pinned = config.google.driveSyncProfile;
   if (pinned === "" || pinned === profileId) return null;
   return `DB sync is pinned to profile '${pinned}' via DB_SYNC_PROFILE; '${profileId}' uses a different Google account, so its Drive holds a different backup.`;
 }
 
-/** A failure while deciding only logs (sync loss shouldn't abort a scrape), but a failure while pulling propagates - a known-stale local DB must stop the run. */
+/** A failure while deciding only logs; a failure while pulling propagates: a stale local DB must stop the run. */
 export async function syncBeforeRun(profileId: string, deps: SyncDeps = {}): Promise<void> {
   const skip = syncSkipReason(profileId);
   if (skip !== null) {
@@ -331,7 +316,7 @@ export async function syncBeforeRun(profileId: string, deps: SyncDeps = {}): Pro
   }
 }
 
-/** Post-run push. Best-effort: a Drive outage must not fail a completed run. */
+/** Best-effort: a Drive outage must not fail a completed run. */
 export async function syncAfterRun(profileId: string, deps: SyncDeps = {}): Promise<void> {
   const skip = syncSkipReason(profileId);
   if (skip !== null) {

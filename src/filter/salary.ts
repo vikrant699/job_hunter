@@ -1,5 +1,3 @@
-// Mechanical (no-LLM) stated-salary extraction from JD text, India-first; pure regex/arithmetic, no network/LLM calls.
-
 export type SalaryPeriod = "year" | "month" | "week" | "day" | "hour";
 
 export interface SalaryExtract {
@@ -12,13 +10,13 @@ export interface SalaryExtract {
   raw: string;
 }
 
-// Currency tokens: longer/symbol forms first so "US$" isn't split into "US" + "$"; word forms are \b-bounded so "Rs" never matches inside "Years"/"hrs" and "INR"/"USD"/etc never match mid-word.
+// Longer/symbol forms first so "US$" isn't split; word forms are \b-bounded so "Rs" never matches inside "Years"/"hrs".
 const CUR = String.raw`(?:US\$|₹|\$|€|£|\bRs\.?|\bINR\b|\bUSD\b|\bEUR\b|\bGBP\b|\bAED\b|\bSGD\b|\bCAD\b|\bAUD\b)`;
 
-// Digit groups with commas (handles both Indian 2-2-3 grouping and Western 3-3 grouping - stripping all commas before parsing works for either) plus an optional decimal.
+// Handles Indian 2-2-3 and Western 3-3 grouping: all commas are stripped before parsing.
 const NUM = String.raw`\d[\d,]*(?:\.\d+)?`;
 
-// Indian magnitude words + the ambiguous "k" shorthand; the negative lookahead stops "5 known" from reading "k" out of "known" - MAG only matches when nothing but whitespace/punctuation follows.
+// Ambiguous "k": the negative lookahead stops "5 known" from reading "k" out of "known".
 const MAG = String.raw`(?:LPA|LAKHS?|LACS?|CRORE|CR|K)(?![a-zA-Z])`;
 
 const SEP = String.raw`\s*(?:-|–|—|\bto\b)\s*`;
@@ -110,7 +108,6 @@ interface Candidate extends SalaryExtract {
   hasContext: boolean;
 }
 
-/** Best stated-salary figure in `text`, or null when nothing plausible is stated. Never estimates. */
 export function extractSalary(text: string): SalaryExtract | null {
   if (!text || !text.trim()) return null;
 
@@ -138,13 +135,13 @@ export function extractSalary(text: string): SalaryExtract | null {
       currency = "INR";
       hasExplicitCurrency = true;
     } else if (isRange && isKMagnitude(mag1eff) && isKMagnitude(mag2eff)) {
-      // Currency-less range: only plausible salary when a compensation context word precedes it.
+      // Currency-less range: plausible only when a compensation context word precedes it.
       const before = text.slice(Math.max(0, start - 120), start);
       if (!CONTEXT_RE.test(before)) continue;
       currency = "INR";
       hasExplicitCurrency = false;
     } else {
-      continue; // no currency or magnitude signal at all - not a money expression
+      continue;
     }
 
     const min0 = parseNum(num1) * multiplierFor(mag1eff);

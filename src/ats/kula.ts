@@ -6,7 +6,6 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
 // list: GET careers.kula.ai/api/internal/ats_job_posts?accountName=<slug>&page=<n>&items=99 -> { data: AtsJobPost[], meta: { count } }
-// one-phase (job_description on every list item); meta.count honored via paginate's total-based stop so larger tenants page fully
 const PAGE_SIZE = 99;
 
 const OfficeSchema = z.object({
@@ -50,7 +49,6 @@ export function kulaJobUrl(slug: string, id: string | number): string {
 export const kulaAdapter: AtsAdapter = {
   provider: "kula",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Board token defaults to the registry slug; apiMeta.boardSlug overrides it when they differ.
     const slug = company.apiMeta?.boardSlug ?? company.slug;
     return paginate<NormalizedPosting>({
       provider: "kula",

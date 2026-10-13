@@ -1,4 +1,4 @@
-// src/ats/ripplehire.ts — RippleHire candidate career boards (<tenant>.ripplehire.com): GET /candidate/careers 302s to /candidate/?token=<TOKEN>&source=CAREERSITE, a permanent per-tenant short-link code (not a session secret), discovered once and reused.
+// GET /candidate/careers 302s to /candidate/?token=<TOKEN>&source=CAREERSITE, a permanent per-tenant code discovered once and reused
 // The list endpoint replies with XML unless the request sends Accept: application/json (atsFetchFormJson always does).
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -9,8 +9,8 @@ import { atsFetchJson, atsFetchFormJson, atsFetchHtml, parseOrThrow } from "./ht
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 100; // requested page size; the server honors it
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const PAGE = 100;
+const MAX_PAGES = 5000;
 
 export const RipplehireJobSchema = z.object({
   jobSeq: z.union([z.string(), z.number()]).nullable().optional(),
@@ -86,8 +86,6 @@ export function ripplehireBoardUrl(base: string, token: string): string {
   return `${base}/candidate/?token=${encodeURIComponent(token)}&source=CAREERSITE`;
 }
 
-// externalId is jobSeq (falls back to jobId, same value on every tenant seen) — jobSeq is what the detail endpoint expects.
-// Null when the job has neither jobSeq nor jobId (no stable id / JD key), so the caller can skip it.
 export function normalizeRipplehire(
   company: AdapterCompany,
   token: string,

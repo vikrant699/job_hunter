@@ -48,7 +48,6 @@ test("parseGateResponse fills a fallback reason when the model omits it", () => 
     matchScore: 0.82,
     dealBreakerHit: null,
     dealBreakerSeverity: null,
-    // reason intentionally absent
   });
   const r = parseGateResponse(raw);
   assert.equal(r.matchScore, 0.82);
@@ -60,7 +59,6 @@ test("parseGateResponse coerces an omitted dealBreakerSeverity (hit set) to soft
     analysis: "SDET role, not frontend.",
     matchScore: 0.25,
     dealBreakerHit: "Role focuses on SDET/DevOps rather than frontend UI.",
-    // dealBreakerSeverity intentionally absent
     reason: "SDET, not frontend.",
   });
   const r = parseGateResponse(raw);

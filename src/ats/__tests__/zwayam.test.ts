@@ -137,7 +137,6 @@ const DEAD_DOMAIN_RESPONSE = {
   data: null, webserviceAPIResponseCode: null,
 };
 
-// Shape for a live tenant whose search matches nothing: data.data present but empty.
 const EMPTY_BOARD_RESPONSE = {
   code: 200, type: null, message: null, exception: null,
   data: { data: [], facets: {}, totalCount: 0, hasMoreData: false },
@@ -150,7 +149,6 @@ test("zwayamPage refuses to read a dead tenant's response as an empty board", ()
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
   const err = thrownBy(() => zwayamPage(DEAD_DOMAIN_RESPONSE, "cult"));
   assert.ok(err instanceof Error);
   assert.equal(isTransportError(err), false);
@@ -229,7 +227,6 @@ const sony: AdapterCompany = {
   apiMeta: { companyId: "MTU1MzI=", tenantGroupId: "G1" },
 };
 
-/** `n` hits with sequential ids from `startId`, so cross-page identity is real. */
 function makeHits(startId: number, n: number): ZwayamHit[] {
   return Array.from({ length: n }, (_, i) => ({
     _id: startId + i,
@@ -243,7 +240,6 @@ function searchResponse(hits: ZwayamHit[], totalCount: number | null): Response 
 
 const FilterCriSchema = z.object({ paginationStartNo: z.number() });
 
-/** The offset the adapter asked for on this call, read back out of filterCri. */
 function requestedOffset(init: RequestInit | undefined): number {
   const body = init?.body;
   if (!(body instanceof FormData)) throw new Error("test stub: expected a multipart FormData body");
@@ -252,7 +248,6 @@ function requestedOffset(init: RequestInit | undefined): number {
   return FilterCriSchema.parse(JSON.parse(raw)).paginationStartNo;
 }
 
-/** Serve a `perPage`-row window of a `total`-row board at the requested offset; returns offsets requested. */
 function stubBoard(t: TestContext, total: number, perPage: number): number[] {
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
@@ -265,7 +260,6 @@ function stubBoard(t: TestContext, total: number, perPage: number): number[] {
 }
 
 test("listPostings collects all 100 postings of a tenant that serves 9 rows a page (Livspace)", async (t) => {
-  // A hardcoded page size of 10 judged Livspace's own 9-row first page short, silently truncating to 9 of 100.
   const offsets = stubBoard(t, 100, 9);
 
   const postings = await zwayamAdapter.listPostings(livspace);
@@ -286,7 +280,6 @@ test("listPostings is unchanged on a tenant that really does serve 10 rows a pag
 });
 
 test("listPostings terminates on a single-page board smaller than the page size (Sony India regression)", async (t) => {
-  // With an inferred page size the first page can't be short against itself, so the reported total ends it in one fetch.
   const offsets = stubBoard(t, 9, 9);
 
   const postings = await zwayamAdapter.listPostings(sony);
@@ -296,7 +289,6 @@ test("listPostings terminates on a single-page board smaller than the page size 
 });
 
 test("listPostings terminates on a full-page board that reports no total, via the empty next page", async (t) => {
-  // Guessing the page size low costs at most one extra fetch; with no total, the empty page ends it.
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
     const start = requestedOffset(init);
@@ -311,7 +303,6 @@ test("listPostings terminates on a full-page board that reports no total, via th
 });
 
 test("listPostings stops on a board that ignores the offset and re-serves page 1", async (t) => {
-  // The stall guard needs a dedupeBy key or an offset-ignoring board gets walked to totalCount, re-fetching the same page.
   let calls = 0;
   stubFetch(t, () => {
     calls++;
@@ -325,12 +316,10 @@ test("listPostings stops on a board that ignores the offset and re-serves page 1
 });
 
 test("listPostings keeps crawling an overlapping page but accumulates each posting once", async (t) => {
-  // Overlapping-but-not-identical pages mean the board reordered mid-crawl, not a stall.
   const offsets: number[] = [];
   stubFetch(t, (_input, init) => {
     const start = requestedOffset(init);
     offsets.push(start);
-    // Page 2 re-serves ids 5-9 alongside the 4 genuinely new ones.
     return Promise.resolve(searchResponse(makeHits(start === 0 ? 1 : 5, 9), 13));
   });
 

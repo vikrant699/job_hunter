@@ -1,4 +1,4 @@
-// Preloaded FIRST by `npm test` so src/db/db.ts opens a throwaway per-run DB instead of the production data/job_hunter.db, which would otherwise get real fixture rows and project them onto the user's real Google Sheet.
+// Preloaded first by `npm test` so db.ts opens a throwaway DB, not the production one whose fixture rows would reach the real Google Sheet.
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

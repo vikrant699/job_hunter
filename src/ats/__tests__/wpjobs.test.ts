@@ -24,7 +24,6 @@ const postWithEmbeddedLocation: WpPost = {
   _embedded: { "wp:term": [[{ taxonomy: "jobpost_category", name: "BNPL" }], [{ taxonomy: "jobpost_location", name: "Bangalore" }]] },
 };
 
-// No _embedded (embedding disabled); location comes from a plain `acf` field instead.
 const postWithAcfLocation: WpPost = {
   id: 100,
   date: "2026-02-01T09:00:00",
@@ -38,7 +37,6 @@ const postWithAcfLocation: WpPost = {
   _embedded: null,
 };
 
-// No _embedded, no acf/meta location; falls through to a "Location:" label in the body copy.
 const postWithContentLocation: WpPost = {
   id: 101,
   date: "2026-02-02T09:00:00",

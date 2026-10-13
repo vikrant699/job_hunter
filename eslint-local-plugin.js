@@ -1,18 +1,8 @@
 // @ts-check
-/**
- * Repo-local ESLint rules. Ported from the core-ui plugin of the same name,
- * trimmed to what applies here: job_hunter is a Node/TS backend with no JSX, so
- * the TSX-filename and hooks-folder rules are omitted.
- */
 import path from "node:path";
 
 const isTestFile = (base) => /\.(test|spec)\.ts$/u.test(base);
 
-/**
- * Test files (`*.test.ts` / `*.spec.ts`) must live in a `__tests__/` folder.
- * Codifies the layout established when tests moved into parallel `__tests__`
- * directories — this rule is what keeps them there.
- */
 const testsInTestsFolder = {
   meta: {
     type: "suggestion",

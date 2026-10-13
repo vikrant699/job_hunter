@@ -32,7 +32,6 @@ const LeapscholarResponseSchema = z.object({
 const LeapscholarLocationEntrySchema = z.object({ Address: z.string().nullable().optional() });
 const LeapscholarLocationArraySchema = z.array(LeapscholarLocationEntrySchema);
 
-/** `Location` is a JSON-encoded `[{Address, PlaceId}]` string; joins multiple addresses. */
 function parseLeapscholarLocation(raw: string | null | undefined): string | null {
   if (!raw) return null;
   let parsed: z.SafeParseReturnType<JsonValue, z.infer<typeof LeapscholarLocationArraySchema>>;
@@ -46,7 +45,6 @@ function parseLeapscholarLocation(raw: string | null | undefined): string | null
   return addresses.length > 0 ? addresses.join("; ") : null;
 }
 
-/** Unwraps `{Total, Jobs}`, warning if Total disagrees with Jobs.length (no pagination, so a mismatch likely means the server started paginating). */
 export function leapscholarJobs(json: JsonValue): LeapscholarJob[] {
   const parsed = LeapscholarResponseSchema.parse(json);
   if (parsed.Total !== parsed.Jobs.length) {
@@ -80,5 +78,4 @@ export const leapscholarAdapter: AtsAdapter = {
     const json = await atsFetchJson(LEAPSCHOLAR_JOBS_URL, { provider: "leapscholar" });
     return leapscholarJobs(json).map((j) => normalizeLeapscholar(company, j));
   },
-  // The list response carries the full description — no fetchJd needed.
 };

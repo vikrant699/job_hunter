@@ -9,16 +9,14 @@ import { isRetryableHttpStatus, parseRetryAfterMs } from "../util/httpRetry.js";
 import { sleep } from "../util/sleep.js";
 import { fetchRepairingChain } from "../util/aiaChain.js";
 
-/** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
   if (status === 404) return new Error(`${provider} 404`);
   return new Error(`${provider} HTTP ${status}: ${bodySnippet.slice(0, 200)}`);
 }
 
-/** Total tries (1 original + 2 retries) for a retryable status (429/5xx). No config knob — this is transport-shaped, not tunable per board. */
+/** Total tries (1 + 2 retries) for 429/5xx; not tunable per board. */
 const ATS_RETRY_ATTEMPTS = 3;
 
-/** Run `fn` with an AbortSignal that times out the WHOLE call (headers + body); exported for adapters whose fetch shape doesn't fit atsFetchJson/atsFetchText. */
 export async function withAtsTimeout<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number = config.fetch.timeoutMs,
@@ -26,18 +24,17 @@ export async function withAtsTimeout<T>(
   return fn(AbortSignal.timeout(timeoutMs));
 }
 
-// fetch() that throws atsHttpError on non-OK, retrying a transient status (429/5xx) up to ATS_RETRY_ATTEMPTS total tries with a Retry-After-aware wait; every atsFetch* helper funnels through here, which is why the connectivity gate lives here too
+// every atsFetch* helper funnels through here, which is why the connectivity gate lives here
 async function fetchOk(url: string, init: RequestInit, provider: string): Promise<Response> {
   const callerSignal = init.signal;
   for (let attempt = 0; attempt < ATS_RETRY_ATTEMPTS; attempt++) {
     await awaitNetwork();
-    // init.signal is the caller's whole-call timeout (attempt 0 keeps it as-is); a retry attempt gets its own fresh per-attempt timeout instead of splitting the caller's budget across attempts
+    // retries get a fresh per-attempt timeout; attempt 0 keeps the caller's signal
     const attemptInit: RequestInit = attempt === 0 ? init : { ...init, signal: AbortSignal.timeout(config.fetch.timeoutMs) };
     let res: Response;
     try {
       res = await fetchRepairingChain(url, attemptInit);
     } catch (err) {
-      // Not a verdict, just a request for an immediate probe — if the connection is fine, this host is simply refusing us.
       reportNetworkFailure();
       throw err;
     }
@@ -46,26 +43,22 @@ async function fetchOk(url: string, init: RequestInit, provider: string): Promis
     if (res.ok) return res;
 
     const lastAttempt = attempt === ATS_RETRY_ATTEMPTS - 1;
-    // if the caller's own deadline already fired, skip the retry rather than overriding it with a fresh per-attempt timeout
     const willRetry = !lastAttempt && isRetryableHttpStatus(res.status) && callerSignal?.aborted !== true;
     if (!willRetry) {
       const body = await res.text();
-      // scan the FULL body for a WAF signature before atsHttpError truncates to 200 chars (CloudFront/Akamai markers land past that cut); an edge challenge counts as an infra fault, never charged to the row
+      // scan the FULL body for WAF signatures before atsHttpError truncates to 200 chars; edge challenges are infra faults, not charged to the row
       assertNotEdgeChallenge(provider, url, body);
       throw atsHttpError(provider, res.status, body);
     }
 
-    // Abandoning this attempt's response — free the socket before sleeping.
     await res.body?.cancel();
     const retryAfter = res.headers.get("retry-after");
     const waitMs = retryAfter !== null ? parseRetryAfterMs(retryAfter) : 1000 * 2 ** attempt;
     await sleep(waitMs);
   }
-  // Unreachable: every loop iteration above either returns or throws by its final pass.
   throw new Error(`${provider}: retry loop exited without resolving`);
 }
 
-/** Fetch JSON with the standard ATS timeout + UA. Sends a JSON body (and POST) when `body` is provided. */
 export async function atsFetchJson(
   url: string,
   opts: { method?: "GET" | "POST"; body?: JsonValue; provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
@@ -91,7 +84,7 @@ export async function atsFetchJson(
 
 export interface ParseCtx { provider: string; slug: string; what?: string }
 
-/** safeParse + warn-log + throw. The word "schema" must stay in the message — scheduler.classifyFetchError tags on it. */
+/** safeParse + warn + throw; "schema" must stay in the message: scheduler.classifyFetchError tags on it. */
 export function parseOrThrow<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, raw: JsonValue, ctx: ParseCtx): Out {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
@@ -102,7 +95,6 @@ export function parseOrThrow<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, 
   return parsed.data;
 }
 
-/** safeParse + warn-log + null, for detail fetches that degrade to "" instead of failing the company. */
 export function parseOrNull<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, raw: JsonValue, ctx: ParseCtx): Out | null {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
@@ -113,7 +105,7 @@ export function parseOrNull<Out, In>(schema: z.ZodType<Out, z.ZodTypeDef, In>, r
   return parsed.data;
 }
 
-/** POST form-urlencoded, parse the response as JSON; for ATSes (e.g. RippleHire) that content-negotiate on Accept (default XML, JSON if asked). */
+/** POST form-urlencoded, parse JSON; for ATSes (RippleHire) that default to XML unless Accept asks for JSON. */
 export async function atsFetchFormJson(
   url: string,
   form: Record<string, string>,
@@ -127,7 +119,6 @@ export async function atsFetchFormJson(
         "User-Agent": opts.userAgent ?? config.fetch.userAgent,
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
-        // Caller headers last so a provider-specific header wins (same ordering convention as atsFetchJson).
         ...(opts.headers ?? {}),
       },
       body: new URLSearchParams(form).toString(),
@@ -137,7 +128,7 @@ export async function atsFetchFormJson(
   });
 }
 
-/** Like atsFetchJson but multipart/form-data POST with extra headers; for ATSes (Ceipal) that require a Referer header and refuse a JSON body. */
+/** multipart/form-data POST; for ATSes (Ceipal) that require a Referer and refuse a JSON body. */
 export async function atsFetchJsonMultipart(
   url: string,
   opts: { fields: Record<string, string>; headers?: Record<string, string>; provider?: string; userAgent?: string },
@@ -165,7 +156,6 @@ export interface AtsFetchedHtml {
   html: string;
 }
 
-/** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom), also capturing the post-redirect URL. */
 export async function atsFetchHtml(
   url: string,
   opts: { provider?: string; userAgent?: string; headers?: Record<string, string> } = {},
@@ -182,13 +172,12 @@ export async function atsFetchHtml(
   });
 }
 
-/** Like atsFetchJson but returns raw text (for HTML-island ATSes like Phenom). */
 export async function atsFetchText(url: string, opts: { provider?: string; userAgent?: string } = {}): Promise<string> {
   const { html } = await atsFetchHtml(url, opts);
   return html;
 }
 
-/** POST form-urlencoded, return the HTML response — for form-driven boards (e.g. GoHire) whose list endpoint only serves page N via a POST body (a plain GET with ?page=N 404s). */
+/** POST form-urlencoded, return HTML; for boards (GoHire) whose page N is only served via POST (GET ?page=N 404s). */
 export async function atsFetchFormHtml(
   url: string,
   form: Record<string, string>,

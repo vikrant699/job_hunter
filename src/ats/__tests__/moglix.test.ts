@@ -36,7 +36,7 @@ test("moglixEncrypt/moglixDecrypt round-trip an arbitrary JSON string (CryptoJS 
   const passphrase = "2e35f242a46d67eeb74aabc37d5e5d05";
   const plaintext = JSON.stringify({ formCode: "FRM0001379", gridCode: "GRD0000837", skip: 0, take: 50000 });
   const blob = moglixEncrypt(plaintext, passphrase);
-  assert.match(blob, /^U2FsdGVkX1/); // base64 of "Salted__" + salt + ciphertext
+  assert.match(blob, /^U2FsdGVkX1/);
   assert.equal(moglixDecrypt(blob, passphrase), plaintext);
 });
 

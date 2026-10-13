@@ -24,7 +24,6 @@ import { sleep } from "../util/sleep.js";
 import { makeSemaphore } from "../util/semaphore.js";
 import { aggregatorWarning } from "../util/aggregatorGuard.js";
 
-/** Collapse a raw fetch error into a short tag for the Discord issue list. */
 export function classifyFetchError(msg: string): string {
   if (/AbortError|aborted|timeout|timed out|ETIMEDOUT/i.test(msg)) return "timeout";
   if (/\b404\b|not found/i.test(msg)) return "404";
@@ -36,7 +35,6 @@ export function classifyFetchError(msg: string): string {
   return "other";
 }
 
-/** Writes a board_runs 'error' row at markFetchFailure's two call sites; a transient defer that hasn't yet given up gets no row. */
 function recordBoardRunFailure(
   provider: Provider,
   slug: string,
@@ -57,11 +55,9 @@ function recordBoardRunFailure(
   });
 }
 
-/** Timing for infrastructure faults (inline backoff + deferred-pass pace); injected so tests skip real waits. */
 export interface TransportRetryPolicy {
   retries: number;
   baseDelayMs: number;
-  /** Pause between deferred boards, which the deferred pass works one at a time. */
   deferredPaceMs: number;
 }
 
@@ -73,22 +69,17 @@ export function defaultRetryPolicy(): TransportRetryPolicy {
   };
 }
 
-/** Per-provider start throttle, live across a whole processBucket call (or several, if injected in); un-throttled providers pass through with no wait. */
 export interface ProviderThrottleState {
-  /** Waits out this provider's throttle (if it has one), then returns the release to call once the fetch is done. */
   start(provider: string): Promise<() => void>;
 }
 
 interface ThrottleEntry {
-  /** Bounds concurrent in-flight fetches for this provider to maxConcurrent. */
   acquireSlot: () => Promise<() => void>;
-  /** Mutex around "wait out the spacing, then stamp lastStartAt" so racing starts can't both land within minSpacingMs; held only for that step, never during the fetch itself. */
   claimStart: () => Promise<() => void>;
   minSpacingMs: number;
   lastStartAt: number;
 }
 
-/** Builds a fresh throttle registry; `table` defaults to config's but is injectable so tests can use a tiny minSpacingMs. */
 export function createProviderThrottleState(
   table: Partial<Record<string, ProviderThrottle>> = config.fetch.providerThrottle,
 ): ProviderThrottleState {
@@ -112,7 +103,6 @@ export function createProviderThrottleState(
       const entry = entryFor(provider, cfg);
       const releaseSlot = await entry.acquireSlot();
       const releaseClaim = await entry.claimStart();
-      // Spaces successive fetch starts to this provider at least minSpacingMs apart.
       const wait = entry.lastStartAt + entry.minSpacingMs - Date.now();
       if (wait > 0) await sleep(wait);
       entry.lastStartAt = Date.now();
@@ -149,7 +139,6 @@ export async function processBucket(
       } finally {
         releaseThrottle();
       }
-      // Count every company worked (fetched or skipped) so scanned reaches total, driving the progress heartbeat.
       if (progress) progress.scanned++;
       if (config.fetch.interCallDelayMs > 0) {
         await sleep(config.fetch.interCallDelayMs);
@@ -160,7 +149,6 @@ export async function processBucket(
   await Promise.all(Array.from({ length: cap }, () => worker()));
 }
 
-/** Round-robins deferred boards across providers, so draining one vendor's queue back-to-back doesn't re-aim the same burst that got it deferred. */
 function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
   const queues = new Map<string, DeferredBoard[]>();
   for (const d of deferred) {
@@ -169,7 +157,6 @@ function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
     else queues.set(d.company.provider, [d]);
   }
   const out: DeferredBoard[] = [];
-  // Each sweep takes one board per remaining provider queue, so it always makes progress and terminates.
   while (out.length < deferred.length) {
     for (const q of queues.values()) {
       const next = q.shift();
@@ -179,14 +166,13 @@ function interleaveByProvider(deferred: DeferredBoard[]): DeferredBoard[] {
   return out;
 }
 
-/** Second chance for boards infrastructure took down: inline retries cover only a brief blip, so this replays deferred boards sequentially after every bucket; failing both passes is recorded as a real failure. */
 export async function runDeferredTransportPass(
   stats: RunContext,
   retry: TransportRetryPolicy = defaultRetryPolicy(),
 ): Promise<void> {
   const deferred = stats.transportDeferred;
   if (deferred.length === 0) return;
-  // Clear before re-running: processOneCompany pushes onto this same array, so what lands there is the still-failing set.
+  // processOneCompany pushes onto this same array, so clearing leaves only the still-failing set.
   stats.transportDeferred = [];
 
   logger.info(
@@ -196,11 +182,9 @@ export async function runDeferredTransportPass(
 
   const scannedBefore = stats.companiesScanned;
   for (const [i, d] of interleaveByProvider(deferred).entries()) {
-    // Sequential and paced, not full concurrency, so this can't recreate the burst that got these boards deferred; no gap needed before the first board since the last request to these vendors was a whole run ago.
     if (i > 0 && retry.deferredPaceMs > 0) await sleep(retry.deferredPaceMs);
     await processOneCompany(d.adapter, d.company, stats, retry);
   }
-  // Only deferred boards ran in this pass, so the delta is what recovered.
   stats.transportRecovered = stats.companiesScanned - scannedBefore;
 
   const stillFailing = stats.transportDeferred;
@@ -227,7 +211,6 @@ export async function runDeferredTransportPass(
   );
 }
 
-/** Fetches a board's listing, retrying infrastructure failures (DNS/socket, edge throttle) in place with backoff; board-shaped failures (HTTP status, schema, config) are not retried. */
 export async function listWithTransportRetry(
   adapter: AtsAdapter,
   adapterCompany: AdapterCompany,
@@ -270,18 +253,16 @@ async function processOneCompany(
   }
 
   const adapterCompany = toAdapterCompany(company);
-  // Bounds markRemoved below (rows with last_seen_at before this weren't in this fetch's listing); captured before the fetch so it can't clip a posting this fetch inserts.
+  // Captured before the fetch so markRemoved can't clip a posting this fetch inserts.
   const fetchStartedAt = new Date().toISOString();
 
   let postings: NormalizedPosting[];
   try {
     postings = await listWithTransportRetry(adapter, adapterCompany, company, stats, retry);
   } catch (err) {
-    // Backend down (scrape adapters call the LLM shortlist) - abort rather than mark every company a fetch failure against a dead LLM backend.
     if (err instanceof LlmUnavailableError) throw err;
     const msg = describeError(err);
 
-    // The board's application never spoke, so it told us nothing about its health: leave the quarantine counter alone and defer to the end-of-run pass.
     if (isInfrastructureFault(err)) {
       logger.warn(
         { company: company.name, slug: company.slug, err: msg },
@@ -295,26 +276,21 @@ async function processOneCompany(
     logger.warn({ company: company.name, slug: company.slug, err: msg }, "fetch failed");
     markFetchFailure(company.provider, company.slug, msg);
     stats.errors.push(`${company.provider}/${company.slug}: ${msg.slice(0, 100)}`);
-    // Errored boards are not scanned; record as an issue instead of counting toward companiesScanned.
     stats.failedCompanies.push({
       provider: company.provider,
       slug: company.slug,
       reason: classifyFetchError(msg),
     });
-    // A failed listing fetch never touches lifecycle columns — we don't know what the board currently has.
     recordBoardRunFailure(company.provider, company.slug, stats.profileId, fetchStartedAt, msg);
     return;
   }
 
-  // Only a successful fetch counts as scanned — errored/skipped boards don't.
   stats.companiesScanned++;
   markFetchSuccess(company.provider, company.slug, postings.length);
 
-  // Log-only signal, no behavior change: an agency/aggregator board lists many different hiring companies' roles.
   const aggWarning = aggregatorWarning(company.provider, company.slug, postings);
   if (aggWarning) logger.warn(aggWarning, "board looks like an aggregator");
 
-  // A listed posting is "seen" regardless of relevance — bumps last_seen_at (and revives, clearing removed_at) for the full listing, including postings the filters below will drop.
   const seenAt = new Date().toISOString();
   markSeen(
     company.provider,
@@ -324,7 +300,6 @@ async function processOneCompany(
     seenAt,
   );
 
-  // Worker pool within the company: HTTP work parallelizes here; LLM calls are capped separately inside llm/client.ts via the semaphore.
   const workers = config.fetch.workersPerCompany;
   let cursor = 0;
   async function postingWorker(): Promise<void> {
@@ -336,7 +311,6 @@ async function processOneCompany(
       try {
         await processOnePosting(adapter, adapterCompany, posting, company, stats, retry);
       } catch (err) {
-        // Propagate a backend-down abort; only swallow per-posting errors.
         if (err instanceof LlmUnavailableError) throw err;
         logger.error(
           { company: company.name, externalId: posting.externalId, err: describeError(err) },
@@ -348,7 +322,6 @@ async function processOneCompany(
   }
   await Promise.all(Array.from({ length: workers }, () => postingWorker()));
 
-  // Anything of this board's not bumped by markSeen above (last_seen_at still predates this fetch) disappeared.
   const removed = markRemoved(company.provider, company.slug, stats.profileId, fetchStartedAt, new Date().toISOString());
   const added = countInsertedSince(company.provider, company.slug, stats.profileId, fetchStartedAt);
   insertBoardRun({

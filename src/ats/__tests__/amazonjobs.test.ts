@@ -23,7 +23,7 @@ const job: AmazonJob = {
   description_short: "Build the future of human-technology interaction.",
 };
 
-// Amazon keeps the experience bar in its own field; a description-only jdText showed the gate a role with no seniority signal at all.
+// Experience bar lives in its own field; description-only jdText hid seniority from the gate.
 const payUiJob: AmazonJob = {
   id_icims: "10472171",
   title: "Software Development Engineer I, Amazon Payments",
@@ -74,7 +74,7 @@ test("amazonJobsPageJobs parses the jobs array and surfaces hits as total", () =
 });
 
 test("amazonJobsPageJobs: pagination-stop arithmetic — a page reaching hits ends the loop", () => {
-  // A page whose offset + returned jobs meets/exceeds hits is the last page; paginate() (src/ats/shared.ts) uses this exact total to decide that.
+  // offset + returned jobs >= hits marks the last page; paginate() relies on that exact total.
   const lastPage = amazonJobsPageJobs(asJson({ hits: 2, jobs: [job, virtualJob] }));
   assert.equal(0 + lastPage.jobs.length >= (lastPage.total ?? 0), true);
 
@@ -130,7 +130,6 @@ test("normalizeAmazonJobs: missing posted_date maps to null", () => {
   assert.equal(p.postedAt, null);
 });
 
-// Regression: basic/preferred qualifications are separate API fields, and jdText took only description, so the gate never saw seniority signals like "1+ years".
 test("normalizeAmazonJobs includes the qualification fields in jdText", () => {
   const p = normalizeAmazonJobs(company, payUiJob);
   assert.match(p.jdText, /greenfield initiative/, "description still present");

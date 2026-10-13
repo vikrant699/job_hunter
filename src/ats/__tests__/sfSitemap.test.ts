@@ -11,7 +11,7 @@ const company = mkAdapterCompany({
   careersUrl: "https://careers.payu.in",
 }, { tenantUrl: "https://careers.payu.in" });
 
-// Modeled on a real PayU sitemap.xml entry, plus a non-job <loc> that must be excluded and an end-of-string (no trailing slash) id variant.
+// Includes a non-job <loc> that must be excluded and an end-of-string (no trailing slash) id.
 const URLSET_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://careers.payu.in/PayU/job/Gurgaon-P3-Assistant-Manager-BSM/53951080/</loc><lastmod>2026-08-29</lastmod></url>
@@ -28,7 +28,6 @@ test("parseSfSitemapUrlset maps /job/.../<digits>/ locs to id -> url, dropping n
   assert.equal(ids.size, 3);
   assert.equal(ids.get("53951080"), "https://careers.payu.in/PayU/job/Gurgaon-P3-Assistant-Manager-BSM/53951080/");
   assert.equal(ids.get("53951081"), "https://careers.payu.in/PayU/job/Mumbai-Growth-Manager/53951081/");
-  // no-trailing-slash variant
   assert.equal(ids.get("53951082"), "https://careers.payu.in/PayU/job/Bangalore-Data-Engineer/53951082");
 });
 
@@ -96,7 +95,6 @@ test("titleFromSitemapUrl percent-decodes the slug segment", () => {
     titleFromSitemapUrl("https://jobs.example.com/job/M%C3%BCnchen-Werksstudent-%28wmd%29-BY/1358878055/"),
     "München Werksstudent (wmd) By",
   );
-  // A malformed escape keeps the raw segment rather than throwing.
   assert.equal(titleFromSitemapUrl("https://jobs.example.com/job/Bad-%E0-Escape/1/"), "Bad %e0 Escape");
 });
 

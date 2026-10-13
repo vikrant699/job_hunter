@@ -18,10 +18,7 @@ const plugins = {
   local,
 };
 
-// config/profiles/* is gitignored, per-machine content (a profile's own resume,
-// deal-breakers and gate prompt). ESLint's flat config does not read .gitignore, so
-// without this the repo's own rules - filename-case in particular - fail the
-// non-negotiable `npm run lint` check on files that are not in the repo at all.
+// ESLint flat config ignores .gitignore; per-machine config/profiles/* would otherwise fail lint (e.g. filename-case).
 const IGNORES = ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**", "config/profiles/**"];
 
 export default tseslint.config(
@@ -32,8 +29,7 @@ export default tseslint.config(
     ignores: IGNORES,
     languageOptions,
     plugins,
-    // Inline eslint directives are inert (and each one is a warning, which --max-warnings 0
-    // turns into a failure); change the rule here instead.
+    // Inline eslint directives are inert and warn (--max-warnings 0 fails); change the rule here.
     linterOptions: { noInlineConfig: true },
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
@@ -42,18 +38,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "error",
       "@typescript-eslint/no-unsafe-return": "error",
       "@typescript-eslint/no-unsafe-argument": "error",
-      // Type-only imports must be their own `import type { ... }` statement, never
-      // inline `{ type X }` mixed with value imports (matches core-ui). The
-      // no-restricted-syntax selector below covers the mixed-import case that
-      // consistent-type-imports does not flag on its own.
       "@typescript-eslint/consistent-type-imports": [
         "error",
         { prefer: "type-imports", fixStyle: "separate-type-imports" },
       ],
       "@typescript-eslint/no-non-null-assertion": "error",
       "@typescript-eslint/no-unnecessary-condition": "error",
-      // Standard rule 3 (no hand-written unknown), enforced mechanically. Caught values
-      // use the Caught alias in util/errorCause.ts; JSON boundaries use JsonValue.
       "@typescript-eslint/no-restricted-types": [
         "error",
         {
@@ -65,9 +55,7 @@ export default tseslint.config(
           },
         },
       ],
-      // camelCase filenames. `ignore` also covers ancestor directory names, which the
-      // rule checks too — `__tests__` is required by local/tests-in-tests-folder below,
-      // so it must be exempt or the two rules contradict each other.
+      // `ignore` covers ancestor dirs too; `__tests__` must be exempt or this contradicts local/tests-in-tests-folder.
       "unicorn/filename-case": [
         "error",
         { case: "camelCase", ignore: [/^__tests__$/u, /^__mocks__$/u] },
@@ -76,8 +64,6 @@ export default tseslint.config(
       "no-restricted-syntax": [
         "error",
         {
-          // consistent-type-imports does not flag `{ type X }` mixed with value/default
-          // imports (see TS-ESLint implementation), so ban that shape explicitly.
           selector: 'ImportDeclaration[importKind="value"] ImportSpecifier[importKind="type"]',
           message:
             'Do not use inline `type` imports alongside value imports. Use a separate `import type { ... } from "..."` statement.',
@@ -88,14 +74,12 @@ export default tseslint.config(
             "Avoid TypeScript enums; use a const object with `as const` and derive the type from it.",
         },
         {
-          // Ban `x as T` except `x as const`
           selector:
             "TSAsExpression:not([typeAnnotation.type='TSTypeReference'][typeAnnotation.typeName.name='const'])",
           message:
             "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
         },
         {
-          // Ban angle-bracket assertions: <T>x
           selector: "TSTypeAssertion",
           message:
             "Type assertions are banned (Standard rule 1). Validate with zod instead. Only `as const` is allowed.",
@@ -104,9 +88,7 @@ export default tseslint.config(
     },
   },
   {
-    // Async-correctness rules for production code. Test files are exempt from
-    // no-floating-promises only because node:test's top-level `test()` calls
-    // return promises the runner itself tracks.
+    // Test files are exempt from no-floating-promises: node:test's top-level test() returns promises the runner tracks.
     files: ["**/*.ts"],
     ignores: [...IGNORES, "**/*.test.ts"],
     languageOptions,

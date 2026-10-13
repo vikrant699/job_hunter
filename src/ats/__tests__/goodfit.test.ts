@@ -25,7 +25,6 @@ const company: AdapterCompany = {
 const redirectShell = `<html><head><meta http-equiv="refresh" content="1;url=https://v2.app.goodfit.so/jobs/springworks"/></head>
 <body><template data-msg="NEXT_REDIRECT;replace;https://v2.app.goodfit.so/jobs/springworks;307;"></template></body></html>`;
 
-// v2 board: JSON-LD ItemList + RSC flight-data jobs island + rendered anchors.
 const v2Board = `<html><body>
 <script>self.__next_f.push([1,"3a:[\\"$\\",\\"$L3b\\",null,{\\"jobs\\":[{\\"id\\":\\"019eef20-821d-75ea-adee-7797343e5654\\",\\"title\\":\\"Legal Associate 1\\",\\"createdAt\\":\\"2026-06-22 11:39:05.63+00\\",\\"locations\\":[],\\"seniority\\":\\"junior\\",\\"tags\\":null,\\"slug\\":\\"9Zc1NHi6\\",\\"organization\\":{\\"name\\":\\"Springworks\\",\\"logo\\":\\"https://www.google.com/s2/favicons?domain=http://www.springworks.in\\u0026sz=128\\",\\"slug\\":\\"springworks\\"}},{\\"id\\":\\"019eca94-42ab-73eb-81c5-1a08a18b4135\\",\\"title\\":\\"Business Analyst\\",\\"createdAt\\":\\"2026-06-19 08:00:00+00\\",\\"locations\\":[\\"Chennai, Tamil Nadu, India\\"],\\"seniority\\":\\"mid\\",\\"tags\\":null,\\"slug\\":\\"x1y2z3\\",\\"organization\\":{\\"name\\":\\"Springworks\\",\\"slug\\":\\"springworks\\"}}]}]\\n"])</script>
 <div hidden id="S:2">
@@ -34,18 +33,15 @@ const v2Board = `<html><body>
 <a class="group flex" href="/jobs/springworks/Business-Analyst?id=019eca94-42ab-73eb-81c5-1a08a18b4135"><div><span class="font-medium text-base text-foreground">Business Analyst</span><div><span class="text-xs">Chennai</span></div></div></a>
 </div></body></html>`;
 
-// v1 board (non-migrated tenant, e.g. giva): server-rendered anchors, no JSON-LD.
 const v1Board = `<html><body>
 <a href="/jobs/giva/Store-Manager?id=oDD5zV-T" class="p-3 border rounded-lg block group"><div class="flex items-center gap-2 pr-2"><span class="size-10">GI</span><div class="flex-1"><div class="font-serif font-medium text-foreground leading-tight">Store Manager</div><div class="text-xs text-muted-foreground">Giva <span class="text-muted-foreground/50">✦</span> Bangalore, Karnataka, India</div></div></div><hr/><div class="text-sm!">As the Store Manager at Giva, you will drive the store.</div></a>
 <a href="/jobs/giva/Retail-Trainer?id=rqKHHYbT" class="p-3 border rounded-lg block group"><div class="flex items-center gap-2 pr-2"><span class="size-10">GI</span><div class="flex-1"><div class="font-serif font-medium text-foreground leading-tight">Retail Trainer</div><div class="text-xs text-muted-foreground">Giva <span class="text-muted-foreground/50">✦</span> Hyderabad, Telangana, India</div></div></div></a>
 </body></html>`;
 
-// v2 detail page: JD inside a div.prose container.
 const v2Detail = `<html><body><header>Springworks</header>
 <div class="prose prose-neutral dark:prose-invert max-w-none"><p>About Springworks. We build SpringVerify, our B2B background verification platform, plus EngageWith and Goodfit.</p><ul><li>Draft and review contracts</li><li>Own compliance calendars</li></ul></div>
 <footer>Powered by goodfit</footer></body></html>`;
 
-// v1 detail page: JD inside a font-serif container styled with [&>h1] rules.
 const v1Detail = `<html><body><h1>Store Manager</h1>
 <div class="font-serif mt-6 max-w-3xl font-normal space-y-4 leading-relaxed [&amp;_strong]:font-semibold [&amp;&gt;h1]:text-2xl [&amp;&gt;p]:text-base"><p>As the Store Manager at Giva, you will be instrumental in driving the overall success of the store.</p><ul><li>Lead and manage the store team.</li></ul></div>
 </body></html>`;
@@ -90,7 +86,6 @@ test("extractGoodfitRscJobs unescapes the flight-data island into an id map", ()
 });
 
 test("extractGoodfitRscJobs isn't confused by an unbalanced brace inside a job's own string field", () => {
-  // A stray "}" in a string field must not truncate the scan; extractBalanced's quote-tracking treats it as ordinary string content.
   const withStrayBrace = `<html><body>
 <script>self.__next_f.push([1,"3a:[\\"$\\",\\"$L3b\\",null,{\\"jobs\\":[{\\"id\\":\\"stray-1\\",\\"title\\":\\"Ops Level } One\\",\\"createdAt\\":\\"2026-01-01 00:00:00+00\\",\\"locations\\":[\\"Remote\\"]}]}]\\n"])</script>
 </body></html>`;
@@ -120,7 +115,7 @@ test("parseGoodfitBoard (v2) merges JSON-LD titles/urls with RSC locations + dat
   assert.equal(legal.externalId, "019eef20-821d-75ea-adee-7797343e5654");
   assert.equal(legal.jobTitle, "Legal Associate 1");
   assert.equal(legal.jobUrl, "https://v2.app.goodfit.so/jobs/springworks/Legal-Associate-1?id=019eef20-821d-75ea-adee-7797343e5654");
-  assert.equal(legal.location, null); // empty RSC locations -> null, NOT the board's "Remote" chip
+  assert.equal(legal.location, null);
   assert.equal(legal.postedAt, new Date("2026-06-22 11:39:05.63+00").toISOString());
   assert.equal(ba.location, "Chennai, Tamil Nadu, India");
   assert.equal(ba.jdText, "");

@@ -89,7 +89,7 @@ export function normalizeOngig(company: AdapterCompany, org: string, r: OngigRes
     jobUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: (raw(r.content) ?? "").trim(), // requesting content.raw (not the truncated snippet field) yields the full JD
+    jdText: (raw(r.content) ?? "").trim(),
     postedAt: null,
   };
 }
@@ -118,13 +118,11 @@ export const ongigAdapter: AtsAdapter = {
       provider: "ongig",
       company: company.slug,
       pageSize: PAGE,
-      // Termination is a zero-result page or reaching meta.page.total_pages (re-read every response).
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
-        const current = page + 1; // API is 1-based
-        // Raw fetch: needs the bespoke cookie/xsrf-token headers from the session handshake above.
+        const current = page + 1;
         const res = await withAtsTimeout((signal) =>
           fetch(`${org}/api/appSearch`, {
             method: "POST",

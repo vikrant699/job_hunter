@@ -20,7 +20,7 @@ const company: AdapterCompany = {
   careersUrl: RELIANCE_BOARD_URL, tenantUrl: null, apiMeta: null,
 };
 
-// Mirrors a live-site bug: the anchor has a duplicated `href` attribute (second one is the URL-encoded title); the parser must pick the first, real href.
+// Live bug: duplicated `href` attribute (second is the URL-encoded title); the first, real href must win.
 function listPageHtml(opts: {
   rows: { title: string; jbid: string; functionalArea: string; location: string; postedOn: string }[];
   currentPage: number;
@@ -100,7 +100,7 @@ const page2Rows = [
 const PAGE1_HTML = listPageHtml({ rows: page1Rows, currentPage: 1, totalPages: 2, viewstate: "VS-PAGE-1" });
 const PAGE2_HTML = listPageHtml({ rows: page2Rows, currentPage: 2, totalPages: 2, viewstate: "VS-PAGE-2" });
 
-// Mirrors the live site's share buttons with unescaped, literal "<url>" placeholders in href (invalid HTML), plus the Apply/Back buttons; none should leak into the JD text.
+// Share buttons carry unescaped literal "<url>" placeholders in href (invalid HTML); none may leak into the JD text.
 const JD_HTML = `<!DOCTYPE html>
 <html><body>
 <div id="MainContent_divDesc">
@@ -205,7 +205,6 @@ test("buildPageRequestBody sets __EVENTTARGET to the pager select and overrides 
   assert.equal(body["__EVENTTARGET"], "ctl00$MainContent$rgJobs$ctl13$PageDropDownList");
   assert.equal(body["__EVENTARGUMENT"], "");
   assert.equal(body["ctl00$MainContent$rgJobs$ctl13$PageDropDownList"], "2");
-  // Unrelated state fields are preserved unchanged from the source page.
   assert.equal(body["__VIEWSTATE"], "VS-PAGE-1");
   assert.equal(body["ctl00$MainContent$ddlentries"], "10");
 });
@@ -268,7 +267,7 @@ test("relianceAdapter.listPostings makes no postback at all for a single-page bo
 
 test("relianceAdapter.listPostings throws instead of looping forever if the server never advances the page", async (t) => {
   stubFetch(t, async (_input, init) => {
-    if (init?.method === "POST") return new Response(PAGE1_HTML, { status: 200 }); // stuck on page 1
+    if (init?.method === "POST") return new Response(PAGE1_HTML, { status: 200 });
     return new Response(PAGE1_HTML, { status: 200 });
   });
   await assert.rejects(relianceAdapter.listPostings(company), /pagination stuck/);
@@ -287,7 +286,6 @@ test("relianceAdapter.fetchJd fetches the posting's job URL and extracts the des
   assert.match(jd, /Job Responsibilities/);
 });
 
-// Helper: turn a fixture row spec into the RelianceJobRow shape parseRelianceListPage would produce.
 function rowFromFixture(r: { title: string; jbid: string; functionalArea: string; location: string; postedOn: string }): RelianceJobRow {
   const i = page1Rows.indexOf(r);
   return {

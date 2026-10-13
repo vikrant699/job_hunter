@@ -7,8 +7,6 @@ import { entryToRow, rowToEntry, REGISTRY_COLUMNS } from "./sheetCodec.js";
 import { writeAtomic } from "../util/registryFile.js";
 import { registryKey as entryKey } from "../util/slug.js";
 
-// Registry-mutation surface for the Companies tab; every write also mirrors into data/registry-cache.json for the offline fallback in sheetRegistry.ts.
-
 export interface RegistryWriterDeps {
   readTab: (profileId: string, tab: string) => Promise<string[][]>;
   appendRows: (profileId: string, tab: string, rows: string[][]) => Promise<void>;
@@ -29,7 +27,6 @@ function defaultDeps(): RegistryWriterDeps {
   };
 }
 
-/** Decodes valid rows, dropping any that fail validation; `allValid` gates cache mirroring so a partial snapshot can't later prune quarantined companies. */
 function decodeValidRows(rows: string[][]): { entries: RegistryEntry[]; allValid: boolean } {
   const entries: RegistryEntry[] = [];
   let allValid = true;
@@ -49,7 +46,7 @@ function mirrorToCache(cachePath: string, entries: RegistryEntry[], allValid: bo
   writeAtomic(cachePath, entries);
 }
 
-/** Locates the sheet row (1-based) and decoded entry for a registry key; tracks the raw row index separately so invalid rows above the match can't misalign it. */
+/** Tracks the raw row index separately so invalid rows above the match can't misalign it. */
 function locateEntryRow(
   rows: string[][],
   key: string,
@@ -71,7 +68,6 @@ export interface AppendResult {
   skippedDuplicates: number;
 }
 
-/** Appends new entries to the Companies tab, skipping existing (source, slug) keys, and mirrors them into the local cache. */
 export async function appendToRegistry(
   newEntries: RegistryEntry[],
   profileId: string,
@@ -97,7 +93,6 @@ export async function appendToRegistry(
   return { written: toAdd.length, skippedDuplicates };
 }
 
-/** Patches fields of one registry entry via full-row rewrite at the located row, mirroring the cache. Returns false when no row matches. */
 export async function updateRegistryEntry(
   key: { source: string; source_slug?: string | null | undefined; name: string },
   patch: Partial<RegistryEntry>,
@@ -109,7 +104,7 @@ export async function updateRegistryEntry(
   if (!located) return false;
 
   const updated: RegistryEntry = { ...located.entry, ...patch };
-  const lastCol = String.fromCharCode(64 + REGISTRY_COLUMNS.length); // 14 cols -> "N"
+  const lastCol = String.fromCharCode(64 + REGISTRY_COLUMNS.length);
   await deps.updateRange(
     profileId,
     `${config.google.tabs.companies}!A${located.sheetRow}:${lastCol}${located.sheetRow}`,
@@ -124,7 +119,6 @@ export async function updateRegistryEntry(
   return true;
 }
 
-/** Patches parsing_strategy on the sheet (not just the DB) so the change survives the next syncRegistryFromSheet. Returns false when no row matches. */
 export async function updateRegistryStrategy(
   source: string,
   sourceSlug: string,

@@ -14,7 +14,6 @@ export function resolveSlug(entry: {
   return kebabCase(entry.name);
 }
 
-/** The dedup/merge/prune key used across the registry pipeline: `${source}::${resolveSlug(entry)}`. Centralized so callers can't drift on identity. */
 export function registryKey(entry: {
   name: string;
   source?: string | null | undefined;

@@ -96,7 +96,6 @@ export interface InsertOutreachInput {
   failureDetail: string | null;
 }
 
-/** Inserts a new outreach attempt row, returning its id. */
 export function insertOutreach(row: InsertOutreachInput): number {
   const result = insertOutreachStmt.run(row);
   return Number(result.lastInsertRowid);
@@ -124,12 +123,11 @@ const selectOutreachSentTabStmt = db.prepare(`
   ORDER BY sent_at DESC
 `);
 
-/** Every outreach row past 'draft', across all profiles, newest first; feeds the Sent sheet-tab projection. */
 export function selectOutreachSentTab(): OutreachRow[] {
   return queryAll(selectOutreachSentTabStmt, OutreachRowSchema).map(rowToOutreach);
 }
 
-// Patch semantics: COALESCE falls back to the existing value on null, so a genuine clear-to-null isn't expressible here.
+// COALESCE keeps the existing value on null, so clearing to null isn't expressible.
 const updateOutreachStatusStmt = db.prepare(`
   UPDATE outreach SET
     status           = :status,
@@ -151,7 +149,6 @@ export interface UpdateOutreachStatusInput {
   failureDetail?: string | null;
 }
 
-/** Patch-updates an outreach row; omitted fields are coalesced to their current DB value. */
 export function updateOutreachStatus(input: UpdateOutreachStatusInput): void {
   updateOutreachStatusStmt.run({
     id: input.id,
@@ -171,7 +168,6 @@ const selectLastDraftedAtStmt = db.prepare(`
   WHERE recruiter_email = :email AND profile_id = :profileId
 `);
 
-/** MAX(drafted_at) for this (recruiter, profile) pair, or null if never drafted. */
 export function selectLastDraftedAt(email: string, profileId: string): string | null {
   const row = queryOne(selectLastDraftedAtStmt, LastDraftedAtSchema, { email, profileId });
   return row?.maxDraftedAt ?? null;

@@ -14,7 +14,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real item from GET https://talentmovers.breezy.hr/json
 const job: BreezyJob = {
   id: "c54d86f96c6e",
   friendly_id: "c54d86f96c6e-auto-body-technician-en",
@@ -62,7 +61,7 @@ test("normalizeBreezyhr maps fields: id, title, location name, job url, posted d
   assert.equal(p.jobUrl, "https://talentmovers.breezy.hr/p/c54d86f96c6e-auto-body-technician-en");
   assert.equal(p.location, "United States");
   assert.equal(p.isRemote, false);
-  assert.equal(p.jdText, ""); // list endpoint carries no description
+  assert.equal(p.jdText, "");
   assert.equal(p.postedAt, "2026-06-04T17:00:16.975Z");
 });
 

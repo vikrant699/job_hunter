@@ -5,7 +5,6 @@ import { db } from "./db.js";
 const BOARD_RUN_STATUSES = ["ok", "error"] as const;
 export type BoardRunStatus = (typeof BOARD_RUN_STATUSES)[number];
 
-// Per-board fetch history is a health signal, not an audit log — pruned to the newest N runs on every insert.
 const BOARD_RUNS_KEEP = 60;
 
 const insertBoardRunStmt = db.prepare(`
@@ -37,7 +36,6 @@ export interface InsertBoardRunInput {
   error: string | null;
 }
 
-/** Records one company fetch's lifecycle delta (added/removed/unchanged, or an error) and prunes that board's history to the newest 60 rows. */
 export function insertBoardRun(row: InsertBoardRunInput): void {
   insertBoardRunStmt.run(row);
   pruneBoardRunsStmt.run({ provider: row.provider, companySlug: row.companySlug, keep: BOARD_RUNS_KEEP });

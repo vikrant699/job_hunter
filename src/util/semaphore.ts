@@ -1,4 +1,3 @@
-/** A counting semaphore whose ceiling is read live (so config changes apply). */
 export function makeSemaphore(getLimit: () => number): () => Promise<() => void> {
   let inFlight = 0;
   const waiters: Array<() => void> = [];

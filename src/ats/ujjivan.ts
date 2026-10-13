@@ -1,5 +1,4 @@
-// src/ats/ujjivan.ts — Ujjivan SFB careers: GET www.ujjivansfb.bank.in/api/jobs -> { data: [...] }, no auth, one page returns all ~226 postings (many multi-branch with large location[] arrays).
-// JD: the list payload dropped description fields in the bank's 2026 site redesign; fetchJd calls POST .../api/jobs/job-details {job_id} -> job_decription in the response.
+// JD: the list payload carries no description; fetchJd POSTs .../api/jobs/job-details {job_id} -> job_decription.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { BROWSER_UA } from "../util/userAgent.js";
@@ -29,7 +28,6 @@ export const UjjivanResponseSchema = z.object({ data: z.array(UjjivanJobSchema) 
 export function normalizeUjjivan(company: AdapterCompany, j: UjjivanJob): NormalizedPosting {
   const cities = (j.location_city ?? []).map((s) => s.trim()).filter(Boolean);
   const uniq = [...new Set(cities)];
-  // Branch roles list dozens of cities; keep it readable but India-tagged.
   const location = uniq.length > 0 ? `${uniq.slice(0, 8).join(", ")}${uniq.length > 8 ? " …" : ""}, India` : "India";
   return {
     provider: "ujjivan",

@@ -96,7 +96,6 @@ export const happyfoxAdapter: AtsAdapter = {
       fetchPage: async (offset, page) => {
         const raw = await atsFetchJson(happyfoxListUrl(origin, page + 1), { provider: "happyfox" });
         const { postings, hasNext } = parseHappyfoxList(raw, company, origin);
-        // has_next=false pins the total to the rows seen so far, ending the crawl without an extra empty fetch
         return { items: postings, total: hasNext ? null : offset + postings.length, rawCount: postings.length };
       },
     });

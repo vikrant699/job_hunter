@@ -50,7 +50,6 @@ const LIST_INITIAL_DATA = {
       department: "64b5187d5a0713ba4d0c4ed3",
     },
     {
-      // no locationInfo at all - must tolerate a missing location.
       _id: "68ecc399fb4bc3d67a722ab7",
       name: "Founder's office intern",
       locationInfo: [],
@@ -81,7 +80,6 @@ function textRecord(id: string, body: string): string {
   return `${id}:T${byteLen},${body}`;
 }
 
-// Real chunks terminate with "\n" before the next chunk's id label begins; mirrored here so the (?:^|\n) chunk-boundary anchor in resolveTextRecord matches.
 const DETAIL_INITIAL_DATA_CHUNK =
   '14:["$","$L15",null,{"initialData":{"jobInfo":{"_id":"6a3d21dedb596783b0df9e72","name":"Customer Support Executive",' +
   '"jobDescription":{"description":"$16","companyPerks":"<p>Great place to work</p>"}}}}]\n';
@@ -145,7 +143,7 @@ test("parseSuperworksJd returns '' when jobDescription/description is absent", (
   assert.equal(parseSuperworksJd("<html><body>Not found</body></html>"), "");
 });
 
-// A subdomain the vendor does not host serves the same Next.js shell as a real tenant, with an RSC error record ("7:E{...}") instead of page data - no "initialData" anywhere, so it used to parse as a board with zero openings.
+// An unhosted subdomain serves the same Next.js shell as a real tenant, with an RSC error record ("7:E{...}") and no "initialData".
 const DEAD_TENANT_HTML = `<html><head><title>Jobs &amp; Careers | Recruit Superworks</title></head><body>${pushScript(
   '0:{"P":null,"b":"FNeXjdXzPJK76i66tsPLZ","c":["","job","listing"],"i":false}\n',
 )}${pushScript(
@@ -154,7 +152,6 @@ const DEAD_TENANT_HTML = `<html><head><title>Jobs &amp; Careers | Recruit Superw
     '7:E{"digest":"1659083992"}\n',
 )}</body></html>`;
 
-// A LIVE tenant whose board is empty: the tenant-identity block still resolves from the subdomain, and jobList is present but has nothing in it.
 const EMPTY_BOARD_HTML = `<html><body>${pushScript(
   `7:["$","$L13",null,{"initialData":${JSON.stringify({
     companyInfo: { companyName: "Refrens Internet Pvt Ltd." },
@@ -185,14 +182,12 @@ test("assertSuperworksTenantExists throws for a subdomain the vendor does not ho
 });
 
 test("the dead-subdomain error is charged to the company, not written off as infrastructure", () => {
-  // Must count toward consecutive_failures, or the scheduler would retry the board forever and never quarantine it.
   const err = thrownBy(() => assertSuperworksTenantExists(DEAD_TENANT_HTML, "refrens", superworksListUrl(company)));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A block page carries no initialData either, so it looked exactly like a subdomain the vendor does not host.
 test("a WAF challenge page is an edge refusal, NOT a dead subdomain", () => {
   const err = thrownBy(() =>
     assertSuperworksTenantExists(CHALLENGE_PAGE_HTML, "refrens", superworksListUrl(company)),
@@ -229,7 +224,6 @@ test("superworksAdapter.listPostings still lists a populated board unchanged", a
 });
 
 test("superworksAdapter.listPostings resolves the listing URL from a tenant_url override", async (t) => {
-  // tenant_url is the full listing URL here, so the origin must come from it rather than the slug.
   const insidefpv: AdapterCompany = {
     provider: "superworks",
     slug: "insidefpv",

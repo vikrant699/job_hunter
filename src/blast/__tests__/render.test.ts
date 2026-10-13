@@ -10,7 +10,6 @@ const TEMPLATE: BlastTemplate = {
   body: "{{greeting}}\n\n{{opener}}\n\nFixed body.\n\nBest regards,\nAlice\n",
 };
 
-/** 3x3 content mirroring the shipped shape (distinct marker strings). */
 const CONTENT: BlastContent = {
   resumeFilename: "Test User Resume.pdf",
   subjects: ["Subject One", "Subject Two", "Subject Three"],

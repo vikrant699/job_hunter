@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real item from POST /hire/api/career/published_jobs/
 const job: GreythrJob = {
   id: "ee737ce8-dec0-4ede-80fc-61ffee8d3a29",
   title: "CX Agent",

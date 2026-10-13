@@ -19,7 +19,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real markup from POST https://jobs.gohire.io/<tenant>/ (page 1 of 3, 25 total).
 const LIST_PAGE_1 = `
 <div class="jobs">
   <div class="job-container">
@@ -47,10 +46,8 @@ const LIST_PAGE_EMPTY = `
   <div class="jobs-pagination"><p class="gohire-job-pagination-results">Page <strong>4</strong> of <strong>3</strong>, Total <strong>25</strong> jobs</p></div>
 </div>`;
 
-// Verbatim pagination block from a real gohire response: the pager's totals (10+10+6=26) match the cards served across 3 pages.
 const REAL_PAGER_BLOCK = `<div class="jobs-pagination gohire-job-pagination no-text-highlight jobBoard"><div class="gohire-job-pagination-buttons"><button type="button" disabled>Prev</button><button type="button" onclick="submitPaging('rightArrow', 1);">Next</button></div><p class="gohire-job-pagination-results">Page <strong>1</strong> of <strong>3</strong>, Total <strong>26</strong> jobs</p></div>`;
 
-/** A list page holding `cards` plus a pager claiming `page` of `totalPages` and `totalJobs` total, matching the real element's tag/class/nesting. */
 function pagedListPage(
   cards: string[],
   page: number,
@@ -64,12 +61,10 @@ function pagedListPage(
     + `Total <strong>${totalJobs}</strong> jobs</p></div></div>`;
 }
 
-/** `count` well-formed cards with ids starting at `startId`, plus a pager. */
 function pagedPageOf(count: number, startId: number, page: number, totalPages: number, totalJobs: number): string {
   return pagedListPage(Array.from({ length: count }, (_, i) => fullCard(startId + i)), page, totalPages, totalJobs);
 }
 
-// Trimmed real JSON-LD island from a job detail page.
 const DETAIL_PAGE = `<!DOCTYPE html><html><head>
 <script type="application/ld+json">
 {
@@ -92,7 +87,7 @@ const DETAIL_PAGE = `<!DOCTYPE html><html><head>
 const MALFORMED_LIST = `<div class="jobs"><p>Something went wrong.</p></div>`;
 const MALFORMED_DETAIL = `<!DOCTYPE html><html><head><title>x</title></head><body>no ld+json here</body></html>`;
 
-// A full 10-card page matches the real page size, so the short-page check doesn't end it early; only the next (empty) page does.
+// A full 10-card page matches the real page size, so only the next (empty) page ends it.
 function fullCard(n: number): string {
   return `<a class="gohire-job" href="https://jobs.gohire.io/${company.slug}/job-${n}-${1000 + n}/">
       <div class="left-career">
@@ -104,7 +99,7 @@ function fullCard(n: number): string {
 }
 const LIST_PAGE_FULL = `<div class="jobs"><div class="job-container">${Array.from({ length: 10 }, (_, i) => fullCard(i + 1)).join("")}</div></div>`;
 
-/** A card whose href carries no trailing numeric id: rendered by the server (counts toward raw size) but dropped by the parser. */
+// A card whose href carries no trailing numeric id: rendered by the server (counts toward raw size) but dropped by the parser.
 function malformedCard(n: number): string {
   return `<a class="gohire-job" href="https://jobs.gohire.io/${company.slug}/broken-role/">
       <div class="left-career">
@@ -113,12 +108,10 @@ function malformedCard(n: number): string {
     </a>`;
 }
 
-/** A list page holding exactly the given cards. */
 function listPage(cards: string[]): string {
   return `<div class="jobs"><div class="job-container">${cards.join("")}</div></div>`;
 }
 
-/** `count` well-formed cards with ids starting at `startId`. */
 function pageOf(count: number, startId: number): string {
   return listPage(Array.from({ length: count }, (_, i) => fullCard(startId + i)));
 }
@@ -131,7 +124,6 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-/** Serve a canned page per `page` form field; anything past the end is the empty board page. Records the page numbers requested, in order. */
 function stubPages(pages: Record<string, string>): string[] {
   const seen: string[] = [];
   stubFetch(async (_input, init) => {
@@ -201,7 +193,6 @@ test("parseGohireListPage returns an empty array for malformed/unexpected markup
 });
 
 test("parseGohireListPage reads the board's own totals out of the real pagination block", () => {
-  // gohire does publish a total, so truncation is measurable; counts must come from the pager, not the cards.
   const { postings, rawCount, pager } = parseGohireListPage(
     `<div class="jobs"><div class="job-container">${fullCard(1)}${fullCard(2)}</div>${REAL_PAGER_BLOCK}</div>`,
     company,
@@ -212,7 +203,6 @@ test("parseGohireListPage reads the board's own totals out of the real paginatio
 });
 
 test("parseGohireListPage reads the pager through arbitrary markup and whitespace", () => {
-  // Parses the element's TEXT, not specific tags, so markup changes don't break it.
   const html = `<div class="jobs"><div class="job-container">${fullCard(1)}</div>
     <section class="jobs-pagination">
       <span class="gohire-job-pagination-results">
@@ -230,7 +220,7 @@ test("parseGohireListPage reads the pager through arbitrary markup and whitespac
 });
 
 test("parseGohireListPage reports an absent pager as absent — not zero, not a throw", () => {
-  // gohire renders no pagination block at all below one page (not an empty one), so absence is positive evidence this page is the whole board.
+  // gohire renders no pager below one page, so absence proves a single-page board.
   const html = `<div class="jobs">
   <div class="job-container">
 <a class="gohire-job" href="https://jobs.gohire.io/edwisely-ytgpsptj/video-editor-and-multimedia-designer-294211/">
@@ -259,7 +249,7 @@ test("parseGohireListPage reports an absent pager as absent — not zero, not a 
 });
 
 test("parseGohireListPage refuses to guess when the pager is there but unreadable", () => {
-  // Unreadable numbers prove nothing; collapsing to "absent" would wrongly claim a single-page board and hide real truncation.
+  // Unreadable numbers prove nothing; collapsing to "absent" would hide real truncation.
   const partial = `<div class="jobs"><div class="job-container">${fullCard(1)}</div>`
     + `<p class="gohire-job-pagination-results">Page <strong>1</strong> of <strong>3</strong></p></div>`;
   assert.deepEqual(parseGohireListPage(partial, company).pager, { kind: "unparsed" });
@@ -270,14 +260,12 @@ test("parseGohireListPage refuses to guess when the pager is there but unreadabl
 });
 
 test("parseGohireListPage reports the server's card count even when a card is unparseable", () => {
-  // rawCount is the page's real size; postings is what survived - pagination must not read the gap as "the last page".
   const html = listPage([fullCard(1), malformedCard(2), fullCard(3)]);
   const { postings, rawCount } = parseGohireListPage(html, company);
   assert.equal(rawCount, 3);
   assert.deepEqual(postings.map((p) => p.externalId), ["1001", "1003"]);
 });
 
-/** The one stall line among the captured logs. */
 function onlyStallLog(calls: LogLine[]): LogLine {
   const stalls = calls.filter((c) => typeof c.message === "string" && c.message.startsWith("pagination"));
   assert.equal(stalls.length, 1, `expected exactly one pagination log line, got ${JSON.stringify(calls)}`);
@@ -287,7 +275,6 @@ function onlyStallLog(calls: LogLine[]): LogLine {
 }
 
 test("gohireAdapter.listPostings feeds the pager's total into pagination", async () => {
-  // Reaching the pager's reported total ends the crawl, so page 3 is never fetched.
   const seen = stubPages({
     "1": pagedPageOf(10, 1, 1, 2, 20),
     "2": pagedPageOf(10, 11, 2, 2, 20),
@@ -302,7 +289,6 @@ test("gohireAdapter.listPostings feeds the pager's total into pagination", async
 });
 
 test("gohireAdapter.listPostings warns, naming both counts, when a stall falls short of the pager's total", async () => {
-  // A board that re-serves page 1 while its pager promises 40 jobs is genuinely losing rows.
   const seen: string[] = [];
   stubFetch(async (_input, init) => {
     const body = typeof init?.body === "string" ? init.body : "";
@@ -324,7 +310,6 @@ test("gohireAdapter.listPostings warns, naming both counts, when a stall falls s
 });
 
 test("gohireAdapter.listPostings stays quiet on a stall when the board renders no pager at all", async () => {
-  // No pager to render means one page IS the board, so this logs at info, not warn.
   const seen: string[] = [];
   stubFetch(async (_input, init) => {
     const body = typeof init?.body === "string" ? init.body : "";
@@ -346,7 +331,6 @@ test("gohireAdapter.listPostings stays quiet on a stall when the board renders n
 });
 
 test("gohireAdapter.listPostings still hedges on a stall when the pager is present but unreadable", async () => {
-  // Pager present but unreadable: no total to check and no proof the board is single-page, so it hedges.
   const unreadable = `<div class="jobs"><div class="job-container">`
     + `${Array.from({ length: 3 }, (_, i) => fullCard(i + 1)).join("")}</div>`
     + `<p class="gohire-job-pagination-results">Page <strong>1</strong></p></div>`;
@@ -420,7 +404,6 @@ test("gohireAdapter.fetchJd returns an empty string when the detail page has no 
 });
 
 test("gohireAdapter.listPostings collects the whole board when the tenant pages below the assumed 10", async () => {
-  // A tenant paging at 4 cards would look short against an assumed pageSize of 10 and silently truncate.
   const seen = stubPages({ "1": pageOf(4, 1), "2": pageOf(4, 5), "3": pageOf(2, 9) });
   try {
     const items = await gohireAdapter.listPostings(company);
@@ -436,7 +419,6 @@ test("gohireAdapter.listPostings collects the whole board when the tenant pages 
 });
 
 test("gohireAdapter.listPostings is unchanged on a tenant that really does page at 10", async () => {
-  // Regression guard: the inferred page size must match the old fixed constant when that constant was correct.
   const seen = stubPages({ "1": pageOf(10, 1), "2": pageOf(10, 11), "3": pageOf(3, 21) });
   try {
     const items = await gohireAdapter.listPostings(company);
@@ -448,7 +430,6 @@ test("gohireAdapter.listPostings is unchanged on a tenant that really does page 
 });
 
 test("gohireAdapter.listPostings does not let an unparseable card on a full page end the board", async () => {
-  // A full page can parse to fewer postings than rendered; pagination must measure the raw card count, not the parsed count.
   const page2 = listPage([...Array.from({ length: 9 }, (_, i) => fullCard(11 + i)), malformedCard(20)]);
   const seen = stubPages({ "1": pageOf(10, 1), "2": page2, "3": pageOf(3, 21) });
   try {
@@ -461,7 +442,6 @@ test("gohireAdapter.listPostings does not let an unparseable card on a full page
 });
 
 test("gohireAdapter.listPostings stops on a board that ignores the page field and re-serves page 1", async () => {
-  // With no total and every page full, only the exact-page-repeat stall guard can terminate this board.
   const seen: string[] = [];
   stubFetch(async (_input, init) => {
     const body = typeof init?.body === "string" ? init.body : "";

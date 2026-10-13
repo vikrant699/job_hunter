@@ -84,7 +84,6 @@ test("insertBoardRun prunes a board's history to the newest 60 rows", () => {
 
   const rows = boardRunRows("custom", slug);
   assert.equal(rows.length, 60, "only the newest 60 runs survive");
-  // Newest-first: the surviving rows are runs 5..64 (added=i), so the oldest kept run has added=5.
   const oldestKept = rows[rows.length - 1];
   assert.equal(oldestKept?.added, 5);
   assert.equal(rows[0]?.added, 64, "the most recent run must survive");

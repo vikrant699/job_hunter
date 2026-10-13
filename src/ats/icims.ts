@@ -12,10 +12,9 @@ import { awaitNetwork } from "../util/connectivity.js";
 import { REMOTE_RE } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-const MAX_PAGES = 5000; // runaway backstop only, never truncate
+const MAX_PAGES = 5000;
 const WAF_SETTLE_MS = 10_000; // let the AWS WAF JS challenge solve + set cookies
 
-/** Tenant token = the first label of the *.icims.com host. */
 export function icimsTenant(company: AdapterCompany): string {
   const url = company.tenantUrl ?? company.careersUrl;
   const host = new URL(url).hostname;
@@ -25,17 +24,14 @@ export function icimsTenant(company: AdapterCompany): string {
   return token;
 }
 
-/** Origin of the portal host, e.g. https://globalcareers-lennox.icims.com. */
 function icimsOrigin(company: AdapterCompany): string {
   return new URL(company.tenantUrl ?? company.careersUrl).origin;
 }
 
-/** 0-based portal search page URL (the in_iframe portal serves the job rows). */
 export function icimsSearchUrl(origin: string, pr: number): string {
   return `${origin}/jobs/search?ss=1&in_iframe=1&pr=${pr}`;
 }
 
-/** Strip the ?in_iframe/mobile query off a job href to get the human link. */
 function cleanJobUrl(href: string): string {
   try {
     const u = new URL(href);
@@ -46,7 +42,6 @@ function cleanJobUrl(href: string): string {
   }
 }
 
-/** Total page count from the portal's "Page X of N" results header; null when the header is absent. */
 export function icimsPageCount(html: string): number | null {
   const n = matchGroup(/Page\s+\d+\s+of\s+(\d+)/i, cheerio.load(html)(".iCIMS_SubHeader_Jobs").first().text());
   return n === null ? null : Number(n);
@@ -71,7 +66,6 @@ function cardLocation($: cheerio.CheerioAPI, row: ReturnType<cheerio.CheerioAPI>
   return parts.length > 0 ? parts.join(" | ") : null;
 }
 
-/** Parse one portal search page into postings (jdText filled by fetchJd). */
 export function parseIcimsList(html: string, company: AdapterCompany): NormalizedPosting[] {
   const $ = cheerio.load(html);
   const jobs: NormalizedPosting[] = [];
@@ -100,7 +94,6 @@ export function parseIcimsList(html: string, company: AdapterCompany): Normalize
   return jobs;
 }
 
-/** Extract JD text: joins every .iCIMS_Expandable_Text section inside .iCIMS_JobContent; falls back to the whole block for other layouts. */
 export function parseIcimsJd(html: string): string {
   const $ = cheerio.load(html);
   const sections = $(".iCIMS_JobContent .iCIMS_Expandable_Text");
@@ -138,7 +131,6 @@ async function getEdgeBrowser(): Promise<Browser> {
   return edgeBoot;
 }
 
-/** A context that has already cleared the WAF for `origin` (cached per host). */
 async function warmContext(origin: string): Promise<BrowserContext> {
   const existing = warmContexts.get(origin);
   if (existing) return existing;
@@ -173,7 +165,7 @@ export const icimsAdapter: AtsAdapter = {
   provider: "icims",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    icimsTenant(company); // validate host shape early
+    icimsTenant(company);
     const origin = icimsOrigin(company);
     const out: NormalizedPosting[] = [];
     const seen = new Set<string>();

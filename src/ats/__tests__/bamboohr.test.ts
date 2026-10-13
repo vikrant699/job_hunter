@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Realistic rows captured live from GET noorahealth.bamboohr.com/careers/list.
 const jobLocationPopulated: BambooHrJob = {
   id: "105",
   jobOpeningName: "AI/ML Engineer",

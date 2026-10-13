@@ -1,4 +1,3 @@
-// One-time Google OAuth consent for a profile's Gmail account; writes the token to data/google-token-<profile>.json, overwritten on re-consent.
 import "dotenv/config";
 import { createServer } from "node:http";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -34,7 +33,7 @@ function requiredEnv(name: string): string {
   return v;
 }
 
-/** Hands a URL to the desktop's default browser per platform, deliberately not via `cmd /c start` - cmd.exe reads `&` as a separator and truncates the OAuth URL. */
+// Not `cmd /c start`: cmd.exe reads `&` as a separator and truncates the OAuth URL.
 function browserCommand(url: string): { command: string; args: string[] } {
   if (process.platform === "win32") {
     return { command: "rundll32", args: ["url.dll,FileProtocolHandler", url] };
@@ -45,9 +44,8 @@ function browserCommand(url: string): { command: string; args: string[] } {
 
 function openBrowser(url: string): void {
   const { command, args } = browserCommand(url);
-  // detached+unref so the browser-launcher child never keeps our event loop alive.
   const child = spawn(command, args, { detached: true, stdio: "ignore" });
-  // No handler registered must not take the consent flow down - the URL is printed above so this stays optional.
+  // A missing handler must not fail consent; the URL is printed above.
   child.on("error", (err) => {
     console.log(
       `(couldn't open a browser automatically: ${err.message} — use the URL above)`,
@@ -140,7 +138,7 @@ async function main(): Promise<void> {
     `Verify the account: the drafts for profile "${profileId}" will be created in the`,
   );
   console.log(`Gmail account you just logged in with.`);
-  // No process.exit() - a hard exit races tsx/esbuild's async handles on Windows; let the loop drain.
+  // No process.exit(): a hard exit races tsx/esbuild async handles on Windows.
 }
 
 main().catch((err) => {

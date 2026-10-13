@@ -10,7 +10,6 @@ import { REMOTE_RE, dateToIso, collapseWs, extractBalanced } from "./shared.js";
 
 const BOARD_ORIGIN = "https://app.goodfit.so";
 
-/** Board slug: path segment after /jobs/ in tenantUrl/careersUrl, else company slug. */
 export function goodfitSlug(company: AdapterCompany): string {
   for (const url of [company.tenantUrl, company.careersUrl]) {
     if (!url) continue;
@@ -26,7 +25,6 @@ export function goodfitSlug(company: AdapterCompany): string {
   return company.slug;
 }
 
-/** Board URL to fetch: explicit tenant/careers URL when it points at a board, else canonical. */
 export function goodfitBoardUrl(company: AdapterCompany): string {
   for (const url of [company.tenantUrl, company.careersUrl]) {
     if (url && /goodfit\.so\/jobs\//i.test(url)) return url;
@@ -34,7 +32,6 @@ export function goodfitBoardUrl(company: AdapterCompany): string {
   return `${BOARD_ORIGIN}/jobs/${encodeURIComponent(goodfitSlug(company))}`;
 }
 
-/** Client-side redirect target (meta refresh, else Next's RSC redirect digest). */
 export function extractGoodfitRedirect(html: string): string | null {
   const meta = html.match(/http-equiv="refresh"[^>]*content="\d+;\s*url=([^"]+)"/i);
   if (meta?.[1]) return meta[1];
@@ -90,7 +87,6 @@ const LdItemListSchema = z.object({
   itemListElement: z.array(LdListItemSchema),
 });
 
-/** v2 JSON-LD ItemList -> [{name, url}]. Empty when absent (v1 boards). */
 export function parseGoodfitLdItems(html: string): GoodfitLdItem[] {
   const $ = cheerio.load(html);
   const out: GoodfitLdItem[] = [];
@@ -107,7 +103,6 @@ export function parseGoodfitLdItems(html: string): GoodfitLdItem[] {
   return out;
 }
 
-/** Stable external id from a job URL's ?id= param; falls back to the last path segment. */
 function goodfitJobId(url: string, base: string): string | null {
   try {
     const u = new URL(url, base);
@@ -130,12 +125,11 @@ function makePosting(
     jobUrl: fields.jobUrl,
     location: fields.location,
     isRemote: fields.location !== null && REMOTE_RE.test(fields.location),
-    jdText: "", // detail page fetched lazily via fetchJd
+    jdText: "",
     postedAt: fields.postedAt,
   };
 }
 
-/** Parse one board page (either generation) into postings; throws on Next's 404 fallback (board slug gone), [] is a legitimately empty board. */
 export function parseGoodfitBoard(html: string, finalUrl: string, company: AdapterCompany): NormalizedPosting[] {
   if (html.includes("NEXT_HTTP_ERROR_FALLBACK;404")) {
     throw new Error(`goodfit board 404 for ${company.slug} (${finalUrl})`);
@@ -166,7 +160,6 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
     return out;
   }
 
-  // v1 fallback: anchor cards, title in div.font-serif or span.font-medium, location after the ✦ separator or in the span.text-xs chip.
   const $ = cheerio.load(html);
   $('a[href*="?id="]').each((_, el) => {
     const $a = $(el);
@@ -202,7 +195,6 @@ export function parseGoodfitBoard(html: string, finalUrl: string, company: Adapt
   return out;
 }
 
-/** JD text: div.prose (v2), else [&>h1]-styled container (v1), else whole-page text minus scripts/styles. */
 export function extractGoodfitJd(html: string): string {
   const $ = cheerio.load(html);
   $("script, style").remove();
@@ -211,7 +203,6 @@ export function extractGoodfitJd(html: string): string {
   return htmlToText(target ?? "");
 }
 
-/** Fetch a goodfit page, following embedded client-side redirects (v1 shell -> v2 board/job); meta refresh targets can be relative, resolved against the previous URL. */
 async function fetchGoodfitPage(url: string): Promise<{ finalUrl: string; html: string }> {
   let page = await atsFetchHtml(url, { provider: "goodfit" });
   for (let hop = 0; hop < 3; hop++) {

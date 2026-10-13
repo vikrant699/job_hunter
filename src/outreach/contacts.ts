@@ -5,14 +5,11 @@ import { normalizeCompanyName } from "./match.js";
 import { RECRUITERS_LIST_COLS, RAW_DATA_COLS } from "./tabs.js";
 
 export interface SyncContactsDeps {
-  /** Injectable in tests to avoid a real Sheets fetch. */
   readTab?: (profileId: string, tab: string) => Promise<string[][]>;
 }
 
-/** Loose email check, good enough to drop junk cells without a full RFC5322 validator. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Splits a cell that may hold multiple emails on '/' or ',', normalizes, drops non-emails. */
 function splitEmails(cell: string): string[] {
   return cell
     .split(/[/,]/)
@@ -24,7 +21,7 @@ function cellAt(row: string[], index: number): string {
   return (row[index] ?? "").trim();
 }
 
-// Syncs "Raw Data" (unverified) first, then "Recruiters List" (verified), so a contact in both ends up verified with the manual sheet's fields winning; upsertRecruiter's no-downgrade rule keeps a later re-sync from un-verifying.
+// Raw Data (unverified) syncs before Recruiters List (verified) so the manual sheet's fields win; upsertRecruiter's no-downgrade rule keeps re-syncs from un-verifying.
 export async function syncContactsFromSheet(
   profileId: string,
   deps: SyncContactsDeps = {},

@@ -1,5 +1,5 @@
-// src/ats/unberry.ts — Unberry ATS (app.unberry.com/careers/<companyId>, e.g. Vahan). list: GET ats-api.unberry.com/api/v3/job/<companyId>?page&size (no location/JD fields).
-// detail: GET .../job/job-details/<jobId> -> jobDescription/jobRequirements/jobBenefits HTML; companyId is the opaque mongo id from the careers URL, apiMeta.fixedLocation supplies location since the API carries none.
+// list: GET ats-api.unberry.com/api/v3/job/<companyId>?page&size (no location/JD fields).
+// detail: GET .../job/job-details/<jobId> -> jobDescription/jobRequirements/jobBenefits HTML; companyId is the opaque mongo id from the careers URL; apiMeta.fixedLocation supplies location.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -68,7 +68,7 @@ function normalizeUnberry(company: AdapterCompany, companyId: string, j: Unberry
     jobUrl: `https://app.unberry.com/careers/${companyId}/${j._id}`,
     location,
     isRemote: j.jobLocationType === "remote",
-    jdText: "", // two-phase — filled in by fetchJd
+    jdText: "",
     postedAt: j.publishedAt ?? null,
   };
 }

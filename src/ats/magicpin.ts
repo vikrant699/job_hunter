@@ -8,7 +8,6 @@ import { atsFetchJson, parseOrNull } from "./http.js";
 import { REMOTE_RE } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
-// Single-tenant: this is magicpin's own site, not a SaaS ATS host pattern.
 const API_BASE = "https://sales.magicpin.in/magickiosk/career";
 const LIST_URL = `${API_BASE}/jobs`;
 const jdUrl = (jobId: string): string => `${API_BASE}/jobs/${encodeURIComponent(jobId)}`;
@@ -61,7 +60,7 @@ export function normalizeMagicpin(company: AdapterCompany, j: MagicpinListJob): 
     jobUrl: jobPageUrl(j._id),
     location: j.location ?? null,
     isRemote: REMOTE_RE.test(j.location ?? ""),
-    jdText: "", // list endpoint carries no JD body; fetchJd hits the detail endpoint.
+    jdText: "",
     postedAt: null, // neither list nor detail response carries a reliable posting date.
   };
 }

@@ -1,5 +1,5 @@
-// list: POST https://public.zwayam.com/jobs/search (multipart/form-data: companyId, filterCri, domain; header TenantGroupId, discovered via GET .../tenant_management/tenant/group?domain_name=<host> -> { reponseObject: { tenantGroupId } } [sic]) -> { data: { data: [{ _id, _source }], totalCount, hasMoreData } }; one-phase (JD inline in _source, see bestJdText).
-// `domain` (not companyId) is what the vendor keys the tenant on - an unhosted domain returns data:null and fails the row, but a stale companyId silently returns the domain's own jobs instead of emptying the board.
+// list: POST https://public.zwayam.com/jobs/search (multipart/form-data: companyId, filterCri, domain; header TenantGroupId from GET .../tenant_management/tenant/group?domain_name=<host> -> { reponseObject: { tenantGroupId } } [sic]) -> { data: { data: [{ _id, _source }], totalCount, hasMoreData } }; JD inline in _source.
+// `domain`, not companyId, keys the tenant: an unhosted domain returns data:null, but a stale companyId silently returns the domain's own jobs.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -37,7 +37,7 @@ export function zwayamJobsSearchUrl(): string {
   return "https://public.zwayam.com/jobs/search";
 }
 
-// The jobs/search filterCri payload for one page; paginationStartNo is a row offset, honoured exactly - there is no page-size field, so row count is entirely the tenant's business.
+// paginationStartNo is an exact row offset; there is no page-size field, so row count is the tenant's business.
 export function zwayamFilterCri(paginationStartNo: number): string {
   return JSON.stringify({
     paginationStartNo,
@@ -47,7 +47,7 @@ export function zwayamFilterCri(paginationStartNo: number): string {
   });
 }
 
-// Unwraps one jobs/search page. Throws on a schema mismatch — a silently-truncated page looks complete.
+// Throws on schema mismatch: a silently-truncated page looks complete.
 export function zwayamPage(
   raw: JsonValue,
   slug = "zwayam",
@@ -60,7 +60,6 @@ export function zwayamPage(
   };
 }
 
-// Picks the fullest JD text across the description fields tenants populate inconsistently.
 function bestJdText(src: z.infer<typeof HitSourceSchema>): string {
   const candidates = [
     htmlToText(src.shortDescription ?? ""),
@@ -108,9 +107,9 @@ export const zwayamAdapter: AtsAdapter = {
     return paginate<NormalizedPosting>({
       provider: "zwayam",
       company: company.slug,
-      // Tenant-set, not engine-set: different tenants serve different row counts for the identical request, and paginate applies the short-page rule before the reported total - a guessed constant too high can end a board early, so latch the tenant's own first-page row count instead.
+      // Tenant-set: tenants serve different row counts for the identical request and paginate applies the short-page rule before the reported total, so latch the first-page row count.
       pageSize: "infer",
-      // Arms the exact-page-repeat stall guard: without it a tenant ignoring paginationStartNo would be walked all the way to totalCount re-serving page 1.
+      // Arms the stall guard: a tenant ignoring paginationStartNo would otherwise be walked to totalCount re-serving page 1.
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset) => {
         // Akamai-fronted; resets the connection for non-browser User-Agents, same as Jibe.
@@ -129,5 +128,4 @@ export const zwayamAdapter: AtsAdapter = {
       },
     });
   },
-  // The list response carries the full description — no fetchJd needed.
 };

@@ -1,4 +1,3 @@
-/** Probe every registry entry (ATS slug or careers URL) and report failures. */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -39,7 +38,7 @@ async function probeWorkday(tenantUrl: string | undefined): Promise<boolean> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
-    // A live CXS endpoint answering with the expected shape is a valid tenant even with zero current openings.
+    // A live CXS endpoint with the expected shape is a valid tenant even with zero openings.
     const parsed = z.object({ total: z.number().optional() }).safeParse(await res.json());
     return parsed.success;
   } catch {
@@ -81,7 +80,7 @@ async function checkAts(entry: RegistryEntry, suggest: boolean): Promise<Result>
 
   const builder = ATS_URL_BUILDERS[entry.source];
   if (!builder) {
-    // No public probe for this provider - fall back to the careers page rather than reporting a false "broken".
+    // No public probe: fall back to the careers page rather than a false "broken".
     return checkUrl(entry, suggest);
   }
 

@@ -8,15 +8,12 @@ import { atsFetchHtml } from "./http.js";
 import { REMOTE_RE, tenantOriginOr, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-/** Tenant origin, e.g. "https://hackerearth.applytojob.com"; prefers an explicit tenant_url host, else builds it from the slug. */
 export function jazzhrBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.applytojob.com`);
 }
 
-/** Host of a URL plus a www.-stripped canonical form for comparison; null when unparseable. */
 function hostOf(url: string): { host: string; canonical: string } | null {
   try {
-    // URL already lowercases the host and drops the path/query, so `canonical` is insensitive to a trailing slash or a ?src=.
     const { host } = new URL(url);
     return { host, canonical: host.replace(/^www\./, "") };
   } catch {
@@ -24,11 +21,10 @@ function hostOf(url: string): { host: string; canonical: string } | null {
   }
 }
 
-/** Throws when the board answered off the tenant host: a dead JazzHR slug 200s and redirects to JazzHR's own marketing page instead of 404ing; keyed on host rather than page copy so it can't rot when the vendor rewrites wording. */
+/** Throws when the board answered off the tenant host: a dead slug 200s and redirects to JazzHR's marketing page; keyed on host so vendor rewording can't break it. */
 export function assertJazzhrOnTenantHost(base: string, finalUrl: string): void {
   const expected = hostOf(base);
   const actual = hostOf(finalUrl);
-  // An unparseable URL on either side says nothing about the board, so stay quiet rather than turn a URL-shape oddity into a company failure.
   if (expected === null || actual === null) return;
   if (expected.canonical === actual.canonical) return;
 
@@ -39,7 +35,7 @@ export function assertJazzhrOnTenantHost(base: string, finalUrl: string): void {
   );
 }
 
-/** Throws on JazzHR's inactive-account page: a cancelled account still 200s on its own host with no list, so it would otherwise read as an empty board. */
+/** Throws on JazzHR's inactive-account page: a cancelled account still 200s with no list, reading as an empty board. */
 export function assertJazzhrAccountActive(html: string, url: string): void {
   const title = matchGroup(/<title[^>]*>([^<]*)<\/title>/i, html) ?? "";
   if (!/inactive career page/i.test(title)) return;
@@ -53,12 +49,10 @@ export interface JazzhrListing {
   location: string | null;
 }
 
-/** The job id is the first path segment after /apply/ on a detail URL (/apply/<id>/<slug>); null otherwise. */
 export function parseJazzhrJobId(url: string): string | null {
   return matchGroup(/\/apply\/([^/]+)\/[^/]+/, url);
 }
 
-/** Parse the /apply board page into raw listings; skips rows with a missing href or blank title. */
 export function parseJazzhrList(html: string, baseUrl: string): JazzhrListing[] {
   const $ = cheerio.load(html);
   const out: JazzhrListing[] = [];
@@ -108,7 +102,6 @@ export function normalizeJazzhr(company: AdapterCompany, j: JazzhrListing): Norm
   };
 }
 
-/** Extract the plain-text JD from a detail page's #job-description div; "" when the div is missing. */
 export function extractJazzhrJd(html: string): string {
   const $ = cheerio.load(html);
   const body = $("#job-description").first().html();

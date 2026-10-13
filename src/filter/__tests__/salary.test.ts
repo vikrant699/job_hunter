@@ -85,7 +85,6 @@ test("empty text returns null", () => {
   assert.equal(extractSalary(""), null);
 });
 
-// Extra coverage beyond the required table: currency-less k-range needs a nearby context word.
 test("currency-less k-range accepted only with a compensation context word nearby", () => {
   const withContext = extractSalary("Compensation for this role: 50k-70k depending on experience.");
   assert.ok(withContext);
@@ -97,7 +96,6 @@ test("currency-less k-range accepted only with a compensation context word nearb
   assert.equal(withoutContext, null);
 });
 
-// A requisition id or a "24x7" shift phrase must never be read as a salary figure.
 test("ignores requisition ids and shift-hours phrasing", () => {
   assert.equal(extractSalary("Req ID: 20260901. Support required 24x7 for this role."), null);
 });

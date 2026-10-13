@@ -1,5 +1,4 @@
-// src/ats/ubs.ts — UBS careers (IBM Kenexa BrassRing "Talent Gateway"/TGnewUI): drives the site's own search UI in a headless browser (load home, decline consent, set location filter, click Search) and captures the response.
-// list: passively-captured POST /TgNewUI/Search/Ajax/MatchedJobs -> { Jobs: { Job: [{ Questions: [{QuestionName,Value}] }] } }; JD inline via ubsField("jobdescription"), no separate detail call.
+// list: passively-captured POST /TgNewUI/Search/Ajax/MatchedJobs -> { Jobs: { Job: [{ Questions: [{QuestionName,Value}] }] } }; JD inline via ubsField("jobdescription").
 import type { Page } from "playwright";
 import { z } from "zod";
 import { logger } from "../logger.js";
@@ -15,7 +14,7 @@ const DEFAULT_LOCATION = "India";
 const NAV_TIMEOUT = 45_000;
 const CAPTURE_TIMEOUT = 30_000;
 
-// Value is optional so one Value-less question doesn't zero the whole board — ubsField already handles the absence.
+// Value is optional so one Value-less question doesn't zero the whole board.
 const UbsQuestionSchema = z.object({ QuestionName: z.string().optional(), Value: JsonValueSchema.optional() });
 const UbsJobSchema = z.object({ Questions: z.array(UbsQuestionSchema).optional() });
 const MatchedJobsSchema = z.object({
@@ -25,19 +24,18 @@ type UbsJob = z.infer<typeof UbsJobSchema>;
 
 const JobsCountSchema = z.object({ JobsCount: z.number() });
 
-// The server's own job count for the executed search — the only completeness signal available since the response has no paging cursor.
+// Server's own job count: the only completeness signal, as the response has no paging cursor.
 export function ubsReportedJobsCount(payload: JsonValue): number | null {
   const parsed = JobsCountSchema.safeParse(payload);
   return parsed.success ? parsed.data.JobsCount : null;
 }
 
-// The truncation message to log, or null when complete; `parsed` can legitimately fall below raw count (dedup/no-title rows), so only a shortfall against the SERVER's count is reported.
+// `parsed` can fall below the raw count (dedup/no-title rows), so only a shortfall against the SERVER's count is reported.
 export function ubsTruncationWarning(parsed: number, reported: number | null): string | null {
   if (reported === null || parsed >= reported) return null;
   return `ubs: returned ${parsed} of ${reported} reported jobs — response is truncated`;
 }
 
-// Reads one Questions field's value as a trimmed string.
 export function ubsField(job: UbsJob, name: string): string | null {
   const q = job.Questions?.find((x) => x.QuestionName === name);
   const v = q?.Value;
@@ -46,7 +44,6 @@ export function ubsField(job: UbsJob, name: string): string | null {
   return null;
 }
 
-// Parses the MatchedJobs payload into normalized postings. Pure/testable.
 export function parseUbsMatchedJobs(payload: JsonValue, company: AdapterCompany, homeUrl: string, siteId: string): NormalizedPosting[] {
   const parsed = MatchedJobsSchema.safeParse(payload);
   const jobs = parsed.success ? parsed.data.Jobs?.Job ?? [] : [];
@@ -76,7 +73,6 @@ export function parseUbsMatchedJobs(payload: JsonValue, company: AdapterCompany,
 }
 
 async function dismissConsent(page: Page): Promise<void> {
-  // Best-effort: decline non-essential cookies so the banner can't block clicks.
   const decline = page
     .locator("button, a")
     .filter({ hasText: /decline all|reject all|only necessary/i })
@@ -88,7 +84,7 @@ export const ubsAdapter: AtsAdapter = {
   provider: "ubs",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // MatchedJobs is pinned to a single-use per-session rft/encryptedsessionvalue token, so we drive the UI instead of replaying the API directly.
+    // MatchedJobs is pinned to a single-use per-session token, so drive the UI instead of replaying the API.
     const homeUrl = company.tenantUrl ?? company.careersUrl;
     const siteId = new URL(homeUrl).searchParams.get("siteid") ?? "";
     const location = company.apiMeta?.location ?? DEFAULT_LOCATION;
@@ -118,7 +114,6 @@ export const ubsAdapter: AtsAdapter = {
         if (truncated) logger.warn({ slug: company.slug }, truncated);
         return postings;
       },
-      // WAF/consent settle on goto is swallowed (default); this settle runs before the UI-driving above.
       { navTimeoutMs: NAV_TIMEOUT, waitUntil: "networkidle", settleMs: 3000, blockHeavyAssets: false },
     );
   },

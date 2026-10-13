@@ -21,7 +21,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real items from GET /api/job_board/lenskart_ho/jobs/
 const job1: AinterviewsJob = {
   id: 23,
   title: "Product Manager",
@@ -48,7 +47,7 @@ test("AinterviewsJobSchema accepts the real shape and tolerates missing optional
   assert.ok(AinterviewsJobSchema.safeParse(job1).success);
   assert.ok(AinterviewsJobSchema.safeParse({ id: 1, title: "y" }).success);
   assert.equal(AinterviewsJobSchema.safeParse({ title: "no id" }).success, false);
-  assert.equal(AinterviewsJobSchema.safeParse({ id: 1 }).success, false); // title required
+  assert.equal(AinterviewsJobSchema.safeParse({ id: 1 }).success, false);
 });
 
 test("normalizeAinterviews maps fields, strips HTML JD, resolves relative apply_url", () => {

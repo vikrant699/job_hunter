@@ -1,5 +1,4 @@
-// src/ats/paramai.ts — Param.ai careers boards (<tenant>.app.param.ai): one unauthenticated GET returns every posting grouped by department, with the JD inline.
-// apiMeta.subdomain selects the tenant; apiMeta.country (optional) suffixes a single-country tenant's bare towns ("Kharkhoda") the location filter cannot place.
+// one unauthenticated GET returns every posting grouped by department, JD inline; apiMeta.subdomain selects the tenant; apiMeta.country suffixes bare town names
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

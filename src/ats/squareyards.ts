@@ -1,5 +1,4 @@
-// src/ats/squareyards.ts — Square Yards careers, a department-scoped JSON endpoint (GET /career/<Department>); there is no single "all departments" endpoint (that path serves the React shell instead), so listPostings iterates a fixed department list and skips (logged) any that 404 or return non-JSON.
-// No per-job URL field is returned; the real detail page is /career_form/<id>?location=&dept= - the /career/<Department> API paths themselves serve JSON even to a browser, so they must never be used as jobUrl.
+// Detail page is /career_form/<id>?location=&dept=; the /career/<Department> API paths serve JSON even to a browser, so never use them as jobUrl.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -11,7 +10,7 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 
-// API department slugs from the careers page's tab JS (client-rendered, not discoverable via one call) - a wrong/short-form slug returns an empty data array rather than an error, so it silently drops jobs.
+// A wrong/short-form department slug returns an empty array, not an error, so it silently drops jobs.
 export const SQUAREYARDS_DEPARTMENTS = [
   "Sales", "Technology", "Marketing", "Human_Resources", "Finance",
   "Operations", "General_Administration", "Customer_Relations", "Agent_Partner",
@@ -35,18 +34,16 @@ const SquareYardsResponseSchema = z.object({
   data: z.array(JsonValueSchema).optional(),
 });
 
-/** URL for one department's job list. `origin` is the company's careers host. */
 export function squareyardsDeptUrl(origin: string, department: string): string {
   return `${origin}/career/${department}`;
 }
 
-/** Unwrap one department page's job list. Never throws - a malformed/non-JSON response yields [] so the caller can skip the department instead of failing the whole board. */
 export function squareyardsJobsFrom(raw: JsonValue): JsonValue[] {
   const parsed = SquareYardsResponseSchema.safeParse(raw);
   return parsed.success ? (parsed.data.data ?? []) : [];
 }
 
-/** The human-viewable per-job page, matching the careers UI's "Apply Now" target (numeric `id`, not `jobId`; spaces in params underscored). */
+/** Numeric `id` (not `jobId`); spaces in params underscored. */
 export function squareyardsJobUrl(origin: string, department: string, j: SquareYardsJob): string {
   const params: string[] = [];
   if (j.location) params.push(`location=${j.location.split(" ").join("_")}`);

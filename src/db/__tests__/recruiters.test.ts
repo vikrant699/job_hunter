@@ -53,7 +53,6 @@ test("upsertRecruiter does not downgrade an existing verified status on re-impor
     importedAt: new Date().toISOString(),
   });
 
-  // Re-import from raw-csv (status unverified) should NOT clobber verified.
   upsertRecruiter({
     email,
     company: "Acme Inc (renamed)",
@@ -73,7 +72,6 @@ test("upsertRecruiter does not downgrade an existing verified status on re-impor
   assert.ok(row);
   assert.equal(row.status, "verified");
   assert.equal(row.verifiedAt, verifiedAt);
-  // non-status fields DO get refreshed by the re-import
   assert.equal(row.company, "Acme Inc (renamed)");
   assert.equal(row.phone, "12345");
 });
@@ -215,7 +213,6 @@ test("setRecruiterStatus sets verified_at only when status is verified", () => {
   assert.equal(row.status, "verified");
   assert.equal(row.verifiedAt, verifiedAt);
 
-  // Transition to bounced: verified_at is untouched since the function only stamps it for 'verified'.
   setRecruiterStatus(email, "bounced", new Date().toISOString());
   row = selectAllRecruiters().find((r) => r.email === email);
   assert.ok(row);

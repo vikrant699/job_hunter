@@ -56,7 +56,6 @@ const ListResponseSchema = z.object({
 type ListResponse = z.infer<typeof ListResponseSchema>;
 type Field = z.infer<typeof FieldSchema>;
 
-/** The JobList widget of a React-era portal page, or null for a classic server-rendered portal. */
 export function parseAvaturePortalPage(html: string): AvaturePortalPage | null {
   const $ = cheerio.load(html);
   const portalId = $('meta[name="avature.portal.id"]').attr("content")?.trim();

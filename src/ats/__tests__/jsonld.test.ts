@@ -4,7 +4,6 @@ import { jsonldAdapter, isJobDetailUrl, titleFromUrl } from "../jsonld.js";
 import { stubFetch, fetchSequence, htmlResponse, mkAdapterCompany } from "./testHelpers.js";
 import type { NormalizedPosting } from "../../types.js";
 
-/** Route-map fetch stub: serves a canned Response per exact URL, 404s anything unlisted (harmless — discovery fetches degrade to null on failure); records call order when `calls` is passed. */
 function mapFetch(routes: Record<string, () => Response>, calls?: string[]): typeof globalThis.fetch {
   return async (input: Parameters<typeof globalThis.fetch>[0]): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -34,8 +33,6 @@ const COMPANY = mkAdapterCompany(
   { provider: "jsonld", slug: "acme", name: "Acme", careersUrl: "https://acme.example/careers" },
   { tenantUrl: "https://acme.example" },
 );
-
-// --- discovery: robots.txt -> sitemap INDEX -> sub-sitemaps (job-matching ones first) ---
 
 test("listPostings follows robots.txt Sitemap: into a sitemap INDEX, fetching job-matching sub-sitemaps before others, and excludes asset/nav URLs", async (t) => {
   const calls: string[] = [];
@@ -82,7 +79,6 @@ test("listPostings follows robots.txt Sitemap: into a sitemap INDEX, fetching jo
     "https://acme.example/careers/software-engineer-backend",
   ]);
 
-  // Job-matching sub-sitemap fetched before the non-matching one.
   const careersIdx = calls.indexOf("https://acme.example/sitemap-careers.xml");
   const pagesIdx = calls.indexOf("https://acme.example/sitemap-pages.xml");
   assert.ok(careersIdx >= 0 && pagesIdx >= 0 && careersIdx < pagesIdx);
@@ -121,7 +117,6 @@ test("listPostings falls back to careers-page anchor harvest when <3 sitemap job
     "https://beta.example/jobs/backend-engineer",
   ]);
 
-  // Stopped after /careers (3 found there) — the second fallback path (/jobs) was never fetched.
   assert.ok(!calls.includes("https://beta.example/jobs"));
 });
 
@@ -134,8 +129,6 @@ test("listPostings returns [] when discovery finds nothing anywhere, without thr
   const postings = await jsonldAdapter.listPostings(company);
   assert.deepEqual(postings, []);
 });
-
-// --- titleFromUrl de-slugging ---
 
 test("titleFromUrl de-slugs the last path segment into Title Case", () => {
   assert.equal(titleFromUrl("https://acme.example/careers/senior-software-engineer-38291"), "Senior Software Engineer");
@@ -155,8 +148,6 @@ test("titleFromUrl caps the title at 140 chars", () => {
   assert.ok(title.length <= 140);
 });
 
-// --- isJobDetailUrl ---
-
 test("isJobDetailUrl accepts job-shaped paths and jobid-ish query params, rejects assets and nav paths", () => {
   assert.equal(isJobDetailUrl("https://acme.example/careers/software-engineer"), true);
   assert.equal(isJobDetailUrl("https://acme.example/jobs/qa-lead"), true);
@@ -167,8 +158,6 @@ test("isJobDetailUrl accepts job-shaped paths and jobid-ish query params, reject
   assert.equal(isJobDetailUrl("https://acme.example/careers"), false);
   assert.equal(isJobDetailUrl("not a url"), false);
 });
-
-// --- fetchJd: JSON-LD JobPosting extraction ---
 
 test("fetchJd reads a bare JobPosting object and refines title/location/postedAt", async (t) => {
   const html = `<html><head><script type="application/ld+json">${JSON.stringify({

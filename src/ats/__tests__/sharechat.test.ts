@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real shape from GET /api/careersList?limit=100 (2 categories, 3 jobs).
 const listResponse = {
   data: {
     careersList: [

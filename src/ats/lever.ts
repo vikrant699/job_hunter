@@ -74,7 +74,6 @@ function normalize(company: AdapterCompany, j: LeverPosting): NormalizedPosting 
     workplace.toLowerCase() === "remote" ||
     (location ? REMOTE_RE.test(location) : false);
 
-  // Assemble the WHOLE posting: intro + every list section + closing (see schema note above).
   const intro = plainOrHtml(j.descriptionPlain, j.description);
   const listText = (j.lists ?? [])
     .map((l) => `${l.text ?? ""}\n${l.content ? htmlToText(l.content) : ""}`.trim())

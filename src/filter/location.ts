@@ -5,7 +5,7 @@ export interface LocationConfig {
   targetCountryHints: readonly string[];
   remoteAcceptStrings: readonly string[];
   rejectIfPresent: readonly string[];
-  /** Out-of-region place names, whole-word matched; an in-region city/country alongside one overrides the reject. */
+  /** Whole-word matched; an in-region place alongside one overrides the reject. */
   rejectRegions?: readonly string[] | undefined;
 }
 
@@ -15,7 +15,7 @@ export interface LocationCheck {
 }
 
 function wordBoundaryRegex(needles: readonly string[]): RegExp {
-  if (needles.length === 0) return /a^/; // never matches
+  if (needles.length === 0) return /a^/;
   const escaped = needles.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   return new RegExp(`\\b(?:${escaped.join("|")})\\b`, "i");
 }
@@ -34,7 +34,6 @@ interface Compiled {
   rejectRegions: RegExp;
 }
 
-// Cached per config object (the profile singleton) to keep the per-posting hot path cheap.
 const cache = new WeakMap<object, Compiled>();
 function compile(cfg: LocationConfig): Compiled {
   let c = cache.get(cfg);
@@ -51,7 +50,6 @@ function compile(cfg: LocationConfig): Compiled {
   return c;
 }
 
-/** Accepts in-region or accepted-remote metadata locations; isRemote is the provider's own remote tag. */
 export function checkLocation(
   location: string | null,
   isRemote: boolean,
@@ -66,7 +64,7 @@ export function checkLocation(
   if (re.reject.test(lc)) {
     return { accept: false, reason: "geo-rejected" };
   }
-  // Foreign place name rejects only when no in-region signal sits beside it (multi-location postings survive).
+  // A foreign place name rejects only when no in-region signal sits beside it.
   if (re.rejectRegions.test(lc) && !(re.city.test(lc) || re.country.test(lc))) {
     return { accept: false, reason: "geo-rejected" };
   }
@@ -79,23 +77,21 @@ export function checkLocation(
   return { accept: false, reason: "out-of-region" };
 }
 
-/** URL path as plain words (slug separators -> spaces); host excluded since it names the company/board, not the location. */
+/** Host excluded: it names the company/board, not the location. */
 function urlPathText(jobUrl: string): string {
   let path = jobUrl;
   try {
     path = new URL(jobUrl).pathname;
   } catch {
-    // not an absolute URL — scan the raw string rather than dropping the signal
   }
   try {
     path = decodeURIComponent(path);
   } catch {
-    // malformed escape — keep the encoded form
   }
   return path.replace(/[-_/.+]/g, " ").toLowerCase();
 }
 
-/** Late-stage check for postings without a metadata location field: scans title, JD head, and URL path; recall-safe (defers to accept when unclear). */
+/** Recall-safe: defers to accept when unclear. */
 export function checkLocationFromText(
   title: string,
   jdText: string,
@@ -127,7 +123,7 @@ export function checkLocationFromText(
       return { accept: false, reason: "geo-rejected-url" };
     }
   }
-  // A "Location:" label line is treated as authoritative, unlike prose mentions elsewhere in the JD.
+  // A "Location:" label line is authoritative, unlike prose mentions in the JD.
   const locLine = /^[ \t]*location[ \t]*[:–-][ \t]*(.+)$/im.exec(full)?.[1];
   if (locLine && re.rejectRegions.test(locLine) && !(re.country.test(locLine) || re.city.test(locLine))) {
     return { accept: false, reason: "geo-rejected-jd-location" };

@@ -79,7 +79,7 @@ test("sfunifyRequestBody honors apiMeta.locale + apiMeta.location overrides (Sta
 
 test("sfunifyRequestBody routes the filter through facetFilters when apiMeta.locationFacetField is set (HCLTech)", () => {
   const body = sfunifyRequestBody(hclCompany, 0);
-  assert.equal(body["location"], ""); // flat field left empty — HCLTech ignores it
+  assert.equal(body["location"], "");
   assert.deepEqual(body["facetFilters"], { custCountryRegion: ["India"] });
 });
 
@@ -88,7 +88,7 @@ test("sfunifyPageJobs unwraps jobSearchResult[].response + totalJobs", () => {
   assert.equal(totalJobs, 62);
   assert.equal(jobs.length, 2);
   assert.equal(jobs[0]?.id, "76824");
-  assert.equal(jobs[1]?.id, "77184"); // coerced from number to string
+  assert.equal(jobs[1]?.id, "77184");
 });
 
 test("sfunifyPageJobs tolerates a missing jobSearchResult / totalJobs", () => {

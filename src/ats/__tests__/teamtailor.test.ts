@@ -88,7 +88,6 @@ const listHtmlB = `<html><body>
     </ul>
 </body></html>`;
 
-// Job detail page: JSON-LD JobPosting island whose description is entity-encoded HTML.
 const detailHtml = `<html><head>
 <script type="application/ld+json">{"@context":"http://schema.org","@type":"JobPosting","title":"Senior Software Engineer - Backend","datePosted":"2026-01-22T12:38:59+05:30","description":"&lt;p&gt;&lt;strong&gt;OVERVIEW:&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;73 Strings is an innovative platform &amp;amp; valuation suite.&lt;/p&gt;","hiringOrganization":{"@type":"Organization","name":"73 Strings"},"jobLocation":[{"@type":"Place","address":{"addressLocality":"Bengaluru","addressCountry":"IN","@type":"PostalAddress"}}]}</script>
 </head><body><main>
@@ -118,11 +117,9 @@ test("parseTeamtailorList (variant A) maps title, id, url, dept-then-location sp
   assert.equal(a.isRemote, false);
   assert.equal(a.companySlug, "73strings");
   assert.equal(a.jdText, "");
-  // dept + location + Hybrid workplace chip: location is the LAST non-workplace span
   assert.equal(b?.externalId, "8041722");
   assert.equal(b.location, "New York");
   assert.equal(b.isRemote, false);
-  // single "Remote" span is a workplace marker, not a location
   assert.equal(c?.externalId, "7763460");
   assert.equal(c.location, null);
   assert.equal(c.isRemote, true);
@@ -173,7 +170,6 @@ test("teamtailorFeedUrl points at the site's JSON Feed", () => {
   assert.equal(teamtailorFeedUrl(company), "https://73strings.teamtailor.com/jobs.json");
 });
 
-// careers.lyzr.ai shape (2026-09-07): custom jobs page with no #jobs_list_container, but /jobs.json still lists every job with its JSON-LD description.
 test("parseTeamtailorFeed maps feed items to postings with inline JD and no location", () => {
   const raw = JSON.stringify({
     version: "https://jsonfeed.org/version/1.1",

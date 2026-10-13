@@ -23,7 +23,7 @@ test("normalizeEightfold maps list metadata (JD fetched separately)", () => {
   assert.equal(p.jobTitle, "Analytics Manager - Mumbai");
   assert.equal(p.location, "Mumbai, , India");
   assert.equal(p.jobUrl, "https://astrazeneca.eightfold.ai/careers/job/563877690542312");
-  assert.equal(p.jdText, ""); // empty in list; populated by fetchJd
+  assert.equal(p.jdText, "");
   assert.equal(p.postedAt, new Date(1780531200 * 1000).toISOString());
 });
 
@@ -45,7 +45,6 @@ test("listPostings pages through a server that clamps num= below the requested p
       })),
     });
 
-  // Server clamps at 10/page; board has 25 jobs -> 3 pages (10, 10, 5).
   stubFetch(t, fetchSequence(page(0, 10, 25), page(10, 10, 25), page(20, 5, 25)));
 
   const posts = await eightfoldAdapter.listPostings(company);

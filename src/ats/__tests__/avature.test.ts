@@ -29,7 +29,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Article 1 mirrors Lenovo's skin (span subtitles, slug+id JobDetail href); article 2 mirrors Siemens's skin (list-item-location, bare-id href).
+// Article 1 mirrors Lenovo's skin, article 2 Siemens's (list-item-location, bare-id href).
 const SEARCH_HTML = `
 <html><body>
   <div class="list-controls__pagination">
@@ -79,7 +79,7 @@ const SEARCH_HTML = `
   </div>
 </body></html>`;
 
-// Past-the-last-page fallback: a stale placeholder article with no title link, but the pager still (buggily) renders a Next link.
+// Stale placeholder article with no title link while the pager still renders a Next link.
 const NO_JOBS_HTML = `
 <html><body>
   <div class="list-controls__pagination">
@@ -200,7 +200,7 @@ test("parseAvatureSearch parses both skins: plain-span subtitle and list-item-lo
   assert.equal(second.externalId, "507993"); // from the JobDetail URL, not "Job ID: 507993" text
   assert.equal(second.jobUrl, "https://jobs.siemens.com/en_US/externaljobs/JobDetail/507993");
   assert.equal(second.location, "Pune, Maharashtra, India");
-  assert.equal(second.postedAt, null); // this skin shows no posted date in the listing
+  assert.equal(second.postedAt, null);
 });
 
 test("parseAvatureSearch marks a remote-flavored location as remote", () => {
@@ -217,7 +217,6 @@ test("parseAvatureSearch drops the stale 'No jobs found' placeholder (no title l
     company,
   );
   assert.equal(postings.length, 0);
-  // nextHref is genuinely present; it's the adapter's loop that must stop on a zero-posting page regardless.
   assert.equal(nextHref, "https://jobs.lenovo.com/en_US/careers/SearchJobs/?jobRecordsPerPage=10&jobOffset=10");
 });
 
@@ -250,26 +249,24 @@ test("parseAvatureJd returns empty string when .section__content is absent", () 
   assert.equal(parseAvatureJd("<html><body><p>nothing</p></body></html>"), "");
 });
 
-// The engine's meta namespace, stamped by every live tenant regardless of custom host or avature.net.
+// Engine meta namespace, stamped by every live tenant regardless of host.
 const PORTAL_META = `<meta name="avature.wizard.registrars" content="[]"/>
 <meta name="avature.portal.id" content="4"/>
 <meta name="avature.portal.urlPath" content="careers"/>
 <meta name="avature.portal.lang" content="en_US"/>`;
 
-// A live portal with zero article--result blocks but still stamping the meta namespace - what an empty board looks like.
 const EMPTY_PORTAL_HTML = `
 <html><head>${PORTAL_META}</head><body>
   <div class="section__content__results"></div>
 </body></html>`;
 
-// A custom host that stopped serving Avature: 200, no result articles, none of the engine's markup.
 const NOT_A_PORTAL_HTML = `
 <html><head><title>Careers at Lenovo</title></head><body>
   <h1>Come work with us</h1>
   <p>Our openings have moved. Please visit our new careers site.</p>
 </body></html>`;
 
-// Avature's own transient failure page: drops every meta tag but still loads /jscore/ assets, so the marker must accept that path too.
+// Avature's transient failure page drops every meta tag but still loads /jscore/ assets.
 const ENGINE_ERROR_HTML = `
 <html><head><link href="/jscore/images/icons/favicon.ico" rel="shortcut icon"><title> </title></head>
 <body><img src="/jscore/images/http/fatal.png" class="errorImage" alt="">
@@ -297,14 +294,12 @@ test("assertAvatureBoardServed throws only when neither engine marker is present
 });
 
 test("the dead-portal error is charged to the company, not written off as infrastructure", () => {
-  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   const err = thrownBy(() => assertAvatureBoardServed(NOT_A_PORTAL_HTML, "https://jobs.lenovo.com/x"));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
   assert.equal(isInfrastructureFault(err), false);
 });
 
-// A bot-block page carries neither engine marker, so it used to be indistinguishable from a dead portal.
 test("a WAF challenge page is an edge refusal, NOT a dead portal", () => {
   const err = thrownBy(() => assertAvatureBoardServed(CHALLENGE_PAGE_HTML, "https://jobs.siemens.com/x"));
   assert.ok(err instanceof Error);
@@ -321,7 +316,6 @@ test("avatureAdapter.listPostings rejects a host that no longer serves an Avatur
 });
 
 test("avatureAdapter.listPostings returns [] for a LIVE portal with nothing open", async (t) => {
-  // Zero articles, but the engine's own markup is present, so nothing fails.
   stubFetch(t, fetchSequence(() => htmlResponse(EMPTY_PORTAL_HTML)));
   assert.deepEqual(await avatureAdapter.listPostings(company), []);
 });
@@ -332,7 +326,6 @@ test("avatureAdapter.listPostings returns [] rather than failing on the engine's
 });
 
 test("avatureAdapter.listPostings still lists a populated portal unchanged", async (t) => {
-  // Page 1 has a Next link, so page 2 is fetched; its stale "No jobs found" placeholder ends the loop.
   stubFetch(t, fetchSequence(
     () => htmlResponse(SEARCH_HTML),
     () => htmlResponse(NO_JOBS_HTML),
@@ -343,7 +336,6 @@ test("avatureAdapter.listPostings still lists a populated portal unchanged", asy
 });
 
 test("avatureAdapter.listPostings lets a LATER page with no postings end pagination instead of failing", async (t) => {
-  // Past page 1, a page with no engine marker must read as "pager ran off the end", not "board is dead".
   stubFetch(t, fetchSequence(
     () => htmlResponse(SEARCH_HTML),
     () => htmlResponse(NO_JOBS_HTML),
@@ -354,7 +346,6 @@ test("avatureAdapter.listPostings lets a LATER page with no postings end paginat
 });
 
 test("avatureAdapter.listPostings resolves a tenant_url override that omits /SearchJobs", async (t) => {
-  // tenant_url can be the portal root; /SearchJobs is appended and the check runs against the actual response.
   const metlife: AdapterCompany = {
     provider: "avature",
     slug: "metlife",
@@ -390,7 +381,7 @@ test("avatureSearchUrl appends the per-tenant country filter suffix", () => {
   assert.equal(avatureSearchUrl(c), "https://jobs.siemens.com/en_US/externaljobs/SearchJobs?42386[]=812053");
 });
 
-// Koch's skin: subtitle is a bare company label with no spans; location sits in a labelled article__content field.
+// Koch's skin: bare company-label subtitle; location in a labelled article__content field.
 const LABELLED_FIELD_HTML = `
 <html><body>
   <article class="article article--result">

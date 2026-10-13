@@ -1,4 +1,3 @@
-// src/ats/amplelogic.ts — AmpleLogic careers (www.amplelogic.com), Next.js site backed by its own headless-CMS API.
 // GET /api/careers?locale=en, single call, no pagination, full JD fields inline; only publish:true rows are surfaced.
 import { z } from "zod";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

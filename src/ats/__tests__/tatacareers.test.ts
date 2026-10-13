@@ -24,7 +24,6 @@ const companyNoMeta: AdapterCompany = {
   tenantUrl: null, apiMeta: null,
 };
 
-// Real shape captured live from POST /bin/tata/jobPostingsFilterServlet (searchTerm=Developer) - Tata Consultancy Services item.
 const tcsJob: TataJob = {
   jobId: "411340",
   jobTitle: "DEVELOPER",

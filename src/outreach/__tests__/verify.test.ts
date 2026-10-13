@@ -143,7 +143,6 @@ test("runVerify: draft gone + no sent message -> discarded + one undrafted row p
   assert.equal(undrafted.length, 2);
   for (const row of undrafted) {
     assert.equal(row.reason, "draft_discarded");
-    // runId/runDate trace back to the original drafting run (42), not the verify pass's own run (99).
     assert.equal(row.runDate, "2026-06-30");
     assert.equal(row.runId, 42);
   }
@@ -169,7 +168,7 @@ test("runVerify: sent row with a bounce hit -> status bounced + recruiter global
 
 test("runVerify: sent row past verifyAfterHours with no bounce -> status verified + recruiter globally verified", async () => {
   const { deps, statusUpdates, recruiterStatuses } = harness({
-    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-05T00:00:00.000Z" })], // >24h before 'now' (2026-07-06T12:00Z)
+    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-05T00:00:00.000Z" })],
     searchMessages: async () => [],
   });
 
@@ -227,7 +226,7 @@ test("runVerify: raw-csv recruiter already present on the Recruiters List tab is
 
 test("runVerify: sent row not yet 24h old and no bounce -> only last_checked_at updates", async () => {
   const { deps, statusUpdates, recruiterStatuses } = harness({
-    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-06T11:00:00.000Z" })], // 1h before 'now'
+    sentRows: [mkRow({ status: "sent", sentAt: "2026-07-06T11:00:00.000Z" })],
     searchMessages: async () => [],
   });
 
@@ -290,7 +289,7 @@ test("promotion skips a recruiter whose LIVE status is bounced (guard against cr
     },
   });
   const result = await runVerify({ profileId: "default", runId: null, deps });
-  assert.equal(result.verified, 1); // the OUTREACH row verifies (24h clean for this profile)
+  assert.equal(result.verified, 1);
   assert.equal(appended.length, 0, "but the globally-bounced recruiter must NOT be promoted");
 });
 

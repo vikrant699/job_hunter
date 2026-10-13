@@ -18,7 +18,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed from the live Nykaa board: one full card, an Apply anchor sharing the title link's uuid, and the counter.
 const LISTING_HTML = `
 <html><body>
 <div class="divide-y-[1px] rounded-md border border-offset-background">
@@ -76,7 +75,7 @@ test("parseSkimaListingHtml extracts title cards, skips text-less Apply anchors,
   assert.equal(first.isRemote, false);
 
   const second = at(page.items, 1);
-  assert.equal(second.externalId, "ab783fc3-f66c-4e73-8cd7-e3e272f3e4db"); // lowercased
+  assert.equal(second.externalId, "ab783fc3-f66c-4e73-8cd7-e3e272f3e4db");
   assert.equal(second.isRemote, true);
 });
 

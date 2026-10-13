@@ -19,7 +19,6 @@ import { insertOutreach, insertUndrafted, selectLastDraftedAt } from "../db/outr
 import type { InsertOutreachInput, InsertUndraftedInput } from "../db/outreach.js";
 import type { UndraftedReason } from "../schemas.js";
 
-/** IST (Asia/Kolkata) calendar date for `now`, formatted YYYY-MM-DD. Pure. */
 export function istDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
 }
@@ -79,7 +78,7 @@ interface CompanyGroup {
   postings: OutreachNotifiedPosting[];
 }
 
-/** Groups by normalized company name so near-duplicate registry entries ("Wipro" vs "Wipro Limited") don't produce two drafts to the same recruiter; display name is the first spelling seen. */
+/** Groups by normalized name so near-duplicate entries ("Wipro" vs "Wipro Limited") don't yield two drafts to one recruiter. */
 export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGroup[] {
   const byKey = new Map<string, CompanyGroup>();
   const order: CompanyGroup[] = [];
@@ -96,7 +95,7 @@ export function groupByCompany(postings: OutreachNotifiedPosting[]): CompanyGrou
   return order;
 }
 
-/** 'no_contact' if nothing matched; else the strongest ineligible reason ('cooldown' beats 'bounced_contact'). */
+/** Strongest ineligible reason: 'cooldown' beats 'bounced_contact'. */
 function undraftedReasonFor(ineligible: Array<{ reason: IneligibleReason }>): UndraftedReason {
   if (ineligible.length === 0) return "no_contact";
   return ineligible.some((i) => i.reason === "cooldown") ? "cooldown" : "bounced_contact";
@@ -106,7 +105,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   const deps: RunOutreachDeps = { ...defaultDeps(), ...options.deps };
   const { profileId, sinceIso, runId } = options;
 
-  // profileId selects the Gmail token; sender identity comes from the loaded profile module - must match.
+  // profileId selects the Gmail token; sender identity comes from the profile module: they must match.
   const loadedProfileId = profile.id ?? "default";
   if (profileId !== loadedProfileId) {
     throw new Error(
@@ -153,7 +152,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
   let draftsCreated = 0;
   let undraftedCount = 0;
   let companiesMatched = 0;
-  // Tracks in-run duplicates: two different companies can resolve to the same recruiter (alt-name matches), and the in-DB cooldown only reflects pre-run state.
+  // Alt-name matches can resolve two companies to one recruiter, and the in-DB cooldown only reflects pre-run state.
   const draftedThisRun = new Set<string>();
 
   for (const group of groupByCompany(eligiblePostings)) {
@@ -232,7 +231,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         );
         continue;
       }
-      // Record before the DB write so a failed insert can't lead to a second draft to the same person.
+      // Recorded before the DB write so a failed insert can't cause a second draft to the same person.
       draftedThisRun.add(recruiter.email);
 
       try {
@@ -255,7 +254,7 @@ export async function runOutreach(options: RunOutreachOptions): Promise<RunOutre
         });
         draftsCreated++;
       } catch (err) {
-        // Draft exists in Gmail but has no DB row (no cooldown, absent from Drafts tab); log loudly to reconcile.
+        // Draft exists in Gmail but has no DB row; log loudly to reconcile.
         logger.error(
           {
             err: String(err), company: group.companyName, recruiter: recruiter.email,

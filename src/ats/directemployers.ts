@@ -7,7 +7,7 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate } from "./shared.js";
 
 const API = "https://prod-search-api.jobsyn.org/api/v1/solr/search";
-const NOMINAL_PAGE_SIZE = 10; // placeholder; pagination is actually driven by pagination.total_pages
+const NOMINAL_PAGE_SIZE = 10;
 
 export const DeJobSchema = z.object({
   id: z.union([z.string(), z.number()]).nullable().optional(),
@@ -38,7 +38,6 @@ export const DeResponseSchema = z.object({
 function deOrigin(company: AdapterCompany): string {
   const o = company.apiMeta?.origin;
   if (o) return o;
-  // Fall back to the careers host - DE tenants ARE .jobs hosts.
   try {
     return new URL(company.tenantUrl ?? company.careersUrl).host;
   } catch {
@@ -89,7 +88,7 @@ export const directemployersAdapter: AtsAdapter = {
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (offset, page) => {
-        const currentPage = page + 1; // API is 1-based
+        const currentPage = page + 1;
         const raw = await atsFetchJson(deSearchUrl(currentPage, location), { provider: "directemployers", headers });
         const parsed = parseOrThrow(DeResponseSchema, raw, {
           provider: "directemployers",

@@ -1,4 +1,3 @@
-// Pure-function coverage; the browser/WAF layer (Edge channel + page.request) is live-verified, not unit-tested.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -20,7 +19,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// One US dealer row, one India GCC row (IN-TN-Chennai), plus a franchisee-subdomain href.
 const LIST_HTML = `<html><body><ul>
   <li class="iCIMS_JobCardItem"><div class="row">
     <div class="col-xs-6 header left"><span class="sr-only field-label">Job Locations</span><span > US-AZ-Tucson</span></div>
@@ -32,7 +30,6 @@ const LIST_HTML = `<html><body><ul>
   </div></li>
 </ul></body></html>`;
 
-// Real pages split the JD across several Expandable_Text sections.
 const JD_HTML = `<html><body>
   <div class="iCIMS_JobHeader"><h1>DevOps Engineer</h1></div>
   <div class="iCIMS_JobContent">
@@ -71,9 +68,8 @@ test("parseIcimsList extracts id, title, location and a cleaned canonical link",
   assert.equal(j0.externalId, "54452");
   assert.equal(j0.jobTitle, "HVAC Service Technician");
   assert.equal(j0.location, "US-AZ-Tucson");
-  // canonical link keeps the franchisee subdomain, strips the ?in_iframe query
   assert.equal(j0.jobUrl, "https://hrlydistribution-lennox.icims.com/jobs/54452/hvac-service-technician/job");
-  assert.equal(j0.jdText, ""); // filled by fetchJd
+  assert.equal(j0.jdText, "");
   const j1 = at(jobs, 1);
   assert.equal(j1.externalId, "54800");
   assert.equal(j1.location, "IN-TN-Chennai, India");
@@ -84,7 +80,6 @@ test("parseIcimsJd concatenates all expandable sections (not just the first)", (
   const jd = parseIcimsJd(JD_HTML);
   assert.match(jd, /Overview/);
   assert.match(jd, /Build pipelines for the Chennai GCC\./);
-  // The second section must be present - the bug was stopping at the first.
   assert.match(jd, /Responsibilities/);
   assert.match(jd, /Own CI\/CD and observability\./);
 });
@@ -93,7 +88,6 @@ test("parseIcimsJd returns empty string when no content block is present", () =>
   assert.equal(parseIcimsJd("<html><body><div>nothing</div></body></html>"), "");
 });
 
-// DocuSign-style card: the header slot holds the Job ID; the location sits in the additionalFields dl.
 const DL_CARD_HTML = `<html><body><ul>
   <li class="iCIMS_JobCardItem"><div class="row">
     <div class="col-xs-6 header left"><span class="sr-only field-label">Job ID</span><span > 2026-30533</span></div>

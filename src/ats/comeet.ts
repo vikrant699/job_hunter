@@ -64,7 +64,6 @@ export function extractComeetPosition(html: string): Record<string, JsonValue> |
   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
 }
 
-/** "city, name" collapsed to just one when either contains the other, else country. */
 export function comeetLocationString(loc: ComeetLocation | null | undefined): string | null {
   if (!loc) return null;
   const city = loc.city?.trim() || null;
@@ -80,7 +79,6 @@ export function comeetLocationString(loc: ComeetLocation | null | undefined): st
   return composed ?? (loc.country?.trim() || null);
 }
 
-/** Plain-text JD from the island's Description/Requirements sections. */
 export function comeetJdFromDetails(p: ComeetPosition): string {
   const sections: string[] = [];
   for (const d of p.custom_fields?.details ?? []) {
@@ -111,21 +109,18 @@ export function normalizeComeet(company: AdapterCompany, p: ComeetPosition): Nor
 export const comeetAdapter: AtsAdapter = {
   provider: "comeet",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // careersUrl IS the board page (both path segments — company + code — are in it).
     const html = await atsFetchText(company.careersUrl, { provider: "comeet" });
     const raw = extractComeetPositions(html);
     if (!raw) throw new Error(`comeet: no COMPANY_POSITIONS_DATA island for ${company.slug}`);
     const out: NormalizedPosting[] = [];
     for (const item of raw) {
       const parsed = ComeetPositionSchema.safeParse(item);
-      // Skip malformed entries (would land with unstable ids) and internal-only roles.
       if (!parsed.success || parsed.data.is_internal === true) continue;
       out.push(normalizeComeet(company, parsed.data));
     }
     return out;
   },
 
-  // Fallback only: list normally carries full JD; runs when a tenant's island omits custom_fields.details.
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "comeet" });
     const island = extractComeetPosition(html);

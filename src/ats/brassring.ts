@@ -9,7 +9,7 @@ import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
 const ENDPOINT = "https://sjobs.brassring.com/TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs";
-const PAGE = 50; // server-fixed
+const PAGE = 50;
 
 export interface BrassringConfig {
   partnerId: string;
@@ -56,7 +56,6 @@ const MONTHS: Readonly<Record<string, number>> = {
   jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
 } as const;
 
-/** Parses "13-Aug-2026" to a UTC-midnight ISO; falls back to dateToIso for any other shape. */
 export function brassringDate(s: string | null | undefined): string | null {
   const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec((s ?? "").trim());
   if (!m) return dateToIso(s);
@@ -84,7 +83,7 @@ export function parseBrassringPage(
   for (const row of rows) {
     const q = flatten(row.Questions);
     const externalId = q.get("reqid");
-    if (externalId === undefined || externalId === "") continue; // no stable id
+    if (externalId === undefined || externalId === "") continue;
     const title = decodeAttrEntities(q.get("jobtitle") ?? "");
     const city = q.get(cfg.cityField);
     const country = q.get(cfg.countryField);

@@ -29,14 +29,12 @@ const JibePageSchema = z.object({
   totalCount: z.number().nullable().optional(),
 });
 
-/** Paged search URL; `apiMeta.location` (e.g. "India") narrows server-side. */
 export function jibeApiUrl(company: AdapterCompany, page: number): string {
   const location = company.apiMeta?.location;
   const filter = location ? `&location=${encodeURIComponent(location)}` : "";
   return `${tenantOrigin(company)}/api/jobs?page=${page}${filter}`;
 }
 
-/** Unwrap the `jobs[].data` envelope; tolerates a missing totalCount. */
 export function jibePageJobs(pageJson: JsonValue): { jobs: JibeJob[]; totalCount: number | null } {
   const parsed = JibePageSchema.parse(pageJson);
   return { jobs: parsed.jobs.map((j) => j.data), totalCount: parsed.totalCount ?? null };
@@ -83,5 +81,4 @@ export const jibeAdapter: AtsAdapter = {
       },
     });
   },
-  // The list response carries the full description — no fetchJd needed.
 };

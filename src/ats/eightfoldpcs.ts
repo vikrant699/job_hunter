@@ -9,7 +9,7 @@ import { REMOTE_RE, unixToIso, paginate } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 
-const PAGE = 10; // server-fixed page size; num= is ignored
+const PAGE = 10;
 
 const PositionSchema = z.object({
   id: z.union([z.number(), z.string()]),
@@ -49,7 +49,6 @@ function domainOf(company: AdapterCompany): string {
   return d;
 }
 
-/** Paged search URL; `apiMeta.location` (e.g. "India") narrows server-side. */
 export function eightfoldPcsSearchUrl(company: AdapterCompany, start: number): string {
   const host = hostOf(company);
   const domain = domainOf(company);
@@ -63,7 +62,6 @@ export function eightfoldPcsDetailsUrl(company: AdapterCompany, positionId: stri
   return `${host}/api/pcsx/position_details?position_id=${encodeURIComponent(positionId)}&domain=${encodeURIComponent(domain)}&hl=en`;
 }
 
-/** Unwrap the `data.{positions,count}` envelope; `slug` defaults for callers (tests) with no company context. */
 export function eightfoldPcsPageJobs(
   pageJson: JsonValue,
   slug = "eightfoldpcs",
@@ -83,7 +81,7 @@ export function normalizeEightfoldPcs(company: AdapterCompany, p: EightfoldPcsPo
     jobUrl: p.positionUrl ? `${hostOf(company)}${p.positionUrl}` : `${hostOf(company)}/careers/job/${p.id}`,
     location,
     isRemote: REMOTE_RE.test(`${p.workLocationOption ?? ""} ${location ?? ""}`),
-    jdText: "", // absent from the list response; populated by fetchJd
+    jdText: "",
     postedAt: unixToIso(p.postedTs ?? p.creationTs),
   };
 }

@@ -6,14 +6,13 @@ import type { JsonValue } from "../util/json.js";
 
 const LogLineSchema = z.object({ level: z.number(), msg: z.string().optional() });
 
-/** One captured line: pino's level label, the message, and the whole parsed line for field assertions. */
 export interface LogLine {
   level: string;
   message: string | undefined;
   fields: JsonValue;
 }
 
-/** Runs `fn` collecting every log line pino emits; `level` is pinned for the duration so the capture never depends on LOG_LEVEL. */
+// `level` is pinned so capture never depends on LOG_LEVEL.
 export async function captureLogs(fn: () => Promise<void>, level = "info"): Promise<LogLine[]> {
   const lines: LogLine[] = [];
   const prevLevel = logger.level;

@@ -10,7 +10,6 @@ const company: AdapterCompany = {
   careersUrl: "https://www.happyeasygo.com/Careers/", tenantUrl: null, apiMeta: null,
 };
 
-// Trimmed from a live fetch of getDepartmentJobList.do (2026-07-11).
 const marketingDept: HappyEasyGoDepartment = {
   departmentId: "6",
   departmentName: "Marketing",

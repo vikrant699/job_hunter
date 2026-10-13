@@ -8,7 +8,7 @@ import type { BlastDeps } from "../run.js";
 import { loadState, saveState } from "../state.js";
 import type { BlastState } from "../state.js";
 
-const NOW = new Date("2026-07-11T05:30:00.000Z"); // Sat before Mon 2026-07-13
+const NOW = new Date("2026-07-11T05:30:00.000Z");
 
 const TEST_CONTENT = {
   resumeFilename: "Test User Resume.pdf",
@@ -84,7 +84,6 @@ function makeHarness(
       domain === "invalid.com"
         ? Promise.reject(new Error("ENOTFOUND"))
         : Promise.resolve([{ exchange: `mx.${domain}`, priority: 10 }]),
-    // Mirrors production: the running profile's on-disk state plus any others.
     listStates: () => [
       { profileId: "alice", state: loadState(paths.state) },
       ...(opts?.otherStates ?? []),
@@ -111,7 +110,6 @@ test("drafts up to limit, records state, projects Blast Log, reports remaining",
     assert.equal(summary.remaining, 1);
     assert.equal(h.created.length, 2);
     assert.match(h.created[0]?.mime ?? "", /To: a@a\.com/);
-    // Attachment filename comes from the profile's content config.
     assert.match(h.created[0]?.mime ?? "", /filename="Test User Resume\.pdf"/);
     const state = loadState(h.paths.state);
     assert.deepEqual(state.records.map((r) => [r.email, r.status, r.batch]), [
@@ -155,11 +153,9 @@ test("crash mid-batch never re-drafts: state flushed per draft, re-run picks up 
       /quota/,
     );
     assert.equal(loadState(h.paths.state).records.length, 2);
-    // Sheet is only written on clean exit; a crashed run must not project.
     assert.equal(h.rewrites.length, 0);
 
     const h2 = makeHarness(rows);
-    // Reuse the crashed run's state file with the fresh (non-failing) deps.
     const summary = await runBlast({
       profileId: "alice", limit: 3, force: true, deps: h2.deps, paths: { ...h2.paths, state: h.paths.state },
     });
@@ -191,7 +187,6 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     bouncedEmails: ["old1@x.com"],
   });
   try {
-    // Seed a week-old batch of 2, one of which will bounce in the sweep (50%).
     const seeded: BlastState = {
       lastSweepAt: null,
       records: [
@@ -207,7 +202,6 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
     const summary = await runBlast({ profileId: "alice", limit: 1, force: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 1);
     assert.equal(summary.lastBatchBounceRatePct, 50);
-    // Blast Log must carry the sweep's bounce over, with the profile in column A.
     const bouncedRow = h.rewrites.at(-1)?.rows.find((r) => r[1] === "old1@x.com");
     assert.equal(bouncedRow?.[0], "alice");
     assert.equal(bouncedRow[4], "bounced");
@@ -220,7 +214,7 @@ test("bounce stop-loss: refuses when last batch bounced > 10% without --force", 
 test("verify-only: sweeps and projects the log but never reads template/content or drafts", async () => {
   const h = makeHarness([HEADER, ["A", "a@a.com", "", ""]]);
   try {
-    rmSync(h.paths.template); // must not be needed in verify-only mode
+    rmSync(h.paths.template);
     rmSync(h.paths.content);
     const summary = await runBlast({ profileId: "alice", verifyOnly: true, deps: h.deps, paths: h.paths });
     assert.equal(summary.drafted, 0);

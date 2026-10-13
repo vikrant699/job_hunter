@@ -1,11 +1,10 @@
 import type { RecruiterRow } from "../db/recruiters.js";
 
-// Trailing-token-only legal suffixes; deliberately excludes "company"/"co" since that's often part of the actual brand name ("Bain & Company") and would collide unrelated firms.
+// Excludes "company"/"co": often part of the brand ("Bain & Company") and would collide unrelated firms.
 const LEGAL_SUFFIXES = new Set([
   "pvt", "private", "ltd", "limited", "inc", "llc", "corp", "corporation",
 ]);
 
-/** Normalizes a company name for matching: lowercase, punctuation to spaces, trailing legal suffixes stripped repeatedly. */
 export function normalizeCompanyName(s: string): string {
   const lowered = s.toLowerCase();
   const depunctuated = lowered.replace(/[^\p{L}\p{N}\s]/gu, " ");
@@ -21,7 +20,6 @@ export type IneligibleReason = "cooldown" | "bounced_contact";
 export interface FindContactsInput {
   companyName: string;
   candidates: RecruiterRow[];
-  /** ISO timestamp of the last draft to this email, or null if never drafted. */
   lastDraftedAt: (email: string) => string | null;
   nowMs: number;
   cooldownDays: number;
@@ -32,7 +30,6 @@ export interface FindContactsResult {
   ineligible: Array<{ recruiter: RecruiterRow; reason: IneligibleReason }>;
 }
 
-/** Domain label before the first dot, lowercased. "hr@adda247.com" -> "adda247". */
 function domainLabel(email: string): string | null {
   const at = email.lastIndexOf("@");
   if (at === -1) return null;
@@ -41,17 +38,16 @@ function domainLabel(email: string): string | null {
   return label && label.length > 0 ? label : null;
 }
 
-// Guards against short/common labels ("hr", "app") false-positive-matching unrelated companies.
 const MIN_DOMAIN_LABEL_LENGTH = 4;
 
-// EXACT equality only: substring containment was tried and matched dozens of unrelated companies (e.g. @tech...com to 41 registry rows) - misaddressing a recruiter is the worst failure mode here.
+// EXACT equality only: substring containment matched dozens of unrelated companies, and misaddressing a recruiter is the worst failure.
 function domainHeuristicMatch(companyNormCollapsed: string, email: string): boolean {
   const label = domainLabel(email);
   if (!label || label.length < MIN_DOMAIN_LABEL_LENGTH) return false;
   return label === companyNormCollapsed;
 }
 
-// Match tiers in priority order, stopping at the first with any matches: (a) exact normalized name, (b) normalized alt-name, (c) domain heuristic; then splits eligible/ineligible (bounced, or drafted within cooldown) and sorts eligible verified-first, then least-recently-drafted first.
+// Tiers stop at the first with matches: exact name, alt-name, domain; eligible sorted verified-first, then least-recently-drafted.
 export function findContacts(input: FindContactsInput): FindContactsResult {
   const { companyName, candidates, lastDraftedAt, nowMs, cooldownDays } = input;
   const targetNorm = normalizeCompanyName(companyName);

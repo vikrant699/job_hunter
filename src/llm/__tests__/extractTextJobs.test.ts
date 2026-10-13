@@ -5,10 +5,10 @@ import { selectTextJobs } from "../extractTextJobs.js";
 test("selectTextJobs keeps valid jobs and drops empty/nav titles without failing the batch", () => {
   const raw = [
     { title: "Senior Data Analyst", location: "Bangalore" },
-    { title: "", location: "Mumbai" }, // empty → dropped
-    { title: "Apply now" }, // nav phrase → dropped
-    { location: "Pune" }, // missing title → dropped, batch survives
-    { title: "Business Analyst", location: "Full-time" }, // bogus location stripped
+    { title: "", location: "Mumbai" },
+    { title: "Apply now" },
+    { location: "Pune" },
+    { title: "Business Analyst", location: "Full-time" },
   ];
   const out = selectTextJobs(raw);
   assert.deepEqual(

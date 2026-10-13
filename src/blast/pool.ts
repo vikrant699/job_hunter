@@ -1,4 +1,4 @@
-// Ordered pool of not-yet-processed candidates from the Raw Data tab; email splitting/normalization mirrors contacts.ts but is duplicated on purpose so the blast tool stays deletable.
+// Email splitting mirrors contacts.ts but is duplicated on purpose so the blast tool stays deletable.
 export interface BlastCandidate {
   email: string;
   company: string;
@@ -8,7 +8,7 @@ export interface BlastCandidate {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const NO_REPLY_RE = /^(?:no-?reply|do-?not-?reply|donotreply)@/i;
 
-/** `rawRows` is the full tab including the header row (row 0 is skipped); live column layout: A company, B email(s), C contact name. */
+/** `rawRows` includes the header row (skipped); columns: A company, B email(s), C contact name. */
 export function buildPool(rawRows: string[][], known: ReadonlySet<string>): BlastCandidate[] {
   const seen = new Set<string>();
   const pool: BlastCandidate[] = [];

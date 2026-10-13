@@ -21,7 +21,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Two dept groups with a duplicate job_id (only "department" should surface) and a semicolon in a job name to exercise the balanced-brace scan.
+// Duplicate job_id (only "department" surfaces) and a semicolon in a job name exercise the balanced-brace scan.
 const LIST_HTML = `<!doctype html><html><body>
   <div id="rf-jobs-list"></div>
   <script src="/static/js/manual/careers/careers.js?v=0.11"></script>
@@ -31,7 +31,6 @@ const LIST_HTML = `<!doctype html><html><body>
   </script>
 </body></html>`;
 
-// Trimmed real markup shape from GET https://recruiterflow.com/coinswitch/jobs/692
 const JD_HTML = `<!doctype html><html><head>
   <script type="application/ld+json">{"@context": "http://schema.org/", "@type": "JobPosting", "title": "Senior Associate - Brand", "description": "<div>Know the company.</div><p>Lead our brand campaigns across India.</p>", "identifier": {"@type": "PropertyValue", "name": "CoinSwitch", "value": "db_x__692"}, "datePosted": "2026-06-09", "employmentType": "FULL_TIME"}</script>
 </head><body></body></html>`;
@@ -42,7 +41,6 @@ test("recruiterflowSlug derives the path segment from tenantUrl, falling back to
     recruiterflowSlug({ ...company, tenantUrl: null, careersUrl: "https://recruiterflow.com/instamojo/jobs" }),
     "instamojo",
   );
-  // Lokal's opaque slug
   assert.equal(
     recruiterflowSlug({ ...company, tenantUrl: "https://recruiterflow.com/db_fdae8243f06575ca46a3063600388f33/jobs" }),
     "db_fdae8243f06575ca46a3063600388f33",

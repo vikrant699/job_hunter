@@ -56,12 +56,11 @@ export function normalizeConsider(company: AdapterCompany, j: ConsiderJob): Norm
     jobUrl: j.url ?? j.applyUrl ?? company.careersUrl,
     location,
     isRemote: j.remote === true || (location !== null && REMOTE_RE.test(location)),
-    jdText: "", // list response carries no description
+    jdText: "",
     postedAt: typeof j.timeStamp === "string" ? j.timeStamp : null,
   };
 }
 
-/** Board id: explicit api_meta.boardId, else the registry slug. */
 function boardId(company: AdapterCompany): string {
   const meta = company.apiMeta;
   const fromMeta = meta && typeof meta["boardId"] === "string" ? meta["boardId"] : null;

@@ -27,17 +27,14 @@ const ResponseSchema = z.array(JobSchema);
 
 const GUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
-/** Extract the org GUID embedded in a Keka careers page. Null if absent. */
 export function extractKekaOrgGuid(html: string): string | null {
   return html.match(GUID_RE)?.[0] ?? null;
 }
 
-/** Legacy embed-API endpoint for a slug + orgGuid. */
 export function kekaEmbedUrl(slug: string, orgGuid: string): string {
   return `https://${slug}.keka.com/careers/api/embedjobs/default/active/${orgGuid}`;
 }
 
-/** Newer Blazor-UI endpoint (no orgGuid). */
 export function kekaJobsUrl(slug: string): string {
   return `https://${slug}.keka.com/careers/api/jobs/default/active`;
 }
@@ -51,7 +48,6 @@ async function fetchKeka(company: AdapterCompany, url: string): Promise<Normaliz
 export const kekaAdapter: AtsAdapter = {
   provider: "keka",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Subdomain defaults to the registry slug; apiMeta.boardSlug overrides it when they differ.
     const sub = company.apiMeta?.boardSlug ?? company.slug;
     const orgGuid = company.apiMeta?.orgGuid;
     if (!orgGuid) return fetchKeka(company, kekaJobsUrl(sub));

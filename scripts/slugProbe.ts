@@ -1,4 +1,3 @@
-// For each candidate company name, tries plausible slugs against greenhouse, lever and ashby and reports the first hit.
 import { pathToFileURL } from "node:url";
 import { ATS_URL_BUILDERS, probeJsonBoard } from "./atsProbes.js";
 

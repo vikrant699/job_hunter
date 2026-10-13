@@ -1,4 +1,3 @@
-// Relevance-gate prompt. Placeholders filled by render(); output validated by GateResultSchema.
 export const GATE_PROMPT = `You are screening job postings for ONE specific candidate, described by the resume below. Score so the candidate sees real matches first and isn't buried in noise — but missing a genuine match is worse than showing a borderline one.
 
 # Candidate's resume

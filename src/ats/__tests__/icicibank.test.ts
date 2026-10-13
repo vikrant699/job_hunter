@@ -31,7 +31,6 @@ const job: IciciJob = {
 test("encryptPayload/decryptPayload round-trip an arbitrary JSON value", () => {
   const value = { userId: 1, PageNo: 0, limit: 12, isAllIndia: 3 };
   const blob = encryptPayload(value);
-  // Ciphertext (base64) + a 16-char plaintext IV suffix, per the traced scheme.
   assert.ok(blob.length > 16);
   assert.deepEqual(decryptPayload(blob), value);
 });

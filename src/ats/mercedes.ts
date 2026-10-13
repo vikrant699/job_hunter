@@ -102,7 +102,6 @@ export const mercedesAdapter: AtsAdapter = {
       },
     });
 
-    // Keep the first-seen row per PositionID so a job isn't multiplied downstream.
     const seen = new Map<string, MercedesDescriptor>();
     for (const d of raw) {
       if (!seen.has(d.PositionID)) seen.set(d.PositionID, d);

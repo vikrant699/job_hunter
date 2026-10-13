@@ -93,7 +93,6 @@ test("updateRegistryStrategy patches the parsing_strategy cell of the matching r
 
   assert.equal(flipped, true);
   assert.equal(updatedRanges.length, 1);
-  // The strategy flip goes through updateRegistryEntry, which rewrites the full row rather than one cell.
   assert.match(updatedRanges[0]?.rangeA1 ?? "", /!A2:N2$/);
   assert.equal(updatedRanges[0]?.rows[0]?.[REGISTRY_COLUMNS.indexOf("parsing_strategy")], "playwright-llm-scrape");
 
@@ -144,7 +143,7 @@ test("updateRegistryEntry rewrites the located row and mirrors the cache", async
   assert.equal(ok, true);
   assert.equal(updatedRanges.length, 1);
   const range0 = at(updatedRanges, 0);
-  assert.match(range0.rangeA1, /!A3:N3$/); // header row 1, a=row2, b=row3
+  assert.match(range0.rangeA1, /!A3:N3$/);
   const written = at(range0.rows, 0);
   assert.equal(written[REGISTRY_COLUMNS.indexOf("careers_url")], "https://fixed.example/careers");
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));
@@ -157,7 +156,6 @@ test("updateRegistryStrategy targets the correct sheet row even with an invalid 
   const b = E("ashby", `${tag}-b`, `B-${tag}`);
   const cachePath = tmpCache([]);
   const h = harness([a, b], cachePath);
-  // Corrupt row 2: entry b must still be located at sheet row 3, not shifted to 2 by the valid-only index.
   h.sheetRows[1] = ["Bad Co", "https://bad/x", "not-a-provider", "", "ats-api", "", "", "", "", "", "", "", "", ""];
 
   const flipped = await updateRegistryStrategy(
@@ -166,7 +164,6 @@ test("updateRegistryStrategy targets the correct sheet row even with an invalid 
 
   assert.equal(flipped, true);
   assert.match(at(h.updatedRanges, 0).rangeA1, /!A3:N3$/);
-  // Cache mirror must be skipped (partial decode) so the invalid row's company isn't pruned later.
   const cached = RegistryEntrySchema.array().parse(JSON.parse(readFileSync(cachePath, "utf-8")));
   assert.deepEqual(cached, []);
 });

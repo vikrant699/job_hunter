@@ -25,7 +25,7 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// A subdomain that no longer exists. Freshteam answers 200 here, not 404.
+// Freshteam answers 200, not 404, for a nonexistent subdomain.
 const deadCompany: AdapterCompany = {
   provider: "freshteam",
   slug: "niki-ai",
@@ -82,7 +82,7 @@ const JD_HTML = `
 </body></html>
 `;
 
-// Freshteam's "no such subdomain" page - the tenant name isn't in the markup itself, only injected via a trailing script from document.domain.
+// "No such subdomain" page: the tenant name is only injected via a trailing script from document.domain.
 const INVALID_DOMAIN_HTML = `<!DOCTYPE html>
 <html>
   <head>
@@ -112,7 +112,7 @@ const INVALID_DOMAIN_HTML = `<!DOCTYPE html>
 </html>
 `;
 
-// A LIVE tenant with nothing open (real portal chrome minus the one job row) - the case the dead-tenant check must not swallow.
+// LIVE tenant with nothing open: the case the dead-tenant check must not swallow.
 const EMPTY_BOARD_HTML = `<!DOCTYPE html>
 <html>
   <head>
@@ -166,7 +166,7 @@ test("parseFreshteamHref extracts id + slug from a /jobs/<id>/<slug> path", () =
   assert.deepEqual(parseFreshteamHref("/jobs/jrN-FJFXaYVg/business-analyst?src=x"), {
     id: "jrN-FJFXaYVg",
     slug: "business-analyst",
-  }); // query string is stripped before segmenting
+  });
   assert.equal(parseFreshteamHref("/jobs/onlyid"), null);
   assert.equal(parseFreshteamHref("/careers/jrN-FJFXaYVg/business-analyst"), null);
 });
@@ -220,14 +220,13 @@ test("parseFreshteamList skips a row whose href doesn't match /jobs/<id>/<slug> 
 test("parseFreshteamList throws on Freshteam's invalid-domain page instead of reporting an empty board", () => {
   const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
   assert.ok(err instanceof Error);
-  // The URL must come from the company row - the page itself never names the tenant.
+  // URL must come from the company row; the page never names the tenant.
   assert.match(err.message, /niki-talent\.freshteam\.com\/jobs/);
   assert.match(err.message, /tenant does not exist/);
   assert.match(err.message, /claim it now/);
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", () => {
-  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   const err = thrownBy(() => parseFreshteamList(INVALID_DOMAIN_HTML, deadCompany));
   assert.equal(isTransportError(err), false);
   assert.equal(isEdgeInterstitialError(err), false);
@@ -262,7 +261,7 @@ test("parseFreshteamJd returns '' when .job-details-content is absent (malformed
   assert.equal(parseFreshteamJd("<html><body>Not found</body></html>"), "");
 });
 
-// Legacy (pre data-portal) board template, live on ninjacart - no data-portal-* attributes; location lives in a sibling .job-location block.
+// Legacy (pre data-portal) template, live on ninjacart: location lives in a sibling .job-location block.
 const LEGACY_TEMPLATE_HTML = `<html><body><ul>
   <li class="heading"><div class="row">
     <div class="job-list-info">

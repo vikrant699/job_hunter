@@ -1,5 +1,4 @@
-// src/ats/skima.ts — Skima AI careers sites (skima.ai), a shared careers-page vendor on custom domains (e.g. careers.nykaa.com), server-rendered by an Astro frontend - plain HTML, no JS or auth needed.
-// List: GET <careersUrl>?page=N (1-based); each job card has a title anchor `<a href="/<uuid>">Title</a>` (a paired Apply-button anchor for the same uuid is text-less - keep the one with text) plus location/work-mode/type chips. Pages are disjoint; page until the "Showing X of N" total is reached, with a zero-item page as backstop. JD: div.job-description-panel on the same /<uuid> path.
+// List: GET <careersUrl>?page=N (1-based); cards link `/<uuid>` (a text-less Apply anchor repeats each uuid; keep the one with text). Pages are disjoint; stop at the "Showing X of N" total or a zero-item page. JD: div.job-description-panel on /<uuid>.
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -8,7 +7,6 @@ import { atsFetchText } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
-// Informational only - pagination doesn't rely on a fixed page size (see shortPageEndsPagination below).
 const NOMINAL_PAGE_SIZE = 10;
 
 const UUID_PATH_RE = /^\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i;
@@ -24,11 +22,9 @@ export interface SkimaListItem {
 
 export interface SkimaListingPage {
   items: SkimaListItem[];
-  /** Total job count from the "Showing X of N" chrome, if parseable. */
   total: number | null;
 }
 
-/** Listing URL for page N (1-based). Page 1 is the bare board URL. */
 export function skimaPageUrl(baseUrl: string, page: number): string {
   if (page <= 1) return baseUrl;
   const u = new URL(baseUrl);
@@ -36,7 +32,6 @@ export function skimaPageUrl(baseUrl: string, page: number): string {
   return u.toString();
 }
 
-/** Parse one listing page: emit one item per UUID-path anchor that carries visible text (the Apply-button anchor for the same uuid is text-less); chips are `span.break-all` texts in the closest `.w-full` wrapper. */
 export function parseSkimaListingHtml(html: string, baseUrl: string): SkimaListingPage {
   const $ = cheerio.load(html);
   const origin = new URL(baseUrl).origin;
@@ -58,7 +53,6 @@ export function parseSkimaListingHtml(html: string, baseUrl: string): SkimaListi
       .map((_i, s) => collapseWs($(s).text()))
       .get()
       .filter(Boolean);
-    // Chips are [location, workMode, jobType]; workMode says Remote/In Office.
     const location = chips[0] ?? null;
     const isRemote =
       chips.some((c) => REMOTE_RE.test(c)) || (location !== null && REMOTE_RE.test(location));
@@ -98,7 +92,6 @@ export function extractSkimaJd(html: string): string {
   const $ = cheerio.load(html);
   const panel = $("div.job-description-panel").first();
   if (panel.length > 0) return htmlToText(panel.html() ?? "");
-  // Theme fallback: the <h1> title's enclosing main content block.
   const main = $("main").first();
   return htmlToText(main.length > 0 ? (main.html() ?? "") : html);
 }
@@ -112,7 +105,6 @@ export const skimaAdapter: AtsAdapter = {
       provider: "skima",
       company: company.slug,
       pageSize: NOMINAL_PAGE_SIZE,
-      // Pages are disjoint, so termination is the "total" chrome or a zero-item page - not a short page.
       shortPageEndsPagination: false,
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,

@@ -1,5 +1,4 @@
-// src/ats/peerlist.ts — Peerlist-hosted career boards (careers.peerlist.io): a server-rendered Next.js page's `<script id="__NEXT_DATA__">` island carries props.pageProps.careersList (list).
-// jobData is populated only on a single job's own page, used by fetchJd.
+// careers.peerlist.io: __NEXT_DATA__ props.pageProps.careersList is the list; jobData exists only on a job's own page (fetchJd)
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -68,7 +67,6 @@ export function peerlistItemTitle(item: PeerlistJobLike): string {
   return item.title ?? item.role ?? item.jobTitle ?? "";
 }
 
-// Stable identity: explicit id, then jobId, then slug, then a slugified title as a last resort.
 export function peerlistExternalId(item: PeerlistJobLike): string {
   if (item.id != null) return String(item.id);
   if (item.jobId != null) return String(item.jobId);

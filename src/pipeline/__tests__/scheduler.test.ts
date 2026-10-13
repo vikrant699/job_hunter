@@ -59,7 +59,6 @@ test("classifyFetchError tags the common ATS failure modes", () => {
   assert.equal(classifyFetchError("Error: something weird happened"), "other");
 });
 
-// Fast policy: real backoff/deferred pacing are seconds. Tests that assert pacing override deferredPaceMs with a few ms.
 const FAST: TransportRetryPolicy = { retries: 1, baseDelayMs: 1, deferredPaceMs: 0 };
 
 let seq = 0;
@@ -90,7 +89,6 @@ function mkRunContext(): RunContext {
   };
 }
 
-/** Seed a real companies row so the mark* statements have something to update. */
 function seedCompany(slug: string, provider: Provider = "greenhouse"): Company {
   const company: Company = {
     provider,
@@ -163,15 +161,12 @@ test("a transport fault does NOT count against the board and is deferred", async
 
   await processBucket("greenhouse", failingAdapter(dnsError), [company], stats, FAST);
 
-  // The board never answered, so it must not be moved toward the cf>=5 quarantine.
   assert.equal(failureRow(slug).consecutive_failures, 0, "transport fault must not increment cf");
   assert.equal(failureRow(slug).status, "active");
-  // Nor counted as an error/issue yet - it gets a second chance.
   assert.equal(stats.failedCompanies.length, 0);
   assert.equal(stats.errors.length, 0);
   assert.equal(stats.transportDeferred.length, 1);
   assert.ok(stats.transportRetried > 0, "should have retried before deferring");
-  // The stored diagnostics must name the real cause, not "fetch failed".
   assert.match(stats.transportDeferred[0]?.err ?? "", /ENOTFOUND/);
 });
 
@@ -195,7 +190,7 @@ test("a board-shaped failure still counts against the board", async () => {
   assert.equal(stats.transportRetried, 0);
 });
 
-/** What undici's res.json() throws when a JSON endpoint answers with an HTML challenge/error page instead. */
+/** What undici's res.json() throws when a JSON endpoint answers with an HTML challenge/error page. */
 function edgeInterstitialError(): Error {
   return new SyntaxError(`Unexpected token '<', "<!DOCTYPE "... is not valid JSON`);
 }
@@ -207,7 +202,6 @@ test("an HTML-for-JSON edge interstitial does NOT count against the board", asyn
 
   await processBucket("greenhouse", failingAdapter(edgeInterstitialError), [company], stats, FAST);
 
-  // The edge answered, not the board — so this says nothing about board health.
   assert.equal(failureRow(slug).consecutive_failures, 0, "an edge page is not a board defect");
   assert.equal(failureRow(slug).status, "active");
   assert.equal(stats.failedCompanies.length, 0);
@@ -226,7 +220,6 @@ test("the deferred pass recovers a board that was only being throttled", async (
     provider: "greenhouse",
     listPostings: (): Promise<NormalizedPosting[]> => {
       attempts++;
-      // Interstitial for the whole first pass (1 try + 1 retry), then the edge relents once the burst is over.
       if (attempts <= 2) return Promise.reject(edgeInterstitialError());
       return Promise.resolve([]);
     },
@@ -250,7 +243,6 @@ test("a genuinely malformed JSON body still counts against the board", async () 
 
   await processBucket(
     "greenhouse",
-    // No opening tag: the board's own application returned garbage.
     failingAdapter(() => new SyntaxError(`Unexpected token 'x', "xnot json" is not valid JSON`)),
     [company],
     stats,
@@ -263,7 +255,6 @@ test("a genuinely malformed JSON body still counts against the board", async () 
   assert.equal(stats.transportRetried, 0, "board defects are not retried");
 });
 
-/** What an HTML adapter's dead-tenant guard throws once it notices the body is a bot-block page rather than a board; built through the real guard so the test pins the routing, not a hand-copied message. */
 function challengePageError(): Error {
   const body =
     `<!DOCTYPE html><html><head><title>Attention Required! | Cloudflare</title></head>` +
@@ -283,7 +274,6 @@ test("a WAF challenge page does NOT count against the board and is deferred", as
 
   await processBucket("greenhouse", failingAdapter(challengePageError), [company], stats, FAST);
 
-  // An edge refused us, so the board's application never spoke - WAF-fronted boards must not walk toward the cf>=5 quarantine.
   assert.equal(failureRow(slug).consecutive_failures, 0, "a block page is not a board defect");
   assert.equal(failureRow(slug).status, "active");
   assert.equal(stats.failedCompanies.length, 0);
@@ -299,7 +289,7 @@ test("a genuinely dead board still counts against it — this is no blanket amne
 
   await processBucket(
     "greenhouse",
-    // radancy's verdict for a host that stopped serving the board: no job cards and no pager state, and nothing about the body says an edge intervened.
+    // A host that stopped serving the board: no job cards, no pager state, and nothing in the body says an edge intervened.
     failingAdapter(
       () =>
         new Error(
@@ -329,7 +319,6 @@ test("the deferred pass recovers a board whose network came back", async () => {
     provider: "greenhouse",
     listPostings: (): Promise<NormalizedPosting[]> => {
       attempts++;
-      // Fail every attempt of the first pass (1 try + 1 retry), then succeed.
       if (attempts <= 2) return Promise.reject(dnsError());
       return Promise.resolve([]);
     },
@@ -360,7 +349,6 @@ test("a board failing transport on BOTH passes finally becomes a real failure", 
   assert.equal(stats.failedCompanies.length, 1);
   assert.equal(stats.errors.length, 1);
   assert.match(stats.errors[0] ?? "", /both passes/);
-  // Only now does it count toward quarantine — once, not once per attempt.
   assert.equal(failureRow(slug).consecutive_failures, 1);
 });
 
@@ -382,7 +370,6 @@ function mkCallLog(): CallLog {
   return { slugs: [], providers: [], inFlight: 0, peakInFlight: 0 };
 }
 
-/** Records call order and peak concurrency, so a pass that fans out is distinguishable from one that walks its queue; several adapters can share one log to observe cross-provider concurrency. */
 function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
   return {
     provider,
@@ -391,7 +378,6 @@ function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
       log.peakInFlight = Math.max(log.peakInFlight, log.inFlight);
       log.slugs.push(c.slug);
       log.providers.push(c.provider);
-      // Yield: a pass that started several boards at once overlaps right here.
       await sleep(0);
       log.inFlight--;
       return [];
@@ -399,7 +385,6 @@ function recordingAdapter(provider: Provider, log: CallLog): AtsAdapter {
   };
 }
 
-/** The deferred pass's whole input is this array, so pushing onto it directly keeps these tests off the first-pass retry path they don't exercise. */
 function deferBoard(stats: RunContext, company: Company, adapter: AtsAdapter): void {
   stats.transportDeferred.push({ company, adapter, err: "SyntaxError: Unexpected token '<'" });
 }
@@ -415,7 +400,6 @@ test("the deferred pass works boards one at a time, not at provider concurrency"
 
   await runDeferredTransportPass(stats, FAST);
 
-  // Replaying a throttled group at concurrencyPerProvider is the same burst again, even if the boards stay unquarantined.
   assert.equal(log.peakInFlight, 1, "deferred boards must not be replayed concurrently");
   assert.equal(log.slugs.length, 6);
   assert.equal(stats.transportRecovered, 6);
@@ -437,9 +421,7 @@ test("the deferred pass sleeps between boards, at the injected pace", async () =
   const elapsed = Date.now() - started;
 
   assert.equal(log.slugs.length, 3);
-  // 3 boards leave 2 gaps; asserting only one full gap keeps the bound clear of timer resolution while still failing outright if the pace is ignored.
   assert.ok(elapsed >= paceMs, `expected the pass to be paced, took ${elapsed}ms`);
-  // The production pace must be at least as wide as the spacing verified to work against edge throttles.
   assert.ok(defaultRetryPolicy().deferredPaceMs >= 2500);
 });
 
@@ -456,7 +438,6 @@ test("the deferred pass interleaves providers instead of draining one vendor", a
 
   await runDeferredTransportPass(stats, FAST);
 
-  // Two boards of one vendor back-to-back is the rate the pace exists to avoid, so a mixed queue alternates rather than draining greenhouse first.
   assert.deepEqual(log.providers, ["greenhouse", "lever", "greenhouse", "lever"]);
   assert.equal(stats.transportRecovered, 4);
 });
@@ -466,7 +447,6 @@ interface StartLog {
   startedAt: number;
 }
 
-/** Records each fetch's provider + start time and tracks that provider's peak concurrency, so a throttle's two guarantees (max concurrent, min spacing) are both directly observable. */
 function throttleProbeAdapter(
   provider: Provider,
   delayMs: number,
@@ -527,17 +507,14 @@ test("provider throttle caps concurrency and spaces starts, leaving other provid
   assert.equal(starts.filter((s) => s.provider === "workday").length, 5);
   assert.equal(starts.filter((s) => s.provider === "greenhouse").length, 3);
 
-  // Never more than maxConcurrent workday fetches in flight at once.
   assert.ok((peak.get("workday") ?? 0) <= 2, `workday peak concurrency was ${peak.get("workday")}`);
 
-  // Consecutive workday starts are spaced at least minSpacingMs apart.
   const workdayStarts = starts.filter((s) => s.provider === "workday").map((s) => s.startedAt);
   for (let i = 1; i < workdayStarts.length; i++) {
     const gap = (workdayStarts[i] ?? 0) - (workdayStarts[i - 1] ?? 0);
     assert.ok(gap >= minSpacingMs - 5, `workday starts ${i - 1}->${i} were only ${gap}ms apart`);
   }
 
-  // Greenhouse has no throttle entry, so its worker pool (concurrencyPerProvider) starts it unconstrained - all 3 fetches should overlap rather than being serialized like workday.
   assert.ok((peak.get("greenhouse") ?? 0) > 1, "greenhouse fetches should overlap, not be spaced");
 });
 
@@ -561,7 +538,6 @@ test("a listing that shrinks from 3 to 2 marks exactly the missing posting remov
     insertPostingIfNew(mkPosting("greenhouse", id, slug, company.name), stats.profileId);
   }
 
-  // idA/idB are still listed; both already exist in the DB, so processOnePosting is a no-op for them (postingExists short-circuits) — the lifecycle bookkeeping lives entirely in processOneCompany.
   const adapter: AtsAdapter = {
     provider: "greenhouse",
     listPostings: async () => [

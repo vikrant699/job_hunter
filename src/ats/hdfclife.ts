@@ -25,7 +25,6 @@ export const REQUEST_IV = "vS7YzoFtgUU1Ovf";
 
 const AUTH_TAG_LEN = 16;
 
-/** AES-256-GCM encrypt as the site's Encrypter does: key token[:32] as UTF-8, iv base64-decoded, output base64(cipher||tag). */
 export function hdfcEncrypt(value: JsonValue, token: string, ivB64: string): string {
   const key = Buffer.from(token.slice(0, 32), "utf8");
   const iv = Buffer.from(ivB64, "base64");
@@ -34,7 +33,6 @@ export function hdfcEncrypt(value: JsonValue, token: string, ivB64: string): str
   return Buffer.concat([enc, cipher.getAuthTag()]).toString("base64");
 }
 
-/** Reverse of hdfcEncrypt: split the trailing 16-byte GCM tag, decrypt, JSON-parse. */
 export function hdfcDecrypt(blob: string, token: string, ivB64: string): JsonValue {
   const buf = Buffer.from(blob, "base64");
   if (buf.length <= AUTH_TAG_LEN) throw new Error(`hdfclife: ciphertext too short (${buf.length} bytes)`);
@@ -78,14 +76,12 @@ const DetailEnvelopeSchema = z.object({
   }),
 });
 
-/** Flatten the two-level list envelope (JOB_ROLE buckets -> REQUISITION.results). Throws on an unexpected envelope. */
 export function flattenHdfcRequisitions(raw: JsonValue): HdfcRequisition[] {
   const parsed = ListEnvelopeSchema.safeParse(raw);
   if (!parsed.success) throw new Error(`hdfclife: list response failed schema (${parsed.error.issues[0]?.message ?? "?"})`);
   return parsed.data.results.results.flatMap((b) => b.REQUISITION?.results ?? []);
 }
 
-/** Full JD from a get-job-descriptions envelope, as plain text; "" when the shape is unexpected (degrade, don't fail the posting). */
 export function hdfcJdFromDetail(raw: JsonValue): string {
   const parsed = DetailEnvelopeSchema.safeParse(raw);
   if (!parsed.success) return "";
@@ -97,7 +93,6 @@ export function hdfcJdFromDetail(raw: JsonValue): string {
 export function normalizeHdfc(company: AdapterCompany, r: HdfcRequisition): NormalizedPosting {
   const city = r.CITY && r.CITY.trim() ? r.CITY.trim() : null;
   const place = city ?? (r.LOC_NAME && r.LOC_NAME.trim() ? r.LOC_NAME.trim() : null);
-  // India-only board whose CITY is a bare town name ("Fatehabad") the location filter can't place otherwise
   const location = place ? `${place}, India` : null;
   return {
     provider: "hdfclife",
@@ -109,8 +104,8 @@ export function normalizeHdfc(company: AdapterCompany, r: HdfcRequisition): Norm
     jobUrl: `${CAREERS_URL}#job-${r.REQID}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: "", // fetched separately via get-job-descriptions
-    postedAt: null, // the API exposes no posting date
+    jdText: "",
+    postedAt: null,
   };
 }
 

@@ -1,4 +1,3 @@
-// src/ats/onecard.ts — Onecard / FPL Technologies careers (fplabs.tech/careers): the Sucuri-gated page's own inline <script> calls a public onrender-hosted Strapi-style API directly.
 // GET .../hr/jobs?pagination[page]=<n>&pagination[pageSize]=<size>, header x-api-key: hr-read-only (a static public literal, no browser/cookies needed).
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -11,7 +10,6 @@ const LIST_PATH = "/hr/jobs";
 const API_KEY = "hr-read-only";
 const PAGE = 25; // server appears to enforce this regardless of pageSize requested
 
-// Board had 0 openings at build time; the per-job field shape is inferred from the page's rendering template rather than a live fixture.
 export const OnecardJobAttributesSchema = z.object({
   title: z.string(),
   location: z.string().nullable().optional(),

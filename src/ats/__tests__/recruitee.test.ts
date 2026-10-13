@@ -14,7 +14,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real items from GET /api/offers/ (flextrade + fullcreative, 2026-07-10).
 const publishedOffer: RecruiteeOffer = {
   id: 2671592,
   title: "Dashboard Automation Engineer",

@@ -17,7 +17,6 @@ import { profile } from "../profile.js";
 import { describeError } from "../util/errorCause.js";
 import { processBucket, runDeferredTransportPass } from "./scheduler.js";
 
-/** A board whose fetch died on infrastructure, parked for the end-of-run pass; carries its adapter so it can replay without re-bucketing. */
 export interface DeferredBoard {
   company: Company;
   adapter: AtsAdapter;
@@ -33,30 +32,18 @@ export interface RunContext {
   postingsTitleDenied: number;
   postingsYoeDenied: number;
   postingsDuplicated: number;
-  /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
   jdFetchFailed: number;
-  /** Stored no-jd postings whose JD was re-fetched this run (at most once per config.fetch.noJdRecheckDays). */
   noJdRechecked: number;
-  /** Of those, how many now had a real JD and went through the gate like a new posting. */
   noJdRecovered: number;
-  /** Stored gate-error postings re-gated this run (at most once per config.llm.gateErrorRetryMinutes). */
   gateErrorRetried: number;
   errors: string[];
-  /** Boards that errored this run (not merely zero-yield); drives the Discord issue list and are not counted as scanned. */
   failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
-  /** Inline transport retries performed (DNS/socket faults that backed off). */
   transportRetried: number;
-  /** Boards still down after inline retries; retried once more after every bucket finishes, once a transient outage has had time to clear. */
   transportDeferred: DeferredBoard[];
-  /** Deferred boards that fetched successfully on the second pass. */
   transportRecovered: number;
-  /** (company|title|location) keys notified in PRIOR runs — skipped before any LLM call. */
   priorNotifyKeys: Set<string>;
-  /** keys notified in THIS run — within-run dedup at notify time. */
   seenNotifyKeys: Set<string>;
-  /** Which profile this run evaluates for — stamped on every posting/run row. */
   profileId: string;
-  /** bucketKey -> {total, scanned} for the live progress heartbeat; `scanned` bumped per company in the scheduler. */
   bucketProgress: Map<string, { total: number; scanned: number }>;
 }
 
@@ -72,7 +59,6 @@ export function toAdapterCompany(c: Company): AdapterCompany {
 }
 
 export interface ProductionTickOutcome {
-  /** The runs-table row id for this tick — scopes post-run outreach records. */
   runId: number;
   startedAtIso: string;
   endedAtIso: string;
@@ -95,14 +81,12 @@ export interface ProductionTickOutcome {
 }
 
 export async function runProductionTick(): Promise<ProductionTickOutcome> {
-  // Fail fast if the LLM backend is down, rather than churning the whole company list into gate-errors.
   await assertLlmAvailable();
 
   const profileId = profile.id ?? "default";
   const runId = startRun("production", profileId);
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
-  // Pre-load prior-notified keys so a repost with a fresh requisition id (which the external_id dedup misses) isn't pinged again.
   const priorNotifyKeys = new Set<string>();
   for (const r of selectNotifiedRoleKeys(profileId)) {
     priorNotifyKeys.add(notifyKey(r.company ?? "", r.title, r.location));
@@ -149,12 +133,10 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     "production tick: companies loaded",
   );
 
-  // Bucket by adapter identity (not provider) so llm-scrape companies share one bucket regardless of their declared `source`.
   const buckets = new Map<string, { adapter: AtsAdapter; companies: Company[]; key: string }>();
   for (const c of companies) {
     const adapter = resolveAdapter(c);
     if (!adapter) {
-      // No registered adapter for this provider/strategy - surface as a failed board instead of vanishing silently.
       logger.error({ provider: c.provider, slug: c.slug, strategy: c.parsingStrategy }, "no adapter resolves for company - skipped");
       stats.errors.push(`${c.provider}/${c.slug}: no adapter`);
       stats.failedCompanies.push({ provider: c.provider, slug: c.slug, reason: "config" });
@@ -169,7 +151,6 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     else buckets.set(key, { adapter, companies: [c], key });
   }
 
-  // Heartbeat interval is unref()'d and cleared in finally so it never keeps the process alive or fires after the run returns.
   for (const b of buckets.values()) {
     stats.bucketProgress.set(b.key, { total: b.companies.length, scanned: 0 });
   }
@@ -195,10 +176,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     await Promise.all(
       Array.from(buckets.values()).map((b) => processBucket(b.key, b.adapter, b.companies, stats)),
     );
-    // One more attempt for boards refused mid-run, now that a transient fault has had time to clear.
     await runDeferredTransportPass(stats);
   } catch (err) {
-    // Record the abort reason and propagate; dormancy/summary are skipped since this run's data is suspect.
     const reason = err instanceof LlmUnavailableError ? `aborted: ${err.message}` : `crashed: ${describeError(err).slice(0, 300)}`;
     if (err instanceof LlmUnavailableError) {
       logger.error({ err: err.message }, "run aborted: LLM backend became unavailable mid-run");
@@ -219,7 +198,6 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
 
   closeRun(errorBlob);
 
-  // No summary embed here; the caller posts the single end-of-run status embed via postRunStatus after outreach.
   logger.info(
     {
       companies: stats.companiesScanned,

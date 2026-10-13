@@ -19,7 +19,7 @@ import type { ChainRepair, ChainRepairDeps, RepairedFetch } from "../aiaChain.js
 import { rejectionOf } from "../../__tests__/caught.js";
 import { stubFetch } from "../../ats/__tests__/testHelpers.js";
 
-// Dummy EC hierarchy (openssl, 100-year validity): ROOT -> INTERMEDIATE -> LEAF; the leaf's AIA names http://ca.example.test/int.crt, the intermediate's names http://ca.example.test/root.crt.
+// Dummy EC chain ROOT -> INTERMEDIATE -> LEAF; leaf AIA names int.crt, intermediate's names root.crt.
 const ROOT_PEM = `-----BEGIN CERTIFICATE-----
 MIIBnzCCAUWgAwIBAgIUaD6vZEHIdaImaiLvvetKbKzUcZ8wCgYIKoZIzj0EAwIw
 HDEaMBgGA1UEAwwRRXhhbXBsZSBUZXN0IFJvb3QwIBcNMjYxMDEzMTY0ODEzWhgP
@@ -64,7 +64,6 @@ lyOr0bcjM7LZcXc=
 -----END CERTIFICATE-----
 `;
 
-// Self-signed impostor carrying the intermediate's exact subject name but its own key.
 const ROGUE_PEM = `-----BEGIN CERTIFICATE-----
 MIIBnzCCAUWgAwIBAgIUTuxox82hQBLsNfTGCXrERkA3VVgwCgYIKoZIzj0EAwIw
 JDEiMCAGA1UEAwwZRXhhbXBsZSBUZXN0IEludGVybWVkaWF0ZTAgFw0yNjEwMTMx
@@ -86,7 +85,7 @@ const ROGUE = new X509Certificate(ROGUE_PEM);
 const INT_URL = "http://ca.example.test/int.crt";
 const ROOT_URL = "http://ca.example.test/root.crt";
 
-/** The exact shape undici produces when the server sends only its leaf. */
+/** The shape undici produces when the server sends only its leaf. */
 function incompleteChainFailure(code = "UNABLE_TO_VERIFY_LEAF_SIGNATURE"): Error {
   const cause = new Error("unable to verify the first certificate");
   Object.assign(cause, { code });

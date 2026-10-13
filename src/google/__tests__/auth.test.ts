@@ -79,7 +79,7 @@ test("getAccessToken: near-expiry token refreshes and rewrites the file", async 
   const fake = makeFakeFs({
     refresh_token: "rt-1",
     access_token: "at-old",
-    expiry: Date.now() + 10_000, // within the 60s guard window
+    expiry: Date.now() + 10_000,
   });
   let capturedParams: URLSearchParams | undefined;
   const fetchFn: typeof fetch = async (_url, init) => {

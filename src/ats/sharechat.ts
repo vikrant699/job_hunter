@@ -1,5 +1,4 @@
-// src/ats/sharechat.ts — ShareChat's public careers JSON API (also backs Moj, same product/board); single-host, no per-tenant subdomain.
-// GET /api/careersList groups jobs by category (flatten across groups); no per-job detail endpoint exists, so jdText stays "" and jobUrl points at the careers page.
+// GET /api/careersList groups jobs by category; no detail endpoint exists, so jdText stays "" and jobUrl is the careers page.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -29,7 +28,6 @@ const ShareChatListResponseSchema = z.object({
   data: z.object({ careersList: z.array(ShareChatGroupSchema) }),
 });
 
-/** Flatten the category-grouped `careersList[].data[]` into one job array. */
 export function flattenShareChatJobs(raw: JsonValue): ShareChatJob[] {
   const parsed = ShareChatListResponseSchema.parse(raw);
   return parsed.data.careersList.flatMap((group) => group.data);

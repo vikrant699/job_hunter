@@ -87,7 +87,6 @@ test("selectNotifiedPostingsSince returns notified rows since the cutoff, joined
     yoeMin: null, yoeMax: null, dropStage: "yellow", notifiedAt: new Date().toISOString(),
   });
 
-  // Not notified — must be excluded regardless of dropStage.
   insertPostingIfNew(mk(notNotifiedId, { companySlug: slug, jobTitle: "Silent Role" }), profileId);
   updatePostingResult({
     provider: "custom", externalId: notNotifiedId, profileId,
@@ -209,7 +208,6 @@ test("markSeen bumps last_seen_at and revives a previously removed row (clears r
   const idB = `seen-b-${Date.now()}`;
   insertPostingIfNew(mk(idA, { companySlug: slug }), profileId);
   insertPostingIfNew(mk(idB, { companySlug: slug }), profileId);
-  // Simulate idB having been marked removed by an earlier fetch.
   setRemoved(idB, profileId, new Date(Date.now() - 60000).toISOString());
   assert.ok(lifecycleRow("custom", idB, profileId).removed_at !== null);
 
@@ -239,7 +237,6 @@ test("markRemoved only touches not-yet-removed rows whose last_seen_at predates 
   insertPostingIfNew(mk(otherProfileStaleId, { companySlug: slug }), otherProfileId);
   insertPostingIfNew(mk(freshId, { companySlug: slug }), profileId);
 
-  // Explicit timestamps (rather than relying on wall-clock ordering) so the test never flakes on millisecond quantization.
   const base = Date.now();
   const stamp = (offsetMs: number): string => new Date(base + offsetMs).toISOString();
 

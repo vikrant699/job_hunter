@@ -1,64 +1,51 @@
-// Runtime knobs that aren't user-specific; personal stuff lives in config/profile.ts.
 import { GATE_PROMPT } from "./llm/prompts/gate.js";
 import { SHORTLIST_PROMPT, SHORTLIST_FROM_TEXT_PROMPT } from "./llm/prompts/shortlist.js";
 import { EXTRACT_PROMPT } from "./llm/prompts/extract.js";
 import { envInt, envList } from "./util/env.js";
 
-// Typed `number` (not `as const`-narrowed) so scheduler.ts's skip-if-disabled checks stay real runtime checks.
+// Typed `number`, not `as const`, so scheduler.ts's skip-if-disabled checks stay real.
 const INTER_CALL_DELAY_MS: number = 250;
 const DEFERRED_PASS_PACE_MS: number = 3_000;
 
-/** Per-provider start throttle: caps concurrent/spacing of a provider's board fetches so Workday's edge doesn't misclassify healthy boards as failures under burst load. */
+/** Caps concurrency/spacing of a provider's board fetches; Workday's edge misreads bursts as failures. */
 export interface ProviderThrottle {
   maxConcurrent: number;
   minSpacingMs: number;
 }
 
-// Values are `as const` (Standard rule 5); the table itself is typed for arbitrary-string lookup (Standard rule 1: no casts) so scheduler.ts can index it by a live `company.provider` without narrowing every provider to a table key.
+// Typed for arbitrary-string lookup (no casts) so scheduler.ts can index by a live `company.provider`.
 const PROVIDER_THROTTLE_TABLE: Partial<Record<string, ProviderThrottle>> = {
   workday: { maxConcurrent: 2, minSpacingMs: 4000 },
 } as const;
 
 export const config = {
   fetch: {
-    /** How many companies of one provider run in parallel. */
     concurrencyPerProvider: 4,
-    /** Postings processed in parallel inside one company. LLM calls are capped separately by the semaphore in llm/client.ts. */
     workersPerCompany: 5,
-    /** Politeness delay between worker-pool iterations within a company. */
     interCallDelayMs: INTER_CALL_DELAY_MS,
-    /** Big paginated boards (Bosch, ABB) get aborted mid-fetch under load at lower timeouts. */
     timeoutMs: 60_000,
-    /** Retries transport-layer failures only (see util/errorCause.ts); board-shaped errors (HTTP status, schema) never retry. */
     transportRetries: 3,
-    /** First transport backoff; doubles per attempt (5s, 10s, 20s). */
     transportRetryBaseMs: 5_000,
-    /** End-of-run deferred pass works boards one at a time, spaced, not at concurrencyPerProvider - some ATS edges throttle bursts. */
+    /** Some ATS edges throttle bursts, so the deferred pass runs boards one at a time, spaced. */
     deferredPassPaceMs: DEFERRED_PASS_PACE_MS,
-    /** Identify ourselves to ATS providers; some block default node UA. */
+    /** Some providers block the default node UA. */
     userAgent: "job-hunter-bot/0.1",
-    /** A still-listed no-jd posting re-fetches its JD at most this often, since recruiters often fill the JD in after posting. */
+    /** Recruiters often fill the JD in after posting. */
     noJdRecheckDays: 7,
-    /** Providers with a start throttle (see ProviderThrottle above); absent = no throttle, unaffected. */
     providerThrottle: PROVIDER_THROTTLE_TABLE,
   },
 
   llm: {
-    /** Required; llm/client.ts pre-flight fails fast if missing. */
     openRouterKey: process.env.OPENROUTER_API_KEY ?? "",
-    /** Pinned to a dated snapshot so the model can't change under a run's feet; pre-flight verifies it still resolves. */
     openRouterModel: process.env.OPENROUTER_MODEL ?? "deepseek/deepseek-v4-flash-0731",
-    /** OpenRouter provider slugs tried in order, NO fallback beyond them: the prompt cache lives per provider, so letting OpenRouter load-balance across ~20 hosts made the hit-rate collapse to ~0%. Only hosts that passed the 160-call concurrent gate load test (temp/providerLoadTest.ts) with ZERO wrong verdicts: digitalocean leaked other in-flight requests' JDs into ~1-5% of answers under 8-way concurrency (run 2026-09-07), openinference/deepinfra/baseten/makora/wafer 429'd or vanished. Never add a host without running that test. Pre-flight verifies at least one serves the model. */
+    /** No fallback beyond these: the prompt cache is per provider. Add a host only after temp/providerLoadTest.ts passes (digitalocean leaked other requests' JDs). */
     openRouterProviders: envList("OPENROUTER_PROVIDERS", ["together", "inceptron"]),
     openRouterUrl: "https://openrouter.ai/api/v1/chat/completions",
-    /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
+    /** Starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
     timeoutMs: envInt("LLM_TIMEOUT_MS", 30_000),
     maxRetries: 2,
-    /** A posting stored as gate-error (retries exhausted, e.g. a provider slowdown burst) is re-gated by a run this long after the failure. */
     gateErrorRetryMinutes: 60,
-    /** Concurrent LLM calls in flight; override with LLM_MAX_CONCURRENT. */
     maxConcurrent: envInt("LLM_MAX_CONCURRENT", 8),
-    /** Caps JD text per prompt to bound per-call cost. */
     jdMaxChars: 18000,
   },
 
@@ -70,44 +57,33 @@ export const config = {
   },
 
   network: {
-    /** Neutral and tiny (HTTP 204); answers "do we have a connection", not "is any board healthy". */
     probeUrl: process.env.NETWORK_PROBE_URL ?? "https://www.google.com/generate_204",
     probeTimeoutMs: envInt("NETWORK_PROBE_TIMEOUT_MS", 5_000),
     probeIntervalMs: envInt("NETWORK_PROBE_INTERVAL_MS", 10_000),
-    /** Tighter during an outage so the run resumes promptly once it's back. */
     probeDownIntervalMs: envInt("NETWORK_PROBE_DOWN_INTERVAL_MS", 5_000),
   },
 
   storage: {
-    /** Overridable so tests point at a throwaway DB; outreach sheet-sync mirrors tables onto the real Google Sheet. */
     dbPath: process.env.JOB_HUNTER_DB_PATH ?? "data/job_hunter.db",
-    /** Local snapshot of the Companies tab (sheet is the source of truth); read back only when the sheet is unreachable. */
     registryPath: "data/registry-cache.json",
   },
 
   discord: {
-    /** Prefix on every embed title — useful when sharing a channel with other bots. */
     titlePrefix: "[job-hunter]",
-    /** Shared channel for the bot's run status: mid-run progress heartbeats + the
-     *  end-of-run status embed (all profiles post here). Unset → mock mode. */
     progressWebhookUrl: process.env.DISCORD_PROGRESS_WEBHOOK_URL,
-    /** How often to post a progress heartbeat during a (long) production tick. */
     progressIntervalMs: 15 * 60 * 1000,
   },
 
   google: {
     spreadsheetId: process.env.GOOGLE_SPREADSHEET_ID ?? "",
-    /** Per-profile token written by scripts/googleAuth.ts. */
     tokenPathFor: (profileId: string) => `data/google-token-${profileId}.json`,
     scopes: [
       "https://www.googleapis.com/auth/gmail.compose",
       "https://www.googleapis.com/auth/gmail.readonly",
       "https://www.googleapis.com/auth/spreadsheets",
-      // drive.file: access only to files this app creates, used to sync data/job_hunter.db between machines (db/sync.ts).
       "https://www.googleapis.com/auth/drive.file",
     ],
     driveDbFileName: "job_hunter.db",
-    /** Owning profile for the Drive backup; empty = unpinned. An unpinned second profile would create its own backup and clobber the shared DB. */
     driveSyncProfile: process.env.DB_SYNC_PROFILE ?? "",
     tabs: {
       rawData: "Raw Data",
@@ -128,7 +104,6 @@ export const config = {
   },
 } as const;
 
-/** Looks up a provider's start throttle, if any; `table` defaults to config's but is injectable for tests. */
 export function throttleFor(
   provider: string,
   table: Partial<Record<string, ProviderThrottle>> = config.fetch.providerThrottle,

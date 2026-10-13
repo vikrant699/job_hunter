@@ -5,7 +5,7 @@ import type { Provider, Severity } from "../schemas.js";
 import { ProviderSchema } from "../schemas.js";
 import { db, queryAll, queryOne } from "./db.js";
 
-// p.jdText is deliberately not persisted: the gate consumes it in-memory and nothing reads it back afterwards.
+// jdText is deliberately not persisted: the gate consumes it in-memory.
 const insertPostingStmt = db.prepare(`
   INSERT INTO postings (
     provider, external_id, profile_id, company_slug, job_title, job_url, location,
@@ -17,7 +17,6 @@ const insertPostingStmt = db.prepare(`
   ON CONFLICT(provider, external_id, profile_id) DO NOTHING
 `);
 
-/** Returns true if the row was inserted (i.e. a new posting). */
 export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boolean {
   const discoveredAt = new Date().toISOString();
   const result = insertPostingStmt.run({
@@ -36,10 +35,10 @@ export function insertPostingIfNew(p: NormalizedPosting, profileId: string): boo
   return result.changes > 0;
 }
 
-// node:sqlite has no array-bind for IN(...), so the placeholder list is built per call, chunked under SQLite's ~999-parameter cap.
+// node:sqlite has no array bind for IN(...); placeholders are built per call, chunked under ~999 params.
 const SEEN_CHUNK_SIZE = 500;
 
-/** Bumps last_seen_at (and revives - clears removed_at) for exactly the externalIds a successful listing fetch returned; callers pass the FULL listing since "seen" doesn't depend on relevance. */
+/** Callers pass the FULL listing: "seen" doesn't depend on relevance. */
 export function markSeen(
   provider: Provider,
   companySlug: string,
@@ -69,7 +68,7 @@ const markRemovedStmt = db.prepare(`
     AND removed_at IS NULL AND last_seen_at < :fetchStartedAt
 `);
 
-/** Marks every not-yet-removed row of this board with last_seen_at before fetchStartedAt as removed; that bound protects a parallel company's freshly-inserted rows - never widen this WHERE. */
+/** The fetchStartedAt bound protects a parallel company's fresh rows; never widen this WHERE. */
 export function markRemoved(
   provider: Provider,
   companySlug: string,
@@ -89,7 +88,6 @@ const countInsertedSinceStmt = db.prepare(`
     AND discovered_at >= :sinceIso
 `);
 
-/** How many rows of this board were freshly inserted (discovered_at >= sinceIso); avoids threading a counter through the per-posting pipeline. */
 export function countInsertedSince(provider: Provider, companySlug: string, profileId: string, sinceIso: string): number {
   const row = queryOne(countInsertedSinceStmt, CountSchema, { provider, companySlug, profileId, sinceIso });
   return row?.n ?? 0;
@@ -104,7 +102,6 @@ const countRemovedNotifiedSinceStmt = db.prepare(`
     AND p.removed_at IS NOT NULL
 `);
 
-/** Count of notified postings (same window as selectNotifiedPostingsSince) excluded because the board no longer lists them; feeds the outreach stage's exclusion log. */
 export function countRemovedNotifiedSince(sinceIso: string, profileId: string): number {
   const row = queryOne(countRemovedNotifiedSinceStmt, CountSchema, { sinceIso, profileId });
   return row?.n ?? 0;
@@ -127,18 +124,16 @@ const getPostingJdStateStmt = db.prepare(`
 
 export interface PostingJdState {
   dropStage: string | null;
-  /** Last JD re-fetch, else discovered_at (the first fetch). */
   jdCheckedAt: string;
 }
 
-/** The stored row's drop stage and last JD check, or undefined when the posting is new for this profile. */
 export function getPostingJdState(provider: Provider, externalId: string, profileId: string): PostingJdState | undefined {
   const row = queryOne(getPostingJdStateStmt, PostingJdStateRowSchema, { provider, externalId, profileId });
   if (!row) return undefined;
   return { dropStage: row.drop_stage, jdCheckedAt: row.jd_checked_at };
 }
 
-// The due-check lives in the WHERE so two workers racing on one posting can't both claim it.
+// The due-check is in the WHERE so two racing workers can't both claim it.
 const claimRecheckStmt = db.prepare(`
   UPDATE postings SET
     jd_checked_at = :checkedAt,
@@ -151,10 +146,8 @@ const claimRecheckStmt = db.prepare(`
     AND drop_stage = :dropStage AND COALESCE(jd_checked_at, discovered_at) < :dueBefore
 `);
 
-/** Drop stages a still-listed posting may be re-processed from: no-jd (JD added later) and gate-error (transient LLM failure). */
 export type RecheckStage = "no-jd" | "gate-error";
 
-/** Stamps a `dropStage` row last checked before `dueBefore` as re-checked now and refreshes its listing fields; false if it isn't due (or another worker claimed it). */
 export function claimRecheck(p: NormalizedPosting, profileId: string, dropStage: RecheckStage, dueBefore: string, checkedAt: string): boolean {
   const result = claimRecheckStmt.run({
     dropStage,
@@ -185,10 +178,10 @@ const selectNotifiedRoleKeysStmt = db.prepare(`
   WHERE p.notified_at IS NOT NULL AND p.notified_at >= :cutoff AND p.profile_id = :profileId
 `);
 
-// A role re-posted after this long is worth a fresh ping; also bounds the in-memory dedup set from growing unboundedly with notify history.
+// A role re-posted after this long is worth a fresh ping.
 const NOTIFY_DEDUP_WINDOW_DAYS = 180;
 
-/** Every (company, title, location) tuple notified in the last 180 days; dedupes reposts, which get a fresh external_id and would otherwise slip past postingExists. */
+/** Reposts get a fresh external_id and would otherwise slip past postingExists. */
 export function selectNotifiedRoleKeys(profileId: string): Array<{
   company: string | null;
   title: string | null;
@@ -226,7 +219,6 @@ export interface PostingResultUpdate {
   yoeMax: number | null;
   dropStage: string | null;
   notifiedAt: string | null;
-  // Annualized (src/filter/salary.ts); optional (defaults to null) so pre-existing callers compile unchanged.
   salaryMin?: number | null;
   salaryMax?: number | null;
   salaryCurrency?: string | null;
@@ -262,7 +254,6 @@ const getPostingSalaryStmt = db.prepare(`
   FROM postings WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
 `);
 
-/** The stored (annualized) salary columns for one posting - audit/test read-back; nothing in the pipeline itself reads this back. */
 export function getPostingSalary(provider: Provider, externalId: string, profileId: string): PostingSalary | undefined {
   const row = queryOne(getPostingSalaryStmt, PostingSalarySchema, { provider, externalId, profileId });
   if (!row) return undefined;
@@ -296,8 +287,8 @@ export interface OutreachNotifiedPosting {
   severity: Severity;
 }
 
-// drop_stage NULL -> green, 'yellow' -> yellow (the only two values a notified row can carry); company display name comes from a join since postings only stores the slug.
-// removed_at IS NULL: a posting the board no longer lists must never reach a fresh outreach draft.
+// A notified row has drop_stage NULL (green) or 'yellow'; company name comes from a join since postings stores only the slug.
+// A posting the board no longer lists must never reach a fresh outreach draft.
 const selectNotifiedPostingsSinceStmt = db.prepare(`
   SELECT p.provider, c.name AS company, p.company_slug, p.job_title, p.job_url,
          p.location, p.llm_confidence, p.drop_stage
@@ -309,7 +300,6 @@ const selectNotifiedPostingsSinceStmt = db.prepare(`
     AND p.removed_at IS NULL
 `);
 
-/** Postings notified since `sinceIso` for `profileId`, joined to company display name (falls back to slug). Feeds the outreach draft stage. */
 export function selectNotifiedPostingsSince(sinceIso: string, profileId: string): OutreachNotifiedPosting[] {
   const rows = queryAll(selectNotifiedPostingsSinceStmt, OutreachNotifiedPostingRowSchema, {
     sinceIso,

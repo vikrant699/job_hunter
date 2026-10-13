@@ -6,10 +6,8 @@ import type { RunContext } from "../pipeline/index.js";
 const COLOR_BLUE = 0x3498db;
 
 export interface ProgressContext {
-  /** Live run stats, read but never mutated by the heartbeat. */
   stats: RunContext;
   startedAt: number;
-  /** So concurrent profiles are distinguishable on the shared channel. */
   profileId: string;
 }
 
@@ -24,7 +22,6 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
-/** "ats-api 412/412 ✓ · llm-scrape 88/520 · playwright-llm-scrape 19/140", biggest first. */
 export function buildBreakdown(bp: ReadonlyMap<string, { total: number; scanned: number }>): string {
   const entries = [...bp.entries()].sort((a, b) => b[1].total - a[1].total);
   const parts = entries.map(([key, v]) => `${key} ${v.scanned}/${v.total}${v.scanned >= v.total ? " ✓" : ""}`);
@@ -40,7 +37,6 @@ export type ProgressEmbed = {
   timestamp: string;
 };
 
-/** Pure builder for the heartbeat embed, no I/O. */
 export function buildProgressEmbed(ctx: ProgressContext, nowMs: number): ProgressEmbed {
   const { stats, startedAt, profileId } = ctx;
   const bp = stats.bucketProgress;
@@ -73,7 +69,6 @@ export function buildProgressEmbed(ctx: ProgressContext, nowMs: number): Progres
   };
 }
 
-/** Build and post one progress heartbeat; never throws. Mock-logs when the webhook is unset. */
 export async function postProgress(ctx: ProgressContext): Promise<void> {
   const embed = buildProgressEmbed(ctx, Date.now());
 
@@ -93,7 +88,7 @@ export async function postProgress(ctx: ProgressContext): Promise<void> {
   }
 }
 
-/** Starts the heartbeat, returns stop(); timer is unref()'d but caller must still stop() in a finally. */
+/** Timer is unref()'d but the caller must still stop() in a finally. */
 export function startProgressHeartbeat(ctx: ProgressContext): () => void {
   const timer = setInterval(() => {
     void postProgress(ctx);

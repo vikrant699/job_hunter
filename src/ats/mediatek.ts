@@ -11,7 +11,6 @@ import type { JsonValue } from "../util/json.js";
 const TRPC_PATH = "/api/trpc/job.getJobs";
 const PAGE_LIMIT = 100;
 
-// India city codes: Bangalore, Noida, Mumbai.
 export const DEFAULT_MEDIATEK_CITY_CODES = ["0000168800", "0000009297", "9021"];
 
 const CITY_LABELS: Record<string, string> = {
@@ -129,5 +128,4 @@ export const mediatekAdapter: AtsAdapter = {
     }
     return out;
   },
-  // The list response carries the full description inline — no fetchJd needed.
 };

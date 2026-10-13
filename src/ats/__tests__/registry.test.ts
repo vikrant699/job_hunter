@@ -7,7 +7,6 @@ import { playwrightScrapeAdapter } from "../../scraper/playwrightLlmScrape.js";
 import type { Company } from "../../types.js";
 
 test("every ATS_ADAPTERS key matches its adapter's provider string", () => {
-  // adapter.provider is stamped on every posting row - a mismatch would silently misroute postings.
   const mismatched = Object.entries(ATS_ADAPTERS)
     .filter(([key, adapter]) => adapter.provider !== key)
     .map(([key, adapter]) => `${key} -> ${adapter.provider}`);

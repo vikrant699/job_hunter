@@ -1,4 +1,3 @@
-// src/ats/sensehq.ts — SenseHQ career sites (Next.js), e.g. Tiger Analytics, Marico.
 // Careers page embeds a __NEXT_DATA__ island with jobsData{rows,count}+buildId; larger boards paginate via _next/data/<buildId>/jobs.json (0-indexed). `count` can run stale, so only a short/empty page ends the loop.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -31,13 +30,11 @@ const SenseHqJobsDataSchema = z.object({
 
 const SenseHqPagePropsSchema = z.object({ jobsData: SenseHqJobsDataSchema });
 
-// Initial SSR page's __NEXT_DATA__ island — carries buildId.
 const SenseHqInitialDataSchema = z.object({
   buildId: z.string(),
   props: z.object({ pageProps: SenseHqPagePropsSchema }),
 });
 
-// `_next/data/<buildId>/jobs.json` page: same pageProps, no buildId/props wrapper.
 const SenseHqPaginatedDataSchema = z.object({ pageProps: SenseHqPagePropsSchema });
 
 export interface SenseHqJobsData {
@@ -45,14 +42,12 @@ export interface SenseHqJobsData {
   count: number | null;
 }
 
-/** Extract the __NEXT_DATA__ JSON island, keyed on the script's `id` attribute (stable across redeploys, unlike `buildId`). Null if absent or invalid JSON. */
 export function extractSenseHqNextData(html: string): JsonValue | null {
   const raw = matchGroup(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/, html);
   if (raw === null) return null;
   return tryParseJson(raw);
 }
 
-/** Read `buildId` + `jobsData` off the initial page's parsed island. Null on shape mismatch. */
 export function senseHqInitialJobsData(nextData: JsonValue): (SenseHqJobsData & { buildId: string }) | null {
   const parsed = SenseHqInitialDataSchema.safeParse(nextData);
   if (!parsed.success) return null;
@@ -60,7 +55,6 @@ export function senseHqInitialJobsData(nextData: JsonValue): (SenseHqJobsData & 
   return { buildId: parsed.data.buildId, rows, count: count ?? null };
 }
 
-/** Read `jobsData` off a `_next/data/.../jobs.json` page. Null on shape mismatch. */
 export function senseHqPaginatedJobsData(pageJson: JsonValue): SenseHqJobsData | null {
   const parsed = SenseHqPaginatedDataSchema.safeParse(pageJson);
   if (!parsed.success) return null;
@@ -68,7 +62,6 @@ export function senseHqPaginatedJobsData(pageJson: JsonValue): SenseHqJobsData |
   return { rows, count: count ?? null };
 }
 
-/** Paginated jobs.json URL — mirrors the query params the client itself sends. */
 export function senseHqPageUrl(origin: string, buildId: string, page: number, pageSize: number): string {
   return (
     `${origin}/careers/_next/data/${buildId}/jobs.json` +
@@ -105,7 +98,6 @@ export const sensehqAdapter: AtsAdapter = {
     if (!initial) throw new Error(`sensehq: unexpected __NEXT_DATA__ shape for ${company.slug}`);
     const { buildId, rows: firstRows, count } = initial;
 
-    // Small boards: the SSR page's own rows already cover every posting.
     if (count !== null && firstRows.length >= count) {
       return firstRows.map((r) => normalizeSenseHq(company, origin, r));
     }
@@ -129,5 +121,4 @@ export const sensehqAdapter: AtsAdapter = {
       },
     });
   },
-  // description_external carries the full JD inline — no fetchJd needed.
 };

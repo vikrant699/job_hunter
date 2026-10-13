@@ -1,4 +1,3 @@
-// src/ats/ainterviews.ts — ainterviews.com hosted career boards (e.g. Lenskart).
 // GET /api/job_board/<tenant>/jobs/ (no auth, no pagination); full HTML JD inline; apply_url is a relative path.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -59,5 +58,4 @@ export const ainterviewsAdapter: AtsAdapter = {
 
     return parsed.jobs.map((j) => normalizeAinterviews(company, j));
   },
-  // The list response carries the full description — no fetchJd needed.
 };

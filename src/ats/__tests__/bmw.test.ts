@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { parseBmwFragment, extractBmwJd, bmwFragmentPageUrl, parseBmwPrefilter, scopeBmwFragmentUrl } from "../bmw.js";
 import { at } from "./testHelpers.js";
 
-// Trimmed from the live India fragment (2026-07-18).
 const FRAGMENT = `
 <div class="grp-jobfinder__table" data-counter-text="We found one vacancy in India." data-counter="1">
   <div class="grp-jobfinder__wrapper" data-job-id="184317">

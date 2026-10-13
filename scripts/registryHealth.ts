@@ -1,4 +1,4 @@
-// Registry health report (read-only); yield telemetry here is a prioritization signal (who to investigate), not a removal criterion.
+// Read-only; yield telemetry prioritizes investigation, it is not a removal criterion.
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
@@ -52,7 +52,7 @@ console.log("  never fetched:", num("SELECT COUNT(*) n FROM companies WHERE last
 console.log("  url_suspect=1:", num("SELECT COUNT(*) n FROM companies WHERE url_suspect=1"));
 console.log("  consecutive_failures>=3:", num("SELECT COUNT(*) n FROM companies WHERE COALESCE(consecutive_failures,0)>=3"));
 
-// Went-quiet: N clean fetches with zero rows from a board that once produced postings is the dead-tenant false-pass signature (200 + empty list while the company hires elsewhere).
+// Went-quiet: clean fetches with zero rows from a once-productive board is the dead-tenant false-pass signature.
 console.log("\n[WENT QUIET]  active, saw postings before, >=3 consecutive zero-yield fetches");
 const quietRow = z.object({ provider: z.string(), slug: z.string(), name: z.string(), zy: z.number(), seen: z.number() });
 const quiet = query(
@@ -98,7 +98,6 @@ const churn = query(
 if (churn.length === 0) console.log("  (none)");
 for (const r of churn) console.log(`  ${(r.provider + "/" + r.company_slug).padEnd(40)} ${r.churn}`);
 
-// Reads the local snapshot rather than the sheet - this report is a point-in-time cross-check, not a live sync.
 const regPath = resolve(process.cwd(), config.storage.registryPath);
 if (existsSync(regPath)) {
   const reg = z

@@ -1,4 +1,3 @@
-// src/ats/feishu.ts — Feishu Hire (ByteDance) public careers API, no auth; per-tenant apiMeta (apiBase, jobUrlBase, websitePath).
 // list: POST <apiBase>/search/job/posts, JD inline; locationCodes (comma-separated Feishu city codes) scopes India cities server-side.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -25,7 +24,6 @@ function meta(company: AdapterCompany): FeishuMeta {
   return { apiBase, jobUrlBase, websitePath: company.apiMeta?.websitePath ?? "en", locationCodes: codes };
 }
 
-// city_info is a recursive city -> state -> country chain (each node has en_name).
 interface CityNode { en_name?: string | null | undefined; parent?: CityNode | null | undefined }
 const CitySchema: z.ZodType<CityNode> = z.lazy(() =>
   z.object({ en_name: z.string().nullable().optional(), parent: CitySchema.nullable().optional() }),
@@ -46,7 +44,6 @@ const ResponseSchema = z.object({
   }),
 });
 
-/** Flatten the city -> state -> country chain into "City, State, Country". */
 export function feishuLocation(city: CityNode | null | undefined): string | null {
   const parts: string[] = [];
   for (let node = city; node; node = node.parent ?? undefined) {

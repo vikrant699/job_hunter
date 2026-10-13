@@ -71,5 +71,4 @@ export const atlassianAdapter: AtsAdapter = {
     if (jobs.length === 0) throw new Error("atlassian: listings endpoint returned no parseable jobs");
     return jobs.map((j) => normalizeAtlassian(company, j));
   },
-  // The listing carries the full JD inline (overview+responsibilities+qualifications).
 };

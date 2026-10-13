@@ -1,5 +1,4 @@
-// src/ats/jsonld.ts — generic adapter for schema.org JobPosting JSON-LD in static HTML; listing discovers job-page URLs via sitemaps (robots.txt Sitemap: lines, /sitemap.xml, /sitemap_index.xml, INDEX sub-sitemaps), falling back to harvesting careers-landing-page links when that comes up short
-// title/location/JD are resolved from each job page's own JSON-LD at fetchJd time - listPostings only emits a provisional URL-derived title; no detect.ts pattern (custom-domain sites, not a shared vendor host)
+// listing: sitemaps (robots.txt, /sitemap.xml, index sub-sitemaps), else careers-landing-page links; title/location/JD come from each job page's JSON-LD at fetchJd time
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -12,11 +11,8 @@ import type { JsonValue } from "../util/json.js";
 import { describeError } from "../util/errorCause.js";
 import { logger } from "../logger.js";
 
-// Runaway backstop so one enormous board never floods a single run.
 const MAX_JOB_URLS = 3000;
-// per-board cap on sub-sitemap fetches when following a sitemap INDEX (root candidates - robots.txt entries, /sitemap.xml, /sitemap_index.xml - aren't counted against this)
 const MAX_SUBSITEMAPS = 25;
-// Careers landing pages tried, in order, when the sitemap pass finds fewer than 3 job URLs.
 const FALLBACK_PATHS = ["/careers", "/jobs", "/", "/careers/jobs", "/join-us"];
 
 const ASSET_EXT_RE = /\.(css|js|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|pdf|xml|json|zip|mp4)(?:[?#]|$)/i;
@@ -26,7 +22,6 @@ const JOB_ID_QUERY_RE = /[?&](jobid|job_id|gh_jid|reqid|requisitionid|opportunit
 const JOB_SITEMAP_RE = /job|career|vacan|position|opening/i;
 const XML_EXT_RE = /\.xml(?:[?#]|$)/i;
 
-/** A job-shaped path (jobs/careers/vacancy/position/opening segment + a further slug) or a jobid-ish query param — minus asset extensions and listing/nav paths. */
 export function isJobDetailUrl(urlStr: string): boolean {
   let u: URL;
   try {
@@ -45,7 +40,6 @@ export function isJobDetailUrl(urlStr: string): boolean {
   return false;
 }
 
-/** De-slug the URL's last path segment into a provisional title (refined by fetchJd's JSON-LD read). */
 export function titleFromUrl(url: string): string {
   let path: string;
   try {
@@ -58,7 +52,6 @@ export function titleFromUrl(url: string): string {
   try {
     seg = decodeURIComponent(seg);
   } catch {
-    // Malformed %-escape — use the raw segment.
   }
   seg = seg.replace(/\.(html|aspx|php)$/i, "");
   seg = seg.replace(/[-_]+/g, " ");
@@ -73,7 +66,6 @@ export function titleFromUrl(url: string): string {
   return title || "(position)";
 }
 
-/** externalId is the URL stripped of scheme, query and fragment. */
 function externalIdFromUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -98,7 +90,6 @@ function normalizeJsonldPosting(company: AdapterCompany, url: string): Normalize
   };
 }
 
-/** atsFetchText wrapped so one dead discovery URL (robots.txt, a stale sub-sitemap, a landing page) never kills the rest of the discovery pass. */
 async function fetchTextSafe(url: string, slug: string): Promise<string | null> {
   try {
     return await atsFetchText(url, { provider: "jsonld" });
@@ -137,7 +128,6 @@ function extractLocs(xml: string): string[] {
   return out;
 }
 
-/** Discovers job-detail URLs from robots.txt Sitemap: lines plus the two conventional paths, following any sitemap INDEX's sub-sitemaps (job-shaped ones first) up to MAX_SUBSITEMAPS; never throws, a failed step just leaves its URLs uncollected. */
 async function collectSitemapJobUrls(host: string, slug: string): Promise<Set<string>> {
   const jobUrls = new Set<string>();
 
@@ -196,7 +186,6 @@ async function collectSitemapJobUrls(host: string, slug: string): Promise<Set<st
   return jobUrls;
 }
 
-/** Fallback when the sitemap pass finds fewer than 3 job URLs: harvest job-shaped <a href> values off conventional careers landing pages, stopping early once 3 are found. */
 async function harvestFromLandingPages(host: string, slug: string): Promise<Set<string>> {
   const found = new Set<string>();
   for (const path of FALLBACK_PATHS) {
@@ -267,7 +256,6 @@ function typeIncludesJobPosting(t: JsonValue): boolean {
   return false;
 }
 
-/** Depth-first walk of a parsed JSON-LD payload (arrays and @graph arrays only) for the first node whose @type is/includes "JobPosting". */
 function findJobPostingRaw(value: JsonValue): Record<string, JsonValue> | null {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -289,7 +277,6 @@ function findJobPostingRaw(value: JsonValue): Record<string, JsonValue> | null {
   return null;
 }
 
-/** First JobPosting node across every <script type="application/ld+json"> block on the page, or null. */
 function findJobPostingNode(html: string): JobPostingNode | null {
   const $ = cheerio.load(html);
   const scripts = $('script[type="application/ld+json"]').toArray();
@@ -355,7 +342,6 @@ function isTelecommute(node: JobPostingNode): boolean {
   return (node.jobLocationType ?? "").toUpperCase() === "TELECOMMUTE";
 }
 
-/** posting.location: jobLocation address parts (joined "; ", capped at 4) — else applicantLocationRequirements names or a bare "Remote" when jobLocationType is TELECOMMUTE. */
 function locationFromNode(node: JobPostingNode): string | null {
   const locs = locationTextsFromJobLocation(node.jobLocation);
   if (locs.length > 0) return locs.slice(0, 4).join("; ");
@@ -381,7 +367,6 @@ export const jsonldAdapter: AtsAdapter = {
     return [...urls].slice(0, MAX_JOB_URLS).map((url) => normalizeJsonldPosting(company, url));
   },
 
-  // refines posting.jobTitle / posting.location / posting.isRemote / posting.postedAt in place from the job page's own JSON-LD
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "jsonld" });
     const node = findJobPostingNode(html);

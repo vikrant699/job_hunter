@@ -34,9 +34,7 @@ test("decodeAttrEntities decodes numeric/hex/named entities exactly one layer", 
   assert.equal(decodeAttrEntities("&#34;a&#34;"), '"a"');
   assert.equal(decodeAttrEntities("&#x2F;path"), "/path");
   assert.equal(decodeAttrEntities("&lt;p&gt; &amp; &#39;x&#39;"), "<p> & 'x'");
-  // Double-escaped input decodes one layer, not two: &amp;#34; -> &#34;
   assert.equal(decodeAttrEntities("&amp;#34;"), "&#34;");
-  // Unknown named entities pass through untouched.
   assert.equal(decodeAttrEntities("&bogus; &amp;"), "&bogus; &");
 });
 

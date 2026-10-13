@@ -63,15 +63,12 @@ test("openRouterGenerate sends one user message, json response_format, and the b
 
   assert.match(seenUrl, /openrouter\.ai\/api\/v1\/chat\/completions/);
   const headers = new Headers(seenInit?.headers);
-  // Key is unset under test, so only the "Bearer" scheme is pinned here.
   assert.match(headers.get("authorization") ?? "", /^Bearer/);
   const body = sentBody(seenInit);
-  // One message keeps the token prefix byte-identical, which the provider's prompt cache keys on.
   assert.deepEqual(body.messages, [{ role: "user", content: "THE PROMPT" }]);
   assert.deepEqual(body.response_format, { type: "json_object" });
   assert.equal(body.reasoning.enabled, false);
   assert.equal(body.temperature, 0);
-  // Pinned with no fallback: the prompt cache is per provider, so any bounce is a cold cache.
   assert.deepEqual(body.provider, { order: ["together", "inceptron"], allow_fallbacks: false });
 });
 
@@ -108,7 +105,6 @@ test("openRouterGenerate retries a 429 honouring Retry-After, then succeeds", as
   let calls = 0;
   stubFetch(t, async () => {
     calls++;
-    // "0.1" clamps to the 250ms floor to keep the test fast.
     return calls === 1 ? throttled("0.1") : completion("recovered");
   });
 
@@ -153,7 +149,6 @@ test("openRouterGenerate throws LlmUnavailableError on 401 without retrying", as
   assert.equal(calls, 1, "a bad key must fail fast, not burn retries");
 });
 
-// 402 (out of credits) is fatal like a bad key: every subsequent posting would fail identically.
 test("openRouterGenerate throws LlmUnavailableError on 402 (out of credits)", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {
@@ -168,7 +163,6 @@ test("openRouterGenerate throws LlmUnavailableError on 402 (out of credits)", as
   assert.equal(calls, 1, "out of credits must fail fast, not burn retries");
 });
 
-// 403 is a moderation block on this input, not a bad key (401); must not abort the whole sweep.
 test("openRouterGenerate treats 403 as a per-call failure, not a dead backend", async (t) => {
   stubFetch(t, async () => new Response('{"error":{"message":"flagged by moderation"}}', { status: 403 }));
 
@@ -179,7 +173,6 @@ test("openRouterGenerate treats 403 as a per-call failure, not a dead backend", 
   assert.equal(classifyOpenRouterStatus(403), "perCall");
 });
 
-// An unresolvable model id is fatal; message must name the knob to fix.
 test("openRouterGenerate throws LlmUnavailableError on 404 naming the model knob", async (t) => {
   let calls = 0;
   stubFetch(t, async () => {
@@ -234,7 +227,6 @@ test("assertModelAvailable accepts a model a pinned provider serves", async (t) 
   await assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["together", "inceptron"]);
 });
 
-// allow_fallbacks=false would then fail every gate call, so a pin nobody serves is a pre-flight abort.
 test("assertModelAvailable rejects a provider pin that nobody serves", async (t) => {
   stubFetch(t, async () => jsonResponse(ENDPOINTS));
   await assert.rejects(assertModelAvailable("deepseek/deepseek-v4-flash-0731", ["novita"]), {
@@ -263,7 +255,6 @@ test("assertModelAvailable rejects an unknown model id before any scraping", asy
   });
 });
 
-// Only an explicit 404 is a verdict; a flaky metadata endpoint must not block a run.
 test("assertModelAvailable tolerates a metadata-endpoint outage", async (t) => {
   stubFetch(t, async () => new Response("upstream error", { status: 503 }));
   await assertModelAvailable("deepseek/deepseek-v4-flash-0731");

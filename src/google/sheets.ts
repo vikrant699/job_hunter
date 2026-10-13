@@ -16,20 +16,17 @@ const ListTabsResponseSchema = z.object({
     .default([]),
 });
 
-/** GET a tab's full contents as ROWS of string cells. Absent `values` -> []. */
 export async function readTab(profileId: string, tab: string, deps: RestDeps = {}): Promise<string[][]> {
   const url = `${baseUrl()}/values/${encodeURIComponent(tab)}?majorDimension=ROWS`;
   const body = await googleFetchJson(profileId, url, {}, deps);
   return ValuesResponseSchema.parse(body).values ?? [];
 }
 
-/** Append rows to the end of a tab. */
 export async function appendRows(profileId: string, tab: string, rows: string[][], deps: RestDeps = {}): Promise<void> {
   const url = `${baseUrl()}/values/${encodeURIComponent(tab)}:append?valueInputOption=RAW`;
   await googleFetchJson(profileId, url, { method: "POST", body: { values: rows } }, deps);
 }
 
-/** Clear a tab, then write header+rows starting at A1. */
 export async function rewriteTab(
   profileId: string,
   tab: string,
@@ -43,14 +40,12 @@ export async function rewriteTab(
   await googleFetchJson(profileId, writeUrl, { method: "PUT", body: { values: [header, ...rows] } }, deps);
 }
 
-/** List all tab (sheet) titles in the spreadsheet. */
 export async function listTabs(profileId: string, deps: RestDeps = {}): Promise<string[]> {
   const url = `${baseUrl()}?fields=sheets.properties.title`;
   const body = await googleFetchJson(profileId, url, {}, deps);
   return ListTabsResponseSchema.parse(body).sheets.map((s) => s.properties.title);
 }
 
-/** Create any of `names` that don't already exist as tabs. No-op if all present. */
 export async function ensureTabs(profileId: string, names: string[], deps: RestDeps = {}): Promise<void> {
   const existing = new Set(await listTabs(profileId, deps));
   const missing = names.filter((n) => !existing.has(n));
@@ -67,7 +62,6 @@ export async function ensureTabs(profileId: string, names: string[], deps: RestD
   );
 }
 
-/** Overwrite a specific A1 range (no clear first — caller controls the range size). */
 export async function updateRange(profileId: string, rangeA1: string, rows: string[][], deps: RestDeps = {}): Promise<void> {
   const url = `${baseUrl()}/values/${rangeA1}?valueInputOption=RAW`;
   await googleFetchJson(profileId, url, { method: "PUT", body: { values: rows } }, deps);

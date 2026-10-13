@@ -93,7 +93,6 @@ function harness(opts: {
 }
 
 test("istDate converts a UTC instant to the IST calendar date (YYYY-MM-DD)", () => {
-  // 19:00Z crosses midnight into IST (UTC+5:30); 18:00Z stays the same day.
   assert.equal(istDate(new Date("2026-07-06T19:00:00.000Z")), "2026-07-07");
   assert.equal(istDate(new Date("2026-07-06T18:00:00.000Z")), "2026-07-06");
 });
@@ -129,7 +128,6 @@ test("runOutreach filters postings to configured severities (default excludes an
   const result = await runOutreach({ profileId: "default", sinceIso: "2026-01-01T00:00:00Z", runId: null, deps });
   assert.equal(result.draftsCreated, 1);
   assert.equal(drafts.length, 1);
-  // Decode the multipart MIME's text/plain body to confirm the surviving posting's title.
   const parts = at(drafts, 0).mime.split(/--job-hunter-\S+\r\n/);
   const textPart = parts.find((p) => p.includes("text/plain"));
   const b64 = textPart?.split("\r\n\r\n")[1]?.trim().split("\r\n").join("") ?? "";

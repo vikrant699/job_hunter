@@ -61,8 +61,7 @@ test("EncryptedBlobSchema rejects a malformed blob", () => {
 
 test("extractSeedFromBundle pulls the 32-byte seed", () => {
   assert.deepEqual(extractSeedFromBundle(bundleWithSeed(DEFAULT_SEED)), [...DEFAULT_SEED]);
-  // tolerant of whitespace in the array literal
-  assert.deepEqual(extractSeedFromBundle("backendseed : { secretKey : [1, 2, 3] }"), null); // wrong length
+  assert.deepEqual(extractSeedFromBundle("backendseed : { secretKey : [1, 2, 3] }"), null);
   assert.equal(extractSeedFromBundle("no seed here"), null);
 });
 
@@ -102,7 +101,7 @@ test("resolveSeed: cache miss fetches the bundle, extracts + caches the seed", a
   const seed = await resolveSeed("main.new.js", async () => { fetches++; return bundleWithSeed(DEFAULT_SEED); }, store);
   assert.equal(fetches, 1);
   assert.deepEqual([...seed], [...DEFAULT_SEED]);
-  assert.deepEqual(store.get("main.new.js"), [...DEFAULT_SEED]); // cached for next run
+  assert.deepEqual(store.get("main.new.js"), [...DEFAULT_SEED]);
 });
 
 test("decryptWithHealing: cached seed works, no re-extraction", async () => {
@@ -133,7 +132,6 @@ test("decryptWithHealing: stale cached seed triggers a forced re-extraction that
 test("decryptWithHealing: throws loudly when every seed fails (scheme changed)", async () => {
   const store = memStore();
   const otherSeed = DEFAULT_SEED.map((_, i) => (i % 2 ? 3 : 9));
-  // Blob encrypted for a seed that is neither cached, in the bundle, nor the default.
   const blob = encryptForSeed(JSON.stringify({ x: 1 }), otherSeed);
   await assert.rejects(
     decryptWithHealing(blob, "main.x.js", async () => "no seed in this bundle", store),
@@ -151,13 +149,13 @@ test("parseJobListPage unwraps the nested envelope and reads the total", () => {
 test("normalizeTalentRecruit maps fields, prefers code as id, strips JD HTML", () => {
   const p = normalizeTalentRecruit(company, sampleJob);
   assert.equal(p.provider, "talentrecruit");
-  assert.equal(p.externalId, "12184"); // code, not the AES jobid
+  assert.equal(p.externalId, "12184");
   assert.equal(p.jobTitle, "Team Lead - Inventory");
   assert.equal(p.location, "Bengaluru");
   assert.equal(p.isRemote, false);
   assert.equal(p.jobUrl, "https://zepto.talentrecruit.com/career-page");
   assert.match(p.jdText, /Lead the inventory team\./);
-  assert.match(p.jdText, /FIFO & audits\./); // entity decoded
+  assert.match(p.jdText, /FIFO & audits\./);
   assert.ok(!p.jdText.includes("<b>"));
   assert.equal(p.postedAt, "2026-06-24T12:35:20.000Z");
 });
@@ -172,7 +170,6 @@ test("normalizeTalentRecruit falls back to jobid, city/state/country, remote fla
   assert.equal(p.isRemote, true);
 });
 
-// End-to-end pure path: encrypt an envelope, decrypt with healing, unwrap, normalize.
 test("full decrypt -> parse -> normalize pipeline (synthetic)", async () => {
   const store = memStore();
   const blobJson = JSON.stringify(envelope([sampleJob, { ...sampleJob, code: "99", title: "SDE" }], 2));

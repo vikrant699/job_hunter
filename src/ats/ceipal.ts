@@ -9,7 +9,7 @@ import { atsFetchJson, atsFetchJsonMultipart, parseOrNull, parseOrThrow } from "
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 
 const REFERER = "https://jobsapi.ceipal.com/";
-const PAGE_SIZE = 20; // server-fixed page size, confirmed live
+const PAGE_SIZE = 20;
 
 export const CeipalJobSchema = z.object({
   id: z.string().min(1),
@@ -69,7 +69,6 @@ export function ceipalTeaser(j: CeipalJob): string {
   return htmlToText(j.public_job_desc ?? "");
 }
 
-// Stashed here keyed by the posting object, since fetchJd only receives the posting back (not this teaser).
 const teaserByPosting = new WeakMap<NormalizedPosting, string>();
 
 export function normalizeCeipal(company: AdapterCompany, t: CeipalTokens, j: CeipalJob): NormalizedPosting {
@@ -84,8 +83,8 @@ export function normalizeCeipal(company: AdapterCompany, t: CeipalTokens, j: Cei
     jobUrl: ceipalJobUrl(t, j.id),
     location,
     isRemote: remoteFlag || (location ? REMOTE_RE.test(location) : false),
-    jdText: "", // full JD comes from fetchJd; teaser kept as a fallback via the WeakMap
-    postedAt: null, // list only carries a relative "2 weeks ago"
+    jdText: "",
+    postedAt: null,
   };
   teaserByPosting.set(posting, ceipalTeaser(j));
   return posting;

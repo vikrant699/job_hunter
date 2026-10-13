@@ -1,5 +1,4 @@
-// src/ats/recruiterflow.ts — Recruiterflow career boards (recruiterflow.com/<slug>/jobs): the bare HTML embeds every posting inline in a `<script>window.jobsList = {"department": [...], "group": [...], "location": [...]}</script>` literal (all three keys hold the same postings); we read `department` and dedup by job_id.
-// JD comes from a separate per-job JSON-LD block.
+// bare HTML embeds every posting in `window.jobsList = {department,group,location}` (same postings in all three); read `department`, dedup by job_id
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
@@ -44,7 +43,6 @@ const RfJobsListSchema = z.object({ department: RfGroupSchema }).passthrough();
 
 const JOBS_LIST_MARKER = "window.jobsList = ";
 
-// Returns [] if the marker is absent (empty board / vendor layout change); throws only when the marker is present but malformed.
 export function parseRecruiterflowJobsList(html: string): RfJobStub[] {
   const objectText = extractBalanced(html, JOBS_LIST_MARKER, "{");
   if (!objectText) return [];
@@ -68,7 +66,6 @@ export function parseRecruiterflowJobsList(html: string): RfJobStub[] {
   return stubs;
 }
 
-// Returns "" (not a throw) on any parse/shape failure — an empty JD degrades the posting instead of failing the run.
 export function parseRecruiterflowJd(html: string): string {
   const [job] = extractJsonLdJobs(html);
   return htmlToText(job?.description ?? "");

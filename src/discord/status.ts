@@ -22,7 +22,6 @@ export interface StatusInput {
   registry: RegistrySyncSummary | null;
 }
 
-/** Group failed boards by reason tag into a compact, Discord-field-safe string (max ~1024 chars), e.g. "timeout ×122: bosch, abb, adobe … (+40) · 404 ×2: …". */
 export function buildIssueList(
   failed: ReadonlyArray<{ provider: string; slug: string; reason: string }>,
   maxLen = 1000,
@@ -63,7 +62,6 @@ function spreadsheetUrl(): string {
   return `https://docs.google.com/spreadsheets/d/${config.google.spreadsheetId}`;
 }
 
-/** Pure builder for the single end-of-run status embed, no I/O. */
 export function buildStatusEmbed(input: StatusInput): StatusEmbed {
   const { stats } = input;
 
@@ -78,7 +76,7 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
     { name: "Errors", value: String(stats.errors.length), inline: true },
   ];
 
-  // Separate from "Errors": a network outage tripping N boards is one event, not N broken vendors.
+  // Separate from "Errors": one outage tripping N boards is one event, not N broken vendors.
   if (stats.transportRetried > 0 || stats.transportRecovered > 0) {
     fields.push({
       name: "Transport faults",
@@ -133,7 +131,6 @@ export function buildStatusEmbed(input: StatusInput): StatusEmbed {
   };
 }
 
-/** Post the single end-of-run status embed to the shared progress webhook; mock-logs when unset. */
 export async function postRunStatus(input: StatusInput): Promise<void> {
   const embed = buildStatusEmbed(input);
   const url = config.discord.progressWebhookUrl;

@@ -21,7 +21,6 @@ const E = (source: RegistryEntry["source"], slug: string, name: string): Registr
   parsing_strategy: "llm-scrape",
 });
 
-/** Builds the sheet rows (header + entry rows) exactly as readTab would return them. */
 function sheetRows(entries: RegistryEntry[]): string[][] {
   return [[...REGISTRY_COLUMNS], ...entries.map(entryToRow)];
 }
@@ -57,7 +56,6 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
   const rows = [
     [...REGISTRY_COLUMNS],
     entryToRow(good),
-    // Invalid: source is not a known provider.
     ["Bad Co", "https://bad.example/careers", "not-a-real-provider", "", "ats-api", "", "", "", "", "", "", "", "", ""],
   ];
 
@@ -68,15 +66,14 @@ test("syncRegistryFromSheet: an invalid row is quarantined, valid rows still ups
 
   assert.equal(result.source, "sheet");
   assert.equal(result.synced, 1);
-  assert.equal(result.pruned, 0); // prune disabled by the bad row
+  assert.equal(result.pruned, 0);
   assert.equal(result.invalidRows.length, 1);
-  assert.equal(result.invalidRows[0]?.rowIndex, 3); // header=row1, good=row2, bad=row3
+  assert.equal(result.invalidRows[0]?.rowIndex, 3);
   assert.match(result.invalidRows[0].issues, /source/);
 
   const all = selectAllCompanies();
   assert.ok(all.some((c) => c.slug === `${tag}-good`));
 
-  // Cache snapshot skipped too, so a later offline run can't prune quarantined-row companies.
   assert.ok(!existsSync(cachePath), "cache must NOT be written when rows were quarantined");
 });
 
@@ -88,7 +85,6 @@ test("syncRegistryFromSheet: a zero-row sheet read never prunes and never overwr
     cachePath: tmpCache(),
   });
 
-  // Header-only tab must be treated as a suspect read, not "delete everything".
   const emptyCachePath = tmpCache();
   const result = await syncRegistryFromSheet("default", {
     readTab: async () => [[...REGISTRY_COLUMNS]],
@@ -122,7 +118,7 @@ test("syncRegistryFromSheet: sheet read throws -> falls back to the cache with s
 });
 
 test("syncRegistryFromSheet: sheet throws AND cache missing -> throws an actionable error", async () => {
-  const cachePath = tmpCache(); // directory exists, file does not
+  const cachePath = tmpCache();
 
   await assert.rejects(
     () =>

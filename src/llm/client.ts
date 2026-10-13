@@ -7,7 +7,6 @@ import { LlmUnavailableError } from "./errors.js";
 import { assertOpenRouterAvailable, openRouterGenerate } from "./openrouter.js";
 import type { OpenRouterGenerateOpts as GenerateOpts } from "./openrouter.js";
 
-// Connection-level failure (server unreachable), distinct from a per-posting model/output error.
 export function isConnectionError(err: Caught): boolean {
   const s = String(err).toLowerCase();
   return (
@@ -22,13 +21,11 @@ export function isConnectionError(err: Caught): boolean {
   );
 }
 
-// Trips after this many *consecutive* connection failures; any success resets the count.
 const MAX_CONSECUTIVE_CONN_FAILURES = 5;
 let consecutiveConnFailures = 0;
 
 const acquire = makeSemaphore(() => config.llm.maxConcurrent);
 
-/** Pre-flight for the LLM backend; throws LlmUnavailableError so a bad backend fails fast instead of flooding gate-errors. */
 export async function assertLlmAvailable(): Promise<void> {
   return assertOpenRouterAvailable();
 }
@@ -42,9 +39,7 @@ async function once(prompt: string, opts: GenerateOpts): Promise<string> {
   }
 }
 
-// Shared post-failure bookkeeping for generate()/generateOnce(); trips the breaker on the run instead of returning.
 function recordFailureAndThrow(lastErr: Caught): never {
-  // Already-classified backend failure is fatal on its own; don't re-wrap or count it.
   if (lastErr instanceof LlmUnavailableError) throw lastErr;
   if (isConnectionError(lastErr)) {
     consecutiveConnFailures++;
@@ -58,7 +53,7 @@ function recordFailureAndThrow(lastErr: Caught): never {
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
-/** Exactly one attempt (no transport-retry loop), for re-ask attempts after a parse failure in gate.ts/extract.ts; still participates in the connection-failure breaker. */
+/** One attempt for parse-failure re-asks; still counts toward the connection-failure breaker. */
 export async function generateOnce(prompt: string, opts: GenerateOpts = {}): Promise<string> {
   try {
     const out = await once(prompt, opts);
@@ -78,7 +73,7 @@ export async function generate(prompt: string, opts: GenerateOpts = {}): Promise
       consecutiveConnFailures = 0;
       return out;
     } catch (err) {
-      // A dead/misconfigured backend won't fix itself in 500ms - abort now instead of burning retries.
+      // A dead backend won't fix itself in 500ms.
       if (err instanceof LlmUnavailableError) throw err;
       lastErr = err;
       logger.warn({ attempt, err: String(err) }, "llm generate failed");

@@ -152,7 +152,6 @@ test("buildTalent500Jd concatenates the JD-bearing fields in order and strips HT
   assert.doesNotMatch(jd, /Should never appear/);
   assert.doesNotMatch(jd, /<p>|<ul>|<li>/);
 
-  // order: role_summary before description before responsibilities before what_you_need_to_succeed
   const iRole = jd.indexOf("Own the QA process");
   const iDesc = jd.indexOf("looking for a QA engineer");
   const iResp = jd.indexOf("Write test plans");
@@ -181,7 +180,6 @@ test("buildTalent500Jd throws when no JD-bearing field yields text", () => {
 
 // A slug that doesn't exist is NOT answered with an empty board - the server drops the company_slug filter and serves the whole aggregator, importing other employers' postings.
 
-/** One list row, only the fields the adapter reads. */
 function row(id: string, companySlug: string | null): Talent500Job {
   return {
     id,
@@ -191,13 +189,11 @@ function row(id: string, companySlug: string | null): Talent500Job {
   };
 }
 
-// Shape for a dead slug: HTTP 200, filter dropped, total is the entire aggregator.
 const UNFILTERED_FEED = {
   total: 6190,
   data: [row("00bc53fe", "aatechhubindia"), row("11cd64ef", "albertsonsindia"), row("22de75f0", "summit-consulting")],
 };
 
-// A live tenant with nothing open, resolving 200 at /api/companies/<slug>/ - the guard must never swallow this case.
 const EMPTY_BOARD = { total: 0, data: [] };
 
 const nokia: AdapterCompany = {
@@ -222,7 +218,6 @@ test("talent500FilterWasIgnored accepts a page that contains this company's rows
 });
 
 test("talent500FilterWasIgnored stays quiet on an empty page and on rows with no company object", () => {
-  // Neither shape can answer "was the filter applied?", so both must fail open rather than fail a working board.
   assert.equal(talent500FilterWasIgnored([], "nokia"), false);
   assert.equal(talent500FilterWasIgnored([row("a", null), row("b", null)], "nokia"), false);
 });
@@ -236,7 +231,6 @@ test("listPostings rejects a dead slug served as the unfiltered aggregator feed"
 });
 
 test("the dead-tenant error is charged to the company, not written off as infrastructure", async (t) => {
-  // Must count as a company failure, not infrastructure, or the scheduler retries forever without quarantining.
   stubFetch(t, () => Promise.resolve(jsonResponse(UNFILTERED_FEED)));
   const err = await rejectionOf(talent500Adapter.listPostings({ ...company, slug: "zzz-no-such-tenant-9x" }));
   assert.ok(err instanceof Error);
@@ -301,7 +295,6 @@ test("listPostings still parses a populated board unchanged", async (t) => {
 });
 
 test("a populated page is never re-audited on later pages", async (t) => {
-  // Only page 1 runs the filter check; a stray foreign row deep in the crawl must not quarantine an already-yielding board.
   const full = { total: 60, data: Array.from({ length: 50 }, (_, i) => row(`nokia-${i}`, "nokia")) };
   const tail = { total: 60, data: [row("stray", "some-other-employer")] };
   let call = 0;
@@ -316,7 +309,6 @@ test("listPostings paginates via the search_after cursor (server ignores offset)
     id: `a1b2c3d4-0000-0000-0000-${String(n).padStart(12, "0")}`,
     slug: `job-${n}-T500-2695${n}`,
   });
-  // A FULL first page (50 rows) so pagination continues, then a short page 2.
   const page1 = Array.from({ length: 50 }, (_, i) => mk(i + 1));
   const urls: string[] = [];
   stubFetch(t, async (input) => {

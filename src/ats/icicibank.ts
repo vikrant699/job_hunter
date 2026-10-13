@@ -11,13 +11,12 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 
-// Single-tenant: this is ICICI Bank's own site, not a SaaS ATS host pattern.
 const API_BASE = "https://careers.icici.bank.in/CareerApplicantApi";
 const SPA_ORIGIN = "https://careers.icici.bank.in/CareerApplicant";
 const SEARCH_URL = `${API_BASE}/Career/Search/1`;
 const jdUrl = (jobId: string): string => `${API_BASE}/Career/getMobileJd/${encodeURIComponent(jobId)}`;
 
-const PAGE_SIZE = 12; // matches the real client's /Career/job-listing/ page.
+const PAGE_SIZE = 12;
 
 // If ICICI rotates keys: grep a fresh bundle for the enc.Utf8.parse("...") literal feeding the AES call that slices a 16-char IV suffix off its input/output.
 const ENCRYPT_KEY = "$k@m0u$0172@0r!k";
@@ -29,7 +28,6 @@ function randomIv(): string {
   return out;
 }
 
-/** Encrypt a request payload as the SPA does: AES-128-CBC/PKCS7 under `ENCRYPT_KEY` with a fresh random IV, appended in plain text after the base64 ciphertext. */
 export function encryptPayload<T>(value: T): string {
   const iv = randomIv();
   const cipher = createCipheriv("aes-128-cbc", Buffer.from(ENCRYPT_KEY, "utf8"), Buffer.from(iv, "utf8"));
@@ -37,7 +35,6 @@ export function encryptPayload<T>(value: T): string {
   return ciphertext.toString("base64") + iv;
 }
 
-/** Decrypt a response (or echoed request) blob: last 16 chars are the IV, the rest is base64 ciphertext. Throws if too short or the key/IV don't unpad cleanly. */
 export function decryptPayload(blob: string): JsonValue {
   if (blob.length <= 16) throw new Error(`icicibank: ciphertext too short to hold a 16-char IV suffix (${blob.length})`);
   const iv = blob.slice(blob.length - 16);
@@ -47,7 +44,6 @@ export function decryptPayload(blob: string): JsonValue {
   return JsonValueSchema.parse(JSON.parse(plaintext.toString("utf8")));
 }
 
-/** Request body shape for Career/Search/1 (pre-encryption), mirrors the real client's fields exactly. */
 export interface IciciSearchRequest {
   userId: number;
   ApplicantId: string;
@@ -109,7 +105,7 @@ export function normalizeIcici(company: AdapterCompany, j: IciciJob): Normalized
     jobUrl: `${SPA_ORIGIN}/Career/job-details/${id}`,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: "", // hc_JD is always empty on the list endpoint; fetchJd hits getMobileJd.
+    jdText: "",
     postedAt: null, // f_createdDate/hc_EndDate are template/deadline dates, not real posting dates.
   };
 }

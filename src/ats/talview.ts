@@ -1,4 +1,3 @@
-// src/ats/talview.ts — Talview's own careers board (careers.talview.com); apiMeta.organizationId selects the tenant (default 183 = Talview Inc).
 // Categories: GET apiv4.talview.com/attend/menu-card?organization_id=<org> -> [{id,name}]. Jobs: GET pages.talview.com/api/attend/menu-card-assessment?menu_card_id=<id>&organization_id=<org>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -38,7 +37,7 @@ export function talviewJobsUrl(org: string, menuCardId: string): string {
   return `https://pages.talview.com/api/attend/menu-card-assessment?menu_card_id=${menuCardId}&organization_id=${org}`;
 }
 
-// `location` is always null from the API; parses the description's "Based in: <City>, <State>, <Country>" line instead (e.g. "Based in: Bengaluru, Karnataka, India" -> the string), null if absent.
+// `location` is always null from the API; read the description's "Based in: <City>, <State>, <Country>" line.
 export function talviewLocationFromDescription(text: string | null | undefined): string | null {
   if (!text) return null;
   const m = text.match(/Based in:?\s*([^\n.]+)/i);
@@ -80,7 +79,7 @@ export const talviewAdapter: AtsAdapter = {
         what: `jobs (category ${cat.id})`,
       });
       for (const j of jobs) {
-        if (!j.first_assessment_section_id) continue; // unpublished
+        if (!j.first_assessment_section_id) continue;
         const p = normalizeTalviewJob(company, j);
         if (seen.has(p.externalId)) continue;
         seen.add(p.externalId);

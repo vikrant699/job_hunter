@@ -1,5 +1,4 @@
-// src/ats/teamtailor.ts — Teamtailor career sites (https://<slug>.teamtailor.com).
-// List: /jobs?page=N is server-rendered, #jobs_list_container with one <li> per job linking to /jobs/<id>-<slug>. Detail: the job page's JSON-LD JobPosting island (entity-encoded HTML), falling back to the server-rendered <main> .prose block.
+// List: /jobs?page=N, #jobs_list_container with an <li> per job linking /jobs/<id>-<slug>. Detail: the JSON-LD JobPosting island (entity-encoded HTML), else server-rendered <main> .prose.
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -12,10 +11,9 @@ import { REMOTE_RE, paginate, tenantOrigin, collapseWs } from "./shared.js";
 
 const PAGE = 20;
 const JOB_HREF_RE = /\/jobs\/(\d+)(?:-|\/|\?|#|$)/;
-// Workplace chips rendered next to the location (e.g. "Hybrid · <wifi icon>").
 const WORKPLACE_RE = /^(hybrid|remote|fully remote|on-?site|office)$/i;
 
-// JSON Feed every Teamtailor site serves regardless of theme; the fallback when a custom jobs page has no #jobs_list_container (e.g. careers.lyzr.ai).
+// JSON Feed every site serves regardless of theme; fallback when a custom jobs page has no #jobs_list_container (e.g. careers.lyzr.ai).
 export function teamtailorFeedUrl(company: AdapterCompany): string {
   return `${tenantOrigin(company)}/jobs.json`;
 }
@@ -33,7 +31,7 @@ const FeedSchema = z.object({
     .default([]),
 });
 
-/** Feed items carry title, /jobs/<id>-slug url and the JSON-LD description (entity-encoded HTML) but NO location; the pipeline's title/JD heuristic covers that. */
+/** Feed items carry no location; the pipeline's title/JD heuristic covers that. */
 export function parseTeamtailorFeed(company: AdapterCompany, raw: string): NormalizedPosting[] {
   const feed = parseOrThrow(FeedSchema, parseJsonOrThrow(raw, "teamtailor feed"), { provider: "teamtailor", slug: company.slug });
   const out: NormalizedPosting[] = [];
@@ -58,12 +56,11 @@ export function parseTeamtailorFeed(company: AdapterCompany, raw: string): Norma
   return out;
 }
 
-// Paged board URL: https://<slug>.teamtailor.com/jobs?page=N (1-based).
 export function teamtailorJobsUrl(company: AdapterCompany, page: number): string {
   return `${tenantOrigin(company)}/jobs?page=${page}`;
 }
 
-// Returns null when the page has no #jobs_list_container at all (structure change / not a board page), vs [] for a present-but-empty board — callers fail loudly on page 1 only.
+// null = no #jobs_list_container (structure change / not a board page); [] = present but empty; callers fail loudly on page 1 only.
 export function parseTeamtailorList(company: AdapterCompany, html: string): NormalizedPosting[] | null {
   const $ = cheerio.load(html);
   const container = $("#jobs_list_container");
@@ -72,7 +69,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
   const out: NormalizedPosting[] = [];
   container.find("li").each((_i, li) => {
     const $li = $(li);
-    // The job anchor is the one whose href matches /jobs/<id>-… (job links may point at a custom domain even when browsing the teamtailor.com host, so parsing keys on this path pattern, not the host).
+    // Key on the /jobs/<id>-… path: job links may point at a custom domain even when browsing the teamtailor.com host.
     const anchor = $li
       .find("a[href]")
       .filter((_j, a) => JOB_HREF_RE.test($(a).attr("href") ?? ""))
@@ -82,7 +79,6 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
     const idMatch = href.match(JOB_HREF_RE);
     if (!idMatch?.[1]) return;
 
-    // Variant B (block-grid) carries the title in span[title]; variant A's anchor text IS the title.
     const titleAttr = anchor.find("span[title]").first().attr("title");
     let title: string;
     if (titleAttr) {
@@ -94,7 +90,7 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
     }
     if (!title) return;
 
-    // Meta spans: [department?] · location? · [workplace chip?]. Location is the LAST non-workplace span.
+    // Spans: [department?] · location? · [workplace chip?]; location is the last non-workplace span.
     const fields: string[] = [];
     const workplace: string[] = [];
     $li.find('div[class*="mt-1"] span').each((_j, span) => {
@@ -114,14 +110,14 @@ export function parseTeamtailorList(company: AdapterCompany, html: string): Norm
       jobUrl: new URL(href, tenantOrigin(company)).toString(),
       location,
       isRemote: REMOTE_RE.test(`${workplace.join(" ")} ${location ?? ""}`),
-      jdText: "", // detail page only — fetched lazily via fetchJd
-      postedAt: null, // board list carries no dates
+      jdText: "",
+      postedAt: null,
     });
   });
   return out;
 }
 
-// JSON-LD description is entity-encoded HTML, so htmlToText runs twice: pass 1 decodes entities into real HTML, pass 2 strips the tags (double-stripping plain HTML is harmless).
+// JSON-LD description is entity-encoded HTML: pass 1 decodes entities, pass 2 strips tags.
 export function teamtailorJdFromHtml(html: string): string {
   const [job] = extractJsonLdJobs(html);
   if (job?.description) return htmlToText(htmlToText(job.description));
@@ -133,7 +129,7 @@ export function teamtailorJdFromHtml(html: string): string {
 export const teamtailorAdapter: AtsAdapter = {
   provider: "teamtailor",
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Custom themes drop the standard list container; the JSON Feed is theme-independent, so fall back to it instead of failing the board.
+    // Custom themes drop the standard list container; the JSON Feed is theme-independent.
     const firstPage = await atsFetchText(teamtailorJobsUrl(company, 1), { provider: "teamtailor" });
     if (parseTeamtailorList(company, firstPage) === null) {
       const raw = await atsFetchText(teamtailorFeedUrl(company), { provider: "teamtailor" });
@@ -152,7 +148,6 @@ export const teamtailorAdapter: AtsAdapter = {
         return { items, total: null };
       },
     });
-    // A job shifting between pages mid-crawl could repeat — dedupe on id.
     const seen = new Set<string>();
     return postings.filter((p) => (seen.has(p.externalId) ? false : (seen.add(p.externalId), true)));
   },

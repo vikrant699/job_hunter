@@ -110,13 +110,11 @@ test("kulaAdapter.listPostings filters listed:false and stops on a short page", 
   }
 });
 
-// Kula needs no dead-tenant marker, unlike its shared-host peers: an unknown accountName is REJECTED (404) rather than silently dropped.
 test("a dead account rejects rather than reporting an empty board", async () => {
   stubFetch(async () => Response.json({ errors: ["err_account_not_found"] }, { status: 404 }));
   try {
     const err = await rejectionOf(kulaAdapter.listPostings({ ...company, slug: "zzznosuchtenant9x" }));
     assert.ok(err instanceof Error, "a 404 account-not-found must not resolve to []");
-    // Must count toward consecutive_failures rather than be retried as an outage.
     assert.equal(isTransportError(err), false);
     assert.equal(isEdgeInterstitialError(err), false);
     assert.equal(isInfrastructureFault(err), false);

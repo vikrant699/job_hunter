@@ -1,4 +1,3 @@
-// src/ats/nextdata.ts — generic adapter for Next.js (pages-router) careers pages that SSR-embed the full job list in the <script id="__NEXT_DATA__"> JSON island; per-company config lives in apiMeta (see nextDataConfig).
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -36,7 +35,6 @@ export function nextDataConfig(company: AdapterCompany): NextDataConfig {
   };
 }
 
-// Walk a tokenized dot-path into a nested JsonValue; null when any hop is missing or malformed.
 export function dig(node: JsonValue, path: readonly string[]): JsonValue | null {
   let cur: JsonValue = node;
   for (const key of path) {
@@ -57,7 +55,6 @@ export function digString(value: JsonValue, path: string): string | null {
   return null;
 }
 
-// Throws if the script tag is absent or its body isn't valid JSON.
 export function parseNextDataIsland(html: string): JsonValue {
   const $ = cheerio.load(html);
   const raw = $("script#__NEXT_DATA__").first().text();

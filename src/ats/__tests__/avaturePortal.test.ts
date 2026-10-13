@@ -229,7 +229,6 @@ test("listAvaturePortal pages to the reported total with the page's own session 
 });
 
 test("listAvaturePortal stops when the engine wraps past the end back to page one", async (t) => {
-  // Past the last offset the engine re-serves page one; with no total that must end the crawl, not loop.
   const page1 = () => jsonResponse(listBody([result(1, "A", "Pune", "India"), result(2, "B", "Pune", "India")], null));
   const calls: Call[] = [];
   stubFetch(t, recordingFetch(calls, [sessionResponse, page1, page1]));

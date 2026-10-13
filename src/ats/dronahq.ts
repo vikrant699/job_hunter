@@ -42,7 +42,6 @@ export function buildDronahqJd(contentHtml: string | null | undefined): string {
 // job-header banner embeds location as <span class="location">Location</span><span><span>Mumbai, ...</span></span>
 const LOCATION_RE = /<span class="location">Location<\/span>\s*<span>\s*<span>\s*([^<]+?)\s*<\/span>/i;
 
-/** Null if the markup isn't found - the pipeline's own location gate still runs against jdText regardless. */
 export function dronahqLocationFromContent(html: string | null | undefined): string | null {
   if (!html) return null;
   const m = LOCATION_RE.exec(html);
@@ -101,5 +100,4 @@ export const dronahqAdapter: AtsAdapter = {
       },
     });
   },
-  // The list response carries the full post body in content.rendered — no fetchJd needed.
 };

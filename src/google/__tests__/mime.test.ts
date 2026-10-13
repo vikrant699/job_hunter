@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { buildDraftMime, toBase64Url } from "../mime.js";
 
 test("toBase64Url: standard base64url alphabet, no padding", () => {
-  // Bytes chosen to guarantee +, /, and = in standard base64.
   const buf = Buffer.from([0xfb, 0xff, 0xbf]);
   const std = buf.toString("base64");
   const url = toBase64Url(buf);

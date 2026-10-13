@@ -37,7 +37,6 @@ export function breezyBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.breezy.hr`);
 }
 
-/** Skips individually malformed items rather than failing the whole board; throws only if the top level isn't an array. */
 export function parseBreezyJobs(raw: JsonValue, slug: string): BreezyJob[] {
   if (!Array.isArray(raw)) {
     throw new Error(`breezyhr list response for ${slug} was not an array`);
@@ -69,12 +68,11 @@ export function normalizeBreezyhr(company: AdapterCompany, j: BreezyJob): Normal
     jobUrl,
     location,
     isRemote,
-    jdText: "", // the /json list carries no description — see fetchJd
+    jdText: "",
     postedAt: j.published_date ?? null,
   };
 }
 
-/** Falls back to every matched node if none is a leaf (shouldn't happen, but avoids returning nothing on odd nesting). */
 export function extractBreezyJd(html: string): string {
   const $ = cheerio.load(html);
   const all = $(".description").toArray();

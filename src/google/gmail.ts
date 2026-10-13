@@ -30,7 +30,6 @@ export interface CreatedDraft {
   threadId: string;
 }
 
-/** Create a Gmail draft from a fully-built RFC 5322 MIME message. */
 export async function createDraft(profileId: string, mime: string, deps: RestDeps = {}): Promise<CreatedDraft> {
   const body = await googleFetchJson(
     profileId,
@@ -42,7 +41,7 @@ export async function createDraft(profileId: string, mime: string, deps: RestDep
   return { draftId: parsed.id, messageId: parsed.message.id, threadId: parsed.message.threadId };
 }
 
-/** Check whether a draft still exists; distinguishes a 404 ("gone") from any other failure. */
+/** Distinguishes a 404 ("gone") from any other failure. */
 export async function getDraft(profileId: string, draftId: string, deps: RestDeps = {}): Promise<"exists" | "gone"> {
   try {
     await googleFetchJson(profileId, `${BASE_URL}/drafts/${encodeURIComponent(draftId)}`, {}, deps);
@@ -58,7 +57,6 @@ export interface MessageRef {
   threadId: string;
 }
 
-/** Search messages matching a Gmail search query (e.g. `from:` / `subject:`). */
 export async function searchMessages(profileId: string, q: string, deps: RestDeps = {}): Promise<MessageRef[]> {
   const url = `${BASE_URL}/messages?q=${encodeURIComponent(q)}&maxResults=20`;
   const body = await googleFetchJson(profileId, url, {}, deps);
@@ -70,7 +68,6 @@ export interface MessageMetadata {
   internalDate: number;
 }
 
-/** Fetch metadata (snippet + internalDate) for a single message. */
 export async function getMessageMetadata(profileId: string, id: string, deps: RestDeps = {}): Promise<MessageMetadata> {
   const url = `${BASE_URL}/messages/${encodeURIComponent(id)}?format=metadata`;
   const body = await googleFetchJson(profileId, url, {}, deps);

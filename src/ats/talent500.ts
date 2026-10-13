@@ -1,5 +1,4 @@
-// src/ats/talent500.ts — Talent500 (by ANSR), a shared JSON REST job-board aggregator hosting many India GCCs on one host.
-// List: GET prod-warmachine.talent500.co/api/v3/jobs/search/?company_slug=<slug>&offset=<N>&size=<SIZE>, paginated via the response's search_after cursor (offset accepted but ignored). Detail: GET .../api/jobs/<job.slug>/, JD built by concatenating role_summary/description/responsibilities/what_you_need_to_succeed then stripping HTML; the public job URL talent500.com/jobs/<job.slug> is also the source of the detail slug, since the API's `id` is a uuid not usable against the detail endpoint.
+// List: GET prod-warmachine.talent500.co/api/v3/jobs/search/?company_slug=<slug>&size=<N>, paged by the response's search_after cursor. Detail: GET .../api/jobs/<job.slug>/.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -11,14 +10,13 @@ import { REMOTE_RE, paginate, dateToIso } from "./shared.js";
 const API_ORIGIN = "https://prod-warmachine.talent500.co";
 const PUBLIC_JOB_ORIGIN = "https://talent500.com";
 const PAGE_SIZE = 50;
-const MAX_PAGES = 5000; // runaway backstop only — fetch every page (never truncate)
+const MAX_PAGES = 5000;
 
 const TalentCountrySchema = z.object({
   name: z.string().nullable().optional(),
   country_code: z.string().nullable().optional(),
 });
 
-// Only `slug` is read, to verify the server honored our company_slug filter.
 const TalentJobCompanySchema = z.object({
   slug: z.string().nullable().optional(),
 });
@@ -42,7 +40,7 @@ export type Talent500Job = z.infer<typeof TalentJobSchema>;
 const TalentListSchema = z.object({
   total: z.number().nullable().optional(),
   data: z.array(TalentJobSchema),
-  // The server ignores `offset` (every value re-serves page 1); this cursor is the only real pagination mechanism.
+  // The server ignores `offset` (every value re-serves page 1); the search_after cursor is the only real pagination.
   search_after: z.array(z.union([z.number(), z.string()])).nullable().optional(),
 });
 
@@ -56,7 +54,6 @@ const TalentDetailSchema = z.object({
 });
 export type Talent500Detail = z.infer<typeof TalentDetailSchema>;
 
-// Builds the paged list-search URL; pages after the first use the server's search_after cursor (offset is kept for shape but ignored).
 export function talent500ListUrl(
   companySlug: string,
   offset: number,
@@ -67,35 +64,35 @@ export function talent500ListUrl(
   return searchAfter === null ? base : `${base}&search_after=${encodeURIComponent(JSON.stringify(searchAfter))}`;
 }
 
-// Job-detail URL from a job's slug (NOT its uuid `id`).
+// Detail URL uses the job's slug, NOT its uuid `id`.
 export function talent500DetailUrl(jobSlug: string): string {
   return `${API_ORIGIN}/api/jobs/${encodeURIComponent(jobSlug)}/`;
 }
 
-// The company-profile endpoint, used solely as an existence oracle.
+// Company-profile endpoint, used solely as an existence oracle.
 export function talent500CompanyUrl(companySlug: string): string {
   return `${API_ORIGIN}/api/companies/${encodeURIComponent(companySlug)}/`;
 }
 
-// True when the server plainly did NOT apply our company_slug filter: an unknown slug 200s with the whole aggregator instead of rejecting, so we require at least one returned row to actually belong to this company (rows carrying no company object leave the question unanswerable and deliberately return false).
+// An unknown slug 200s with the whole aggregator instead of rejecting, so require a returned row to belong to this company.
 export function talent500FilterWasIgnored(rows: readonly Talent500Job[], companySlug: string): boolean {
   const rowSlugs = rows.map((r) => r.company?.slug).filter((s): s is string => typeof s === "string" && s !== "");
   if (rowSlugs.length === 0) return false;
   return !rowSlugs.includes(companySlug);
 }
 
-// Throws only on a definitive 404; a 400 "Not Published" means the company exists but has no public profile (a healthy board), and a transport failure here says nothing about the tenant.
+// Throw only on a definitive 404; a 400 "Not Published" means a healthy company with no public profile.
 export async function assertTalent500TenantExists(companySlug: string): Promise<void> {
   const url = talent500CompanyUrl(companySlug);
   let status: number;
   try {
-    // Raw fetch (not atsFetchJson): the status IS the signal, and atsFetchJson throws before we can read it.
+    // Raw fetch: atsFetchJson throws before the status can be read.
     const res = await withAtsTimeout((signal) =>
       fetch(url, { headers: { "User-Agent": config.fetch.userAgent, Accept: "application/json" }, signal }),
     );
     status = res.status;
   } catch {
-    return; // probe itself failed — says nothing about the tenant
+    return;
   }
   if (status === 404) {
     throw new Error(
@@ -106,12 +103,10 @@ export async function assertTalent500TenantExists(companySlug: string): Promise<
   }
 }
 
-// Public job page URL — also what fetchJd derives the detail slug from.
 export function talent500JobUrl(jobSlug: string): string {
   return `${PUBLIC_JOB_ORIGIN}/jobs/${jobSlug}`;
 }
 
-// Keep a job only if it's displayable, active, and not closed.
 export function talent500ShouldKeep(j: Talent500Job): boolean {
   if (j.is_job_displayable === false) return false;
   if (j.is_active === false) return false;
@@ -131,12 +126,11 @@ export function normalizeTalent500Job(company: AdapterCompany, j: Talent500Job):
     location,
     isRemote: j.is_remote === true || REMOTE_RE.test(location ?? ""),
     jdText: "",
-    // created_at is the only reliable timestamp; posted_on ("19 days ago") is intentionally never used.
+    // created_at is the only reliable timestamp; posted_on ("19 days ago") is never used.
     postedAt: dateToIso(j.created_at),
   };
 }
 
-// Derives the job-detail slug from a posting's public jobUrl — the last non-empty path segment.
 export function talent500SlugFromUrl(jobUrl: string): string {
   const parts = new URL(jobUrl).pathname.split("/").filter(Boolean);
   const slug = parts[parts.length - 1];
@@ -144,7 +138,6 @@ export function talent500SlugFromUrl(jobUrl: string): string {
   return slug;
 }
 
-// Builds the plain-text JD by concatenating whichever of the JD-bearing fields are present, then stripping HTML.
 export function buildTalent500Jd(detail: Talent500Detail): string {
   const parts = [detail.role_summary, detail.description, detail.responsibilities, detail.what_you_need_to_succeed]
     .filter((s): s is string => typeof s === "string" && s.trim() !== "");
@@ -156,7 +149,6 @@ export const talent500Adapter: AtsAdapter = {
   provider: "talent500",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    // Boxed cursor state: fetchPage closes over it since paginate() only hands us (offset, page).
     let cursor: ReadonlyArray<number | string> | null = null;
     return paginate<NormalizedPosting>({
       provider: "talent500",
@@ -171,7 +163,6 @@ export const talent500Adapter: AtsAdapter = {
           slug: company.slug,
           what: `list (offset ${offset})`,
         });
-        // Dead-tenant checks run on page 1 only: once proven, a later hiccup can't revoke it.
         if (page === 0) {
           if (talent500FilterWasIgnored(parsed.data, company.slug)) {
             throw new Error(
@@ -181,14 +172,12 @@ export const talent500Adapter: AtsAdapter = {
                 `Slug "${company.slug}" is dead, not the board empty.`,
             );
           }
-          // Zero rows is the one shape a dead slug never produces; confirm via the company profile anyway.
           if (parsed.data.length === 0) await assertTalent500TenantExists(company.slug);
         }
         cursor = parsed.search_after ?? null;
         const items = parsed.data
           .filter(talent500ShouldKeep)
           .map((j) => normalizeTalent500Job(company, j));
-        // Advance by the raw record count, not the filtered count, so dropped rows don't shift the next offset.
         return { items, total: parsed.total ?? null, rawCount: parsed.data.length };
       },
     });

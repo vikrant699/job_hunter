@@ -1,4 +1,3 @@
-/** Test the llm-scrape pipeline against one company by slug. */
 import "dotenv/config";
 import * as cheerio from "cheerio";
 import { syncRegistryFromSheet } from "../src/registry/sheetRegistry.js";
@@ -37,7 +36,6 @@ async function probeOne(
   console.log(`Careers URL: ${company.careersUrl}`);
   console.log(`Strategy:    ${company.parsingStrategy}\n`);
 
-  // Stage A — raw cheerio shortlist (no LLM).
   let page;
   try {
     page = await fetchHtml(company.careersUrl);
@@ -66,7 +64,6 @@ async function probeOne(
     return;
   }
 
-  // Stage B — LLM shortlist via the adapter (uses cache if warm).
   console.log(`\n--- LLM shortlist ---`);
   const jobs = await runShortlist({ companyName: company.name, candidates });
   console.log(`Picked ${jobs.length}:`);
@@ -75,10 +72,9 @@ async function probeOne(
   }
   if (jobs.length > 25) console.log(`  ... ${jobs.length - 25} more`);
 
-  // Stage C — fetch first JD if requested.
   if (flags.has("--jd") && jobs.length > 0 && llmScrapeAdapter.fetchJd) {
     const first = jobs[0];
-    if (!first) return; // unreachable: jobs.length > 0 was just checked above
+    if (!first) return;
     console.log(`\n--- Fetching JD: ${first.title} ---`);
     const stub = {
       provider: company.provider,

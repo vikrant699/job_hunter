@@ -10,7 +10,7 @@ import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, c
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import { listAvaturePortal, parseAvaturePortalPage } from "./avaturePortal.js";
 
-const MAX_PAGES = 5000; // safety cap in case a tenant's Next link never disappears (loops back on itself, etc.)
+const MAX_PAGES = 5000;
 
 // Avature stamps an avature.* meta tag into every portal page and serves chrome/error pages from /jscore/ - either proves the response came from the engine (see assertAvatureBoardServed)
 const AVATURE_PORTAL_META_RE = /name="avature\.[a-z]/i;
@@ -32,7 +32,6 @@ export function assertAvatureBoardServed(html: string, url: string): void {
   );
 }
 
-/** Accepts either the portal root or the SearchJobs URL itself - idempotent either way. */
 export function avatureSearchUrl(company: AdapterCompany): string {
   const base = company.tenantUrl ?? company.careersUrl;
   const u = new URL(base);
@@ -48,7 +47,6 @@ export function avatureSearchUrl(company: AdapterCompany): string {
   return `${u.protocol}//${u.host}${path}/SearchJobs${suffix}`;
 }
 
-/** reqId (+ optional slug) from a "JobDetail/[<slug>/]<id>" href; id is always the last path segment. */
 export function parseJobDetailHref(href: string): { slug: string | null; id: string } | null {
   const path = href.split(/[?#]/)[0] ?? "";
   const m = path.match(/\/JobDetail\/(?:([^/]+)\/)?([^/]+)\/?$/i);
@@ -56,7 +54,6 @@ export function parseJobDetailHref(href: string): { slug: string | null; id: str
   return { slug: m[1] ?? null, id: m[2] };
 }
 
-/** `.paginationNextLink` sits on the <a> itself on some skins, wraps one on others - resolve to the <a> either way. */
 // Always follow this href verbatim: the offset param's NAME differs per tenant and a hand-built value is silently ignored.
 export function parseAvatureNextHref(html: string, baseUrl: string): string | null {
   const $ = cheerio.load(html);
@@ -89,7 +86,6 @@ function stripLocationLabel(text: string): string {
   return text.replace(LOCATION_LABEL_RE, "").trim();
 }
 
-/** First unclassed subtitle span naming a place: never a separator, a bare label, or a "Req #" / "Posted" / "Job ID" field. */
 function pickLocationFromSpans(spans: SubtitleSpan[]): string | null {
   for (const { text, cls } of spans) {
     if (NAMED_FIELD_RE.test(cls) || PUNCT_ONLY_RE.test(text) || LABEL_ONLY_RE.test(text) || NON_PLACE_RE.test(text)) continue;
@@ -99,7 +95,6 @@ function pickLocationFromSpans(spans: SubtitleSpan[]): string | null {
   return null;
 }
 
-/** "Posted <date>" / "Date Posted: <date>" span, else the bare date of a .list-item-posted span. */
 function pickPostedFromSpans(spans: SubtitleSpan[]): string | null {
   for (const { text, cls } of spans) {
     const m = text.match(POSTED_RE);
@@ -109,7 +104,6 @@ function pickPostedFromSpans(spans: SubtitleSpan[]): string | null {
   return null;
 }
 
-/** Value of an `.article__content__field` labelled "Location:" (Koch's skin keeps the subtitle for the company name). */
 function pickLabelledLocation($: cheerio.CheerioAPI, $art: ReturnType<cheerio.CheerioAPI>): string | null {
   for (const field of $art.find(".article__content__field").toArray()) {
     const label = collapseWs($(field).find(".article__content__field__label").first().text());
@@ -133,7 +127,6 @@ export function parseAvatureSearch(
     const $titleLink = $art.find(".article__header__text__title a").first();
     const href = $titleLink.attr("href");
     const title = collapseWs($titleLink.text());
-    // The stale "No jobs found" placeholder has no <a> in its title heading, so href/title are both empty here.
     if (!href || !title) return;
 
     const parsed = parseJobDetailHref(href);
@@ -196,7 +189,6 @@ export function parseAvatureJd(html: string): string {
 
 const DETAIL_PLACE_LABELS = [/^(?:job\s+)?location$/i, /^city$/i, /^(?:state|province|region)$/i, /^country$/i] as const;
 
-/** City/State/Country (or Location) view fields of a JobDetail page, joined city-first; null when it shows none. */
 export function parseAvatureDetailLocation(html: string): string | null {
   const $ = cheerio.load(html);
   const ranked: { rank: number; value: string }[] = [];
@@ -220,7 +212,6 @@ export const avatureAdapter: AtsAdapter = {
     let hitCap = false;
 
     while (url) {
-      // Checked before fetching another page, so this is the only path that sets hitCap.
       if (page >= MAX_PAGES) {
         hitCap = true;
         break;
@@ -255,7 +246,6 @@ export const avatureAdapter: AtsAdapter = {
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await atsFetchText(posting.jobUrl, { provider: "avature" });
-    // a listing with no place (Synopsys) is resolved here so lateLocationCheck applies the strict metadata check
     if (posting.location === null) posting.location = parseAvatureDetailLocation(html);
     return parseAvatureJd(html);
   },

@@ -7,18 +7,15 @@ import type { JsonValue } from "../util/json.js";
 import { JsonValueSchema } from "../util/json.js";
 import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../util/connectivity.js";
 
-/** How long to back off before the single retry on 429/5xx. */
 const DEFAULT_RETRY_DELAY_MS = 2_000;
 
 export interface RestDeps {
   fetchFn?: typeof fetch;
-  /** Injected auth deps, forwarded to getAccessToken (tests only — production uses the default). */
   authDeps?: GoogleAuthDeps;
-  /** Override the 429/5xx backoff delay (tests use a near-zero value). */
   retryDelayMs?: number;
 }
 
-// Authorized fetch-json wrapper shared by Sheets/Gmail clients (returns raw JSON for the caller to zod-validate); 429 retries for every method, but 5xx retries only idempotent methods since a POST may already have been processed and replaying it would duplicate the draft/row.
+// 429 retries for every method; 5xx only for idempotent ones, since replaying a POST would duplicate the draft/row.
 export async function googleFetchJson(
   profileId: string,
   url: string,

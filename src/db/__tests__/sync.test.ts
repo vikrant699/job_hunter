@@ -23,7 +23,6 @@ test("compareState reports in-sync when both sides match", () => {
   assert.equal(compareState(NOW, NOW), "in-sync");
 });
 
-// A few seconds of drift must not read as "someone else pushed" and trigger a pointless pull.
 test("compareState tolerates small clock skew in either direction", () => {
   assert.equal(compareState(NOW + 4_000, NOW), "in-sync");
   assert.equal(compareState(NOW - 4_000, NOW), "in-sync");
@@ -49,7 +48,6 @@ test("compareState reports no-local when neither side exists", () => {
   assert.equal(compareState(null, null), "no-local");
 });
 
-// Just past tolerance must flip the verdict; this decides whether a run pulls before touching the DB.
 test("compareState flips exactly outside the skew tolerance", () => {
   assert.equal(compareState(NOW, NOW + 5_000), "in-sync");
   assert.equal(compareState(NOW, NOW + 5_001), "remote-newer");
@@ -66,7 +64,6 @@ test("decideBeforeRun defers to the timestamps for a populated database", () => 
   assert.equal(decideBeforeRun(local({ mtimeMs: NOW + 60_000 }), NOW), "local-newer");
 });
 
-// db.ts creates the file on import, so a fresh machine's empty DB has mtime=now and looks newer than the real backup.
 test("decideBeforeRun treats a zero-posting local DB as no-local, however new it is", () => {
   assert.equal(decideBeforeRun(local({ postings: 0, mtimeMs: NOW + 999_999 }), NOW), "no-local");
 });
@@ -106,7 +103,6 @@ test("assertPushSafe allows a shrink that stays within the ratio", () => {
   assertPushSafe(local({ bytes: 26_000_000 }), 50_000_000, false);
 });
 
-// A deliberate shrink is a real case, so the refusal has to be overridable.
 test("assertPushSafe honours force for a deliberate shrink", () => {
   assertPushSafe(local({ bytes: 51_000_000 }), 609_000_000, true);
   assertPushSafe(local({ postings: 0 }), 50_000_000, true);
@@ -153,7 +149,7 @@ test("readLocalState survives a file that is not a database", () => {
   assert.ok(state.bytes > 0, "size still reported so the caller can log it");
 });
 
-/** A WAL-mode database with an open writer connection - both load-bearing, or a closed fixture would leave nothing that can report busy and these tests would pass vacuously. */
+/** WAL-mode DB with an open writer: both load-bearing, else nothing can report busy and the tests pass vacuously. */
 function makeWalDb(path: string, rows: number): DatabaseSync {
   const writer = new DatabaseSync(path);
   writer.exec("PRAGMA journal_mode = WAL");
@@ -164,7 +160,6 @@ function makeWalDb(path: string, rows: number): DatabaseSync {
   return writer;
 }
 
-/** A second connection sitting in an open read transaction — what a TRUNCATE waits for. */
 function openReader(path: string): DatabaseSync {
   const reader = new DatabaseSync(path);
   reader.exec("BEGIN");
@@ -184,12 +179,10 @@ test("checkpointWal succeeds on an unheld database", async () => {
   }
 });
 
-// The behaviour that matters: wait for the other connection rather than treating a perfectly ordinary lock as a failed push.
 test("checkpointWal retries while another connection holds the DB, then succeeds", async () => {
   const path = join(tempDir(), "wal.db");
   const writer = makeWalDb(path, 3);
   const reader = openReader(path);
-  // Release mid-flight, after the first attempt has certainly reported busy.
   const release = setTimeout(() => {
     reader.exec("COMMIT");
     reader.close();
@@ -205,7 +198,6 @@ test("checkpointWal retries while another connection holds the DB, then succeeds
   }
 });
 
-// A reader on the current snapshot blocks only the truncation; every frame still reached the .db, so the push must proceed.
 test("checkpointWal proceeds after the timeout when every frame reached the database", async () => {
   const path = join(tempDir(), "wal.db");
   const writer = makeWalDb(path, 3);
@@ -227,7 +219,7 @@ test("checkpointWal proceeds after the timeout when every frame reached the data
 test("checkpointWal throws when frames are still only in the WAL", async () => {
   const path = join(tempDir(), "wal.db");
   const writer = makeWalDb(path, 1);
-  const reader = openReader(path); // pins the snapshot as it is now
+  const reader = openReader(path);
   for (let i = 0; i < 200; i++) {
     writer.prepare("INSERT INTO postings (job_title) VALUES (?)").run(`later ${i}`);
   }
@@ -241,7 +233,6 @@ test("checkpointWal throws when frames are still only in the WAL", async () => {
 
 const REMOTE_MODIFIED = "2026-08-07T10:30:00.000Z";
 
-/** Emulates just enough of the Drive REST surface for sync.ts (name lookup, resumable-upload handshake, media download); records what was uploaded. */
 function driveStub(options: {
   remote: { id: string; size: number } | null;
   payload?: Buffer;
@@ -258,13 +249,12 @@ function driveStub(options: {
     if (url.startsWith("https://upload.example/session-1")) {
       const body = init?.body;
       uploaded = Buffer.from(body instanceof Uint8Array ? body : []);
-      // Drive's default field set omits modifiedTime/size, exactly like the real API, forcing the code to read metadata back itself.
+      // Drive's default field set omits modifiedTime/size, like the real API.
       return new Response(JSON.stringify({ id: "file-1", name: "job_hunter.db", mimeType: "application/octet-stream", kind: "drive#file" }), {
         status: 200,
         headers: { "content-type": "application/json" },
       });
     }
-    // Single-file metadata read-back (has a fields= query, no q=).
     if (url.includes("/drive/v3/files/") && url.includes("fields=")) {
       return new Response(
         JSON.stringify({
@@ -279,7 +269,6 @@ function driveStub(options: {
     if (url.includes("alt=media")) {
       return new Response(options.payload ?? Buffer.alloc(0), { status: 200 });
     }
-    // Name lookup.
     const files =
       options.remote === null
         ? []
@@ -299,7 +288,6 @@ function driveStub(options: {
   return { fetchFn, uploaded: () => uploaded };
 }
 
-/** A token file the real auth module will accept without touching the network. */
 function authStub(): { fetchFn: typeof fetch; tokenPath: string; readFile: () => string; existsSync: () => boolean; writeFileAtomic: () => void; now: () => number } {
   return {
     fetchFn: async () => new Response("{}", { status: 200 }),
@@ -331,7 +319,6 @@ test("pullDb swaps in the downloaded database and matches the remote timestamp",
   assert.equal(result.action, "downloaded");
   assert.equal(readLocalState(dbPath).postings, 42, "the local file is now the remote one");
   assert.ok(!existsSync(`${dbPath}.pull-tmp`), "no temp file left behind");
-  // The next run must read in-sync, not "remote-newer", so it doesn't re-download what it already has.
   assert.equal(statSync(dbPath).mtimeMs, Date.parse(REMOTE_MODIFIED));
   assert.equal(compareState(statSync(dbPath).mtimeMs, Date.parse(REMOTE_MODIFIED)), "in-sync");
 });
@@ -364,7 +351,6 @@ test("pullDb reports no-remote instead of failing when Drive holds nothing", asy
   assert.equal(result.verdict, "no-remote");
 });
 
-// This test file runs in a process where db/db.ts is loaded, so the guard must be live here.
 test("pullDb refuses to swap the file while db.ts holds it open", async () => {
   await import("../db.js");
   assert.equal(isDbOpen(), true, "importing db.ts must mark the handle open");
@@ -432,7 +418,6 @@ test("pushDb honours force for a deliberately shrunken database", async () => {
 });
 
 test("syncSkipReason allows every profile while DB_SYNC_PROFILE is unset", () => {
-  // config reads the env at import; the suite runs without DB_SYNC_PROFILE set.
   assert.equal(syncSkipReason("bob"), null);
   assert.equal(syncSkipReason("alice"), null);
 });

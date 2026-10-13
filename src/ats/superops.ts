@@ -1,5 +1,4 @@
-// src/ats/superops.ts — SuperOps careers (superops.com), a Gatsby static site: GET /page-data/careers/page-data.json for staticQueryHashes, then GET /page-data/sq/d/<hash>.json until the one holding data.<X>.careers[] is found.
-// Hashes change on every redeploy, so they're re-discovered each run rather than hardcoded; JD isn't in the list payload, fetched from /careers/<slug> instead.
+// GET /page-data/careers/page-data.json -> staticQueryHashes, then /page-data/sq/d/<hash>.json until one holds data.<X>.careers[]; hashes change on redeploy. JD from /careers/<slug>.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -22,7 +21,6 @@ const PageDataSchema = z.object({ staticQueryHashes: z.array(z.union([z.string()
 const SqBlobSchema = z.object({ data: z.record(z.string(), JsonValueSchema) });
 const CareersNodeSchema = z.object({ careers: z.array(SuperopsCareerSchema) });
 
-/** Find the careers[] array inside any sq-data blob (shape: data.<Anything>.careers); null when this blob isn't the one. */
 export function extractSuperopsCareers(blob: JsonValue): SuperopsCareer[] | null {
   const parsed = SqBlobSchema.safeParse(blob);
   if (!parsed.success) return null;

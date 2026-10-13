@@ -9,18 +9,15 @@ import { REMOTE_RE, paginate } from "./shared.js";
 
 const APP_BASE = "https://www.google.com/about/careers/applications";
 const RESULTS_BASE = `${APP_BASE}/jobs/results`;
-const PAGE = 20; // Google serves 20 cards per results page.
+const PAGE = 20;
 
-// Stable JD section headings — Google keeps this wording; classes rotate.
 const JD_HEADING_RE = /About the job|Minimum qualifications|Preferred qualifications|Responsibilities/;
-// jobs/results/<numericId>-<slug> (the id is the numeric prefix).
 const RESULT_HREF_RE = /jobs\/results\/(\d+)-[a-z0-9-]+/i;
 
 export function googleListUrl(page: number): string {
   return `${RESULTS_BASE}?location=India&page=${page}`;
 }
 
-/** Absolute detail URL from a card's (possibly relative, query-carrying) href. */
 export function googleDetailUrl(href: string): string {
   const m = href.match(/jobs\/results\/(\d+-[a-z0-9-]+)/i);
   const path = m?.[1];
@@ -58,13 +55,11 @@ export function parseGoogleList(company: AdapterCompany, html: string): Normaliz
   return out;
 }
 
-/** JD text: the smallest ancestor block holding all stable JD-section <h3>s, from the first heading onward; "" when no sections found. */
 export function parseGoogleJd(html: string): string {
   const $ = cheerio.load(html);
   const jdHeads = $("h3").filter((_, e) => JD_HEADING_RE.test($(e).text()));
   if (jdHeads.length === 0) return "";
 
-  // Climb to the smallest ancestor containing every JD heading.
   let container = jdHeads.first().parent();
   for (let i = 0; i < 6; i++) {
     const hits = container.find("h3").filter((_, e) => JD_HEADING_RE.test($(e).text())).length;
@@ -74,7 +69,6 @@ export function parseGoogleJd(html: string): string {
     container = up;
   }
 
-  // Keep only the first JD heading onward (drop share/breadcrumb chrome before it).
   const parts: string[] = [];
   let started = false;
   container.children().each((_, el) => {
@@ -85,7 +79,6 @@ export function parseGoogleJd(html: string): string {
     if (started) parts.push($el.text());
   });
   const text = htmlToText(parts.join("\n"));
-  // Fallback: if the child-walk found nothing (headings nested oddly), take the whole container text.
   return text.trim() ? text : htmlToText(container.text());
 }
 

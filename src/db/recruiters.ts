@@ -21,7 +21,6 @@ const RecruiterRowSchema = z.object({
 
 export type RecruiterDbRow = z.infer<typeof RecruiterRowSchema>;
 
-/** Camel-cased view of a recruiter row, used everywhere outside this module (including src/outreach/match.ts, which imports only this type). */
 export interface RecruiterRow {
   email: string;
   company: string;
@@ -54,7 +53,7 @@ function rowToRecruiter(r: RecruiterDbRow): RecruiterRow {
   };
 }
 
-// Upsert never downgrades status/verified_at: 'bounced' is terminal against imports, and an incoming 'unverified' never overwrites an existing verified/bounced row.
+// Never downgrades status/verified_at: 'bounced' is terminal and 'unverified' never overwrites verified/bounced.
 const upsertRecruiterStmt = db.prepare(`
   INSERT INTO recruiters (
     email, company, company_norm, alt_names_norm, contact_name, phone,
@@ -100,7 +99,6 @@ export interface UpsertRecruiterInput {
   importedAt: string;
 }
 
-/** Insert or refresh a recruiter contact; never downgrades status/verified_at on re-import (see upsert SQL above). */
 export function upsertRecruiter(row: UpsertRecruiterInput): void {
   upsertRecruiterStmt.run({ ...row, email: row.email.toLowerCase() });
 }
@@ -127,7 +125,7 @@ const setRecruiterStatusStmt = db.prepare(`
     AND NOT (status = 'bounced' AND :status = 'verified')
 `);
 
-/** Sets a recruiter's global status; bounced -> verified is refused (a later profile's clean send must not resurrect an address another profile already bounced). */
+/** bounced -> verified is refused: another profile's bounce must not be resurrected. */
 export function setRecruiterStatus(email: string, status: RecruiterStatus, atIso: string): void {
   setRecruiterStatusStmt.run({ email: email.toLowerCase(), status, atIso });
 }

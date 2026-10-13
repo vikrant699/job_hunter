@@ -34,7 +34,6 @@ export function darwinboxTenantBase(company: AdapterCompany): string {
 
 const CANDIDATEV2_RE = /\/ms\/candidatev2\/([^/]+)\//i;
 
-/** The per-tenant token from a candidatev2 careers URL, or null for the legacy generation. */
 export function darwinboxV2Token(company: AdapterCompany): string | null {
   const raw = company.tenantUrl ?? company.careersUrl;
   return matchGroup(CANDIDATEV2_RE, raw);
@@ -72,21 +71,19 @@ export function legacyCompanyId(company: AdapterCompany): string {
   const raw = company.tenantUrl ?? company.careersUrl;
   return matchGroup(LEGACY_TOKEN_RE, raw) ?? "main";
 }
-// server-rendered deep link (og:title carries the job) for both generations; legacy tenants resolve under candidatev2 with their companyId token, "main" when untokened
 export function darwinboxJobUrl(company: AdapterCompany, externalId: string): string {
   const token = darwinboxV2Token(company) ?? legacyCompanyId(company);
   return `${darwinboxTenantBase(company)}/ms/candidatev2/${encodeURIComponent(token)}/careers/jobDetails/${encodeURIComponent(externalId)}`;
 }
 const API = (page: number, companyId: string) => `/ms/candidateapi/job?page=${page}&companyId=${encodeURIComponent(companyId)}`;
 
-const MAX_LIST_PAGES = 5000; // runaway backstop only, never truncate
+const MAX_LIST_PAGES = 5000;
 
 // /ms/candidate/careers boots an SPA that full-navigates to /ms/candidatev2/... seconds after load (late on a slow tenant), killing any in-flight page.evaluate; the JSON API page never navigates and still clears Cloudflare
 export function darwinboxLegacyLandingUrl(company: AdapterCompany): string {
   return `${darwinboxTenantBase(company)}${API(1, legacyCompanyId(company))}`;
 }
 
-/** Fixed request list as a browserFetchJsonSteps builder, which retries an evaluate killed by a navigation. */
 export function darwinboxSteps(steps: BrowserJsonStep[]): (done: JsonValue[]) => BrowserJsonStep | null {
   return (done) => steps[done.length] ?? null;
 }
@@ -109,12 +106,10 @@ function darwinboxFetch(pageUrl: string, steps: BrowserJsonStep[]): Promise<Json
   return darwinboxRetryForbidden(() => browserFetchJsonSteps(pageUrl, darwinboxSteps(steps)));
 }
 
-/** `pageSize` is derived from the live page-1 length, so guard a zero/absent value. */
 export function darwinboxPagesNeeded(total: number, pageSize: number): number {
   return Math.min(Math.ceil(total / (pageSize || 1)), MAX_LIST_PAGES);
 }
 
-/** Mutates `out` in place; throws (rather than truncating) on a schema mismatch, since a silent break would return a partial list that looks complete. */
 export function mergeDarwinboxPages(
   company: AdapterCompany,
   out: NormalizedPosting[],
@@ -137,12 +132,10 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   const landingUrl = darwinboxLegacyLandingUrl(company);
   const companyId = legacyCompanyId(company);
   const out: NormalizedPosting[] = [];
-  // First page (in-browser; clears Cloudflare) reveals jobscount.
   const [first] = await darwinboxFetch(landingUrl, [{ url: API(1, companyId) }]);
   const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
-  // remaining pages share one navigation, one in-page XHR each
   if (out.length < total) {
     const pageSize = parsed0.message.jobs.length;
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
@@ -161,7 +154,6 @@ async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting
   return darwinboxDetailJd(raw ?? null);
 }
 
-/** detail.message = { job: [{...fields, jd}], isSaved }; tolerates a flat-object fallback for other tenants. */
 export function darwinboxDetailJd(raw: JsonValue): string {
   const msgObj = getObj(raw, "message") ?? getObj(raw) ?? {};
   const jobArr = msgObj["job"];
@@ -178,7 +170,6 @@ export function cleanDarwinboxJd(jd: string): string {
   return PLACEHOLDER_JD_RE.test(jd.trim()) ? "" : jd;
 }
 
-// candidatev2: POST /ms/candidateapi/job/alljobs?companyId=<token> {companyId,page,sort_option,limit} -> {status, data: jobs[], job_counts}; each job carries full HTML-encoded jd (no per-job detail call)
 const V2_PAGE_SIZE = 10;
 const V2_CAREERS_PATH = (token: string) => `/ms/candidatev2/${token}/careers/allJobs`;
 const V2_API_PATH = (token: string) => `/ms/candidateapi/job/alljobs?companyId=${encodeURIComponent(token)}`;
@@ -204,7 +195,7 @@ const V2ListSchema = z.object({
 export function normalizeDarwinboxV2(company: AdapterCompany, j: DarwinboxV2Job): NormalizedPosting {
   const location = darwinboxLocation(j.officelocation_show_arr);
   const title = (j.title && j.title.trim()) || j.designation_display_name || "";
-  const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : ""; // double HTML-encoded, see fetchJdLegacy
+  const jdText = j.jd ? cleanDarwinboxJd(htmlToText(htmlToText(j.jd))) : "";
   return {
     provider: "darwinbox",
     externalId: String(j.id),
@@ -219,7 +210,6 @@ export function normalizeDarwinboxV2(company: AdapterCompany, j: DarwinboxV2Job)
   };
 }
 
-/** Mirrors `mergeDarwinboxPages`'s stop/throw semantics: a schema mismatch throws rather than silently truncating. */
 export function mergeDarwinboxV2Pages(
   company: AdapterCompany,
   out: NormalizedPosting[],
@@ -248,7 +238,6 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, j));
   const total = parsed0.job_counts ?? out.length;
   if (out.length < total) {
-    // Deriving page size from the actual response (rather than trusting `limit`) keeps a limit-ignoring tenant correct.
     const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.length || V2_PAGE_SIZE);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
@@ -261,7 +250,6 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
   return out;
 }
 
-// fallback only: candidatev2's list already embeds the full jd, so the pipeline's !jdText guard means this normally never runs
 async function fetchJdV2(company: AdapterCompany, token: string, posting: NormalizedPosting): Promise<string> {
   const postings = await listPostingsV2(company, token);
   const match = postings.find((p) => p.externalId === posting.externalId);

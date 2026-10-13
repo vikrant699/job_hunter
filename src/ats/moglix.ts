@@ -20,9 +20,8 @@ const ENC_PASSPHRASE = "2e35f242a46d67eeb74aabc37d5e5d05";
 
 const EMPTY_SORT: readonly string[] = [];
 const GRID_REQUEST = { formCode: "FRM0001379", gridCode: "GRD0000837", sorted: EMPTY_SORT };
-const TAKE = 50000; // the real client requests the same in one shot
+const TAKE = 50000;
 
-// CryptoJS's EvpKDF (MD5-based EVP_BytesToKey): derive keyLen+ivLen bytes via repeated MD5(prev+passphrase+salt).
 function evpBytesToKey(passphrase: string, salt: Buffer, keyLen: number, ivLen: number): { key: Buffer; iv: Buffer } {
   let data = Buffer.alloc(0);
   let prev = Buffer.alloc(0);
@@ -36,7 +35,6 @@ function evpBytesToKey(passphrase: string, salt: Buffer, keyLen: number, ivLen: 
   return { key: data.subarray(0, keyLen), iv: data.subarray(keyLen, keyLen + ivLen) };
 }
 
-// matches CryptoJS.AES.encrypt(plaintext, passphrase): random 8-byte salt, EVP_BytesToKey -> 32-byte key + 16-byte IV, AES-256-CBC/PKCS7, base64("Salted__" + salt + ciphertext)
 export function moglixEncrypt(plaintext: string, passphrase: string): string {
   const salt = randomBytes(8);
   const { key, iv } = evpBytesToKey(passphrase, salt, 32, 16);
@@ -99,7 +97,6 @@ const ListPayloadSchema = z.object({
   }),
 });
 
-/** Decrypt+validate one `careers/list` response envelope into its job rows. */
 export function parseListResponse(envelopeJson: JsonValue, passphrase: string): MoglixJob[] {
   const ciphertext = unwrapEnvelope(envelopeJson);
   const plaintext = moglixDecrypt(ciphertext, passphrase);
@@ -135,7 +132,6 @@ export function normalizeMoglix(company: AdapterCompany, j: MoglixJob): Normaliz
   };
 }
 
-// No WAF gate observed live — the default bot UA works fine, no cookies/session needed.
 async function fetchEncryptedList(): Promise<JsonValue> {
   const hexKey = randomHexKey();
   const requestBody = { ...GRID_REQUEST, requiresCounts: true, skip: 0, take: TAKE };

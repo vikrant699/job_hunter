@@ -16,7 +16,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real shape from POST /employer/careers/reqlist/get (Swiggy).
 const openJob: MyNextHireJob = {
   reqId: 27890,
   statusId: 3,
@@ -29,7 +28,7 @@ const openJob: MyNextHireJob = {
 
 const closedJob: MyNextHireJob = {
   reqId: 11111,
-  statusId: 5, // not the public-open status - must be filtered out
+  statusId: 5,
   reqTitle: "Old Closed Req",
   location: "Bangalore",
   locationAddress: "Bangalore",
@@ -65,7 +64,6 @@ test("mynexthireJobUrl builds a link the vendor's own SPA can decode", () => {
   const url = mynexthireJobUrl(company, 27890);
   assert.match(url, /^https:\/\/swiggy\.mynexthire\.com\/employer\/jobs\/careers\?/);
 
-  // Reproduces careers.js's own parsing (basePageClass ctor).
   const query = at(url.split("?"), 1);
   const decoded = decodeURIComponent(query);
   const params: Record<string, string> = {};

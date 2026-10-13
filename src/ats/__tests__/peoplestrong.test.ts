@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Job with a null jobDetailUrl (RBL shape); URL must be constructed.
 const JOB_NO_URL: PeoplestrongJob = {
   jobCode: "RBL/RM-SB/1477632",
   jobTitle: "Relationship Manager – Signature Banking",
@@ -23,7 +22,6 @@ const JOB_NO_URL: PeoplestrongJob = {
   jobPostedDate: "2025-09-11",
 };
 
-// Job with a populated jobDetailUrl (ABFRL shape) and a remote location.
 const JOB_WITH_URL: PeoplestrongJob = {
   jobCode: "BFL/D-VA/1794956",
   jobTitle: "Remote Frontend Engineer",
@@ -59,7 +57,6 @@ test("peoplestrongJobUrl prefers jobDetailUrl, else constructs /job/detail/<_-co
     peoplestrongJobUrl("https://abfrlcareers.peoplestrong.com", JOB_WITH_URL),
     "https://abfrlcareers.peoplestrong.com/job/detail/BFL_D-VA_1794956",
   );
-  // No code and no url -> portal root.
   assert.equal(peoplestrongJobUrl("https://x.peoplestrong.com", { jobCode: null }), "https://x.peoplestrong.com");
 });
 
@@ -74,7 +71,7 @@ test("normalizePeoplestrong maps fields; constructs URL when jobDetailUrl is nul
   assert.equal(p.jobUrl, "https://rblcareers.peoplestrong.com/job/detail/RBL_RM-SB_1477632");
   assert.equal(p.location, "India, South, Karnataka, Bangalore");
   assert.equal(p.isRemote, false);
-  assert.equal(p.jdText, ""); // JD populated by fetchJd
+  assert.equal(p.jdText, "");
   assert.equal(p.postedAt, new Date("2025-09-11").toISOString());
 });
 
@@ -155,7 +152,6 @@ test("PeoplestrongListSchema parses the wrapper and totalRecords pagination math
   assert.ok(parsed.success);
   assert.equal(parsed.data.totalRecords, 57);
   assert.equal(parsed.data.response?.length, 2);
-  // 57 records at page size 45 -> 2 pages.
   const { totalRecords } = parsed.data;
   assert(typeof totalRecords === "number");
   assert.equal(Math.ceil(totalRecords / 45), 2);

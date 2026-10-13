@@ -29,7 +29,6 @@ test("listPostings assembles jdText from descriptionPlain + lists[] + additional
   );
   const postings = await leverAdapter.listPostings(company);
   assert.equal(postings.length, 1);
-  // The invariant that matters: all three segments (Requirements/TS/Perks.) present.
   assert.equal(postings[0]?.jdText, "Intro.\n\nRequirements\nTS\n\nPerks.");
 });
 

@@ -1,5 +1,3 @@
-// src/ats/htmlboard.ts — generic selector-driven adapter for bespoke, server-rendered HTML careers pages; per-company CSS selectors live in apiMeta
-// pagination: none by default (whole list renders in one response); pageParam boards page until a page adds nothing new
 import * as cheerio from "cheerio";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -9,9 +7,7 @@ import { REMOTE_RE, paginate, collapseWs } from "./shared.js";
 import { kebabCase } from "../util/slug.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
-// Runaway backstop for pageParam boards whose zero-new-items stop misfires.
 const MAX_PAGES = 200;
-// no pageSize is evidenced (arbitrary hand-authored boards); termination is "page added nothing new" (see listPostings), so this is informational only
 const NOMINAL_PAGE_SIZE = 20;
 
 function pageUrl(cfg: HtmlBoardConfig, page: number): string {
@@ -41,7 +37,6 @@ export interface HtmlBoardConfig {
   idAttr: string | null;
   itemUrlAttr: string | null;
   noItemLinks: boolean;
-  /** Two-level boards (GitBook-style): listUrl page links to section pages; items live on the sections. */
   sectionSelector: string | null;
   /** Appended to jobUrl when fetching the JD (GitBook serves clean markdown at <page>.md). */
   jdUrlSuffix: string | null;
@@ -81,7 +76,6 @@ export function htmlBoardConfig(company: AdapterCompany): HtmlBoardConfig {
   };
 }
 
-/** Unique section-page URLs from the root page, resolved against listUrl. */
 export function sectionUrls(rootHtml: string, cfg: HtmlBoardConfig): string[] {
   if (!cfg.sectionSelector) return [];
   const $ = cheerio.load(rootHtml);
@@ -128,14 +122,13 @@ export function resolveItemHref(href: string, base: string): string | null {
   }
 }
 
-/** The query minus tracking params, returned untouched when there are none so existing ids never re-encode. */
 function searchWithoutTracking(u: URL): string {
   const tracking = [...u.searchParams.keys()].filter((k) => TRACKING_PARAM_RE.test(k));
   for (const k of tracking) u.searchParams.delete(k);
   return u.search;
 }
 
-/** Stable id: the detail link's path+query (tracking params dropped) when it is neither an apply form nor the list page itself (accordion boards reuse identical "#"/mailto anchors), else a slug of the title. */
+/** Stable id: path+query sans tracking params unless apply-form/list page (accordion boards reuse "#"/mailto anchors), else title slug. */
 export function htmlBoardExternalId(jobUrl: string | null, title: string, listUrl?: string): string {
   if (jobUrl && !jobUrl.startsWith("mailto:") && !isApplyFormUrl(jobUrl)) {
     try {
@@ -236,12 +229,11 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
   return items;
 }
 
-/** Fails a zero-item page that can't prove it's the board (parked domain/redesign/WAF-200) instead of reporting a healthy empty board; boardSelector is opt-in proof, checked only after the edge-challenge check. */
+/** Fails a zero-item page that can't prove it's the board (parked domain/WAF-200); boardSelector is opt-in proof, checked after the edge-challenge check. */
 export function assertHtmlBoardRendered(html: string, cfg: HtmlBoardConfig, itemCount: number, slug: string): void {
   if (itemCount > 0) return;
   assertNotEdgeChallenge("htmlboard", cfg.listUrl, html);
   if (!cfg.boardSelector) return;
-  // Second cheerio parse, but only ever on a page that came up empty.
   if (cheerio.load(html)(cfg.boardSelector).length > 0) return;
   throw new Error(
     `htmlboard: board did not render at ${cfg.listUrl} for ${slug} — no items, and the configured ` +
@@ -255,7 +247,6 @@ export function extractHtmlBoardJd(html: string, cfg: HtmlBoardConfig): string {
     const m = new RegExp(cfg.detailJdRegex, "s").exec(html);
     const captured = m?.[1];
     if (captured !== undefined && captured !== "") {
-      // script-payload JDs arrive as JSON string content - decode common escapes before stripping tags
       const decoded = captured
         .replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)))
         .replace(/\\(["/nrt\\])/g, (_, c: string) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : c));
@@ -293,7 +284,6 @@ export const htmlboardAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const cfg = htmlBoardConfig(company);
 
-    // Section crawl: items live on section pages linked from listUrl, deduped globally.
     if (cfg.sectionSelector) {
       const rootHtml = await atsFetchText(cfg.listUrl, { provider: "htmlboard" });
       const items: HtmlBoardItem[] = [];
@@ -345,7 +335,6 @@ export const htmlboardAdapter: AtsAdapter = {
 
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const cfg = htmlBoardConfig(company);
-    // Inline-JD boards never get here (jdText already set); detail boards do.
     if (!posting.jobUrl || posting.jobUrl === cfg.listUrl || isApplyFormUrl(posting.jobUrl)) return posting.jdText;
     const jdUrl = cfg.jdUrlSuffix ? posting.jobUrl + cfg.jdUrlSuffix : posting.jobUrl;
     const html = await atsFetchText(jdUrl, { provider: "htmlboard" });

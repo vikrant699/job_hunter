@@ -1,5 +1,5 @@
-// src/ats/workable.ts — Workable public widget API: GET apply.workable.com/api/v1/widget/accounts/<slug>?details=true; one-phase, JD inline in the response.
-// The widget repeats a multi-location job once per location (same shortcode, one location each), so rows are merged per shortcode.
+// Workable widget API: GET apply.workable.com/api/v1/widget/accounts/<slug>?details=true; JD inline in the response.
+// The widget repeats a multi-location job once per location (same shortcode), so rows are merged per shortcode.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -58,7 +58,7 @@ function mergeByShortcode(jobs: Job[]): Job[] {
 }
 
 export function normalizeWorkable(company: AdapterCompany, j: Job): NormalizedPosting {
-  // Join EVERY location, not just [0]: keeping only the first would geo-reject postings whose first location is foreign but which also hire in India ("Boston; Bengaluru").
+  // Join EVERY location: keeping only the first would geo-reject postings like "Boston; Bengaluru".
   const locs = (j.locations ?? [])
     .map((l) => joinLocation(l.city, l.region, l.country))
     .filter((s): s is string => s !== null);

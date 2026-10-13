@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real record from Sage's CareerSearch API - an ex-Fyle Bangalore role, JD still mentions Fyle post-acquisition.
 const fyleRecord: SageRecord = {
   Id: "VN33156",
   Name: "Frontend Architect",

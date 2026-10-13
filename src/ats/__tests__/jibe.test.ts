@@ -66,12 +66,10 @@ test("normalizeJibe: remote location_type sets isRemote, unparseable date maps t
   assert.equal(p.postedAt, null);
 });
 
-/** A minimal job with a unique slug, so cross-page identity is real. */
 function jobN(n: number): JibeJob {
   return { slug: String(n), title: `Role ${n}`, full_location: "Bangalore, India" };
 }
 
-/** One API page: `count` jobs numbered from `start`, plus the reported total. */
 function apiPage(count: number, start: number, totalCount: number | null): string {
   const jobs = Array.from({ length: count }, (_, i) => ({ data: jobN(start + i) }));
   return JSON.stringify({ jobs, totalCount });
@@ -82,7 +80,6 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-/** Serve a canned body per `?page=N` (anything past the end is an empty page); returns the page numbers requested, in order. */
 function stubPages(pages: Record<string, string>, totalCount: number | null): string[] {
   const seen: string[] = [];
   globalThis.fetch = async (input) => {
@@ -94,7 +91,6 @@ function stubPages(pages: Record<string, string>, totalCount: number | null): st
 }
 
 test("jibeAdapter.listPostings collects the whole board when the tenant pages below the assumed 10", async () => {
-  // A tenant serving 4 a page would be judged short against an assumed 10; the short-page break fires before totalCount is even compared.
   const seen = stubPages({ "1": apiPage(4, 1, 10), "2": apiPage(4, 5, 10), "3": apiPage(2, 9, 10) }, 10);
   try {
     const items = await jibeAdapter.listPostings(company);
@@ -129,7 +125,6 @@ test("jibeAdapter.listPostings still ends on a genuinely short final page when t
 });
 
 test("jibeAdapter.listPostings stops on a board that ignores ?page and re-serves page 1", async () => {
-  // With totalCount absent and every page full, only the exact-page-repeat stall guard can terminate this short of the runaway cap.
   const seen: string[] = [];
   globalThis.fetch = async (input) => {
     seen.push(new URL(String(input)).searchParams.get("page") ?? "");

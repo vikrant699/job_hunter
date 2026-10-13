@@ -33,7 +33,7 @@ test("parseSirionList maps each /jobs/<slug>/ card: slug id, title, absolute url
   assert.equal(fe.externalId, "senior-frontend-engineer");
   assert.equal(fe.jobTitle, "Senior Frontend Engineer");
   assert.equal(fe.jobUrl, "https://www.sirion.ai/jobs/senior-frontend-engineer/");
-  assert.equal(fe.location, null); // resolved in fetchJd -> lateLocationCheck
+  assert.equal(fe.location, null);
 });
 
 test("parseSirionList falls back to a de-kebabed slug when the card has no title text", () => {

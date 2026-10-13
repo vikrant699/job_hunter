@@ -1,4 +1,4 @@
-// SAP SuccessFactors sitemap.xml completeness backstop, shared by sfcsb.ts and successfactors.ts: <tenant origin>/sitemap.xml serves the tenant's COMPLETE job-URL set in one request as a plain <urlset> (e.g. <url><loc>https://careers.payu.in/PayU/job/.../53951080/</loc>...</url>).
+// SuccessFactors <tenant origin>/sitemap.xml serves the COMPLETE job-URL set as a plain <urlset>; shared by sfcsb.ts and successfactors.ts
 // Some tenants serve an <rss> feed at the same path instead - detected, not ingested. Never throws: any failure degrades to null so a sitemap outage can never fail a board that was otherwise fine.
 import { logger } from "../logger.js";
 import type { AdapterCompany } from "../types.js";
@@ -6,7 +6,6 @@ import { atsFetchText } from "./http.js";
 import { tenantOrigin } from "./shared.js";
 import { describeError } from "../util/errorCause.js";
 
-/** Runaway guard on one board's sitemap gap-fill, not a limit: far above any real tenant's whole job count. */
 export const SITEMAP_GAP_FILL_GUARD = 50_000;
 
 const LOC_RE = /<loc>\s*([^<\s]+)\s*<\/loc>/gi;
@@ -22,7 +21,6 @@ function decodeXmlEntities(s: string): string {
   });
 }
 
-/** Parse a sitemap.xml body into id -> job URL, keeping only /job/.../<digits>/ locs. Pure, never throws. */
 export function parseSfSitemapUrlset(xml: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of xml.matchAll(LOC_RE)) {
@@ -43,14 +41,11 @@ function safeDecodeUri(s: string): string {
   }
 }
 
-/** Provisional job title for a sitemap-only gap-fill: de-kebab the URL's slug segment (the one right before
- *  the trailing id) and title-case it. Only used until the board's own listing picks the job up for real. */
 export function titleFromSitemapUrl(url: string): string {
   let path = url;
   try {
     path = new URL(url).pathname;
   } catch {
-    // Not an absolute URL — fall back to slicing the raw string below.
   }
   const segments = path.split("/").filter((s) => s !== "");
   const slugSeg = segments.length >= 2 ? segments[segments.length - 2] : segments[segments.length - 1];
@@ -59,7 +54,6 @@ export function titleFromSitemapUrl(url: string): string {
   return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
 }
 
-/** Sitemap entries whose id the listing never returned, in sitemap order; stops (with a warning) only at the runaway guard. */
 export function sitemapOnlyEntries(
   sitemap: ReadonlyMap<string, string>,
   listed: ReadonlySet<string>,
@@ -78,7 +72,6 @@ export function sitemapOnlyEntries(
   return out;
 }
 
-/** Fetch <tenant origin>/sitemap.xml as a completeness backstop: id -> url map (empty is valid), or null on ANY failure incl. the <rss> feed variant (logged, not ingested). */
 export async function fetchSfSitemapIds(company: AdapterCompany, provider: string): Promise<Map<string, string> | null> {
   let origin: string;
   try {

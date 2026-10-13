@@ -106,8 +106,8 @@ test("parseJobHref matches brand-prefixed /job/ paths (multi-brand tenants)", ()
 test("parseSuccessfactorsSearch parses rows once each, mapping title/location/date/id", () => {
   const { postings, rowCount, total } = parseSuccessfactorsSearch(SEARCH_HTML, company);
   assert.equal(total, 46);
-  assert.equal(rowCount, 2); // drives pagination offset advancement
-  assert.equal(postings.length, 2); // desktop/mobile duplicates collapse, not 4
+  assert.equal(rowCount, 2);
+  assert.equal(postings.length, 2);
 
   const first = at(postings, 0);
   assert.equal(first.provider, "successfactors");
@@ -117,7 +117,7 @@ test("parseSuccessfactorsSearch parses rows once each, mapping title/location/da
   assert.equal(first.jobUrl, "https://jobs.heromotocorp.com/job/Chittoor-Team-Manager-Weld-Shop-AP/1332433066/");
   assert.equal(first.location, "Chittoor, AP, IN");
   assert.equal(first.isRemote, false);
-  assert.equal(first.jdText, ""); // JD populated by fetchJd, not the listing
+  assert.equal(first.jdText, "");
   assert.equal(first.postedAt, new Date("10 Jul 2026").toISOString());
 
   const second = at(postings, 1);
@@ -139,8 +139,8 @@ test("rowCount counts every data-row; brand-prefixed rows are kept, only non-job
       <a href="/not-a-job/xyz" class="jobTitle-link">Ad Row</a></td></tr>
   </tbody></table>`;
   const { postings, rowCount } = parseSuccessfactorsSearch(html, company);
-  assert.equal(rowCount, 3);      // all rows counted for pagination offset
-  assert.equal(postings.length, 2); // root-path AND brand-prefixed /job/ rows kept; ad row dropped
+  assert.equal(rowCount, 3);
+  assert.equal(postings.length, 2);
   assert.equal(at(postings, 0).externalId, "111");
   assert.equal(at(postings, 1).externalId, "12345");
   assert.equal(at(postings, 1).jobUrl, "https://jobs.heromotocorp.com/SomeBrand/job/foo-bar/12345/");
@@ -194,7 +194,6 @@ test("parseSuccessfactorsSearch falls back to tile-view cards when no table rows
   assert.match(at(postings, 0).jobUrl, /careers\.example\.com|\/job\/Mumbai-Deputy-Buyer-Kids-wear-Maha\/56793244\//);
 });
 
-// Page size is per-tenant, not per-engine; a hardcoded 25 used to truncate 10-row tenants at page 1.
 const mahindra = mkAdapterCompany({
   provider: "successfactors",
   slug: "mahindra-group",
@@ -202,7 +201,6 @@ const mahindra = mkAdapterCompany({
   careersUrl: "https://jobs.mahindracareers.com/search/",
 });
 
-/** One /search/ page: `count` rows at `startrow`; banner omitted when `total` is null (tile-skin tenants). */
 function searchPageHtml(startrow: number, count: number, total: number | null): string {
   const banner =
     total === null
@@ -224,13 +222,11 @@ function startrowOf(input: string): number {
   return Number(new URL(input).searchParams.get("startrow"));
 }
 
-/** A sitemap.xml request the /search/ pagination tests don't care about: 404 it without recording an offset. */
 function stubSitemap404(input: string): Response | null {
   if (input.includes("/sitemap.xml")) return htmlResponse("not found", 404);
   return null;
 }
 
-/** Serve a board of `total` jobs `perPage` rows at a time, recording offsets. */
 function stubBoard(
   t: Parameters<typeof stubFetch>[0],
   opts: { total: number; perPage: number; banner?: boolean },
@@ -249,7 +245,6 @@ function stubBoard(
 }
 
 test("listPostings: a 10-rows-per-page tenant is not truncated at page 1", async (t) => {
-  // Pre-fix, this returned only the first 10 of 34.
   const startrows = stubBoard(t, { total: 34, perPage: 10 });
   const postings = await successfactorsAdapter.listPostings(mahindra);
 
@@ -268,7 +263,6 @@ test("listPostings: a 25-rows-per-page tenant still paginates exactly as before"
 });
 
 test("listPostings: a board with no results banner stops on its genuinely short final page", async (t) => {
-  // Tile-skin tenants omit the banner, so only the short final page can end the loop.
   const startrows = stubBoard(t, { total: 14, perPage: 10, banner: false });
   const postings = await successfactorsAdapter.listPostings(mahindra);
 
@@ -277,7 +271,6 @@ test("listPostings: a board with no results banner stops on its genuinely short 
 });
 
 test("listPostings: a tenant that clamps an out-of-range startrow terminates", async (t) => {
-  // Some tenants re-serve the last page instead of an empty one, with no banner to bound the loop.
   const startrows: number[] = [];
   stubFetch(t, (input) => {
     const url = String(input);
@@ -285,7 +278,6 @@ test("listPostings: a tenant that clamps an out-of-range startrow terminates", a
     if (sitemap) return Promise.resolve(sitemap);
     const startrow = startrowOf(url);
     startrows.push(startrow);
-    // 20 jobs, 10 a page; anything past row 10 is clamped back to the last page.
     const clamped = Math.min(startrow, 10);
     return Promise.resolve(htmlResponse(searchPageHtml(clamped, 10, null)));
   });
@@ -296,7 +288,6 @@ test("listPostings: a tenant that clamps an out-of-range startrow terminates", a
 });
 
 test("listPostings: a board that ignores startrow entirely stops after the repeat page", async (t) => {
-  // A stated total of 608 with a frozen first page must not walk 61 pages.
   let calls = 0;
   stubFetch(t, (input) => {
     const sitemap = stubSitemap404(String(input));
@@ -368,7 +359,6 @@ test("listPostings rejects a custom domain that no longer serves the engine", as
 });
 
 test("the dead-domain error is charged to the company, not written off as infrastructure", async (t) => {
-  // Must count toward consecutive_failures, or the scheduler retries forever instead of quarantining.
   stubFetch(t, () => Promise.resolve(htmlResponse(PARKED_HTML)));
   const err = await rejectionOf(successfactorsAdapter.listPostings(mahindra));
   assert.ok(err instanceof Error);
@@ -386,7 +376,6 @@ test("a WAF challenge page is an edge refusal, NOT a dead custom domain", async 
 });
 
 test("a board that produced rows is never failed for missing engine assets", async (t) => {
-  // Proves the check cannot fire on any page that parsed rows.
   const startrows = stubBoard(t, { total: 12, perPage: 10 });
   const postings = await successfactorsAdapter.listPostings(mahindra);
   assert.equal(postings.length, 12);
@@ -428,7 +417,6 @@ test("listPostings gap-fills a sitemap id the HTML search missed, keeping parsed
     const url = String(input);
     if (url.includes("/sitemap.xml")) return Promise.resolve(htmlResponse(SITEMAP_XML));
     const startrow = startrowOf(url);
-    // A 2-job board that ends on its first (short) page.
     return Promise.resolve(htmlResponse(searchPageHtml(startrow, startrow === 0 ? 2 : 0, 2)));
   });
   const postings = await successfactorsAdapter.listPostings(mahindra);
@@ -439,7 +427,6 @@ test("listPostings gap-fills a sitemap id the HTML search missed, keeping parsed
   assert.equal(extra.jobTitle, "Sitemap Only Extra Role");
   assert.equal(extra.location, null);
   assert.equal(extra.jdText, "");
-  // The rows the HTML search already parsed are untouched.
   assert.deepEqual(postings.filter((p) => p.externalId !== "777").map((p) => p.externalId).sort(), ["0", "1"]);
 });
 

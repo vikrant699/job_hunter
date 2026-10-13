@@ -15,17 +15,15 @@ const dbPath = resolve(process.cwd(), config.storage.dbPath);
 mkdirSync(dirname(dbPath), { recursive: true });
 
 export const db = new DatabaseSync(dbPath);
-// Tell sync.ts the file is held open, so a Drive pull refuses to swap it instead of EPERM (Windows) / silently reading the replaced file (Linux).
+// Tells sync.ts the file is held open so a Drive pull refuses to swap it (EPERM on Windows, stale reads on Linux).
 markDbOpened();
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
-// Wait instead of throwing SQLITE_BUSY when a script runs while the bot holds a write lock.
 db.exec("PRAGMA busy_timeout = 5000");
 
 const schema = readFileSync(schemaPath, "utf-8");
 db.exec(schema);
 
-// CREATE TABLE IF NOT EXISTS won't add columns to an existing table, so new columns are ALTERed in idempotently here.
 {
   const PragmaRowSchema = z.object({ name: z.string() });
   const cols = db
@@ -37,13 +35,12 @@ db.exec(schema);
   if (!has("zero_yield_streak")) db.exec("ALTER TABLE companies ADD COLUMN zero_yield_streak INTEGER NOT NULL DEFAULT 0");
   if (!has("url_suspect")) db.exec("ALTER TABLE companies ADD COLUMN url_suspect INTEGER NOT NULL DEFAULT 0");
 
-  // runs.profile_id — simple add.
   const runCols = db.prepare("PRAGMA table_info(runs)").all().map((r) => PragmaRowSchema.parse(r));
   if (!runCols.some((c) => c.name === "profile_id")) {
     db.exec("ALTER TABLE runs ADD COLUMN profile_id TEXT NOT NULL DEFAULT 'default'");
   }
 
-  // postings.profile_id requires folding it into the PK; SQLite can't ALTER a PK, so rebuild the table once (guarded by column absence).
+  // profile_id must join the PK; SQLite can't ALTER a PK, so rebuild once (guarded by column absence).
   const postingCols = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (!postingCols.some((c) => c.name === "profile_id")) {
     db.exec(`
@@ -84,7 +81,7 @@ db.exec(schema);
     logger.info("migration: postings rebuilt with profile_id in PK (existing rows -> 'default')");
   }
 
-  // postings.jd_text was write-only (gate reads JDs in-memory); must run after the profile_id rebuild, and DROP COLUMN only hides it so VACUUM reclaims the space.
+  // Must run after the profile_id rebuild; DROP COLUMN only hides data, VACUUM reclaims the space.
   const postingColsAfter = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (postingColsAfter.some((c) => c.name === "jd_text")) {
     db.exec("ALTER TABLE postings DROP COLUMN jd_text");
@@ -93,7 +90,7 @@ db.exec(schema);
     logger.info("migration: VACUUM complete");
   }
 
-  // postings.last_seen_at / removed_at (lifecycle columns) must run after the profile_id rebuild, or a pre-profile_id DB would add them to the table that gets dropped.
+  // Must run after the profile_id rebuild, or a pre-profile_id DB adds them to the table being dropped.
   const postingColsLifecycle = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (!postingColsLifecycle.some((c) => c.name === "last_seen_at")) {
     db.exec("ALTER TABLE postings ADD COLUMN last_seen_at TEXT");
@@ -101,13 +98,10 @@ db.exec(schema);
   if (!postingColsLifecycle.some((c) => c.name === "removed_at")) {
     db.exec("ALTER TABLE postings ADD COLUMN removed_at TEXT");
   }
-  // Idempotent backfill: a no-op once every row has last_seen_at, so safe to run on every startup.
   db.exec("UPDATE postings SET last_seen_at = discovered_at WHERE last_seen_at IS NULL");
 
-  // brave_quota is a leftover from the removed discovery pipeline; idempotent drop cleans up old local DBs.
   db.exec("DROP TABLE IF EXISTS brave_quota");
 
-  // postings.salary_* — mechanical (no-LLM) stated-salary extraction (src/filter/salary.ts); nullable, annualized min/max.
   const postingColsSalary = db.prepare("PRAGMA table_info(postings)").all().map((r) => PragmaRowSchema.parse(r));
   if (!postingColsSalary.some((c) => c.name === "salary_min")) {
     db.exec("ALTER TABLE postings ADD COLUMN salary_min REAL");
@@ -120,7 +114,6 @@ db.exec(schema);
     db.exec("ALTER TABLE postings ADD COLUMN jd_checked_at TEXT");
   }
 
-  // Leftovers from the removed embedding shadow mode (owner call 2026-09-03); idempotent drops clean up DBs that ran it.
   db.exec("DROP TABLE IF EXISTS posting_vectors");
   if (postingColsSalary.some((c) => c.name === "embed_sim")) {
     db.exec("ALTER TABLE postings DROP COLUMN embed_sim");
@@ -129,7 +122,7 @@ db.exec(schema);
 
 logger.info({ path: dbPath }, "sqlite initialized");
 
-/** Close the singleton connection (terminal - every prepared statement is bound to this handle); needed before the post-run Drive push, since an open handle makes wal_checkpoint(TRUNCATE) return busy. */
+/** Terminal; needed before the post-run Drive push since an open handle makes wal_checkpoint(TRUNCATE) return busy. */
 export function closeDb(): void {
   db.close();
   markDbClosed();

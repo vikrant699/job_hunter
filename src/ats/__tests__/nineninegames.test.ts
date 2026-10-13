@@ -56,7 +56,7 @@ test("normalizeNineNineGamesJob maps fields correctly", () => {
   assert.equal(p.externalId, "68eca9cfb775116422c36894");
   assert.equal(p.companySlug, "99games");
   assert.equal(p.companyName, "99Games");
-  assert.equal(p.jobTitle, "Analyst- Game Data"); // trimmed
+  assert.equal(p.jobTitle, "Analyst- Game Data");
   assert.equal(p.jobUrl, "https://www.99games.in/careers#job-68eca9cfb775116422c36894");
   assert.equal(p.location, "Udupi");
   assert.equal(p.isRemote, false);

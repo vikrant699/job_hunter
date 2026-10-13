@@ -63,8 +63,7 @@ test("parseTalentfunnelList maps fields (JD deferred to fetchJd)", () => {
   assert.equal(j0.location, "Bengaluru, Karnataka, India");
   assert.equal(j0.postedAt, "2026-06-12T00:00:00.000Z");
   assert.equal(j0.isRemote, false);
-  assert.equal(j0.jdText, ""); // filled by fetchJd
-  // "Remote" in the title flips isRemote.
+  assert.equal(j0.jdText, "");
   assert.equal(at(jobs, 1).isRemote, true);
 });
 

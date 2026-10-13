@@ -1,4 +1,3 @@
-// src/ats/sage.ts — Sage Group careers (sage.com); also carries ex-Fyle roles (Fyle was acquired by Sage, no separate board exists for them).
 // GET .../GetCareerSearchData/ returns the full global vacancy list with no pagination; India filtering happens client-side in the browser, replicated here.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -27,7 +26,6 @@ const SageResponseSchema = z.object({
   }),
 });
 
-/** Client-side India filter — the API itself always returns every country. */
 export function filterIndiaSage(records: SageRecord[]): SageRecord[] {
   return records.filter((r) => r.Country?.toLowerCase() === "india");
 }
@@ -56,5 +54,4 @@ export const sageAdapter: AtsAdapter = {
     const india = filterIndiaSage(parsed.vacancies.Records);
     return india.map((r) => normalizeSage(company, r));
   },
-  // Description is already plain text in the list response — no fetchJd needed.
 };

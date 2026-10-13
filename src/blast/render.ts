@@ -1,4 +1,4 @@
-// Variant rotation + company-mention personalization for blast emails; subject/opener text is per-profile, user-approved verbatim, in config/profiles/<profile>/blast-content.json (gitignored). Hard rule: no em dashes in outgoing mail.
+// Subject/opener text is per-profile, user-approved verbatim, in config/profiles/<profile>/blast-content.json (gitignored). Hard rule: no em dashes in outgoing mail.
 import { readFileSync } from "node:fs";
 import { z } from "zod";
 import type { JsonValue } from "../util/json.js";
@@ -6,21 +6,18 @@ import { JsonValueSchema } from "../util/json.js";
 
 const OpenerSchema = z.object({
   hello: z.string().min(1),
-  /** Sentence containing a literal "{company}" token. */
   withCompany: z.string().min(1),
   fallback: z.string().min(1),
 });
 export type Opener = z.infer<typeof OpenerSchema>;
 
 export const BlastContentSchema = z.object({
-  /** Attachment filename shown to recipients, e.g. "Test User Resume.pdf". */
   resumeFilename: z.string().min(1),
   subjects: z.array(z.string().min(1)).min(1),
   openers: z.array(OpenerSchema).min(1),
 });
 export type BlastContent = z.infer<typeof BlastContentSchema>;
 
-/** Load + validate a profile's outgoing-content config; throws on structural problems, a missing {company} token, or any em dash (banned in outgoing mail). */
 export function loadBlastContent(path: string): BlastContent {
   let parsed: JsonValue;
   try {
@@ -46,7 +43,6 @@ export function loadBlastContent(path: string): BlastContent {
   return content;
 }
 
-/** Sanity-gates a company cell before weaving it into a sentence; returns the cleaned name or null (use the fallback). */
 export function companyForMention(raw: string): string | null {
   const name = (raw.split("|")[0] ?? "").trim();
   if (name.length < 3 || name.length > 60) return null;
@@ -58,7 +54,6 @@ export function companyForMention(raw: string): string | null {
 }
 
 export interface BlastTemplate {
-  /** Body with {{greeting}} and {{opener}} tokens still in place. */
   body: string;
 }
 
@@ -83,14 +78,13 @@ export interface RenderInput {
   content: BlastContent;
   company: string;
   contactName: string | null;
-  /** Global 0-based index over every address ever drafted; drives rotation so subject x opener combos all appear before any repeats. */
+  /** Drives rotation so subject x opener combos all appear before any repeats. */
   rotationIndex: number;
 }
 
 export interface RenderedBlast {
   subject: string;
   bodyText: string;
-  /** e.g. "S2/O1", or "S2/O1-fallback" when the company failed the gate. */
   variant: string;
 }
 

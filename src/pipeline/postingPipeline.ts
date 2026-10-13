@@ -26,7 +26,6 @@ import { describeError, isInfrastructureFault } from "../util/errorCause.js";
 import type { Caught } from "../util/errorCause.js";
 import { parseStatedYoeMin } from "../filter/yoe.js";
 import type { RunContext } from "./index.js";
-// Type-only: the scheduler owns the policy and is this function's only production caller, so importing the shape back creates no runtime dependency on it.
 import type { TransportRetryPolicy } from "./scheduler.js";
 
 const MINUTE_MS = 60 * 1000;
@@ -43,7 +42,6 @@ interface PostingResultPatch {
 }
 
 function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatch, profileId: string): void {
-  // Mechanical (no-LLM), storage-only: skipped for no-jd/junk-jd writes (jdText empty); never affects verdict/filtering.
   const salary = posting.jdText ? extractSalary(posting.jdText) : null;
   updatePostingResult({
     provider: posting.provider,
@@ -63,7 +61,6 @@ function writePostingResult(posting: NormalizedPosting, patch: PostingResultPatc
   });
 }
 
-/** A posting dropped before or during LLM scoring: llmRelevant always 0, never notified. Shared shape for no-jd, gate-error, hard-deal-breaker, and silent drop stages. */
 export function droppedResult(
   llmReason: string,
   dropStage: string,
@@ -80,7 +77,6 @@ export function droppedResult(
   };
 }
 
-/** A posting that reached a verdict (green/yellow): deduped, notified, or attempted-and-failed. llmRelevant is 1 only for green. */
 export function verdictResult(
   severity: "green" | "yellow",
   llmReason: string,
@@ -98,7 +94,7 @@ export function verdictResult(
   };
 }
 
-/** Location verdict once the JD is fetched; a late-resolved `location` (e.g. ralphlauren, from the detail page) must still hit the strict metadata check, not the no-metadata fallback, or a foreign role could slip past. */
+/** A late-resolved `location` (e.g. ralphlauren detail page) must still hit the strict metadata check. */
 export function lateLocationCheck(posting: NormalizedPosting): LocationCheck {
   if (posting.location !== null && posting.location !== "") {
     return checkLocation(posting.location, posting.isRemote);
@@ -119,7 +115,6 @@ export async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  // A stored posting is final, except no-jd (recruiters add the JD later; weekly) and gate-error (a transient LLM failure; next run).
   const existing = getPostingJdState(posting.provider, posting.externalId, stats.profileId);
   const recheckStage = existing?.dropStage === "no-jd" || existing?.dropStage === "gate-error" ? existing.dropStage : null;
   const recheckDueBefore = new Date(
@@ -127,14 +122,12 @@ export async function processOnePosting(
   ).toISOString();
   if (existing && (recheckStage === null || existing.jdCheckedAt >= recheckDueBefore)) return;
 
-  // Cross-run dedup: skip re-listings (same company/title/location notified before) before spending gate + extract calls, since we'd only drop them at notify time.
   const dupKey = notifyKey(posting.companyName, posting.jobTitle, posting.location);
   if (stats.priorNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     return;
   }
 
-  // Title-deny before JD fetch so Workday/llm-scrape save the round trip.
   const titleCheck = checkTitle(posting.jobTitle);
   if (titleCheck.skip) {
     stats.postingsTitleDenied++;
@@ -147,7 +140,7 @@ export async function processOnePosting(
 
   if (!posting.jdText && adapter.fetchJd) {
     const fetchJd = adapter.fetchJd;
-    // Retry infrastructure failures: a JD lost to a network blip is skipped before insertPostingIfNew and only reappears next run; board-shaped errors (404/403/schema) are not retried - the host answered.
+    // Board-shaped errors (404/403/schema) are not retried: the host answered.
     let jdErr: Caught;
     for (let attempt = 0; attempt <= retry.retries; attempt++) {
       try {
@@ -171,16 +164,15 @@ export async function processOnePosting(
   }
 
   if (recheckStage !== null) {
-    // Stamped before the location check so a JD that now reveals a foreign location is still re-fetched only once per window.
+    // Stamped before the location check so a now-foreign JD is still re-fetched once per window.
     if (!claimRecheck(posting, stats.profileId, recheckStage, recheckDueBefore, new Date().toISOString())) return;
     if (recheckStage === "gate-error") stats.gateErrorRetried++;
     else stats.noJdRechecked++;
     if (!lateLocationCheck(posting).accept) return;
   } else {
-    // Late location filter: strict metadata if the adapter resolved a location during fetchJd, otherwise the title/JD/URL heuristic.
     if (!lateLocationCheck(posting).accept) return;
     const inserted = insertPostingIfNew(posting, stats.profileId);
-    if (!inserted) return; // race: another worker beat us; leave it for next tick
+    if (!inserted) return;
     stats.postingsNew++;
   }
 
@@ -189,7 +181,6 @@ export async function processOnePosting(
     return;
   }
 
-  // Non-empty but content-free (vendor placeholder, dots-only): same outcome as no-jd, but junk preserved in the reason for auditability.
   if (isJunkJd(posting.jdText)) {
     writePostingResult(
       posting,
@@ -204,7 +195,6 @@ export async function processOnePosting(
     logger.debug({ company: company.name, title: posting.jobTitle }, "no-jd recheck: JD now present, re-scoring");
   }
 
-  // Hard YOE deal-breaker, applied deterministically before a gate call. Only fires on an explicitly stated bar; ambiguous cases still reach the gate.
   const statedYoeMin = parseStatedYoeMin(posting.jdText);
   if (statedYoeMin !== null && statedYoeMin >= profile.filters.hardYoeCap) {
     stats.postingsYoeDenied++;
@@ -228,9 +218,7 @@ export async function processOnePosting(
       jdText: posting.jdText,
     });
   } catch (err) {
-    // Backend down (not a per-posting failure) - abort the whole run rather than storing thousands of postings as gate-errors.
     if (err instanceof LlmUnavailableError) throw err;
-    // Malformed model output even after the gate's retry: store as dropStage "gate-error" (auditable) without notifying anyone.
     logger.warn(
       { company: company.name, title: posting.jobTitle, err: describeError(err).slice(0, 120) },
       "gate-error → stored, not notified",
@@ -254,7 +242,7 @@ export async function processOnePosting(
     return;
   }
 
-  // Below the silent floor, skip extract entirely: it would be a wasted LLM call and would evict the gate prompt's KV prefix cache between gate calls.
+  // Extracting below the silent floor would waste a call and evict the gate prompt's prefix cache.
   let extractResult: ExtractResult | null = null;
   if (gateResult.matchScore >= (profile.filters.silentFloor ?? SILENT_SCORE_FLOOR)) {
     try {
@@ -280,7 +268,7 @@ export async function processOnePosting(
     return;
   }
 
-  // Within-run dedup: check-and-reserve is atomic here (no await between has() and add()), so two workers can't both record the same role.
+  // No await between has() and add(), so check-and-reserve is atomic across workers.
   if (stats.seenNotifyKeys.has(dupKey)) {
     stats.postingsDuplicated++;
     writePostingResult(

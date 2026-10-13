@@ -24,7 +24,6 @@ const ListParamsSchema = z.object({
   pagesize: z.number(),
 });
 
-// Live shapes confirmed from tatasteel.ripplehire.com and usource.ripplehire.com.
 const JOB_WITH_CODE: RipplehireJob = {
   jobSeq: "640521",
   jobId: "640521",
@@ -104,7 +103,7 @@ test("normalizeRipplehire maps fields from a live-shaped job", () => {
   assert.equal(p.jobUrl, "https://tatasteel.ripplehire.com/candidate/?token=DFwOOO2VFAGlqLQoae5h&source=CAREERSITE");
   assert.equal(p.location, "Jajpur");
   assert.equal(p.isRemote, false);
-  assert.equal(p.jdText, ""); // JD populated by fetchJd
+  assert.equal(p.jdText, "");
   assert.equal(p.postedAt, null);
 });
 

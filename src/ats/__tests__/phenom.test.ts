@@ -46,12 +46,10 @@ test("normalizePhenom maps fields", () => {
   assert.equal(p.jobTitle, "Business Development Manager");
   assert.equal(p.location, "Mumbai, Maharashtra, India");
   assert.equal(p.jobUrl, "https://www.jobs.abbott/us/en/job/31146766/x");
-  // The teaser is NOT inlined; fetchJd pulls the full JD from the job page.
   assert.equal(p.jdText, "");
 });
 
 test("normalizePhenom builds the canonical job page when applyUrl is absent or empty", () => {
-  // A widgets response can carry applyUrl: ""; the old `applyUrl ?? tenantUrl` fallback used to link those to the search-results page.
   const noApply = PhenomJobSchema.parse({ jobId: "P-183145", title: "Cluster Manager" });
   assert.equal(
     normalizePhenom(company, noApply).jobUrl,
@@ -93,7 +91,6 @@ test("phenomTenantHasLocale requires the two-segment locale prefix", () => {
   assert.ok(phenomTenantHasLocale("https://careers.godrejindustries.com/in/en/search-results"));
   assert.ok(phenomTenantHasLocale("https://www.jobs.abbott/us/en/search-results?qcountry=India"));
   assert.ok(phenomTenantHasLocale("https://careers.abb/global/en/search-results"));
-  // Invalid: a bare host or a host with only one path segment; phenomJobPageUrl would emit a locale-less URL with no jobDetail ddo.
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com"), false);
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/"), false);
   assert.equal(phenomTenantHasLocale("https://careers.godrejindustries.com/in"), false);
@@ -112,7 +109,6 @@ test("listPostings rejects a locale-less tenant_url before fetching anything", a
     () => phenomAdapter.listPostings(company),
     (err) => {
       const msg = String(err);
-      // One actionable config error, not a board full of JD failures.
       assert.match(msg, /missing the \/<country>\/<lang> locale segment/);
       assert.match(msg, /godrej-agrovet/);
       return true;
@@ -136,12 +132,10 @@ test("phenomWidgetsBody paginates and filters to India server-side", () => {
   assert.equal(body["from"], 100);
   assert.equal(body["size"], 50);
   assert.equal(body["ddoKey"], "refineSearch");
-  // The India facet is the whole point: DHL is 8027 jobs globally, 337 in India.
   assert.deepEqual(body["selected_fields"], { country: ["India"] });
 });
 
 test("phenomJobsFrom reads the widget XHR response shape, not just the eager ddo", () => {
-  // Live shape from careers.dhl.com/widgets: {refineSearch:{totalHits, data:{jobs}}}
   const widgetResponse = {
     refineSearch: {
       status: 200,
@@ -152,13 +146,11 @@ test("phenomJobsFrom reads the widget XHR response shape, not just the eager ddo
   const { jobs, totalHits } = phenomJobsFrom(widgetResponse);
   assert.equal(totalHits, 337);
   assert.equal(jobs.length, 1);
-  // and the same parser still handles the server-rendered eager shape
   const eager = { eagerLoadRefineSearch: { totalHits: 5, data: { jobs: [{ jobId: "x", title: "T" }] } } };
   assert.equal(phenomJobsFrom(eager).totalHits, 5);
 });
 
 test("phenomJobDescriptionFrom returns empty for a live job published with no description", () => {
-  // Live shape: IDFC FIRST / Titan CRM-sourced reqs carry the job object but description "" (the listing teaser is empty too).
   const blank = extractPhenomDdo(`<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-230420","title":"Banker","description":""}}}};</script>`);
   assert.equal(phenomJobDescriptionFrom(blank), "");
   const missing = extractPhenomDdo(`<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-104278","title":"GET"}}}};</script>`);
@@ -179,7 +171,6 @@ const idfcPosting = {
 };
 
 test("fetchJd returns an empty JD (stored as no-jd, rechecked weekly) when the job is published without one", async (t) => {
-  // The ddo is followed by more phApp statements, not </script>, so the anchored island regex must fall back.
   stubFetch(t, fetchSequence(() => htmlResponse(
     `<script>phApp.ddo = {"jobDetail":{"status":200,"hits":1,"data":{"job":{"jobId":"P-230420","description":""}}}}; phApp.sessionParams = {"a":1}; /*--&gt;*/</script>`,
   )));
@@ -212,7 +203,7 @@ test("fetchJd reports a page with no ddo island as a template problem", async (t
 });
 
 test("listPostings fails loudly when a large board has zero India jobs instead of yielding an empty board", async (t) => {
-  // Lowe's: talent.lowes.com/us/en is the US store board (4442 jobs, none in India); India lives on the /in/en site.
+  // talent.lowes.com/us/en is the US store board; India lives on /in/en.
   const lowes: AdapterCompany = {
     provider: "phenom", slug: "lowes", name: "Lowe's India",
     careersUrl: "https://talent.lowes.com/us/en/search-results",

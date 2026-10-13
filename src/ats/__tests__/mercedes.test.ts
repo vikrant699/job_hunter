@@ -24,7 +24,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Real fixture (trimmed) from jobs.api.mercedes-benz.com/search filtered to PositionLocation.Country=390 (India).
 const descriptor: MercedesDescriptor = {
   PositionID: "mer00044ty",
   PositionTitle: "Senior Program Manager -IT Validation Solutions",
@@ -79,7 +78,7 @@ test("normalizeMercedes: unparseable PublicationStartDate maps to null", () => {
   assert.equal(p.postedAt, null);
 });
 
-// Real fixture from the public job page's Nuxt JSON-LD island - the reason fetchJd scrapes the page since the search API never returns the description.
+// The search API never returns the description; fetchJd scrapes the page's Nuxt JSON-LD island.
 const jobPageHtml = `
 <html><head>
 <script>window.__NUXT__={config:{}}</script>

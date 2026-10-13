@@ -11,7 +11,6 @@ import { BROWSER_UA } from "../util/userAgent.js";
 import { logger } from "../logger.js";
 import { describeError } from "../util/errorCause.js";
 
-// Eager-load boards at/above this size get the India-filtered widgets probe instead of a full walk.
 const WIDGETS_PREFER_THRESHOLD = 600;
 const PAGE = 50;
 
@@ -37,7 +36,6 @@ export function extractPhenomDdo(html: string): JsonValue | null {
   return tryParseJson(raw);
 }
 
-// The locale prefix is the first two path segments of the tenant's search URL.
 // This page carries the FULL description in its own phApp.ddo island — the search ddo only has a ~300-char teaser.
 export function phenomJobPageUrl(tenantUrl: string, jobId: string): string {
   const u = new URL(tenantUrl);
@@ -89,14 +87,12 @@ export function normalizePhenom(company: AdapterCompany, j: PhenomJob): Normaliz
     jobUrl: (j.applyUrl !== null && j.applyUrl !== undefined && j.applyUrl !== "" ? j.applyUrl : null) ?? jobPage ?? company.careersUrl,
     location,
     isRemote: location ? REMOTE_RE.test(location) : false,
-    // Left empty: the search ddo only carries a ~300-char teaser. fetchJd pulls the full JD.
     jdText: "",
     postedAt: j.postedDate ?? j.dateCreated ?? null,
   };
 }
 
-// Phenom's widget XHR is the search API the SPA itself calls; some tenants ship an empty eagerLoadRefineSearch and load every job through this endpoint instead, so scraping their HTML yields nothing.
-// `country: ["India"]` filters server-side, avoiding a fetch of the full global board.
+// Phenom's widget XHR is the SPA's own search API; some tenants ship an empty eagerLoadRefineSearch and load every job through it, so HTML scraping yields nothing.
 export function phenomWidgetsUrl(tenantUrl: string): string {
   const u = new URL(tenantUrl);
   return `${u.protocol}//${u.host}/widgets`;
@@ -165,7 +161,6 @@ export const phenomAdapter: AtsAdapter = {
     const fetchWidgetsPage = async (from: number): Promise<{ jobs: JsonValue[]; totalHits: number }> =>
       fetchWidgetsPage2(from, true);
 
-    // Decided once on page 0 (tenants whose eager-load is empty serve jobs only from the widget XHR).
     let useWidgets = false;
 
     return paginate<NormalizedPosting>({
@@ -192,7 +187,6 @@ export const phenomAdapter: AtsAdapter = {
         }
         const { jobs, totalHits } = phenomJobsFrom(ddo);
 
-        // Empty eager-load on page 0 means this tenant renders client-side — switch to the widget API.
         if (page === 0 && jobs.length === 0) {
           const widget = await fetchWidgetsPage(from);
           if (widget.jobs.length > 0) {
@@ -205,7 +199,6 @@ export const phenomAdapter: AtsAdapter = {
           }
         }
 
-        // Large global board: prefer the India-filtered widget XHR over walking thousands of eager-load pages.
         // A zero-hit India answer is trusted only once the unfiltered widget call confirms the endpoint is live for this tenant; otherwise fall back to the full eager-load walk.
         if (page === 0 && totalHits >= WIDGETS_PREFER_THRESHOLD) {
           let indialess = false;

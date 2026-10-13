@@ -25,7 +25,6 @@ const ListResponseSchema = z.object({
   reqDetailsBOList: z.array(MyNextHireJobSchema).nullable().optional(),
 });
 
-// Tenant host origin, e.g. "https://swiggy.mynexthire.com".
 export function mynexthireBase(company: AdapterCompany): string {
   return tenantOriginOr(company, (slug) => `https://${slug}.mynexthire.com`);
 }

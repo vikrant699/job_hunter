@@ -15,7 +15,6 @@ const company: AdapterCompany = {
   careersUrl: "https://www.comeet.com/jobs/algosec/71.006", tenantUrl: null, apiMeta: null,
 };
 
-// Position shapes captured from the live AlgoSec board.
 const positions = [
   {
     name: "Backend Developer, India",
@@ -70,7 +69,6 @@ const boardHtml = `<html><head><script>
        POSITION_DATA = null;
 </script></head><body></body></html>`;
 
-// Position detail page: same object shape under POSITION_DATA (board array is null).
 const positionHtml = `<html><head><script>
        var COMPANY_POSITIONS_DATA ;
        COMPANY_POSITIONS_DATA = null;
@@ -104,7 +102,6 @@ test("comeetLocationString composes city + name, skipping a name the city alread
     comeetLocationString({ name: "India", country: "IN", city: "New Delhi", state: "India", is_remote: false }),
     "New Delhi, India",
   );
-  // name repeats the city -> city alone
   assert.equal(
     comeetLocationString({ name: "New Delhi", country: "IN", city: "New Delhi", is_remote: false }),
     "New Delhi",

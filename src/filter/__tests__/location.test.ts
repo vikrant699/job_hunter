@@ -24,7 +24,6 @@ test("checkLocation rejects on an explicit reject phrase", () => {
 });
 
 test("checkLocation accepts a multi-location posting when an in-region city is also listed", () => {
-  // foreign + in-region in the same metadata field → in-region wins (recall guard)
   assert.equal(checkLocation("Bengaluru, India; Seattle, WA", false, cfg).accept, true);
   assert.equal(checkLocation("Sydney, Australia | Pune, India", false, cfg).accept, true);
 });
@@ -65,7 +64,6 @@ test("checkLocationFromText is recall-safe: a foreign HQ mention in the JD body 
 });
 
 test("checkLocationFromText accepts a dual-location title when an in-region city is also named", () => {
-  // foreign + in-region in the same title → in-region wins (recall guard)
   const r = checkLocationFromText("Senior Data Analyst, Singapore / Bangalore", "", cfg);
   assert.equal(r.accept, true);
 });
@@ -82,7 +80,6 @@ test("checkLocationFromText rejects an explicit reject phrase in the JD body", (
 
 test("checkLocationFromText tolerates a missing rejectRegions field", () => {
   const noRegions: LocationConfig = { ...cfg, rejectRegions: undefined };
-  // Sydney in title but no rejectRegions configured → falls through to defer (no crash)
   assert.equal(checkLocationFromText("Data Scientist Sydney", "", noRegions).accept, true);
 });
 

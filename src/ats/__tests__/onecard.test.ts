@@ -13,7 +13,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Reverse-engineered from fplabs.tech's inline job-card script (Strapi-v4-style); not a captured real record since no job was live at capture time.
 const job: OnecardJob = {
   id: 7,
   attributes: {

@@ -15,7 +15,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Escapes a string the way Zoho serializes the hidden-input value attribute (& first so it isn't double-hit).
 function attrEscape(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -51,7 +50,6 @@ const remoteJob = {
   Publish: true,
 };
 
-// Wraps a jobs array in a realistic careers page: junk around the island plus sibling hidden inputs (moduleMeta before, portal config after).
 function pageWith(jobs: ReadonlyArray<Record<string, boolean | string>>): string {
   const meta = attrEscape('[{"api_name":"Posting_Title","field_label":"Posting Title"}]');
   const cfg = attrEscape('{"source":"CareerSite","org_info":{"company_name":"Acowale"}}');
@@ -69,7 +67,7 @@ function pageWith(jobs: ReadonlyArray<Record<string, boolean | string>>): string
 test("extractJobsIsland finds the id=\"jobs\" input among sibling islands", () => {
   const raw = extractJobsIsland(pageWith([fullJob, remoteJob]));
   assert.ok(raw !== null);
-  assert.match(raw, /^\[\{&#34;/); // still entity-escaped at this point
+  assert.match(raw, /^\[\{&#34;/);
 });
 
 test("extractJobsIsland skips raw id=\"jobs\" literals in earlier page content", () => {
@@ -99,7 +97,6 @@ test("parseJobsIsland decodes, JSON-parses, and zod-validates the jobs array", (
   const job0 = at(jobs, 0);
   assert.equal(job0.Posting_Title, "Frontend Developer");
   assert.equal(job0.id, "196319000004222912");
-  // The JD survives both unescaping layers: attribute entities -> JSON string -> HTML (left intact here; normalize strips it).
   assert.ok(job0.Job_Description);
   assert.match(job0.Job_Description, /<p>Build UIs with React &amp; TypeScript\./);
   assert.equal(at(jobs, 1).Remote_Job, true);
@@ -113,7 +110,6 @@ test("parseJobsIsland throws an actionable error on non-JSON garbage", () => {
 });
 
 test("parseJobsIsland throws an actionable error when the shape is wrong", () => {
-  // id must be a string; a numeric id means Zoho changed the serialization.
   const bad = attrEscape(JSON.stringify([{ Posting_Title: "X", id: 42 }]));
   assert.throws(
     () => parseJobsIsland(bad, "acowale"),
@@ -140,12 +136,11 @@ test("postingsFromZohoHtml maps fields onto NormalizedPosting", () => {
   assert.equal(p.location, "Bangalore South, Karnataka, India");
   assert.equal(p.isRemote, false);
   assert.equal(p.postedAt, "2026-06-29");
-  // JD is plain text: HTML stripped, inner entities decoded.
   assert.match(p.jdText, /Build UIs with React & TypeScript\. "Pixel-perfect" work\./);
   assert.doesNotMatch(p.jdText, /<p>/);
 
   assert.equal(r.isRemote, true);
-  assert.equal(r.location, null); // no City/State/Country on the fixture
+  assert.equal(r.location, null);
   assert.equal(r.postedAt, null);
   assert.equal(
     r.jobUrl,
@@ -183,7 +178,7 @@ test("extractZohoDetailJd decodes the hex-escaped detail blob into JD HTML", () 
   // Build the raw page bytes explicitly: Q is the blob's quote token, IQ an inner escaped quote - exactly what live detail pages serve.
   const Q = "\\" + "x22";
   const IQ = "\\" + Q;
-  const U = "\\" + "u2013"; // an en dash as a unicode escape
+  const U = "\\" + "u2013";
   const page =
     'junk {"layout":[{"api_name":"Job_Description","data_type":"richtext"}]} more ' +
     `${Q}City${Q}:${Q}Chennai${Q},${Q}Job_Description${Q}:${Q}<span id=${IQ}spandesc${IQ}><li>Recover dues.<br/><\\/li><li>Follow\\-ups ${U} daily.<\\/li><\\/span>${Q},${Q}Job_Type${Q}:${Q}Full time${Q}`;

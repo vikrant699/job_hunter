@@ -74,7 +74,7 @@ const upsertCompanyStmt = db.prepare(`
     tenant_url       = excluded.tenant_url,
     api_meta         = excluded.api_meta
 `);
-// Not updated on conflict: discovered_via/discovered_at (frozen at first discovery); broken/dormant status (a re-import alone doesn't prove recovery).
+// Not updated on conflict: discovered_via/discovered_at, and broken/dormant status (a re-import alone doesn't prove recovery).
 
 interface UpsertCompanyRow {
   [key: string]: SQLInputValue;
@@ -102,7 +102,6 @@ const selectActiveCompaniesStmt = db.prepare(`
   ORDER BY provider, slug
 `);
 
-/** Dormant companies are rechecked weekly rather than every run. */
 const DORMANT_RECHECK_DAYS = 7;
 
 export function selectActiveCompanies(): Company[] {
@@ -122,7 +121,6 @@ const deleteCompanyStmt = db.prepare(`
   DELETE FROM companies WHERE provider = :provider AND slug = :slug
 `);
 
-/** Removes a company row; used by registry sync to prune rows no longer in the source-of-truth JSON. */
 export function deleteCompany(provider: Provider, slug: string): void {
   deleteCompanyStmt.run({ provider, slug });
 }
@@ -156,7 +154,7 @@ export function markFetchSuccess(
   });
 }
 
-// `consecutive_failures` in the CASE reads the pre-update value, so `+ 1 >= 5` flips to broken on the same failure that writes the counter as 5.
+// consecutive_failures reads the pre-update value, so `+ 1 >= 5` flips to broken on the failure that writes 5.
 const markFetchFailureStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at      = :now,
@@ -182,7 +180,7 @@ export function markFetchFailure(
   });
 }
 
-// Deliberately leaves consecutive_failures and status ALONE; only the diagnostic columns are written.
+// Deliberately leaves consecutive_failures and status alone.
 const markTransportFailureStmt = db.prepare(`
   UPDATE companies SET
     last_fetched_at = :now,
@@ -190,7 +188,7 @@ const markTransportFailureStmt = db.prepare(`
   WHERE provider = :provider AND slug = :slug
 `);
 
-/** Records a transport-layer failure (DNS/socket death) without advancing the consecutive-failure counter that quarantines a board at 5 - a board that never answered told us nothing about its own health. */
+/** Transport failures (DNS/socket death) don't advance the quarantine counter: a board that never answered told us nothing. */
 export function markTransportFailure(
   provider: Provider,
   slug: string,
@@ -209,7 +207,7 @@ const updateParsingStrategyStmt = db.prepare(`
   WHERE provider = :provider AND slug = :slug
 `);
 
-/** Runtime strategy flip; pair with updateRegistryStrategy, since the registry file re-syncs over this column. */
+/** Pair with updateRegistryStrategy; the registry file re-syncs over this column. */
 export function updateParsingStrategy(provider: Provider, slug: string, strategy: ParsingStrategy): void {
   updateParsingStrategyStmt.run({ provider, slug, strategy });
 }
@@ -218,7 +216,6 @@ const markUrlSuspectStmt = db.prepare(`
   UPDATE companies SET url_suspect = 1 WHERE provider = :provider AND slug = :slug
 `);
 
-/** Page fetched OK but doesn't look like a careers page — flags it for manual repair. */
 export function markUrlSuspect(provider: Provider, slug: string): void {
   markUrlSuspectStmt.run({ provider, slug });
 }
@@ -230,7 +227,7 @@ const applyDormancyStmt = db.prepare(`
     AND zero_yield_streak >= :minStreak
 `);
 
-/** Parks scrape companies (ats-api is exempt - too cheap to bother) with zero postings for `minStreak` consecutive clean runs; they re-enter the weekly recheck and wake instantly on jobs. */
+/** ats-api companies are exempt: too cheap to bother parking. */
 export function applyDormancy(minStreak: number = 3): number {
   const result = applyDormancyStmt.run({ minStreak });
   return Number(result.changes);

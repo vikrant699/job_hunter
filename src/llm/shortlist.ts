@@ -13,7 +13,6 @@ const ShortlistItemSchema = z.object({
   title: z.string().optional(),
 });
 
-/** Tolerant top-level shape - fails only when there's no `jobs` array; items validated per-element. */
 const JobsArraySchema = z.object({ jobs: z.array(JsonValueSchema) });
 
 export interface ShortlistItem {
@@ -35,7 +34,6 @@ function formatLinksList(candidates: CandidateLink[]): string {
     .join("\n");
 }
 
-/** Drops malformed items and hallucinated URLs, fills empty titles from anchor text, de-dupes by URL. */
 export function selectShortlistItems(rawJobs: JsonValue[], candidates: CandidateLink[]): ShortlistItem[] {
   const anchorByUrl = new Map(
     candidates.map((c) => [c.url, c.text.trim().replace(/\s+/g, " ")]),
@@ -56,7 +54,6 @@ export function selectShortlistItems(rawJobs: JsonValue[], candidates: Candidate
   return out;
 }
 
-/** Pick which cheerio-scraped links are actual job postings; only returns URLs from the input. */
 export async function runShortlist(input: RunShortlistInput): Promise<ShortlistItem[]> {
   if (input.candidates.length === 0) return [];
 

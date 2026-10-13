@@ -13,7 +13,7 @@ import {
 import type { Caught } from "../errorCause.js";
 import { thrownBy } from "../../__tests__/caught.js";
 
-/** The exact shape undici produces for a DNS failure inside fetch(). */
+/** The shape undici produces for a DNS failure inside fetch(). */
 function undiciDnsFailure(): Error {
   const cause = new Error("getaddrinfo ENOTFOUND nvidia.wd5.myworkdayjobs.com");
   Object.assign(cause, { code: "ENOTFOUND" });
@@ -22,7 +22,6 @@ function undiciDnsFailure(): Error {
 
 test("describeError keeps the cause that String(err) throws away", () => {
   const err = undiciDnsFailure();
-  // The regression this guards: String(err) is the useless 23-char form.
   assert.equal(String(err), "TypeError: fetch failed");
   const described = describeError(err);
   assert.match(described, /TypeError: fetch failed/);
@@ -45,7 +44,7 @@ test("describeError handles a plain error, a non-error and a cycle", () => {
   assert.equal(describeError(new Error("boom")), "Error: boom");
   assert.equal(describeError("just a string"), "just a string");
   const a = new Error("a");
-  Object.assign(a, { cause: a }); // self-referential cause must not hang
+  Object.assign(a, { cause: a });
   assert.equal(describeError(a), "Error: a");
 });
 
@@ -62,12 +61,10 @@ test("isTransportError is true for common outage signatures", () => {
   const again = new Error("getaddrinfo EAI_AGAIN host");
   Object.assign(again, { code: "EAI_AGAIN" });
   assert.ok(isTransportError(again));
-  // bare TypeError with no cause still reads as transport (message match)
   assert.ok(isTransportError(new TypeError("fetch failed")));
 });
 
 test("isTransportError is false for board-shaped failures", () => {
-  // These came FROM the board, so they are genuinely per-company and must still count toward quarantine.
   assert.equal(isTransportError(new Error("greenhouse 404")), false);
   assert.equal(isTransportError(new Error("workday HTTP 403: permission denied")), false);
   assert.equal(isTransportError(new Error("gohire HTTP 429: limit exceeded")), false);
@@ -76,14 +73,12 @@ test("isTransportError is false for board-shaped failures", () => {
   assert.equal(isTransportError(new SyntaxError("Unexpected token '<'")), false);
 });
 
-/** Whatever this Node's V8 phrases a JSON.parse failure as, so the classifier is tested against the live message rather than a copy of it. */
 function jsonParseFailure(body: string): Caught {
   return thrownBy(() => {
     JSON.parse(body);
   });
 }
 
-/** V8's phrasing when a JSON.parse hits an HTML document. */
 const RUN_31_MESSAGE = `Unexpected token '<', "<!DOCTYPE "... is not valid JSON`;
 
 test("isEdgeInterstitialError catches the HTML-for-JSON signature", () => {
@@ -104,9 +99,7 @@ test("isEdgeInterstitialError sees through an adapter that wraps the parse error
 });
 
 test("isEdgeInterstitialError is false for failures the board really produced", () => {
-  // Malformed but JSON-shaped: the board's application answered, badly.
   assert.equal(isEdgeInterstitialError(jsonParseFailure("xnot json")), false);
-  // Truncated body — also the board, so it must keep counting toward quarantine.
   assert.equal(isEdgeInterstitialError(jsonParseFailure('{"jobs":')), false);
   assert.equal(isEdgeInterstitialError(new Error("Unexpected end of JSON input")), false);
   assert.equal(isEdgeInterstitialError(new Error("workday HTTP 404")), false);
@@ -116,50 +109,39 @@ test("isEdgeInterstitialError is false for failures the board really produced", 
     ),
     false,
   );
-  // An HTTP status error whose body snippet happens to be HTML is still an HTTP status error — no JSON parse was attempted, so the tag alone proves nothing.
   assert.equal(isEdgeInterstitialError(new Error("workday HTTP 520: <!DOCTYPE html>")), false);
 });
 
 test("isTransportError is true for an AbortSignal.timeout TimeoutError", () => {
-  // A timeout under run congestion says nothing about the board itself, so it must be retryable and never quarantine-chargeable.
   const timedOut = new DOMException("The operation was aborted due to timeout", "TimeoutError");
   assert.ok(isTransportError(timedOut));
   assert.ok(isInfrastructureFault(timedOut));
-  // Wrapped by an adapter, as the real ones do.
   assert.ok(isTransportError(new Error("recruitee list fetch failed", { cause: timedOut })));
-  // A rethrow that kept only the message text still classifies.
   assert.ok(isTransportError(new Error("TimeoutError: The operation was aborted due to timeout")));
 });
 
 test("isEdgeInterstitialError treats HTTP 406/429 as the edge throttling, not the board", () => {
-  // 406 (bare nginx page) and 429 (explicit rate limit) are the edge refusing the moment, not the board being dead.
   assert.ok(
     isEdgeInterstitialError(
       new Error("avature HTTP 406: <html>\r\n<head><title>406 Not Acceptable</title></head>"),
     ),
   );
   assert.ok(isEdgeInterstitialError(new Error("eightfoldpcs HTTP 429: Please try again later")));
-  // Still not transport-shaped — the predicates stay disjoint.
   assert.equal(isTransportError(new Error("eightfoldpcs HTTP 429: Please try again later")), false);
-  // Neighbouring statuses stay board defects.
   assert.equal(isEdgeInterstitialError(new Error("workday HTTP 422: {\"errorCode\":\"x\"}")), false);
   assert.equal(isEdgeInterstitialError(new Error("onecard HTTP 500: upstream broke")), false);
 });
 
 test("the two infrastructure predicates stay disjoint", () => {
-  // A DNS death is transport-shaped, and must not be what the new predicate catches.
   assert.equal(isEdgeInterstitialError(undiciDnsFailure()), false);
   assert.ok(isTransportError(undiciDnsFailure()));
-  // An interstitial arrives over a healthy socket (HTTP 200), so it is not transport.
   assert.equal(isTransportError(jsonParseFailure("<!DOCTYPE html>")), false);
 });
 
-/** The union of the two is what every caller actually wants to route on, so it lives here rather than being re-derived per call site. */
 test("isInfrastructureFault covers both shapes the board is not to blame for", () => {
   assert.ok(isInfrastructureFault(undiciDnsFailure()));
   assert.ok(isInfrastructureFault(new SyntaxError(RUN_31_MESSAGE)));
   assert.ok(isInfrastructureFault(jsonParseFailure("<!DOCTYPE html><html></html>")));
-  // Wrapped by an adapter, as the real ones do.
   assert.ok(
     isInfrastructureFault(
       new Error("workday list fetch failed", { cause: new SyntaxError(RUN_31_MESSAGE) }),
@@ -171,14 +153,10 @@ test("isInfrastructureFault is false for board defects, which must still count",
   assert.equal(isInfrastructureFault(new Error("greenhouse 404")), false);
   assert.equal(isInfrastructureFault(new Error("workday HTTP 403: permission denied")), false);
   assert.equal(isInfrastructureFault(new Error("oracle requires apiMeta.siteNumber")), false);
-  // Malformed but JSON-shaped, and truncated: the board's application answered.
   assert.equal(isInfrastructureFault(jsonParseFailure("xnot json")), false);
   assert.equal(isInfrastructureFault(jsonParseFailure('{"jobs":')), false);
 });
 
-// The JSON-parse rule above cannot see these: an HTML adapter never parses JSON, so a WAF page reaches its dead-tenant guard as ordinary markup with no job rows or engine fingerprint.
-
-/** Bodies shaped like the block pages this repo's boards actually sit behind, trimmed to the marker plus enough chrome to stay recognisable. */
 const INCAPSULA_BODY =
   `<html><head><title>Request unsuccessful. Incapsula incident ID: ` +
   `489000670129277600-30177459283132412</title></head><body></body></html>`;
@@ -200,7 +178,7 @@ const AKAMAI_BODY =
 const AWS_WAF_BODY =
   `<!DOCTYPE html><html><head><script src="https://de0c4f5c.token.awswaf.com/de0c4f5c/` +
   `challenge.js"></script></head><body><div id="challenge-container"></div></body></html>`;
-// A CloudFront edge 403 page (the stored 200-char snippet truncates at `<TITLE>ERROR`, this template's third line).
+// CloudFront edge 403 page; the stored 200-char snippet truncates at `<TITLE>ERROR`.
 const CLOUDFRONT_BODY =
   `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n` +
   `<HTML><HEAD><META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">\n` +
@@ -225,35 +203,28 @@ test("looksLikeChallengePage recognises every block page the boards sit behind",
   }
 });
 
-/** Pages that must not read as a challenge, or a genuine board defect would become an un-chargeable fault and never quarantine. */
 test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
-  // A live Radancy search page with nothing matching today.
   assert.equal(
     looksLikeChallengePage(
       `<section id="search-results" data-total-pages="0" data-total-results="0"></section>`,
     ),
     false,
   );
-  // "Reference #" is how boards label requisition ids, so it can never fire alone.
   assert.equal(
     looksLikeChallengePage(`<li class="job"><span>Reference #18274</span>Data Engineer</li>`),
     false,
   );
-  // Employers really do run coding challenges, and "challenge-container" is an ordinary CSS class name.
   assert.equal(
     looksLikeChallengePage(`<div class="challenge-container">Take our coding challenge</div>`),
     false,
   );
-  // An SPA shell's own noscript / loading copy is not a bot block.
   assert.equal(
     looksLikeChallengePage(`<noscript>Please enable JavaScript to view this site</noscript>`),
     false,
   );
   assert.equal(looksLikeChallengePage(`<div class="spinner">Just a moment...</div>`), false);
-  // A bare 403 body, and an application-form validation string.
   assert.equal(looksLikeChallengePage(`{"error":"Access Denied"}`), false);
   assert.equal(looksLikeChallengePage(`<p>Request unsuccessful, please try again.</p>`), false);
-  // Careers pages routinely serve assets from a CloudFront distribution; the CDN's hostname alone must never read as its block page.
   assert.equal(
     looksLikeChallengePage(
       `<html><head><script src="https://d1a2b3c4.cloudfront.net/bundle.js"></script></head>` +
@@ -267,10 +238,8 @@ test("looksLikeChallengePage stays quiet on ordinary careers markup", () => {
 test("challengeEvidence quotes every marker it matched, so the quote re-classifies", () => {
   const evidence = challengeEvidence(AKAMAI_BODY);
   assert.ok(evidence !== null);
-  // Both halves of a paired marker have to survive into the quote, or an error built from it would no longer satisfy the pair when re-scanned.
   assert.match(evidence, /Access Denied/i);
   assert.match(evidence, /permission to access/i);
-  // Quoting the evidence is itself the bounded snippet — no document travels with the error into last_error or the Discord summary.
   assert.ok(evidence.length <= 200, `evidence must stay short, got ${evidence.length}`);
   assert.equal(challengeEvidence(`<section data-total-results="0"></section>`), null);
 });
@@ -284,7 +253,6 @@ test("isEdgeInterstitialError catches a challenge page carried in the error text
 });
 
 test("an HTTP status error whose body is a challenge page is the edge, not the board", () => {
-  // atsHttpError embeds a 200-char body snippet, so this arrives for free: a 403 carrying Cloudflare's block page is an edge refusing us, not a broken board.
   assert.ok(
     isInfrastructureFault(
       new Error(`radancy HTTP 403: ${CLOUDFLARE_BLOCK_BODY.slice(0, 200)}`),
@@ -296,10 +264,8 @@ test("assertNotEdgeChallenge throws an infrastructure-shaped error, or nothing",
   for (const [vendor, body] of CHALLENGE_BODIES) {
     const thrown = thrownBy(() => assertNotEdgeChallenge("radancy", "https://careers.amgen.com/search-jobs", body));
     assert.ok(thrown instanceof Error, `${vendor} must be rejected`);
-    // The round trip is the whole mechanism: whatever the guard throws has to be classifiable by the predicate the scheduler routes on.
     assert.ok(isInfrastructureFault(thrown), `${vendor} error must classify as infrastructure`);
     assert.match(thrown.message, /careers\.amgen\.com/);
-    // A page must never travel with the error — last_error goes to the DB and Discord.
     assert.ok(thrown.message.length <= 400, `message must stay bounded, got ${thrown.message.length}`);
     assert.ok(!thrown.message.includes("<!DOCTYPE"), "no raw document in the stored error");
   }
@@ -315,7 +281,6 @@ test("assertNotEdgeChallenge lets ordinary markup through untouched", () => {
   );
 });
 
-/** The amnesty must stay narrow: a genuinely gone board still has to reach consecutive_failures, even when a dead-tenant guard's own wording describes a block page without being one. */
 test("a dead-board verdict with no challenge markers is still a board defect", () => {
   assert.equal(
     isInfrastructureFault(
@@ -349,7 +314,6 @@ test("a dead-board verdict with no challenge markers is still a board defect", (
 });
 
 test("isTransportError is false for a TLS certificate the host itself serves wrong", () => {
-  // A bad/unrepairable certificate is the host's persistent config, so it must count toward quarantine instead of being deferred forever as a network blip.
   for (const code of ["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "ERR_TLS_CERT_ALTNAME_INVALID"]) {
     const cause = new Error(`cert problem ${code}`);
     Object.assign(cause, { code });

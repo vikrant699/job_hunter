@@ -11,7 +11,6 @@ function rolesCell(roles: RoleEntry[]): string {
   return roles.map((r) => `${r.title} — ${r.jobUrl}`).join("\n");
 }
 
-/** Highest-severity role (green beats yellow), then highest score within that tier; null for an empty roles list. */
 function maxSeverityRole(roles: RoleEntry[]): RoleEntry | null {
   if (roles.length === 0) return null;
   return roles.reduce((best, r) => {
@@ -83,9 +82,7 @@ function undraftedRow(row: UndraftedRow): string[] {
   ];
 }
 
-/** profileId only picks which credentials make the API calls, not which rows are included. */
 export async function projectToSheet(profileId: string, runId?: number | null, deps: SheetSyncDeps = defaultDeps()): Promise<void> {
-  // Drafts/Sent are full-rewritten across all profiles.
   const drafts = selectOutreachByStatus("draft").map(draftRow);
   await deps.rewriteTab(profileId, config.google.tabs.drafts, [...DRAFTS_HEADER], drafts);
 
@@ -93,7 +90,7 @@ export async function projectToSheet(profileId: string, runId?: number | null, d
   await deps.rewriteTab(profileId, config.google.tabs.sent, [...SENT_HEADER], sent);
 
   if (runId !== undefined && runId !== null) {
-    // Undrafted is append-only, scoped by runId (never calendar date), since append never dedups.
+    // Undrafted is append-only, scoped by runId (never date), since append never dedups.
     const undrafted = selectUndraftedByRun(runId).map(undraftedRow);
     if (undrafted.length > 0) {
       await deps.appendRows(profileId, config.google.tabs.undrafted, undrafted);

@@ -1,4 +1,4 @@
-// Minimal Drive client for syncing the SQLite file between machines (drive.file scope: app-created files only); doesn't reuse googleFetchJson since that always JSON-encodes/parses and these calls move ~50 MB of binary.
+// Doesn't reuse googleFetchJson: it always JSON-encodes/parses and these calls move ~50 MB of binary.
 import { z } from "zod";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -23,12 +23,12 @@ export type DriveFileMeta = z.infer<typeof FileMetaSchema>;
 
 const FileListSchema = z.object({ files: z.array(FileMetaSchema).default([]) });
 
-// Drive returns only a default field set unless `fields` asks for more, so the upload response has no modifiedTime/size; only the id is taken here and the rest is read back explicitly.
+// Drive returns only default fields, so the upload response lacks modifiedTime/size; they are read back explicitly.
 const UploadedIdSchema = z.object({ id: z.string() });
 
 const META_FIELDS = "id,name,size,modifiedTime";
 
-// "API disabled" 403s carry the fix URL past the snippet slice limit, so it's pulled out by hand below; this is a separate one-time switch from consent/scope, easy to mistake for a permission problem.
+// "API disabled" 403s carry the fix URL past the snippet slice limit, so it's extracted by hand.
 const API_DISABLED_RE = /has not been used in project|accessNotConfigured|it is disabled/i;
 
 function driveError(what: string, status: number, body: string): Error {
@@ -48,7 +48,6 @@ async function authHeader(profileId: string, deps: DriveDeps): Promise<string> {
   return `Bearer ${await getAccessToken(profileId, deps.authDeps)}`;
 }
 
-/** Look up the backup by name; null if it doesn't exist yet. drive.file scope guarantees this only matches an app-created file. */
 export async function findDbFile(
   profileId: string,
   deps: DriveDeps = {},
@@ -62,7 +61,7 @@ export async function findDbFile(
   return list.files[0] ?? null;
 }
 
-/** Create-or-replace the backup via resumable upload (simple/multipart cap at 5MB, DB is ~50MB); one PUT, not a chunking loop. */
+/** Resumable upload: simple/multipart cap at 5MB, the DB is ~50MB. */
 export async function uploadDbFile(
   profileId: string,
   bytes: Uint8Array,
@@ -101,11 +100,10 @@ export async function uploadDbFile(
   });
   if (!putRes.ok) throw driveError("upload", putRes.status, await putRes.text());
   const { id } = UploadedIdSchema.parse(await putRes.json());
-  // db/sync.ts needs Drive's authoritative modifiedTime, so read it back rather than infer it.
+  // db/sync.ts needs Drive's authoritative modifiedTime.
   return getFileMeta(profileId, id, deps);
 }
 
-/** Full metadata for one file, with `fields` asked for explicitly. */
 export async function getFileMeta(
   profileId: string,
   fileId: string,
@@ -119,7 +117,6 @@ export async function getFileMeta(
   return FileMetaSchema.parse(await res.json());
 }
 
-/** Download the backup's bytes. */
 export async function downloadDbFile(
   profileId: string,
   fileId: string,

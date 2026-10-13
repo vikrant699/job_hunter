@@ -17,7 +17,6 @@ const company: AdapterCompany = {
   careersUrl: "https://jobs.gem.com/promptql", tenantUrl: null, apiMeta: null,
 };
 
-// Shape mirrors the real jobs.gem.com/api/public/graphql JobBoardList response for the promptql board.
 const listResponse = {
   data: {
     oatsExternalJobPostings: {

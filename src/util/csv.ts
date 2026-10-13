@@ -16,7 +16,6 @@ export function buildCsv<T>(headers: readonly string[], rows: ReadonlyArray<Read
   return lines.join("\r\n") + "\r\n";
 }
 
-/** Minimal RFC-4180 CSV parser: handles quoted fields, doubled-quote escapes, CRLF. */
 export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];

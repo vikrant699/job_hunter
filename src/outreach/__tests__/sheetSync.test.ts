@@ -70,7 +70,7 @@ test("projectToSheet writes the Drafts tab with all draft-status rows across pro
     recruiterEmail: emailB,
     profileId: `sheetsync-p2-${tag}`,
     companyName: `DraftCo2-${tag}`,
-    status: "sent", // must NOT appear in Drafts tab
+    status: "sent",
   }));
 
   await projectToSheet("default", undefined, deps);
@@ -80,11 +80,10 @@ test("projectToSheet writes the Drafts tab with all draft-status rows across pro
   assert.deepEqual(draftsWrite.header, [...DRAFTS_HEADER]);
   const row = draftsWrite.rows.find((r) => r[6] === emailA);
   assert.ok(row);
-  assert.equal(row[2], `DraftCo-${tag}`); // Company
-  assert.equal(row[3], "Data Analyst — https://acme.com/1\nBI Engineer — https://acme.com/2"); // Roles
-  // Max-severity: green beats yellow even though yellow scored higher.
-  assert.equal(row[4], "green"); // Severity
-  assert.equal(row[5], "0.9"); // Score
+  assert.equal(row[2], `DraftCo-${tag}`);
+  assert.equal(row[3], "Data Analyst — https://acme.com/1\nBI Engineer — https://acme.com/2");
+  assert.equal(row[4], "green");
+  assert.equal(row[5], "0.9");
 
   assert.ok(!draftsWrite.rows.some((r) => r[6] === emailB));
 });
@@ -128,9 +127,9 @@ test("projectToSheet degrades a corrupt roles_json row to blank Roles/Severity/S
   assert.ok(draftsWrite);
   const row = draftsWrite.rows.find((r) => r[6] === email);
   assert.ok(row);
-  assert.equal(row[3], ""); // Roles cell blank, not thrown
-  assert.equal(row[4], ""); // Severity blank
-  assert.equal(row[5], ""); // Score blank
+  assert.equal(row[3], "");
+  assert.equal(row[4], "");
+  assert.equal(row[5], "");
 });
 
 test("projectToSheet writes the Sent tab with sent/bounced/verified rows, newest first, raw status, computed Check After", async () => {
@@ -148,17 +147,16 @@ test("projectToSheet writes the Sent tab with sent/bounced/verified rows, newest
   assert.deepEqual(sentWrite.header, [...SENT_HEADER]);
   const row = sentWrite.rows.find((r) => r[4] === email);
   assert.ok(row);
-  assert.equal(row[2], `SentCo-${tag}`); // Company
-  assert.equal(row[5], sentAt); // Sent At
-  assert.equal(row[6], new Date(new Date(sentAt).getTime() + config.outreach.verifyAfterHours * 3_600_000).toISOString()); // Check After
-  assert.equal(row[7], "sent"); // Status: raw status, not a pending/verified check-relabel
+  assert.equal(row[2], `SentCo-${tag}`);
+  assert.equal(row[5], sentAt);
+  assert.equal(row[6], new Date(new Date(sentAt).getTime() + config.outreach.verifyAfterHours * 3_600_000).toISOString());
+  assert.equal(row[7], "sent");
 });
 
 test("projectToSheet appends Undrafted rows for THIS runId only, never rewrites", async () => {
   const { deps, appends, rewrites } = harness();
   const tag = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const runDate = "2026-07-06";
-  // Two runs on the same day: earlier run's rows must not re-append (scoping is by runId, not runDate).
   const earlierRunId = 900_000 + Math.floor(Math.random() * 50_000);
   const thisRunId = earlierRunId + 1;
   const mkRow = (runId: number, company: string) => ({

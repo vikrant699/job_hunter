@@ -1,4 +1,4 @@
-// src/ats/rippling.ts — Rippling ATS (ats.rippling.com): a shared public no-auth job-board API, one tenant per company keyed by the registry source_slug; list is a single flat array (no pagination), with one entry per (job, location) pair sharing the same uuid.
+// shared public no-auth API keyed by source_slug; list is one flat array with one entry per (job, location) pair sharing a uuid
 // Detail's description.company (why-join-us) and description.role (about-the-role) are HTML strings concatenated for the JD; the list carries no date field, so postedAt is always null.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
@@ -60,7 +60,6 @@ export function normalizeRipplingJob(company: AdapterCompany, j: RipplingJob): N
   };
 }
 
-// Throws if neither description.company nor description.role yields text.
 export function buildRipplingJd(detail: RipplingDetail): string {
   const description = detail.description;
   const parts = [description?.company, description?.role].filter(

@@ -11,7 +11,7 @@ export interface VerdictDetail {
   reason: string;
 }
 
-/** Below this score is treated as noise and silently dropped; borderline up to matchThreshold is yellow, above is green. Defined in schemas.ts, re-exported for back-compat. */
+/** Below this is silent; up to matchThreshold is yellow, above is green. */
 export { SILENT_SCORE_FLOOR };
 
 export function classifyVerdict(
@@ -23,7 +23,6 @@ export function classifyVerdict(
     return { severity: "silent", reason: gate.dealBreakerHit ?? "hard-deal-breaker" };
   }
 
-  // Per-profile override, else the global default.
   const silentFloor = profile.filters.silentFloor ?? SILENT_SCORE_FLOOR;
   if (gate.matchScore < silentFloor) {
     // A priority-title role is floored to yellow instead of silenced, unless it's over the hard YOE cap.

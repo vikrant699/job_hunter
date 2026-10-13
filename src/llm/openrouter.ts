@@ -27,27 +27,23 @@ export interface OpenRouterGenerateOpts {
   temperature?: number | undefined;
 }
 
-/** Attempts made *inside* the transport for a rate-limited / transient-5xx response. */
 const MAX_STATUS_RETRIES = 3;
-/** How often to emit the running cache hit-rate. */
 const CACHE_LOG_EVERY = 100;
 
 export interface CacheStats {
   calls: number;
   promptTokens: number;
   cachedTokens: number;
-  /** Calls answered per upstream provider; more than one entry means the pin isn't holding and the cache is being split. */
+  /** More than one entry means the pin isn't holding and the cache is being split. */
   providers: Record<string, number>;
 }
 
 const cacheStats: CacheStats = { calls: 0, promptTokens: 0, cachedTokens: 0, providers: {} };
 
-/** Running prompt-cache totals for the process; logged since the cached fraction drives sweep cost. */
 export function getCacheStats(): CacheStats {
   return { ...cacheStats, providers: { ...cacheStats.providers } };
 }
 
-/** Test seam - the counters are module state. */
 export function resetCacheStats(): void {
   cacheStats.calls = 0;
   cacheStats.promptTokens = 0;
@@ -71,11 +67,10 @@ function recordUsage(data: z.infer<typeof OpenRouterResponseSchema>): void {
   }
 }
 
-// fatal = every remaining posting would fail the same way (stop the run); perCall = only this posting failed (keep going).
 type StatusVerdict = "ok" | "retry" | "fatalKey" | "fatalCredits" | "fatalModel" | "perCall";
 
 export function classifyOpenRouterStatus(status: number): StatusVerdict {
-  // 401 = invalid/disabled key, 402 = out of credits, 403 = permissions/moderation (per-call, not fatal), 404 = unknown model.
+  // 401 invalid/disabled key, 402 out of credits, 403 permissions/moderation (per-call), 404 unknown model.
   if (status === 401) return "fatalKey";
   if (status === 402) return "fatalCredits";
   if (status === 404) return "fatalModel";
@@ -84,7 +79,7 @@ export function classifyOpenRouterStatus(status: number): StatusVerdict {
   return status >= 200 && status < 300 ? "ok" : "perCall";
 }
 
-// The live API answers an unknown model slug with 400 ("not a valid model ID"), not 404 - but a plain 400 is also what an over-long prompt returns (per-call), so the model case is picked out by message.
+// An unknown model slug answers 400, not 404, but a plain 400 is also an over-long prompt (per-call), so match by message.
 export function refineVerdict(verdict: StatusVerdict, status: number, body: string): StatusVerdict {
   if (verdict === "perCall" && status === 400 && /not a valid model/i.test(body)) {
     return "fatalModel";
@@ -92,7 +87,6 @@ export function refineVerdict(verdict: StatusVerdict, status: number, body: stri
   return verdict;
 }
 
-/** Fatal verdicts, each naming the knob the operator has to change. */
 function fatalMessage(verdict: StatusVerdict, status: number, body: string): string | null {
   const detail = body.slice(0, 160);
   switch (verdict) {
@@ -110,17 +104,16 @@ function fatalMessage(verdict: StatusVerdict, status: number, body: string): str
 const API_BASE = "https://openrouter.ai/api/v1";
 const MODEL_ENDPOINTS_BASE = `${API_BASE}/models`;
 
-// Endpoint tags look like "open-inference/fp8" or "deepinfra"; the slug before "/" is what the provider.order request field takes.
+// The slug before "/" is what the provider.order request field takes.
 const ModelEndpointsSchema = z.object({
   data: z.object({ endpoints: z.array(z.object({ tag: z.string().optional() })).default([]) }),
 });
 
-/** Provider slug from an endpoint tag; OpenRouter writes some as "open-inference" but routes on "openinference", so hyphens are dropped for matching. */
+/** OpenRouter writes some as "open-inference" but routes on "openinference", so hyphens are dropped. */
 function providerSlug(tag: string): string {
   return tag.split("/")[0]?.replace(/-/g, "").toLowerCase() ?? "";
 }
 
-/** Pinned providers that actually serve this model; null when the endpoint list couldn't be read. */
 export function servingProviders(pinned: readonly string[], body: JsonValue): string[] | null {
   const parsed = ModelEndpointsSchema.safeParse(body);
   if (!parsed.success) return null;
@@ -128,7 +121,7 @@ export function servingProviders(pinned: readonly string[], body: JsonValue): st
   return pinned.filter((p) => served.has(p.replace(/-/g, "").toLowerCase()));
 }
 
-// Confirms the model slug resolves and that a pinned provider serves it; only an explicit 404 is a slug verdict since a 5xx or unreachable endpoint isn't evidence the model is wrong. Public route, no auth needed.
+// Only an explicit 404 is a slug verdict; a 5xx or unreachable endpoint isn't evidence. Public route, no auth.
 export async function assertModelAvailable(model: string, pinned: readonly string[] = config.llm.openRouterProviders): Promise<void> {
   let res: Response;
   try {
@@ -161,7 +154,7 @@ export async function assertModelAvailable(model: string, pinned: readonly strin
     logger.warn({ model }, "openrouter: endpoint list unparseable — continuing without verifying the provider pin");
     return;
   }
-  // With allow_fallbacks=false every gate call would fail, so this is a pre-flight abort, not a per-call error.
+  // With allow_fallbacks=false every gate call would fail, so this aborts pre-flight.
   if (serving.length === 0) {
     throw new LlmUnavailableError(
       `None of OPENROUTER_PROVIDERS (${pinned.join(", ")}) serve '${model}' on OpenRouter. ` +
@@ -171,7 +164,6 @@ export async function assertModelAvailable(model: string, pinned: readonly strin
   logger.info({ model, pinned, serving }, "openrouter: provider pin verified");
 }
 
-/** Pre-flight: key present and accepted, and the configured model served. */
 export async function assertOpenRouterAvailable(): Promise<void> {
   if (config.llm.openRouterKey.trim() === "") {
     throw new LlmUnavailableError(
@@ -205,14 +197,14 @@ export async function assertOpenRouterAvailable(): Promise<void> {
   await assertModelAvailable(config.llm.openRouterModel);
 }
 
-// Retries internally ONLY for 429/5xx; every other failure propagates to client.ts's retry/breaker.
-// The whole prompt goes in one user message on purpose: splitting into system+user would change the token prefix and cost prompt-cache hits (~80% of input on a gate call).
+// Retries only 429/5xx; other failures propagate to client.ts's retry/breaker.
+// Whole prompt in one user message: a system+user split changes the token prefix and costs prompt-cache hits.
 export async function openRouterGenerate(
   prompt: string,
   opts: OpenRouterGenerateOpts,
 ): Promise<string> {
   for (let attempt = 0; attempt <= MAX_STATUS_RETRIES; attempt++) {
-    // Wait out local network outages here so they don't trip client.ts's backend-down breaker over a hosted-provider blip.
+    // Wait out local outages here so they don't trip the backend-down breaker.
     await awaitNetwork();
     let res: Response;
     try {
@@ -228,9 +220,9 @@ export async function openRouterGenerate(
           stream: false,
           temperature: opts.temperature ?? 0.2,
           ...(opts.format === "json" ? { response_format: { type: "json_object" } } : {}),
-          // Disable reasoning traces - avoids multiplying output tokens.
+          // Reasoning traces multiply output tokens.
           reasoning: { enabled: false },
-          // Pin routing to the configured providers, no fallback: the prompt cache is per provider, so a bounce = a cold cache.
+          // No fallback: the prompt cache is per provider.
           ...(config.llm.openRouterProviders.length > 0
             ? { provider: { order: config.llm.openRouterProviders, allow_fallbacks: false } }
             : {}),
@@ -256,7 +248,7 @@ export async function openRouterGenerate(
       const body = await res.text();
       const fatal = fatalMessage(refineVerdict(verdict, res.status, body), res.status, body);
       if (fatal !== null) throw new LlmUnavailableError(fatal);
-      // Message deliberately avoids "timeout"/"aborted"/"network" so isConnectionError() doesn't misclassify it.
+      // Avoids "timeout"/"aborted"/"network" so isConnectionError() doesn't misclassify it.
       throw new Error(`OpenRouter HTTP ${res.status}: ${body.slice(0, 200)}`);
     }
 

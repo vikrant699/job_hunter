@@ -37,7 +37,6 @@ const PAGE1 = {
         id: "4262",
         unifiedStandardTitle: "Field Auditor (Remote)",
         urlTitle: "Field-Auditor",
-        // HCL-style location shape (custprimecity + custCountryRegion)
         custprimecity: "Noida",
         custCountryRegion: ["India"],
         unifiedStandardStart: "5/1/26",
@@ -65,7 +64,6 @@ test("sfcsbSearchBody is 0-based, date-sorted, with empty keywords", () => {
 
 test("sfcsbJobUrl builds the canonical <host>/job/<slug>/<id>-en_US/ link", () => {
   assert.equal(sfcsbJobUrl(company, "5161", "QA-Engineer"), "https://jobs.tuvsud.com/job/QA-Engineer/5161-en_US/");
-  // no slug -> cosmetic placeholder
   assert.equal(sfcsbJobUrl(company, "5161", null), "https://jobs.tuvsud.com/job/x/5161-en_US/");
 });
 
@@ -80,10 +78,9 @@ test("parseSfcsbPage maps both location shapes and the total", () => {
   assert.equal(j0.jobUrl, "https://jobs.tuvsud.com/job/QA-Engineer/5161-en_US/");
   assert.equal(j0.location, "India, Mahārāshtra, Pune; India, Mahārāshtra, Mumbai");
   assert.equal(j0.isRemote, false);
-  assert.equal(j0.jdText, ""); // filled by fetchJd
-  // HCL-shape location
+  assert.equal(j0.jdText, "");
   assert.equal(at(jobs, 1).location, "Noida, India");
-  assert.equal(at(jobs, 1).isRemote, true); // "Remote" in title
+  assert.equal(at(jobs, 1).isRemote, true);
 });
 
 test("parseSfcsbJd picks the richest itemprop=description span", () => {
@@ -199,7 +196,6 @@ test("listPostings gives a same-id-space API job the sitemap tenant's plain /job
   const byId = new Map(postings.map((p) => [p.externalId, p]));
   assert.equal(byId.get("60273044")?.jobUrl, "https://careers.indegene.com/job/Kolind-ka-Bas-Web-Developer-KA/60273044/");
   assert.equal(byId.get("60600044")?.jobUrl, "https://careers.indegene.com/job/Kolind-ka-Bas-UI-Designer-KA/60600044/");
-  // The other-locale job only the sitemap knows is gap-filled.
   assert.equal(byId.get("60515644")?.jobTitle, "Bangalore Senior Drupal Developer");
   assert.equal(postings.length, 3);
 });

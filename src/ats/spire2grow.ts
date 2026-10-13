@@ -1,5 +1,4 @@
-// src/ats/spire2grow.ts — Spire2Grow careers boards (jobs.<company>.com backed by io.spire2grow.com); unlocked via a per-tenant `workspaceid` header (apiMeta.workspaceId), no bearer token.
-// GET io.spire2grow.com/ies/v1/p/requisition/_search?page=&size=, paged.
+// GET io.spire2grow.com/ies/v1/p/requisition/_search?page=&size= with a per-tenant `workspaceid` header (apiMeta.workspaceId), no bearer token.
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";

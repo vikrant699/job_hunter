@@ -36,8 +36,6 @@ test("isConnectionError does NOT flag model/output errors", () => {
   }
 });
 
-// Guards against an OpenRouter HTTP-status error being classified as connection-shaped,
-// which would trip the breaker and abort a sweep over ordinary traffic shaping.
 test("isConnectionError does NOT flag OpenRouter HTTP-status errors", () => {
   for (const e of [
     "OpenRouter HTTP 429: rate limit exceeded",
@@ -53,7 +51,6 @@ test("isConnectionError does NOT flag OpenRouter HTTP-status errors", () => {
 
 test("assertLlmAvailable rejects with LlmUnavailableError when OPENROUTER_API_KEY is unset", async (t) => {
   assert.equal(config.llm.openRouterKey, "");
-  // The key check must fail before any network call; a stub that throws catches a regression loudly instead of silently.
   stubFetch(t, async () => {
     throw new Error("assertLlmAvailable must not reach the network when the key is unset");
   });
@@ -84,8 +81,6 @@ test("generateOnce does not retry a connection failure", async (t) => {
   });
   assert.equal(calls, 1);
 
-  // The failure above ticked the breaker's consecutive-failure counter (module state); a success
-  // resets it so it doesn't bleed into a later test.
   globalThis.fetch = async () => completion("reset");
   await generateOnce("prompt");
 });
@@ -130,11 +125,9 @@ test("breaker trips after 5 consecutive connection failures", async (t) => {
     return true;
   });
 
-  // A success resets the counter...
   globalThis.fetch = async () => completion("ok");
   await assert.doesNotReject(generateOnce("prompt"));
 
-  // ...so a single failure right after does NOT immediately retrip the breaker.
   globalThis.fetch = async () => {
     throw new TypeError("fetch failed");
   };
@@ -144,7 +137,6 @@ test("breaker trips after 5 consecutive connection failures", async (t) => {
     return true;
   });
 
-  // Leave the counter reset for whichever test runs next.
   globalThis.fetch = async () => completion("ok");
   await generateOnce("prompt");
 });

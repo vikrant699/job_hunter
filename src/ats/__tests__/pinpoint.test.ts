@@ -18,7 +18,6 @@ const company: AdapterCompany = {
   apiMeta: null,
 };
 
-// Trimmed real item from GET https://hiverhq.pinpointhq.com/postings.json.
 const rawPosting = {
   id: "524572",
   title: "Principal Engineer",
@@ -36,7 +35,6 @@ test("pinpointBase prefers the tenant_url host, else builds <slug>.pinpointhq.co
     pinpointBase({ ...company, tenantUrl: null }),
     "https://hiver.pinpointhq.com",
   );
-  // apiMeta.boardSlug wins over the registry slug when the subdomain differs.
   assert.equal(
     pinpointBase({ ...company, tenantUrl: null, apiMeta: { boardSlug: "hiverhq" } }),
     "https://hiverhq.pinpointhq.com",
