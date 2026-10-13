@@ -176,6 +176,8 @@ const WorkdayJobDetailSchema = z.object({
   jobPostingInfo: z.object({
     jobDescription: z.string().nullable().optional(),
     location: z.string().nullable().optional(),
+    additionalLocations: z.array(z.string()).nullable().optional(),
+    country: z.object({ descriptor: z.string().nullable().optional() }).nullable().optional(),
     locationsText: z.string().nullable().optional(),
     postedOn: z.string().nullable().optional(),
     timeType: z.string().nullable().optional(),
@@ -219,7 +221,7 @@ async function runWorkdayListing(
 
     const page = parseWorkdayListPage(data, company.slug);
 
-    const items = page.postings.map((j) => normalizeWorkdayListing(company, j, parts));
+    const items = page.postings.map((j) => normalizeWorkdayListing(company, j, parts, indiaFacet !== null));
     return { items, total: page.total, facets: page.facets };
   });
 }
@@ -264,9 +266,22 @@ export const workdayAdapter: AtsAdapter = {
       );
       return "";
     }
-    return htmlToText(parsed.data.jobPostingInfo.jobDescription ?? "");
+    const info = parsed.data.jobPostingInfo;
+    if (posting.location === null || MULTI_LOCATION_RE.test(posting.location)) {
+      const resolved = detailLocation(info.location, info.additionalLocations, posting.location === null ? info.country?.descriptor : "India");
+      if (resolved) posting.location = resolved;
+    }
+    return htmlToText(info.jobDescription ?? "");
   },
 };
+
+// The listing only says "2 Locations"; the detail names every city, and the country names the primary one.
+function detailLocation(primary: string | null | undefined, additional: string[] | null | undefined, country: string | null | undefined): string | null {
+  const cities = [primary, ...(additional ?? [])].map((c) => c?.trim() ?? "").filter((c) => c !== "");
+  if (cities.length === 0) return null;
+  const joined = cities.join(" | ");
+  return country && !joined.toLowerCase().includes(country.toLowerCase()) ? `${joined}, ${country}` : joined;
+}
 
 // Some tenants (Accenture) omit locationsText entirely, so the city only shows up as one of the display-only bulletFields (typically [reqId, location]) - take the first bulletField that isn't the req id or known non-location metadata ("Full time", "40 hrs/week"); values are plain city names as often as "City, Country", so no comma requirement.
 const REQ_ID_RE = /^(req|r)[-_]?\d+$/i;
@@ -287,10 +302,21 @@ function locationFromBulletFields(j: WorkdayJobPosting): string | null {
   return null;
 }
 
+// "2 Locations": a listing summary, not a place; the city list only comes with the detail.
+const MULTI_LOCATION_RE = /^\d+\s+Locations\b/i;
+
+// indiaScoped = the India facet was applied, so every listed posting has at least one India location.
+function listingLocation(raw: string | null, indiaScoped: boolean): string | null {
+  if (raw === null) return null;
+  if (MULTI_LOCATION_RE.test(raw)) return indiaScoped ? `${raw}, India` : null;
+  return indiaScoped && !/\bindia\b/i.test(raw) ? `${raw}, India` : raw;
+}
+
 export function normalizeWorkdayListing(
   company: AdapterCompany,
   j: WorkdayJobPosting,
-  parts?: WorkdayUrlParts
+  parts?: WorkdayUrlParts,
+  indiaScoped = false,
 ): NormalizedPosting {
   // externalId: prefer shortId/jobPostingId, fall back to externalPath tail; bulletFields is display metadata, never an ID (using it would collide postings on tenants without shortId).
   const externalId =
@@ -299,8 +325,9 @@ export function normalizeWorkdayListing(
     j.externalPath.split("/").pop() ??
     j.externalPath;
 
-  const location = j.locationsText ?? locationFromBulletFields(j);
-  const isRemote = location ? REMOTE_RE.test(location) : false;
+  const raw = j.locationsText ?? locationFromBulletFields(j);
+  const location = listingLocation(raw, indiaScoped);
+  const isRemote = raw ? REMOTE_RE.test(raw) : false;
   const uiBase = parts?.uiBase ?? "";
 
   return {

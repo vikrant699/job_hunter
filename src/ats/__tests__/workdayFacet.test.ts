@@ -52,6 +52,10 @@ test("descriptorIsIndia is a token match, never substring", () => {
   assert.equal(descriptorIsIndia("India, Gurgaon"), true);
   assert.equal(descriptorIsIndia("Indianapolis"), false);
   assert.equal(descriptorIsIndia("USA - Indiana"), false);
+  // abcfinancial: the 10-posting Hyderabad leaf ends in a period, beside a bare 2-posting India leaf
+  assert.equal(descriptorIsIndia("Hyderabad Office, India."), true);
+  assert.equal(descriptorIsIndia("Bengaluru (India)"), true);
+  assert.equal(descriptorIsIndia("Indiana."), false);
 });
 
 test("returns null when no India leaf exists", async (t) => {

@@ -12,9 +12,9 @@ interface WorkdayUrlPartsForFacet {
   cxsBase: string;
 }
 
-// Exact-token match after splitting on comma/dash/whitespace - NEVER a substring test, which would select "Indiana"/"Indianapolis" leaves (live false-positives on 7 US tenants); covers "Ahmedabad, Gujarat, India", "India - Chennai", "India Remote".
+// Exact-token match after splitting on comma/dash/whitespace/period/brackets - NEVER a substring test, which would select "Indiana"/"Indianapolis" leaves (live false-positives on 7 US tenants); covers "Ahmedabad, Gujarat, India", "India - Chennai", "India Remote", "Hyderabad Office, India.".
 export function descriptorIsIndia(descriptor: string): boolean {
-  return descriptor.split(/[,\-\s]+/).some((t) => t.toLowerCase() === "india");
+  return descriptor.split(/[,\-\s.()/|;]+/).some((t) => t.toLowerCase() === "india");
 }
 
 // Walks the facet tree (flat and nested shapes) collecting India leaves.

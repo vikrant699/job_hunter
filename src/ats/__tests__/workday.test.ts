@@ -507,3 +507,64 @@ test("workday listPostings never fetches robots.txt on a 429 (throttle, not drif
   assert.ok(calls.every((u) => u.endsWith("/wday/cxs/acme/External/jobs")));
   assert.ok(!calls.some((u) => u.endsWith("/robots.txt")));
 });
+
+const multiLoc = {
+  title: "Enterprise Architect",
+  externalPath: "/job/Bangalore/Enterprise-Architect_R169928",
+  locationsText: "2 Locations",
+  postedOn: "Posted 8 Days Ago",
+  bulletFields: ["R169928"],
+  jobPostingId: "Enterprise-Architect_R169928",
+  shortId: null,
+};
+
+test("normalizeWorkdayListing: an 'N Locations' summary on an India-faceted board is tagged India (adobe lost 12 of 59 to it)", () => {
+  assert.equal(normalizeWorkdayListing(company, multiLoc, undefined, true).location, "2 Locations, India");
+});
+
+test("normalizeWorkdayListing: an 'N Locations' summary on an unfiltered board is null so fetchJd resolves the real cities", () => {
+  assert.equal(normalizeWorkdayListing(company, multiLoc).location, null);
+});
+
+test("normalizeWorkdayListing: India-faceted boards suffix India onto a bare city the location filter can't place", () => {
+  assert.equal(normalizeWorkdayListing(company, { ...multiLoc, locationsText: "Chennai" }, undefined, true).location, "Chennai, India");
+  assert.equal(normalizeWorkdayListing(company, { ...multiLoc, locationsText: "Remote India" }, undefined, true).location, "Remote India");
+  assert.equal(normalizeWorkdayListing(company, { ...multiLoc, locationsText: "Chennai" }).location, "Chennai");
+});
+
+function detailResponse(info: Record<string, JsonValue>) {
+  return jsonResponse({ jobPostingInfo: { jobDescription: "<p>Design systems.</p>", ...info } });
+}
+
+const adobe = mkAdapterCompany(
+  { provider: "workday", slug: "adobe", name: "Adobe", careersUrl: "https://adobe.wd5.myworkdayjobs.com/external_experienced" },
+  { tenantUrl: "https://adobe.wd5.myworkdayjobs.com/external_experienced" },
+);
+
+function multiLocPosting(location: string | null): NormalizedPosting {
+  return {
+    ...normalizeWorkdayListing(adobe, multiLoc, { base: "", tenant: "", site: "", cxsBase: "", uiBase: "https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced" }),
+    location,
+  };
+}
+
+test("fetchJd resolves an India-tagged 'N Locations' summary into the detail's cities", async (t) => {
+  stubFetch(t, () => Promise.resolve(detailResponse({ location: "Bangalore", additionalLocations: ["Noida"], country: { descriptor: "India" } })));
+  const posting = multiLocPosting("2 Locations, India");
+  assert.equal(await workdayAdapter.fetchJd?.(adobe, posting), "Design systems.");
+  assert.equal(posting.location, "Bangalore | Noida, India");
+});
+
+test("fetchJd resolves an unfiltered board's null summary with the primary location's country", async (t) => {
+  stubFetch(t, () => Promise.resolve(detailResponse({ location: "San Jose", additionalLocations: ["Chennai"], country: { descriptor: "United States of America" } })));
+  const posting = multiLocPosting(null);
+  await workdayAdapter.fetchJd?.(adobe, posting);
+  assert.equal(posting.location, "San Jose | Chennai, United States of America");
+});
+
+test("fetchJd leaves a concrete listing location alone", async (t) => {
+  stubFetch(t, () => Promise.resolve(detailResponse({ location: "Noida", country: { descriptor: "India" } })));
+  const posting = multiLocPosting("Bangalore");
+  await workdayAdapter.fetchJd?.(adobe, posting);
+  assert.equal(posting.location, "Bangalore");
+});
