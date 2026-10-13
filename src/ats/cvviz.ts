@@ -1,5 +1,5 @@
-// list: GET jobs.cvviz.com/api/career/employers/<employerId>/jobs?page=&pageSize= -> {data[], total} (NOT api.cvviz.com, which is token-gated)
-// employerId must be the NUMERIC careerpage id, not the slug (slug form 200s intermittently with "Invalid employer id")
+// list: GET api.cvviz.com/public/career-pages/<pageSlug>/jobs?context=employer&page=&pageSize= -> {data[], meta.pagination.totalItems}; no token, description is the full JD
+// detail (unused, adds only skills tags): GET api.cvviz.com/public/career-pages/<pageSlug>/jobs/<id>?context=employer
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
@@ -8,64 +8,72 @@ import { atsFetchJson, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, joinLocation } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
 
-const HOST = "https://jobs.cvviz.com";
-const PAGE = 25; // the API rejects large page sizes; 25 is honored.
+const API = "https://api.cvviz.com/public/career-pages";
+const SITE = "https://jobs.cvviz.com";
+const PAGE = 100; // the API's maximum; larger sizes are rejected with 400.
+
+const CvvizLocationSchema = z.object({
+  city: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  remote: z.boolean().nullable().optional(),
+});
+type CvvizLocation = z.infer<typeof CvvizLocationSchema>;
 
 export const CvvizJobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
   title: z.string(),
-  city: z.string().nullable().optional(),
-  state: z.string().nullable().optional(),
-  country: z.string().nullable().optional(),
-  jobdescription: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  location: CvvizLocationSchema.nullable().optional(),
+  publication: z.object({ createdAt: z.string().nullable().optional() }).nullable().optional(),
 });
 export type CvvizJob = z.infer<typeof CvvizJobSchema>;
 
 const ListResponseSchema = z.object({
   data: z.array(CvvizJobSchema),
-  total: z.number().nullable().optional(),
+  meta: z
+    .object({ pagination: z.object({ totalItems: z.number().nullable().optional() }).nullable().optional() })
+    .nullable()
+    .optional(),
 });
 
-export function cvvizEmployerId(company: AdapterCompany): string {
-  const id = company.apiMeta?.employerId;
-  if (!id) throw new Error(`cvviz requires apiMeta.employerId (numeric careerpage id) for ${company.slug}`);
-  return id;
-}
-
-/** Display-only slug for building human job URLs (not used for the API call itself). */
-export function cvvizDisplaySlug(company: AdapterCompany): string {
-  const url = company.tenantUrl ?? company.careersUrl;
+export function cvvizPageSlug(company: AdapterCompany): string {
   try {
-    const seg = new URL(url).pathname.split("/").filter(Boolean)[0];
+    const seg = new URL(company.tenantUrl ?? company.careersUrl).pathname.split("/").filter(Boolean)[0];
     if (seg) return seg;
   } catch {
-    /* fall through */
+    return company.slug;
   }
   return company.slug;
 }
 
-export function cvvizJobsUrl(employerId: string, page: number, pageSize: number): string {
-  return `${HOST}/api/career/employers/${encodeURIComponent(employerId)}/jobs?page=${page}&pageSize=${pageSize}`;
+export function cvvizJobsUrl(pageSlug: string, page: number, pageSize: number): string {
+  return `${API}/${encodeURIComponent(pageSlug)}/jobs?context=employer&page=${page}&pageSize=${pageSize}`;
 }
 
-/** City, state, country joined; blanks skipped; null when all empty. */
-export function cvvizLocation(j: Pick<CvvizJob, "city" | "state" | "country">): string | null {
-  return joinLocation(j.city ?? undefined, j.state ?? undefined, j.country ?? undefined);
+export function cvvizJobUrl(pageSlug: string, id: string, title: string): string {
+  const titlePart = title.split(" ").join("_").replace(/\//g, "-");
+  return `${SITE}/${encodeURIComponent(pageSlug)}/${encodeURIComponent(`job_${id}_${titlePart}`)}`;
 }
 
-export function normalizeCvviz(company: AdapterCompany, j: CvvizJob): NormalizedPosting {
-  const location = cvvizLocation(j);
+export function cvvizLocation(loc: CvvizLocation | null | undefined): string | null {
+  if (!loc) return null;
+  return joinLocation(loc.city, loc.state, loc.country);
+}
+
+export function normalizeCvviz(company: AdapterCompany, pageSlug: string, j: CvvizJob): NormalizedPosting {
+  const location = cvvizLocation(j.location);
   return {
     provider: "cvviz",
     externalId: j.id,
     companySlug: company.slug,
     companyName: company.name,
     jobTitle: j.title,
-    jobUrl: `${HOST}/${cvvizDisplaySlug(company)}/job/${j.id}`,
+    jobUrl: cvvizJobUrl(pageSlug, j.id, j.title),
     location,
-    isRemote: location ? REMOTE_RE.test(location) : false,
-    jdText: htmlToText(j.jobdescription ?? ""),
-    postedAt: null, // the list API exposes no posting date
+    isRemote: j.location?.remote === true || (location ? REMOTE_RE.test(location) : false),
+    jdText: htmlToText(j.description ?? ""),
+    postedAt: j.publication?.createdAt ?? null,
   };
 }
 
@@ -74,11 +82,11 @@ export interface CvvizPage {
   total: number | null;
 }
 
-export function parseCvvizPage(company: AdapterCompany, raw: JsonValue): CvvizPage {
+export function parseCvvizPage(company: AdapterCompany, pageSlug: string, raw: JsonValue): CvvizPage {
   const parsed = parseOrThrow(ListResponseSchema, raw, { provider: "cvviz", slug: company.slug });
   return {
-    postings: parsed.data.map((j) => normalizeCvviz(company, j)),
-    total: typeof parsed.total === "number" ? parsed.total : null,
+    postings: parsed.data.map((j) => normalizeCvviz(company, pageSlug, j)),
+    total: parsed.meta?.pagination?.totalItems ?? null,
   };
 }
 
@@ -86,17 +94,16 @@ export const cvvizAdapter: AtsAdapter = {
   provider: "cvviz",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const employerId = cvvizEmployerId(company);
+    const pageSlug = cvvizPageSlug(company);
     return paginate<NormalizedPosting>({
       provider: "cvviz",
       company: company.slug,
       pageSize: PAGE,
       fetchPage: async (_offset, page) => {
-        const raw = await atsFetchJson(cvvizJobsUrl(employerId, page + 1, PAGE), { provider: "cvviz" });
-        const { postings, total } = parseCvvizPage(company, raw);
+        const raw = await atsFetchJson(cvvizJobsUrl(pageSlug, page + 1, PAGE), { provider: "cvviz" });
+        const { postings, total } = parseCvvizPage(company, pageSlug, raw);
         return { items: postings, total };
       },
     });
   },
-  // jobdescription is inline in the list response — no fetchJd needed.
 };
