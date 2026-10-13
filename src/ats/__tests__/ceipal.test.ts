@@ -1,35 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ceipalAdapter, ceipalDescriptionUrl, ceipalDetailToken, ceipalListUrl, ceipalLocation, ceipalTeaser, ceipalTokens, normalizeCeipal, parseCeipalDate } from "../ceipal.js";
+import { ceipalAdapter, ceipalDetailUrl, ceipalJobUrl, ceipalListUrl, ceipalLocation, ceipalTeaser, ceipalTokens, normalizeCeipal } from "../ceipal.js";
 import type { CeipalJob } from "../ceipal.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {
-  provider: "ceipal", slug: "simplilearn", name: "Simplilearn",
-  careersUrl: "https://www.simplilearn.com/job-openings", tenantUrl: null,
-  apiMeta: { api_key: "NDlYd05RTlF2REZhaHVnTEdjT294dz09", cp_id: "Z3RkUkt2OXZJVld2MjFpOVRSTXoxZz09" },
+  provider: "ceipal", slug: "acme", name: "Acme",
+  careersUrl: "https://www.acme.example/job-openings", tenantUrl: null,
+  apiMeta: { api_key: "KEY123", cp_id: "CP456" },
 };
+const tokens = { apiKey: "KEY123", cpId: "CP456" };
 
 const job: CeipalJob = {
-  job_id: 94,
-  position_title: "Inside Sales Specialist",
+  id: "z5G7h3l6a1kMvyS65NP3c9wr_FbOlBO7UKiUA+IJqAM=",
   public_job_title: "Inside Sales Specialist",
+  public_job_desc: "Job Title: Inside Sales Specialist &ndash; B2C\r\n\r\nLocation: HSR, Bangalore....",
   city: "",
   state: "Karnataka",
   country: "India",
   multpile_job_location: "(Bengaluru, KA, 560001)",
   remote_opportunities: 0,
-  requistion_description: "Job Title: Inside Sales Specialist &ndash; B2C<br>Location: HSR, Bangalore",
-  public_job_desc: "Job Title: Inside Sales Specialist - B2C\nLocation: HSR, Bangalore",
-  created: "30/March/2026",
-  campus_portal_job_details_url: "https://candidateportal.ceipal.com/job-details/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10",
 };
 
 test("ceipalTokens reads api_key + cp_id from apiMeta", () => {
-  assert.deepEqual(ceipalTokens(company), {
-    apiKey: "NDlYd05RTlF2REZhaHVnTEdjT294dz09",
-    cpId: "Z3RkUkt2OXZJVld2MjFpOVRSTXoxZz09",
-  });
+  assert.deepEqual(ceipalTokens(company), tokens);
 });
 
 test("ceipalTokens throws without apiMeta.api_key/cp_id", () => {
@@ -38,95 +32,56 @@ test("ceipalTokens throws without apiMeta.api_key/cp_id", () => {
 });
 
 test("ceipalListUrl builds the per-tenant CareerPortal list URL for a page", () => {
+  assert.equal(ceipalListUrl("KEY123", 2), "https://careerapi.ceipal.com/KEY123/CareerPortalJobPostings/?page=2");
+});
+
+test("ceipalDetailUrl builds the per-job CareerPortal detail URL with the id encoded", () => {
   assert.equal(
-    ceipalListUrl("NDlYd05RTlF2REZhaHVnTEdjT294dz09", 2),
-    "https://careerapi.ceipal.com/NDlYd05RTlF2REZhaHVnTEdjT294dz09/CareerPortalJobPostings/?page=2",
+    ceipalDetailUrl(tokens, "ab+c/d="),
+    "https://careerapi.ceipal.com/KEY123/CareerPortalJobPostings/ab%2Bc%2Fd%3D/?from_career_portal=1&cp_id=CP456",
   );
 });
 
-test("parseCeipalDate parses vendor's DD/Month/YYYY format to ISO", () => {
-  assert.equal(parseCeipalDate("30/March/2026"), new Date("30 March 2026").toISOString());
-  assert.equal(parseCeipalDate("10/July/2026"), new Date("10 July 2026").toISOString());
-});
-
-test("parseCeipalDate returns null for missing or unparseable input", () => {
-  assert.equal(parseCeipalDate(null), null);
-  assert.equal(parseCeipalDate(undefined), null);
-  assert.equal(parseCeipalDate("Today"), null);
-  assert.equal(parseCeipalDate(""), null);
+test("ceipalJobUrl deep-links the public widget, which opens the job from its job_id param", () => {
+  assert.equal(
+    ceipalJobUrl(tokens, "ab+c="),
+    "https://jobsapi.ceipal.com/APISource/v1/index.html?api_key=KEY123&cp_id=CP456&job_id=ab%2Bc%3D",
+  );
 });
 
 test("ceipalLocation prefers multpile_job_location, stripped of its parens", () => {
   assert.equal(ceipalLocation(job), "Bengaluru, KA, 560001");
 });
 
-test("ceipalLocation falls back to city/state/country when multpile_job_location is absent", () => {
-  const j: CeipalJob = { ...job, multpile_job_location: null, city: "Thane" };
-  assert.equal(ceipalLocation(j), "Thane, Karnataka, India");
+test("ceipalLocation falls back to city/state/country when multpile_job_location is empty", () => {
+  assert.equal(ceipalLocation({ ...job, multpile_job_location: "", city: "Thane" }), "Thane, Karnataka, India");
+  assert.equal(ceipalLocation({ ...job, multpile_job_location: "", state: "" }), "India");
 });
 
 test("ceipalLocation returns null when nothing usable is present", () => {
-  const j: CeipalJob = { ...job, multpile_job_location: null, city: "", state: null, country: null };
-  assert.equal(ceipalLocation(j), null);
+  assert.equal(ceipalLocation({ ...job, multpile_job_location: null, city: "", state: null, country: null }), null);
 });
 
-test("ceipalTeaser prefers requistion_description and strips its HTML", () => {
+test("ceipalTeaser strips the list teaser's HTML entities", () => {
   const t = ceipalTeaser(job);
-  assert.match(t, /Inside Sales Specialist/);
   assert.match(t, /Location: HSR, Bangalore/);
-  assert.doesNotMatch(t, /<br>|&ndash;/);
+  assert.doesNotMatch(t, /&ndash;/);
 });
 
-test("ceipalTeaser falls back to public_job_desc when requistion_description is null", () => {
-  const t = ceipalTeaser({ ...job, requistion_description: null });
-  assert.match(t, /Location: HSR, Bangalore/);
-});
-
-test("ceipalTeaser falls back to public_job_desc when requistion_description is an EMPTY string (not just null)", () => {
-  // requistion_description can be "" while public_job_desc has content; a plain `??` would keep the empty string.
-  const t = ceipalTeaser({ ...job, requistion_description: "" });
-  assert.match(t, /Location: HSR, Bangalore/);
-});
-
-test("ceipalDetailToken extracts the token from a /job-details/ URL", () => {
-  assert.equal(
-    ceipalDetailToken("https://candidateportal.ceipal.com/job-details/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10"),
-    "3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10",
-  );
-});
-
-test("ceipalDetailToken returns null for the constructed careers-fallback URL (no detail token)", () => {
-  assert.equal(ceipalDetailToken("https://www.simplilearn.com/job-openings?job=94"), null);
-});
-
-test("ceipalDescriptionUrl builds the candidate-portal full-JD endpoint", () => {
-  assert.equal(
-    ceipalDescriptionUrl("TOKEN123"),
-    "https://candidateportal.ceipal.com/api/jobs/description/TOKEN123",
-  );
-});
-
-test("normalizeCeipal maps title, location, job URL, remote flag, and posted date; leaves jdText empty for fetchJd", () => {
-  const p = normalizeCeipal(company, job);
+test("normalizeCeipal maps id, title, location, widget job URL and remote flag; leaves jdText empty for fetchJd", () => {
+  const p = normalizeCeipal(company, tokens, job);
   assert.equal(p.provider, "ceipal");
-  assert.equal(p.externalId, "94");
+  assert.equal(p.externalId, job.id);
   assert.equal(p.jobTitle, "Inside Sales Specialist");
   assert.equal(p.location, "Bengaluru, KA, 560001");
-  assert.equal(p.jobUrl, "https://candidateportal.ceipal.com/job-details/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10");
+  assert.equal(p.jobUrl, ceipalJobUrl(tokens, job.id));
   assert.equal(p.isRemote, false);
-  // The list JD is a truncated teaser; jdText is left empty so the pipeline calls fetchJd for the full description.
   assert.equal(p.jdText, "");
-  assert.equal(p.postedAt, new Date("30 March 2026").toISOString());
+  assert.equal(p.postedAt, null);
 });
 
 test("normalizeCeipal treats remote_opportunities=1 as remote regardless of location text", () => {
-  const p = normalizeCeipal(company, { ...job, remote_opportunities: 1 });
-  assert.equal(p.isRemote, true);
-});
-
-test("normalizeCeipal falls back to a constructed job URL when no detail URL is present", () => {
-  const p = normalizeCeipal(company, { ...job, campus_portal_job_details_url: null });
-  assert.equal(p.jobUrl, "https://www.simplilearn.com/job-openings?job=94");
+  assert.equal(normalizeCeipal(company, tokens, { ...job, remote_opportunities: 1 }).isRemote, true);
 });
 
 const realFetch = globalThis.fetch;
@@ -137,33 +92,31 @@ function restoreFetch(): void {
   globalThis.fetch = realFetch;
 }
 
-function pageResponse(_page: number, results: CeipalJob[], count: number): Response {
+function pageResponse(results: CeipalJob[], count: number): Response {
   return new Response(JSON.stringify({ count, num_pages: Math.ceil(count / 20), results }), { status: 200 });
 }
 
-test("listPostings paginates full-size (20/page) pages via num_pages/count until the short last page ends it, sending the required Referer + fields", async () => {
-  // Mirrors the live Simplilearn tenant shape: 54 jobs over 3 pages (20, 20, 14).
+test("listPostings paginates 20/page until the short last page, sending the required Referer + fields", async () => {
   const calls: { url: string; referer: string | null; fields: Record<string, string> }[] = [];
   const makePage = (start: number, n: number): CeipalJob[] =>
-    Array.from({ length: n }, (_, i) => ({ ...job, job_id: start + i }));
+    Array.from({ length: n }, (_, i) => ({ ...job, id: `id-${start + i}` }));
   stubFetch(async (input, init) => {
-    const url = String(input);
     const headers = new Headers(init?.headers);
     const body = init?.body;
     if (!(body instanceof FormData)) throw new Error("expected a FormData body");
     const fields: Record<string, string> = {};
     for (const [k, v] of body.entries()) fields[k] = String(v);
-    calls.push({ url, referer: headers.get("Referer"), fields });
+    calls.push({ url: String(input), referer: headers.get("Referer"), fields });
     const page = Number(fields.page);
-    if (page === 1) return pageResponse(1, makePage(1, 20), 54);
-    if (page === 2) return pageResponse(2, makePage(21, 20), 54);
-    return pageResponse(3, makePage(41, 14), 54);
+    if (page === 1) return pageResponse(makePage(1, 20), 54);
+    if (page === 2) return pageResponse(makePage(21, 20), 54);
+    return pageResponse(makePage(41, 14), 54);
   });
   try {
-    const postings = await ceipalAdapter.listPostings({ ...company, apiMeta: { api_key: "KEY123", cp_id: "CP456" } });
+    const postings = await ceipalAdapter.listPostings(company);
     assert.equal(postings.length, 54);
-    assert.equal(postings[0]?.externalId, "1");
-    assert.equal(postings[53]?.externalId, "54");
+    assert.equal(postings[0]?.externalId, "id-1");
+    assert.equal(postings[53]?.externalId, "id-54");
     assert.equal(calls.length, 3);
     assert.equal(calls[0]?.url, "https://careerapi.ceipal.com/KEY123/CareerPortalJobPostings/?page=1");
     assert.equal(calls[0].referer, "https://jobsapi.ceipal.com/");
@@ -177,10 +130,9 @@ test("listPostings paginates full-size (20/page) pages via num_pages/count until
 });
 
 test("listPostings returns an empty array for a tenant with zero postings", async () => {
-  stubFetch(async () => pageResponse(1, [], 0));
+  stubFetch(async () => pageResponse([], 0));
   try {
-    const postings = await ceipalAdapter.listPostings(company);
-    assert.deepEqual(postings, []);
+    assert.deepEqual(await ceipalAdapter.listPostings(company), []);
   } finally {
     restoreFetch();
   }
@@ -205,80 +157,51 @@ test("listPostings surfaces the ATS HTTP error when the API 400s (missing Refere
 });
 
 const FULL_JD =
-  "Job Title: Inside Sales Specialist &ndash; B2C<br />Location: HSR, Bangalore<br /><br />" +
-  "About the role: drive B2C revenue, own the full sales cycle, exceed quota. " +
-  "Responsibilities include qualifying leads, running demos, and closing deals. " +
-  "Requirements: 1-5 years of inside sales experience, excellent communication, CRM fluency.";
+  "<p>About the role: drive B2C revenue, own the full sales cycle, exceed quota.</p>\r\n<ul><li>Qualify leads, run demos, close deals.</li>" +
+  "<li>Requirements: 1-5 years of inside sales experience, excellent communication, CRM fluency.</li></ul>";
 
-function detailResponse(jobDescription: string | null): Response {
-  return new Response(
-    JSON.stringify({ status: 1, message: "ok", data: { jobInfo: { descriptionData: { jobDescription } } } }),
-    { status: 200 },
-  );
+function detailResponse(publicJobDesc: string | null): Response {
+  return new Response(JSON.stringify({ job_code: "JPC - 154", public_job_desc: publicJobDesc, public_job_title: "x" }), { status: 200 });
 }
 
 const { fetchJd } = ceipalAdapter;
 assert(fetchJd);
 
-test("fetchJd retrieves the FULL description from the detail endpoint (not the truncated list teaser)", async () => {
-  const posting = normalizeCeipal(company, job);
-  const calls: { url: string; method: string }[] = [];
+test("fetchJd retrieves the full description from the per-job detail endpoint with the Referer", async () => {
+  const posting = normalizeCeipal(company, tokens, job);
+  const calls: { url: string; referer: string | null }[] = [];
   stubFetch(async (input, init) => {
-    calls.push({ url: String(input), method: init?.method ?? "GET" });
+    calls.push({ url: String(input), referer: new Headers(init?.headers).get("Referer") });
     return detailResponse(FULL_JD);
   });
   try {
     const jd = await fetchJd(company, posting);
     assert.equal(calls.length, 1);
-    assert.equal(
-      calls[0]?.url,
-      "https://candidateportal.ceipal.com/api/jobs/description/3M4gX1f5YUpHBCgzByGhm62DqQGI85YDKbSl6PmPv10",
-    );
-    assert.equal(calls[0].method, "GET");
+    assert.equal(calls[0]?.url, ceipalDetailUrl(tokens, job.id));
+    assert.equal(calls[0].referer, "https://jobsapi.ceipal.com/");
     assert.match(jd, /own the full sales cycle/);
     assert.match(jd, /CRM fluency/);
-    assert.doesNotMatch(jd, /<br|&ndash;/);
-    // Full JD, well beyond the ~184-char list teaser.
-    assert.ok(jd.length > 184, `expected full JD, got ${jd.length} chars`);
+    assert.doesNotMatch(jd, /<p>|<li>/);
   } finally {
     restoreFetch();
   }
 });
 
-test("fetchJd falls back to the teaser (from public_job_desc, empty requistion_description) when the detail fetch fails", async () => {
-  // Covers both the empty-string fallback (defect) and the detail-failure path.
-  const posting = normalizeCeipal(company, { ...job, requistion_description: "" });
+test("fetchJd falls back to the list teaser when the detail fetch fails", async () => {
+  const posting = normalizeCeipal(company, tokens, job);
   stubFetch(async () => new Response("boom", { status: 500 }));
   try {
-    const jd = await fetchJd(company, posting);
-    assert.match(jd, /Location: HSR, Bangalore/);
+    assert.match(await fetchJd(company, posting), /Location: HSR, Bangalore/);
   } finally {
     restoreFetch();
   }
 });
 
-test("fetchJd falls back to the teaser when the detail response carries an empty jobDescription", async () => {
-  const posting = normalizeCeipal(company, job);
+test("fetchJd falls back to the list teaser when the detail description is empty", async () => {
+  const posting = normalizeCeipal(company, tokens, job);
   stubFetch(async () => detailResponse(""));
   try {
-    const jd = await fetchJd(company, posting);
-    assert.match(jd, /Inside Sales Specialist/);
-  } finally {
-    restoreFetch();
-  }
-});
-
-test("fetchJd returns the teaser without any HTTP call when the posting has no detail token", async () => {
-  const posting = normalizeCeipal(company, { ...job, campus_portal_job_details_url: null });
-  let called = false;
-  stubFetch(async () => {
-    called = true;
-    return detailResponse(FULL_JD);
-  });
-  try {
-    const jd = await fetchJd(company, posting);
-    assert.equal(called, false);
-    assert.match(jd, /Inside Sales Specialist/);
+    assert.match(await fetchJd(company, posting), /Location: HSR, Bangalore/);
   } finally {
     restoreFetch();
   }
