@@ -90,6 +90,17 @@ function pickPostedFromSpans(spanTexts: string[]): string | null {
   return null;
 }
 
+/** Value of an `.article__content__field` labelled "Location:" (Koch's skin keeps the subtitle for the company name). */
+function pickLabelledLocation($: cheerio.CheerioAPI, $art: ReturnType<cheerio.CheerioAPI>): string | null {
+  for (const field of $art.find(".article__content__field").toArray()) {
+    const label = collapseWs($(field).find(".article__content__field__label").first().text());
+    if (!/^(job\s+)?location\s*:?$/i.test(label)) continue;
+    const value = collapseWs($(field).find(".article__content__field__value").first().text());
+    if (value) return value;
+  }
+  return null;
+}
+
 export function parseAvatureSearch(
   html: string,
   baseUrl: string,
@@ -132,7 +143,7 @@ export function parseAvatureSearch(
       });
       location = parts.length ? parts.join(", ") : collapseWs($loc.text()) || null;
     } else {
-      location = pickLocationFromSpans(spanTexts);
+      location = pickLocationFromSpans(spanTexts) ?? pickLabelledLocation($, $art);
     }
 
     const postedRaw = pickPostedFromSpans(spanTexts);

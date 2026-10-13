@@ -388,3 +388,39 @@ test("avatureSearchUrl appends the per-tenant country filter suffix", () => {
   };
   assert.equal(avatureSearchUrl(c), "https://jobs.siemens.com/en_US/externaljobs/SearchJobs?42386[]=812053");
 });
+
+// Koch's skin: subtitle is a bare company label with no spans; location sits in a labelled article__content field.
+const LABELLED_FIELD_HTML = `
+<html><body>
+  <article class="article article--result">
+    <div class="article__header"><div class="article__header__text">
+      <h5 class="article__header__text__subtitle">Molex</h5>
+      <h3 class="article__header__text__title article__header__text__title--7">
+        <a href="https://koch.avature.net/en_US/careers/JobDetail/Design-Engineer/195792">Design Engineer</a>
+      </h3>
+    </div></div>
+    <div class="article__content">
+      <div class="article__content__field m--t--s">
+        <div class="article__content__field__label">Job Number: </div>
+        <div class="article__content__field__value">195792</div>
+      </div>
+      <div class="article__content__field m--t--s">
+        <div class="article__content__field__label">Location: </div>
+        <div class="article__content__field__value">Bangalore, Karnataka</div>
+      </div>
+    </div>
+  </article>
+</body></html>`;
+
+test("parseAvatureSearch reads the location from a labelled content field when the subtitle has none", () => {
+  const { postings } = parseAvatureSearch(LABELLED_FIELD_HTML, "https://koch.avature.net/en_US/careers/SearchJobs", company);
+  assert.equal(postings.length, 1);
+  assert.equal(at(postings, 0).externalId, "195792");
+  assert.equal(at(postings, 0).location, "Bangalore, Karnataka");
+});
+
+test("parseAvatureSearch leaves location null when neither the subtitle nor a Location field carries one", () => {
+  const html = LABELLED_FIELD_HTML.replace("Location: ", "Career Field: ");
+  const { postings } = parseAvatureSearch(html, "https://koch.avature.net/en_US/careers/SearchJobs", company);
+  assert.equal(at(postings, 0).location, null);
+});
