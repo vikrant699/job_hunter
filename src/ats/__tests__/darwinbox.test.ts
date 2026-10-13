@@ -7,6 +7,7 @@ import {
   normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages,
   darwinboxV2Token, normalizeDarwinboxV2, mergeDarwinboxV2Pages,
   darwinboxLocation, darwinboxPagesNeeded,
+  darwinboxLegacyLandingUrl, darwinboxSteps,
 } from "../darwinbox.js";
 import type { DarwinboxJob, DarwinboxV2Job } from "../darwinbox.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
@@ -215,4 +216,20 @@ test("darwinboxJobUrl deep-links under candidatev2 with the tenant token for bot
     "https://pwhr.darwinbox.in/ms/candidatev2/a62d7a6e288992/careers/jobDetails/a1",
   );
   assert.equal(darwinboxJobUrl(mk("https://acme.darwinbox.in"), "a1"), "https://acme.darwinbox.in/ms/candidatev2/main/careers/jobDetails/a1");
+});
+
+test("the legacy generation fetches from its JSON API origin page, never the SPA careers page that client-redirects mid-fetch", () => {
+  assert.equal(
+    darwinboxLegacyLandingUrl(company),
+    "https://emeritus.darwinbox.in/ms/candidateapi/job?page=1&companyId=main",
+  );
+  const tokened: AdapterCompany = { ...company, tenantUrl: "https://g.darwinbox.in/ms/candidate/a6150564417204/careers" };
+  assert.equal(darwinboxLegacyLandingUrl(tokened), "https://g.darwinbox.in/ms/candidateapi/job?page=1&companyId=a6150564417204");
+});
+
+test("darwinboxSteps hands out each request once, in order, then stops", () => {
+  const next = darwinboxSteps([{ url: "/a" }, { url: "/b", method: "POST", body: { page: 2 } }]);
+  assert.deepEqual(next([]), { url: "/a" });
+  assert.deepEqual(next([asJson({})]), { url: "/b", method: "POST", body: { page: 2 } });
+  assert.equal(next([asJson({}), asJson({})]), null);
 });

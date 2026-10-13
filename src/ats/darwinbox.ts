@@ -7,7 +7,8 @@ import { JsonValueSchema, getObj } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 import { htmlToText } from "./htmlText.js";
 import { parseOrThrow } from "./http.js";
-import { browserFetchJson, browserFetchJsonRequests } from "./browserFetch.js";
+import { browserFetchJsonSteps } from "./browserFetch.js";
+import type { BrowserJsonStep } from "./browserFetch.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
 
@@ -64,7 +65,6 @@ export function normalizeDarwinbox(company: AdapterCompany, j: DarwinboxJob): No
   };
 }
 
-const CAREERS_PATH = "/ms/candidate/careers";
 // some legacy tenants carry a per-tenant token in the careers path; hardcoding companyId="main" returns 0 jobs for those, so it must be extracted when present
 const LEGACY_TOKEN_RE = /\/ms\/candidate\/(?!careers)([^/]+)\/careers/i;
 export function legacyCompanyId(company: AdapterCompany): string {
@@ -79,6 +79,16 @@ export function darwinboxJobUrl(company: AdapterCompany, externalId: string): st
 const API = (page: number, companyId: string) => `/ms/candidateapi/job?page=${page}&companyId=${encodeURIComponent(companyId)}`;
 
 const MAX_LIST_PAGES = 5000; // runaway backstop only, never truncate
+
+// /ms/candidate/careers boots an SPA that full-navigates to /ms/candidatev2/... seconds after load (late on a slow tenant), killing any in-flight page.evaluate; the JSON API page never navigates and still clears Cloudflare
+export function darwinboxLegacyLandingUrl(company: AdapterCompany): string {
+  return `${darwinboxTenantBase(company)}${API(1, legacyCompanyId(company))}`;
+}
+
+/** Fixed request list as a browserFetchJsonSteps builder, which retries an evaluate killed by a navigation. */
+export function darwinboxSteps(steps: BrowserJsonStep[]): (done: JsonValue[]) => BrowserJsonStep | null {
+  return (done) => steps[done.length] ?? null;
+}
 
 /** `pageSize` is derived from the live page-1 length, so guard a zero/absent value. */
 export function darwinboxPagesNeeded(total: number, pageSize: number): number {
@@ -105,22 +115,21 @@ export function mergeDarwinboxPages(
 }
 
 async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPosting[]> {
-  const base = darwinboxTenantBase(company);
-  const careersUrl = `${base}${CAREERS_PATH}`;
+  const landingUrl = darwinboxLegacyLandingUrl(company);
   const companyId = legacyCompanyId(company);
   const out: NormalizedPosting[] = [];
   // First page (in-browser; clears Cloudflare) reveals jobscount.
-  const [first] = await browserFetchJson(careersUrl, [API(1, companyId)]);
+  const [first] = await browserFetchJsonSteps(landingUrl, darwinboxSteps([{ url: API(1, companyId) }]));
   const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
-  // Fetch remaining pages ALL in one browserFetchJson call (one navigation, multiple in-page XHRs).
+  // remaining pages share one navigation, one in-page XHR each
   if (out.length < total) {
     const pageSize = parsed0.message.jobs.length;
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
     if (pagesNeeded >= 2) {
-      const remainingApis = Array.from({ length: pagesNeeded - 1 }, (_, i) => API(i + 2, companyId));
-      const results = await browserFetchJson(careersUrl, remainingApis);
+      const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({ url: API(i + 2, companyId) }));
+      const results = await browserFetchJsonSteps(landingUrl, darwinboxSteps(remaining));
       mergeDarwinboxPages(company, out, results, total);
     }
   }
@@ -128,9 +137,8 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
 }
 
 async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
-  const base = darwinboxTenantBase(company);
-  const careersUrl = `${base}${CAREERS_PATH}`;
-  const [raw] = await browserFetchJson(careersUrl, [`/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=${encodeURIComponent(legacyCompanyId(company))}`]);
+  const detailPath = `/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=${encodeURIComponent(legacyCompanyId(company))}`;
+  const [raw] = await browserFetchJsonSteps(darwinboxLegacyLandingUrl(company), darwinboxSteps([{ url: detailPath }]));
   // detail.message = { job: [{...fields, jd}], isSaved }; tolerate a flat-object fallback for other tenants.
   const parseResult = JsonValueSchema.safeParse(raw);
   const rawVal: JsonValue | null = parseResult.success ? parseResult.data : null;
@@ -214,9 +222,9 @@ export function mergeDarwinboxV2Pages(
 async function listPostingsV2(company: AdapterCompany, token: string): Promise<NormalizedPosting[]> {
   const pageUrl = `${darwinboxTenantBase(company)}${V2_CAREERS_PATH(token)}`;
   const out: NormalizedPosting[] = [];
-  const [first] = await browserFetchJsonRequests(pageUrl, [
-    { path: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
-  ]);
+  const [first] = await browserFetchJsonSteps(pageUrl, darwinboxSteps([
+    { url: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
+  ]));
   const parsed0 = parseOrThrow(V2ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
   for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, j));
   const total = parsed0.job_counts ?? out.length;
@@ -225,9 +233,9 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
     const pagesNeeded = darwinboxPagesNeeded(total, parsed0.data.length || V2_PAGE_SIZE);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
-        path: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),
+        url: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),
       }));
-      const results = await browserFetchJsonRequests(pageUrl, remaining);
+      const results = await browserFetchJsonSteps(pageUrl, darwinboxSteps(remaining));
       mergeDarwinboxV2Pages(company, out, results, total);
     }
   }
