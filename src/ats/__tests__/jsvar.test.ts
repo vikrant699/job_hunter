@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { parseLiteral, jsVarPostings } from "../jsvar.js";
+import { parseLiteral, jsVarPostings, jsVarConfig, discoverAssetUrl, jsvarAdapter } from "../jsvar.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./testHelpers.js";
+import { at, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
 
 test("parseLiteral evals a JS literal (single quotes, bare keys) in a sandbox", () => {
   const v = z.array(z.record(z.string())).parse(parseLiteral("[{ title: 'A', loc: 'Mumbai' }]", false));
@@ -141,4 +141,97 @@ test("jsVarPostings resolves {slug} from apiMeta.slugField when set", () => {
   assert.equal(p0.jobUrl, "https://www.ofbcareers.com/jobs/quality-executive");
   assert.match(p0.jdText, /Inspect pulses\./);
   assert.match(p0.jdText, /Grade grains\./);
+});
+
+const bundleCompany: AdapterCompany = {
+  ...arrayCompany,
+  slug: "algouniversity",
+  careersUrl: "https://www.algouniversity.com/careers",
+  apiMeta: {
+    assetPattern: "assets/index-[^/]+\\.js$",
+    startPattern: '\\[\\{id:"[^"]+",title:"',
+    open: "[",
+    titleField: "title",
+    idField: "id",
+    locationField: "location",
+    jdFields: "blurb,responsibilities",
+  },
+};
+
+const bundleJs = (varName: string) =>
+  `const ql=["Growth","Sales"],${varName}=[{id:"growth-associate",title:"Growth Associate",location:"Hyderabad",` +
+  `blurb:"Own growth.",responsibilities:["Run campaigns","Track CAC"]},` +
+  `{id:"sde",title:"SDE",location:"Bangalore",blurb:"Ship code.",responsibilities:[]}];`;
+
+test("jsVarPostings startPattern finds the array whatever the minified variable is named", () => {
+  for (const name of ["cn", "Xe"]) {
+    const p = jsVarPostings(bundleCompany, bundleJs(name));
+    assert.equal(p.length, 2);
+    assert.equal(at(p, 0).externalId, "growth-associate");
+    assert.match(at(p, 0).jdText, /Track CAC/);
+    assert.equal(at(p, 1).location, "Bangalore");
+  }
+});
+
+test("jsVarPostings throws when startPattern matches nothing", () => {
+  assert.throws(() => jsVarPostings(bundleCompany, "const x=[1,2];"), /startPattern/);
+});
+
+test("jsVarConfig requires startMarker or startPattern", () => {
+  const company: AdapterCompany = { ...arrayCompany, apiMeta: { titleField: "title" } };
+  assert.throws(() => jsVarConfig(company), /startMarker or apiMeta.startPattern/);
+});
+
+test("discoverAssetUrl resolves the first matching <script src> against the page URL", () => {
+  const html = `<script src="https://cdn.example.com/vendor.js"></script>
+    <script type="module" crossorigin src="/careers/assets/index-DI2Oc7wJ.js"></script>
+    <script src='/careers/assets/index-Zz9.js'></script>`;
+  assert.equal(
+    discoverAssetUrl(html, "https://www.algouniversity.com/careers", /assets\/index-[^/]+\.js$/),
+    "https://www.algouniversity.com/careers/assets/index-DI2Oc7wJ.js",
+  );
+  assert.equal(discoverAssetUrl(html, "https://x.com/", /nope/), null);
+});
+
+test("jsvarAdapter discovers the current bundle from the careers page when assetPattern is set", async (t) => {
+  const urls: string[] = [];
+  const responses = [
+    () => htmlResponse(`<html><script type="module" src="/careers/assets/index-NEWHASH.js"></script></html>`),
+    () => htmlResponse(bundleJs("q")),
+  ];
+  stubFetch(t, (input) => {
+    urls.push(String(input));
+    return Promise.resolve(at(responses, urls.length - 1)());
+  });
+  const p = await jsvarAdapter.listPostings(bundleCompany);
+  assert.equal(p.length, 2);
+  assert.deepEqual(urls, [
+    "https://www.algouniversity.com/careers",
+    "https://www.algouniversity.com/careers/assets/index-NEWHASH.js",
+  ]);
+});
+
+test("jsvarAdapter fails clearly when no <script src> matches assetPattern", async (t) => {
+  stubFetch(t, fetchSequence(() => htmlResponse(`<html><script src="/other.js"></script></html>`)));
+  await assert.rejects(jsvarAdapter.listPostings(bundleCompany), /assetPattern/);
+});
+
+test("jsvarAdapter still fetches a fixed assetUrl directly", async (t) => {
+  const urls: string[] = [];
+  stubFetch(t, (input) => {
+    urls.push(String(input));
+    return Promise.resolve(htmlResponse(bundleJs("cn")));
+  });
+  const company: AdapterCompany = {
+    ...bundleCompany,
+    apiMeta: {
+      assetUrl: "https://www.algouniversity.com/careers/assets/index-OLD.js",
+      startPattern: '\\[\\{id:"[^"]+",title:"',
+      titleField: "title",
+      idField: "id",
+    },
+  };
+  const p = await jsvarAdapter.listPostings(company);
+  assert.equal(p.length, 2);
+  assert.deepEqual(urls, ["https://www.algouniversity.com/careers/assets/index-OLD.js"]);
 });
