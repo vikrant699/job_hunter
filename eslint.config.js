@@ -25,6 +25,8 @@ const plugins = {
 const IGNORES = ["dist/**", "node_modules/**", "data/**", ".claude/**", "temp/**", "config/profiles/**"];
 
 export default tseslint.config(
+  // Global ignore (an object with only `ignores`): per-block ignores still let `eslint .` parse scratch .js under temp/.
+  { ignores: IGNORES },
   {
     files: ["**/*.ts"],
     ignores: IGNORES,
