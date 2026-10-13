@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
-import { JsonValueSchema, getObj } from "../util/json.js";
+import { getObj } from "../util/json.js";
 import type { JsonValue } from "../util/json.js";
 import { htmlToText } from "./htmlText.js";
 import { parseOrThrow } from "./http.js";
@@ -11,6 +11,7 @@ import { browserFetchJsonSteps } from "./browserFetch.js";
 import type { BrowserJsonStep } from "./browserFetch.js";
 import { REMOTE_RE, unixToIso } from "./shared.js";
 import { matchGroup } from "../util/regex.js";
+import { sleep } from "../util/sleep.js";
 
 const JobSchema = z.object({
   id: z.union([z.string(), z.number()]).transform(String),
@@ -90,6 +91,24 @@ export function darwinboxSteps(steps: BrowserJsonStep[]): (done: JsonValue[]) =>
   return (done) => steps[done.length] ?? null;
 }
 
+const FORBIDDEN_RE = /\bHTTP 403\b/;
+const FORBIDDEN_RETRY_DELAY_MS = 3_000;
+
+/** Cloudflare intermittently 403s one in-page fetch that a fresh session then serves, so retry the whole session once; other failures propagate untouched. */
+export async function darwinboxRetryForbidden<T>(run: () => Promise<T>, wait: (ms: number) => Promise<void> = sleep): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!FORBIDDEN_RE.test(String(err))) throw err;
+    await wait(FORBIDDEN_RETRY_DELAY_MS);
+    return run();
+  }
+}
+
+function darwinboxFetch(pageUrl: string, steps: BrowserJsonStep[]): Promise<JsonValue[]> {
+  return darwinboxRetryForbidden(() => browserFetchJsonSteps(pageUrl, darwinboxSteps(steps)));
+}
+
 /** `pageSize` is derived from the live page-1 length, so guard a zero/absent value. */
 export function darwinboxPagesNeeded(total: number, pageSize: number): number {
   return Math.min(Math.ceil(total / (pageSize || 1)), MAX_LIST_PAGES);
@@ -119,7 +138,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
   const companyId = legacyCompanyId(company);
   const out: NormalizedPosting[] = [];
   // First page (in-browser; clears Cloudflare) reveals jobscount.
-  const [first] = await browserFetchJsonSteps(landingUrl, darwinboxSteps([{ url: API(1, companyId) }]));
+  const [first] = await darwinboxFetch(landingUrl, [{ url: API(1, companyId) }]);
   const parsed0 = parseOrThrow(ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug });
   for (const j of parsed0.message.jobs) out.push(normalizeDarwinbox(company, j));
   const total = parsed0.message.jobscount ?? out.length;
@@ -129,7 +148,7 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
     const pagesNeeded = darwinboxPagesNeeded(total, pageSize);
     if (pagesNeeded >= 2) {
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({ url: API(i + 2, companyId) }));
-      const results = await browserFetchJsonSteps(landingUrl, darwinboxSteps(remaining));
+      const results = await darwinboxFetch(landingUrl, remaining);
       mergeDarwinboxPages(company, out, results, total);
     }
   }
@@ -138,15 +157,15 @@ async function listPostingsLegacy(company: AdapterCompany): Promise<NormalizedPo
 
 async function fetchJdLegacy(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
   const detailPath = `/ms/candidateapi/job/${encodeURIComponent(posting.externalId)}?companyId=${encodeURIComponent(legacyCompanyId(company))}`;
-  const [raw] = await browserFetchJsonSteps(darwinboxLegacyLandingUrl(company), darwinboxSteps([{ url: detailPath }]));
-  // detail.message = { job: [{...fields, jd}], isSaved }; tolerate a flat-object fallback for other tenants.
-  const parseResult = JsonValueSchema.safeParse(raw);
-  const rawVal: JsonValue | null = parseResult.success ? parseResult.data : null;
-  const rawObj = getObj(rawVal);
-  const msgObj = getObj(rawVal, "message") ?? rawObj ?? {};
+  const [raw] = await darwinboxFetch(darwinboxLegacyLandingUrl(company), [{ url: detailPath }]);
+  return darwinboxDetailJd(raw ?? null);
+}
+
+/** detail.message = { job: [{...fields, jd}], isSaved }; tolerates a flat-object fallback for other tenants. */
+export function darwinboxDetailJd(raw: JsonValue): string {
+  const msgObj = getObj(raw, "message") ?? getObj(raw) ?? {};
   const jobArr = msgObj["job"];
-  const jobArrItem = Array.isArray(jobArr) ? jobArr[0] : null;
-  const jobObj = getObj(jobArrItem) ?? msgObj;
+  const jobObj = getObj(Array.isArray(jobArr) ? jobArr[0] : null) ?? msgObj;
   const jdRaw = jobObj["jd"] ?? jobObj["job_description"] ?? jobObj["description"] ?? "";
   const jd = typeof jdRaw === "string" ? jdRaw : "";
   // Darwinbox double HTML-encodes the JD (e.g. &lt;p&gt;) - decode once to get real HTML, then strip tags.
@@ -222,9 +241,9 @@ export function mergeDarwinboxV2Pages(
 async function listPostingsV2(company: AdapterCompany, token: string): Promise<NormalizedPosting[]> {
   const pageUrl = `${darwinboxTenantBase(company)}${V2_CAREERS_PATH(token)}`;
   const out: NormalizedPosting[] = [];
-  const [first] = await browserFetchJsonSteps(pageUrl, darwinboxSteps([
+  const [first] = await darwinboxFetch(pageUrl, [
     { url: V2_API_PATH(token), method: "POST", body: v2ApiBody(token, 1) },
-  ]));
+  ]);
   const parsed0 = parseOrThrow(V2ListSchema, first ?? null, { provider: "darwinbox", slug: company.slug, what: "v2 list" });
   for (const j of parsed0.data) out.push(normalizeDarwinboxV2(company, j));
   const total = parsed0.job_counts ?? out.length;
@@ -235,7 +254,7 @@ async function listPostingsV2(company: AdapterCompany, token: string): Promise<N
       const remaining = Array.from({ length: pagesNeeded - 1 }, (_, i) => ({
         url: V2_API_PATH(token), method: "POST" as const, body: v2ApiBody(token, i + 2),
       }));
-      const results = await browserFetchJsonSteps(pageUrl, darwinboxSteps(remaining));
+      const results = await darwinboxFetch(pageUrl, remaining);
       mergeDarwinboxV2Pages(company, out, results, total);
     }
   }

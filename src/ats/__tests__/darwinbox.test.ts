@@ -7,12 +7,13 @@ import {
   normalizeDarwinbox, darwinboxTenantBase, mergeDarwinboxPages,
   darwinboxV2Token, normalizeDarwinboxV2, mergeDarwinboxV2Pages,
   darwinboxLocation, darwinboxPagesNeeded,
-  darwinboxLegacyLandingUrl, darwinboxSteps,
+  darwinboxLegacyLandingUrl, darwinboxSteps, darwinboxDetailJd, darwinboxRetryForbidden,
 } from "../darwinbox.js";
 import type { DarwinboxJob, DarwinboxV2Job } from "../darwinbox.js";
 import type { AdapterCompany, NormalizedPosting } from "../../types.js";
 import type { JsonValue } from "../../util/json.js";
 import { asJson } from "./testHelpers.js";
+import { rejectionOf } from "../../__tests__/caught.js";
 
 const company: AdapterCompany = {
   provider: "darwinbox", slug: "emeritus", name: "Emeritus",
@@ -232,4 +233,62 @@ test("darwinboxSteps hands out each request once, in order, then stops", () => {
   assert.deepEqual(next([]), { url: "/a" });
   assert.deepEqual(next([asJson({})]), { url: "/b", method: "POST", body: { page: 2 } });
   assert.equal(next([asJson({}), asJson({})]), null);
+});
+
+function detail(fields: Record<string, string>): JsonValue {
+  return asJson({ status: "success", message: { job: [{ id: "a67dd32d8adae1", title: "Associate", ...fields }], isSaved: false } });
+}
+
+test("darwinboxDetailJd decodes the double HTML-encoded jd of a legacy detail response", () => {
+  const raw = detail({ jd: "&lt;p&gt;&lt;b&gt;Job Overview&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Lead training for ops&amp;nbsp;teams.&lt;/p&gt;" });
+  assert.match(darwinboxDetailJd(raw), /Job Overview\s+Lead training for ops teams\./);
+});
+
+// live shapes (delhivery, 1mg, gommt, bigbasket, au-small-finance-bank) where the recruiter saved no JD; the hosted job page renders an empty Job Description too
+test("darwinboxDetailJd returns empty for a JD that is empty at the source", () => {
+  for (const jd of ["", " ", "&lt;p&gt;&lt;br&gt;&lt;/p&gt;", "&lt;p&gt;&lt;br /&gt;&lt;/p&gt;", "Please enter job description"]) {
+    assert.equal(darwinboxDetailJd(detail({ jd })), "", JSON.stringify(jd));
+  }
+});
+
+test("darwinboxDetailJd tolerates a flat message and alternate JD keys", () => {
+  assert.equal(darwinboxDetailJd(asJson({ message: { job_description: "&lt;p&gt;Flat&lt;/p&gt;" } })), "Flat");
+  assert.equal(darwinboxDetailJd(asJson({ description: "Top level" })), "Top level");
+  assert.equal(darwinboxDetailJd(asJson({ message: { job: [{ jd: null }] } })), "");
+  assert.equal(darwinboxDetailJd(null), "");
+});
+
+// Cloudflare intermittently 403s one in-page fetch in an otherwise healthy session (emeritus in run 2026-10-13, timesinternet in a live sweep); the same request succeeds from a fresh session
+test("darwinboxRetryForbidden retries a 403 once in a fresh session, then succeeds", async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const out = await darwinboxRetryForbidden(() => {
+    calls++;
+    return calls === 1 ? Promise.reject(new Error("page.evaluate: Error: HTTP 403\n    at eval")) : Promise.resolve("ok");
+  }, (ms) => { waits.push(ms); return Promise.resolve(); });
+  assert.equal(out, "ok");
+  assert.equal(calls, 2);
+  assert.equal(waits.length, 1);
+});
+
+test("darwinboxRetryForbidden gives up after the second 403 and rethrows it", async () => {
+  let calls = 0;
+  const err = await rejectionOf(darwinboxRetryForbidden(() => {
+    calls++;
+    return Promise.reject(new Error(`page.evaluate: Error: HTTP 403 #${calls}`));
+  }, () => Promise.resolve()));
+  assert.match(String(err), /HTTP 403 #2/);
+  assert.equal(calls, 2);
+});
+
+test("darwinboxRetryForbidden never retries other failures", async () => {
+  for (const msg of ["page.evaluate: Error: HTTP 404", "page.evaluate: Error: HTTP 4031", "darwinbox response failed schema"]) {
+    let calls = 0;
+    const err = await rejectionOf(darwinboxRetryForbidden(() => {
+      calls++;
+      return Promise.reject(new Error(msg));
+    }, () => Promise.resolve()));
+    assert.equal(String(err), `Error: ${msg}`);
+    assert.equal(calls, 1, msg);
+  }
 });
