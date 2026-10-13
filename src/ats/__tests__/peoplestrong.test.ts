@@ -72,7 +72,7 @@ test("normalizePeoplestrong maps fields; constructs URL when jobDetailUrl is nul
   assert.equal(p.companyName, "RBL Bank");
   assert.equal(p.jobTitle, "Relationship Manager – Signature Banking");
   assert.equal(p.jobUrl, "https://rblcareers.peoplestrong.com/job/detail/RBL_RM-SB_1477632");
-  assert.equal(p.location, "Bangalore");
+  assert.equal(p.location, "India, South, Karnataka, Bangalore");
   assert.equal(p.isRemote, false);
   assert.equal(p.jdText, ""); // JD populated by fetchJd
   assert.equal(p.postedAt, new Date("2025-09-11").toISOString());
@@ -93,18 +93,56 @@ test("normalizePeoplestrong returns null when the job has no jobCode", () => {
   assert.equal(normalizePeoplestrong(company, { jobTitle: "No Code" }), null);
 });
 
-test("normalizePeoplestrong falls back to locationHierarchyComplete then null", () => {
+test("normalizePeoplestrong uses locationHierarchyComplete when the short field is null, else null", () => {
   const complete = normalizePeoplestrong(company, {
     jobCode: "A/1",
     locationHierarchy: null,
     locationHierarchyComplete: "India>West>Maharashtra>Pune",
   });
   assert(complete);
-  assert.equal(complete.location, "India>West>Maharashtra>Pune");
+  assert.equal(complete.location, "India, West, Maharashtra, Pune");
   const none = normalizePeoplestrong(company, { jobCode: "A/2" });
   assert(none);
   assert.equal(none.location, null);
   assert.equal(none.isRemote, false);
+});
+
+test("normalizePeoplestrong keeps the country when the short field is only a state (usvcareers shape)", () => {
+  const p = normalizePeoplestrong(company, {
+    jobCode: "USV/-A-G-H/1892702",
+    locationHierarchy: "Telangana",
+    locationHierarchyComplete: "India>Telangana>Hyderabad",
+  });
+  assert(p);
+  assert.equal(p.location, "India, Telangana, Hyderabad");
+});
+
+test("normalizePeoplestrong drops repeated hierarchy segments (careers-akasa shape)", () => {
+  const p = normalizePeoplestrong(company, {
+    jobCode: "AK/1",
+    locationHierarchy: "Gurugram",
+    locationHierarchyComplete: "India>Haryana>Gurugram>Haryana>Gurugram",
+  });
+  assert(p);
+  assert.equal(p.location, "India, Haryana, Gurugram");
+});
+
+test("normalizePeoplestrong does not repeat a short field that is itself the full chain (sobha-careers shape)", () => {
+  const chain = "MEA>UAE>Dubai>Dubai>Hartland>Hartland";
+  const p = normalizePeoplestrong(company, { jobCode: "S/1", locationHierarchy: chain, locationHierarchyComplete: chain });
+  assert(p);
+  assert.equal(p.location, "MEA, UAE, Dubai, Hartland");
+});
+
+test("normalizePeoplestrong prepends a short location missing from the hierarchy chain", () => {
+  const p = normalizePeoplestrong(company, {
+    jobCode: "R/1",
+    locationHierarchy: "Remote - India",
+    locationHierarchyComplete: "India>Karnataka",
+  });
+  assert(p);
+  assert.equal(p.location, "Remote - India, India, Karnataka");
+  assert.equal(p.isRemote, true);
 });
 
 test("PeoplestrongListSchema parses the wrapper and totalRecords pagination math", () => {

@@ -55,13 +55,24 @@ export function peoplestrongJobUrl(base: string, j: PeoplestrongJob): string {
   return base;
 }
 
+// locationHierarchy is often just a state ("Telangana") with no country, so the full ">" chain (which carries it) leads, deduped.
+export function peoplestrongLocation(j: PeoplestrongJob): string | null {
+  const segments = (raw: string | null | undefined): string[] => (raw ?? "").split(">").map((x) => x.trim()).filter(Boolean);
+  const parts: string[] = [];
+  const has = (seg: string): boolean => parts.some((p) => p.toLowerCase() === seg.toLowerCase());
+  for (const seg of segments(j.locationHierarchyComplete)) if (!has(seg)) parts.push(seg);
+  const short = segments(j.locationHierarchy);
+  if (short.some((seg) => !has(seg))) parts.unshift(short.join(", "));
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 // Null when the job has no jobCode (no stable id / JD key), so the caller can skip it.
 export function normalizePeoplestrong(
   company: AdapterCompany,
   j: PeoplestrongJob,
 ): NormalizedPosting | null {
   if (!j.jobCode) return null;
-  const location = j.locationHierarchy ?? j.locationHierarchyComplete ?? null;
+  const location = peoplestrongLocation(j);
   return {
     provider: "peoplestrong",
     externalId: j.jobCode,
