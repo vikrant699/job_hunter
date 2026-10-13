@@ -71,7 +71,7 @@ test("flattenHdfcRequisitions throws on a wrong-shaped envelope (field drift)", 
   assert.throws(() => flattenHdfcRequisitions(asJson({ data: [] })), /schema/i);
 });
 
-test("normalizeHdfc maps designation/city/reqid; jobUrl anchors into the careers page", () => {
+test("normalizeHdfc maps designation/city/reqid and suffixes India onto the bare city; jobUrl anchors into the careers page", () => {
   const p = normalizeHdfc(company, {
     REQID: "69962", DESIGNATION: "Full Stack Engineer", CITY: "Mumbai", LOC_NAME: "Mumbai HO",
     DEPT_NAME: "Technology", EXPERIENCE: "3 - 5 Years", NO_OPENING: "2",
@@ -79,14 +79,14 @@ test("normalizeHdfc maps designation/city/reqid; jobUrl anchors into the careers
   assert.equal(p.provider, "hdfclife");
   assert.equal(p.externalId, "69962");
   assert.equal(p.jobTitle, "Full Stack Engineer");
-  assert.equal(p.location, "Mumbai");
+  assert.equal(p.location, "Mumbai, India");
   assert.match(p.jobUrl, /find-your-fit\.html#job-69962$/);
   assert.equal(p.jdText, ""); // JD comes from fetchJd
 });
 
 test("normalizeHdfc falls back to LOC_NAME when CITY is blank", () => {
   const p = normalizeHdfc(company, { REQID: "1", DESIGNATION: "X", CITY: "", LOC_NAME: "Gurugram Corp" });
-  assert.equal(p.location, "Gurugram Corp");
+  assert.equal(p.location, "Gurugram Corp, India");
 });
 
 // The JD endpoint's 'results' is a FLAT object; JOBDESCRIPTION is a NESTED OBJECT on this tenant, so the extractor must ignore non-string values.

@@ -96,7 +96,9 @@ export function hdfcJdFromDetail(raw: JsonValue): string {
 
 export function normalizeHdfc(company: AdapterCompany, r: HdfcRequisition): NormalizedPosting {
   const city = r.CITY && r.CITY.trim() ? r.CITY.trim() : null;
-  const location = city ?? (r.LOC_NAME && r.LOC_NAME.trim() ? r.LOC_NAME.trim() : null);
+  const place = city ?? (r.LOC_NAME && r.LOC_NAME.trim() ? r.LOC_NAME.trim() : null);
+  // India-only board whose CITY is a bare town name ("Fatehabad") the location filter can't place otherwise
+  const location = place ? `${place}, India` : null;
   return {
     provider: "hdfclife",
     externalId: r.REQID,
