@@ -18,6 +18,8 @@ function ctxWith(
     postingsYoeDenied: 0,
     postingsDuplicated: 0,
     jdFetchFailed: 0,
+    noJdRechecked: 0,
+    noJdRecovered: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,

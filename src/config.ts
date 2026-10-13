@@ -37,6 +37,8 @@ export const config = {
     deferredPassPaceMs: DEFERRED_PASS_PACE_MS,
     /** Identify ourselves to ATS providers; some block default node UA. */
     userAgent: "job-hunter-bot/0.1",
+    /** A still-listed no-jd posting re-fetches its JD at most this often, since recruiters often fill the JD in after posting. */
+    noJdRecheckDays: 7,
     /** Providers with a start throttle (see ProviderThrottle above); absent = no throttle, unaffected. */
     providerThrottle: PROVIDER_THROTTLE_TABLE,
   },

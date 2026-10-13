@@ -116,6 +116,10 @@ db.exec(schema);
     db.exec("ALTER TABLE postings ADD COLUMN salary_period TEXT");
   }
 
+  if (!postingColsSalary.some((c) => c.name === "jd_checked_at")) {
+    db.exec("ALTER TABLE postings ADD COLUMN jd_checked_at TEXT");
+  }
+
   // Leftovers from the removed embedding shadow mode (owner call 2026-09-03); idempotent drops clean up DBs that ran it.
   db.exec("DROP TABLE IF EXISTS posting_vectors");
   if (postingColsSalary.some((c) => c.name === "embed_sim")) {

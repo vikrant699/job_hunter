@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS postings (
   salary_max       REAL,
   salary_currency  TEXT,
   salary_period    TEXT,  -- the period as stated in the JD (year|month|week|day|hour); salary_min/max are always annualized
+  jd_checked_at    TEXT,  -- last JD re-fetch of a no-jd row; null = never rechecked (discovered_at stands in)
   PRIMARY KEY (provider, external_id, profile_id)
 );
 

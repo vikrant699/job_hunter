@@ -5,7 +5,9 @@ import type { NormalizedPosting, Company } from "../../types.js";
 import type { AtsAdapter } from "../../ats/types.js";
 import type { RunContext } from "../index.js";
 import type { TransportRetryPolicy } from "../scheduler.js";
-import { postingExists, getPostingSalary } from "../../db/index.js";
+import { postingExists, getPostingSalary, getPostingJdState } from "../../db/index.js";
+import { db } from "../../db/db.js";
+import { z } from "zod";
 import { notifyKey } from "../../filter/dedup.js";
 import { mkAdapterCompany } from "../../ats/__tests__/testHelpers.js";
 
@@ -55,6 +57,8 @@ function mkRunContext(overrides: Partial<RunContext> = {}): RunContext {
     postingsYoeDenied: 0,
     postingsDuplicated: 0,
     jdFetchFailed: 0,
+    noJdRechecked: 0,
+    noJdRecovered: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,
@@ -360,4 +364,127 @@ test("an edge interstitial that never clears still gives up inside the retry bud
   assert.equal(calls, FAST.retries + 1);
   assert.equal(stats.jdFetchFailed, 1);
   assert.equal(postingExists(p.provider, p.externalId, stats.profileId), false);
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const StoredResultSchema = z.object({ drop_stage: z.string().nullable(), llm_reason: z.string().nullable(), jd_checked_at: z.string().nullable() });
+function storedResult(p: NormalizedPosting, profileId: string): z.infer<typeof StoredResultSchema> {
+  const row = db
+    .prepare("SELECT drop_stage, llm_reason, jd_checked_at FROM postings WHERE provider = ? AND external_id = ? AND profile_id = ?")
+    .get(p.provider, p.externalId, profileId);
+  return StoredResultSchema.parse(row);
+}
+function ageRow(p: NormalizedPosting, profileId: string, days: number): void {
+  db.prepare("UPDATE postings SET discovered_at = ? WHERE provider = ? AND external_id = ? AND profile_id = ?")
+    .run(new Date(Date.now() - days * DAY_MS).toISOString(), p.provider, p.externalId, profileId);
+}
+function jdAdapter(jd: () => string): { adapter: AtsAdapter; calls: () => number } {
+  let n = 0;
+  return {
+    adapter: { provider: "greenhouse", listPostings: async () => [], fetchJd: async () => { n++; return jd(); } },
+    calls: () => n,
+  };
+}
+async function storeAsNoJd(p: NormalizedPosting, stats: RunContext): Promise<void> {
+  await processOnePosting(jdAdapter(() => "").adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "no-jd");
+}
+
+test("a no-jd posting is not re-fetched inside the recheck window", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  await storeAsNoJd(p, stats);
+
+  const { adapter, calls } = jdAdapter(() => "We need 8+ years of experience.");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(calls(), 0);
+  assert.equal(stats.noJdRechecked, 0);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "no-jd");
+});
+
+test("a due no-jd posting whose JD is still empty is stamped and stays no-jd, and is not counted as new", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  await storeAsNoJd(p, stats);
+  ageRow(p, stats.profileId, 8);
+
+  const { adapter, calls } = jdAdapter(() => "");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(calls(), 1);
+  assert.equal(stats.postingsNew, 1, "only the first sighting counts as new");
+  assert.equal(stats.noJdRechecked, 1);
+  assert.equal(stats.noJdRecovered, 0);
+  const row = storedResult(p, stats.profileId);
+  assert.equal(row.drop_stage, "no-jd");
+  assert.ok(row.jd_checked_at);
+
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+  assert.equal(calls(), 1, "the stamp restarts the 7-day window");
+});
+
+test("a due no-jd posting whose JD now exists runs the full gauntlet and overwrites the row", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  await storeAsNoJd(p, stats);
+  ageRow(p, stats.profileId, 8);
+
+  // 8+ years trips the deterministic yoe-deny stage, proving the recovered JD reached the post-no-jd gauntlet without an LLM call.
+  const { adapter } = jdAdapter(() => "We need 8+ years of experience. CTC: 10-12 LPA.");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(stats.postingsNew, 1);
+  assert.equal(stats.noJdRechecked, 1);
+  assert.equal(stats.noJdRecovered, 1);
+  assert.equal(stats.postingsYoeDenied, 1);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "yoe-deny");
+  assert.equal(getPostingSalary(p.provider, p.externalId, stats.profileId)?.salaryMin, 1_000_000);
+});
+
+test("a recheck that still finds a junk JD keeps the row no-jd with the junk reason", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  await storeAsNoJd(p, stats);
+  ageRow(p, stats.profileId, 8);
+
+  await processOnePosting(jdAdapter(() => "TBD").adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(stats.noJdRecovered, 0);
+  const row = storedResult(p, stats.profileId);
+  assert.equal(row.drop_stage, "no-jd");
+  assert.equal(row.llm_reason, "junk-jd: TBD");
+});
+
+test("a recheck whose JD fetch fails is not stamped, so the next run tries again", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  await storeAsNoJd(p, stats);
+  ageRow(p, stats.profileId, 8);
+
+  const adapter: AtsAdapter = {
+    provider: "greenhouse",
+    listPostings: async () => [],
+    fetchJd: async () => { throw new Error("greenhouse HTTP 404: no such job"); },
+  };
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(stats.jdFetchFailed, 1);
+  assert.equal(stats.noJdRechecked, 0);
+  assert.equal(storedResult(p, stats.profileId).jd_checked_at, null);
+});
+
+test("an old posting with a real verdict is never re-fetched", async () => {
+  const p = mkNormalizedPosting({ jdText: "We need 8+ years of experience." });
+  const stats = mkRunContext();
+  await processOnePosting({ provider: "greenhouse", listPostings: async () => [] }, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "yoe-deny");
+  ageRow(p, stats.profileId, 30);
+
+  const { adapter, calls } = jdAdapter(() => "anything");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p, jdText: "" }, mkCompany(), stats, FAST);
+
+  assert.equal(calls(), 0);
+  assert.equal(stats.noJdRechecked, 0);
+  assert.equal(getPostingJdState(p.provider, p.externalId, stats.profileId)?.dropStage, "yoe-deny");
 });

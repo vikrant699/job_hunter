@@ -35,6 +35,10 @@ export interface RunContext {
   postingsDuplicated: number;
   /** Postings dropped because adapter.fetchJd threw (network/parse failure fetching the JD). */
   jdFetchFailed: number;
+  /** Stored no-jd postings whose JD was re-fetched this run (at most once per config.fetch.noJdRecheckDays). */
+  noJdRechecked: number;
+  /** Of those, how many now had a real JD and went through the gate like a new posting. */
+  noJdRecovered: number;
   errors: string[];
   /** Boards that errored this run (not merely zero-yield); drives the Discord issue list and are not counted as scanned. */
   failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
@@ -113,6 +117,8 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     postingsYoeDenied: 0,
     postingsDuplicated: 0,
     jdFetchFailed: 0,
+    noJdRechecked: 0,
+    noJdRecovered: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,
@@ -230,6 +236,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     },
     "production tick complete",
   );
+  logger.info({ rechecked: stats.noJdRechecked, recovered: stats.noJdRecovered }, "no-jd recheck: stored no-jd postings re-fetched");
 
   return {
     runId,

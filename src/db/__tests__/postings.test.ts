@@ -8,6 +8,8 @@ import {
   markSeen,
   markRemoved,
   countRemovedNotifiedSince,
+  getPostingJdState,
+  claimNoJdRecheck,
 } from "../postings.js";
 import { upsertCompany } from "../companies.js";
 import { db } from "../db.js";
@@ -288,4 +290,74 @@ test("markSeen chunks IN-lists past the ~999 SQLite parameter limit (500-id chun
     .prepare("SELECT COUNT(*) n FROM postings WHERE provider = 'custom' AND company_slug = ? AND profile_id = ? AND last_seen_at = ?")
     .get(slug, profileId, seenAt);
   assert.equal(CountSchema.parse(row).n, total, "every id across both chunks must be bumped");
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+function markNoJd(id: string, profileId: string): void {
+  updatePostingResult({
+    provider: "custom", externalId: id, profileId,
+    llmRelevant: 0, llmReason: "no-jd", llmConfidence: null,
+    yoeMin: null, yoeMax: null, dropStage: "no-jd", notifiedAt: null,
+  });
+}
+function setDiscovered(id: string, profileId: string, at: string): void {
+  db.prepare("UPDATE postings SET discovered_at = ? WHERE provider = 'custom' AND external_id = ? AND profile_id = ?").run(at, id, profileId);
+}
+
+test("postings has a nullable jd_checked_at column", () => {
+  const ColSchema = z.object({ name: z.string(), notnull: z.number() });
+  const col = db.prepare("PRAGMA table_info(postings)").all().map((r) => ColSchema.parse(r)).find((c) => c.name === "jd_checked_at");
+  assert.ok(col);
+  assert.equal(col.notnull, 0);
+});
+
+test("getPostingJdState is undefined for an unknown posting and falls back to discovered_at before any recheck", () => {
+  const profileId = `jds-${Date.now()}`;
+  const id = `jds-${Date.now()}`;
+  assert.equal(getPostingJdState("custom", id, profileId), undefined);
+  insertPostingIfNew(mk(id), profileId);
+  markNoJd(id, profileId);
+  const discoveredAt = lifecycleRow("custom", id, profileId).discovered_at;
+  assert.deepEqual(getPostingJdState("custom", id, profileId), { dropStage: "no-jd", jdCheckedAt: discoveredAt });
+});
+
+test("claimNoJdRecheck stamps a due no-jd row once, refreshes its listing fields, and refuses a second claim in the window", () => {
+  const profileId = `claim-${Date.now()}`;
+  const id = `claim-${Date.now()}`;
+  insertPostingIfNew(mk(id), profileId);
+  markNoJd(id, profileId);
+  setDiscovered(id, profileId, new Date(Date.now() - 8 * DAY_MS).toISOString());
+  const dueBefore = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  const checkedAt = new Date().toISOString();
+
+  const relisted = mk(id, { jobTitle: "Senior Data Analyst", location: "Pune, India" });
+  assert.equal(claimNoJdRecheck(relisted, profileId, dueBefore, checkedAt), true);
+  assert.equal(getPostingJdState("custom", id, profileId)?.jdCheckedAt, checkedAt);
+  const RowSchema = z.object({ job_title: z.string(), location: z.string() });
+  const row = RowSchema.parse(
+    db.prepare("SELECT job_title, location FROM postings WHERE provider = 'custom' AND external_id = ? AND profile_id = ?").get(id, profileId),
+  );
+  assert.deepEqual(row, { job_title: "Senior Data Analyst", location: "Pune, India" });
+
+  assert.equal(claimNoJdRecheck(relisted, profileId, dueBefore, new Date().toISOString()), false, "a racing worker must lose");
+});
+
+test("claimNoJdRecheck refuses a row that is not no-jd or not yet due", () => {
+  const profileId = `claim-no-${Date.now()}`;
+  const dueBefore = new Date(Date.now() - 7 * DAY_MS).toISOString();
+
+  const silentId = `claim-silent-${Date.now()}`;
+  insertPostingIfNew(mk(silentId), profileId);
+  updatePostingResult({
+    provider: "custom", externalId: silentId, profileId,
+    llmRelevant: 0, llmReason: "weak", llmConfidence: 0.2,
+    yoeMin: null, yoeMax: null, dropStage: "silent", notifiedAt: null,
+  });
+  setDiscovered(silentId, profileId, new Date(Date.now() - 30 * DAY_MS).toISOString());
+  assert.equal(claimNoJdRecheck(mk(silentId), profileId, dueBefore, new Date().toISOString()), false);
+
+  const freshId = `claim-fresh-${Date.now()}`;
+  insertPostingIfNew(mk(freshId), profileId);
+  markNoJd(freshId, profileId);
+  assert.equal(claimNoJdRecheck(mk(freshId), profileId, dueBefore, new Date().toISOString()), false);
 });

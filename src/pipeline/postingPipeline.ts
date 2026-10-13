@@ -1,7 +1,9 @@
 import { logger } from "../logger.js";
+import { config } from "../config.js";
 import {
   insertPostingIfNew,
-  postingExists,
+  getPostingJdState,
+  claimNoJdRecheck,
   updatePostingResult,
   bumpMatched,
 } from "../db/index.js";
@@ -26,6 +28,8 @@ import { parseStatedYoeMin } from "../filter/yoe.js";
 import type { RunContext } from "./index.js";
 // Type-only: the scheduler owns the policy and is this function's only production caller, so importing the shape back creates no runtime dependency on it.
 import type { TransportRetryPolicy } from "./scheduler.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface PostingResultPatch {
   llmRelevant: number | null;
@@ -114,7 +118,10 @@ export async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  if (postingExists(posting.provider, posting.externalId, stats.profileId)) return;
+  // A stored posting is final, except a no-jd one: recruiters often add the JD later, so it is re-fetched once its recheck window lapses.
+  const existing = getPostingJdState(posting.provider, posting.externalId, stats.profileId);
+  const recheckDueBefore = new Date(Date.now() - config.fetch.noJdRecheckDays * DAY_MS).toISOString();
+  if (existing && (existing.dropStage !== "no-jd" || existing.jdCheckedAt >= recheckDueBefore)) return;
 
   // Cross-run dedup: skip re-listings (same company/title/location notified before) before spending gate + extract calls, since we'd only drop them at notify time.
   const dupKey = notifyKey(posting.companyName, posting.jobTitle, posting.location);
@@ -159,12 +166,18 @@ export async function processOnePosting(
     }
   }
 
-  // Late location filter: strict metadata if the adapter resolved a location during fetchJd, otherwise the title/JD/URL heuristic.
-  if (!lateLocationCheck(posting).accept) return;
-
-  const inserted = insertPostingIfNew(posting, stats.profileId);
-  if (!inserted) return; // race: another worker beat us; leave it for next tick
-  stats.postingsNew++;
+  if (existing) {
+    // Stamped before the location check so a JD that now reveals a foreign location is still re-fetched only weekly.
+    if (!claimNoJdRecheck(posting, stats.profileId, recheckDueBefore, new Date().toISOString())) return;
+    stats.noJdRechecked++;
+    if (!lateLocationCheck(posting).accept) return;
+  } else {
+    // Late location filter: strict metadata if the adapter resolved a location during fetchJd, otherwise the title/JD/URL heuristic.
+    if (!lateLocationCheck(posting).accept) return;
+    const inserted = insertPostingIfNew(posting, stats.profileId);
+    if (!inserted) return; // race: another worker beat us; leave it for next tick
+    stats.postingsNew++;
+  }
 
   if (!posting.jdText) {
     writePostingResult(posting, droppedResult("no-jd", "no-jd"), stats.profileId);
@@ -179,6 +192,11 @@ export async function processOnePosting(
       stats.profileId,
     );
     return;
+  }
+
+  if (existing) {
+    stats.noJdRecovered++;
+    logger.debug({ company: company.name, title: posting.jobTitle }, "no-jd recheck: JD now present, re-scoring");
   }
 
   // Hard YOE deal-breaker, applied deterministically before a gate call. Only fires on an explicitly stated bar; ambiguous cases still reach the gate.

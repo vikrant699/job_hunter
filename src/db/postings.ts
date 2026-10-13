@@ -118,6 +118,56 @@ export function postingExists(provider: Provider, externalId: string, profileId:
   return postingExistsStmt.get({ provider, externalId, profileId }) !== undefined;
 }
 
+const PostingJdStateRowSchema = z.object({ drop_stage: z.string().nullable(), jd_checked_at: z.string() });
+
+const getPostingJdStateStmt = db.prepare(`
+  SELECT drop_stage, COALESCE(jd_checked_at, discovered_at) AS jd_checked_at
+  FROM postings WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
+`);
+
+export interface PostingJdState {
+  dropStage: string | null;
+  /** Last JD re-fetch, else discovered_at (the first fetch). */
+  jdCheckedAt: string;
+}
+
+/** The stored row's drop stage and last JD check, or undefined when the posting is new for this profile. */
+export function getPostingJdState(provider: Provider, externalId: string, profileId: string): PostingJdState | undefined {
+  const row = queryOne(getPostingJdStateStmt, PostingJdStateRowSchema, { provider, externalId, profileId });
+  if (!row) return undefined;
+  return { dropStage: row.drop_stage, jdCheckedAt: row.jd_checked_at };
+}
+
+// The due-check lives in the WHERE so two workers racing on one posting can't both claim it.
+const claimNoJdRecheckStmt = db.prepare(`
+  UPDATE postings SET
+    jd_checked_at = :checkedAt,
+    job_title     = :jobTitle,
+    job_url       = :jobUrl,
+    location      = :location,
+    is_remote     = :isRemote,
+    posted_at     = :postedAt
+  WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
+    AND drop_stage = 'no-jd' AND COALESCE(jd_checked_at, discovered_at) < :dueBefore
+`);
+
+/** Stamps a no-jd row last checked before `dueBefore` as re-checked now and refreshes its listing fields; false if it isn't due (or another worker claimed it). */
+export function claimNoJdRecheck(p: NormalizedPosting, profileId: string, dueBefore: string, checkedAt: string): boolean {
+  const result = claimNoJdRecheckStmt.run({
+    provider: p.provider,
+    externalId: p.externalId,
+    profileId,
+    checkedAt,
+    dueBefore,
+    jobTitle: p.jobTitle,
+    jobUrl: p.jobUrl,
+    location: p.location,
+    isRemote: p.isRemote ? 1 : 0,
+    postedAt: p.postedAt,
+  });
+  return result.changes > 0;
+}
+
 const NotifiedRoleKeySchema = z.object({
   company: z.string().nullable(),
   title: z.string().nullable(),
