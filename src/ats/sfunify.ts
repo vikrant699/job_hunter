@@ -7,6 +7,7 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
 import type { JsonValue } from "../util/json.js";
+import { logger } from "../logger.js";
 
 const PAGE = 10;
 
@@ -29,12 +30,16 @@ const SfunifyListSchema = z.object({
   totalJobs: z.number().nullable().optional(),
 });
 
-// Body for one page; locale defaults en_US (Standard Chartered needs en_GB via apiMeta.locale). The flat `location` field narrows by country on most tenants, but HCLTech ignores it entirely (0 results for any value) and instead needs the country facet routed through `facetFilters` via apiMeta.locationFacetField.
-export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number): Record<string, JsonValue> {
+// Body for one page; locale defaults to apiMeta.locale else en_US (listPostings passes the resolved one). The flat `location` field narrows by country on most tenants, but HCLTech ignores it entirely (0 results for any value) and instead needs the country facet routed through `facetFilters` via apiMeta.locationFacetField.
+export function sfunifyRequestBody(
+  company: AdapterCompany,
+  pageNumber: number,
+  locale: string = company.apiMeta?.locale ?? "en_US",
+): Record<string, JsonValue> {
   const location = company.apiMeta?.location;
   const facetField = company.apiMeta?.locationFacetField;
   return {
-    locale: company.apiMeta?.locale ?? "en_US",
+    locale,
     pageNumber,
     sortBy: "",
     keywords: "",
@@ -46,6 +51,26 @@ export function sfunifyRequestBody(company: AdapterCompany, pageNumber: number):
     alertId: "",
     rcmCandidateId: "",
   };
+}
+
+/** The homepage's script `defaultLocale: 'xx_YY'` (not served on every render), else its root `<html lang="xx-YY">`; null when neither is present. */
+export function sfunifyDefaultLocale(html: string): string | null {
+  const scripted = html.match(/defaultLocale\s*:\s*['"]([a-z]{2}_[A-Z]{2})['"]/)?.[1];
+  if (scripted) return scripted;
+  const lang = html.match(/<html\b[^>]*\slang="([a-z]{2})-([A-Z]{2})"/);
+  return lang ? `${lang[1] ?? ""}_${lang[2] ?? ""}` : null;
+}
+
+// Some tenants list jobs only under their default locale and answer {"totalJobs":0} for en_US, so an unconfigured tenant asks its homepage first.
+async function resolveSfunifyLocale(company: AdapterCompany): Promise<string> {
+  const configured = company.apiMeta?.locale;
+  if (configured) return configured;
+  try {
+    return sfunifyDefaultLocale(await atsFetchText(`${tenantOrigin(company)}/`, { provider: "sfunify" })) ?? "en_US";
+  } catch (err) {
+    logger.warn({ slug: company.slug, err: String(err).slice(0, 160) }, "sfunify homepage locale probe failed; using en_US");
+    return "en_US";
+  }
 }
 
 /** Parse a list-page response body into its raw job entries + totalJobs. */
@@ -136,14 +161,14 @@ export const sfunifyAdapter: AtsAdapter = {
   provider: "sfunify",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const locale = company.apiMeta?.locale ?? "en_US";
+    const locale = await resolveSfunifyLocale(company);
     const url = `${tenantOrigin(company)}/services/recruiting/v1/jobs`;
     const seen = new Set<string>();
 
     const fetchOnce = async (page: number) => {
       const raw = await atsFetchJson(url, {
         method: "POST",
-        body: sfunifyRequestBody(company, page),
+        body: sfunifyRequestBody(company, page, locale),
         provider: "sfunify",
       });
       return sfunifyPageJobs(raw);

@@ -9,9 +9,11 @@ import {
   sfunifyJobUrl,
   extractSfunifyJd,
   SfunifyJobSchema,
+  sfunifyDefaultLocale,
+  sfunifyAdapter,
 } from "../sfunify.js";
 import type { AdapterCompany } from "../../types.js";
-import { at } from "./testHelpers.js";
+import { at, stubFetch, jsonResponse, htmlResponse, fetchSequence } from "./testHelpers.js";
 
 const company: AdapterCompany = {
   provider: "sfunify", slug: "skyworks", name: "Skyworks Solutions India",
@@ -234,4 +236,45 @@ test("extractSfunifyJd does not truncate at a nested <span style=...> inside the
   assert.match(text, /Partner with product and credit teams/);
   assert.match(text, /equal opportunity employer/);
   assert.doesNotMatch(text, /<span|<p>|<div>/);
+});
+
+// Toyota Kirloskar's tenant only serves its jobs under en_GB; the en_US default answers {"totalJobs":0}, which reads as an empty board.
+const TOYOTA_HOME = `<html class="html5" xml:lang="en-GB" lang="en-GB"><body><a href="/talentcommunity/subscribe/?locale=en_GB">Join</a></body></html>`;
+
+test("sfunifyDefaultLocale reads the homepage's script defaultLocale, else its <html lang>, else null", () => {
+  assert.equal(sfunifyDefaultLocale(TOYOTA_HOME), "en_GB");
+  assert.equal(sfunifyDefaultLocale(`<html lang="en-US"><script>var p = { defaultLocale: 'en_GB' };</script></html>`), "en_GB");
+  assert.equal(sfunifyDefaultLocale(`<a href="/search/?locale=en_US">x</a>`), null);
+});
+
+test("listPostings with no apiMeta.locale requests and links jobs in the tenant's defaultLocale", async (t) => {
+  const toyota: AdapterCompany = { ...company, slug: "toyota-kirloskar-motor", tenantUrl: "https://careers.toyotabharat.com", apiMeta: null };
+  const calls: Array<{ url: string; body: string }> = [];
+  stubFetch(t, (input, init) => {
+    const url = String(input);
+    calls.push({ url, body: typeof init?.body === "string" ? init.body : "" });
+    if (!url.includes("/services/recruiting/")) return Promise.resolve(htmlResponse(TOYOTA_HOME));
+    return Promise.resolve(jsonResponse({ jobSearchResult: [{ response: { id: "54092580", unifiedStandardTitle: "Senior Technician", urlTitle: "Senior-Technician" } }], totalJobs: 1 }));
+  });
+  const posts = await sfunifyAdapter.listPostings(toyota);
+  assert.equal(posts.length, 1);
+  assert.equal(at(posts, 0).jobUrl, "https://careers.toyotabharat.com/job/Senior-Technician/54092580-en_GB");
+  const listCall = calls.find((c) => c.url.includes("/services/recruiting/"));
+  assert.match(listCall?.body ?? "", /"locale":"en_GB"/);
+});
+
+test("listPostings with an explicit apiMeta.locale never fetches the homepage", async (t) => {
+  stubFetch(t, fetchSequence(() => jsonResponse({ jobSearchResult: [], totalJobs: 0 })));
+  assert.deepEqual(await sfunifyAdapter.listPostings(scbCompany), []);
+});
+
+test("listPostings falls back to en_US when the homepage declares no defaultLocale", async (t) => {
+  const calls: string[] = [];
+  stubFetch(t, (input, init) => {
+    calls.push(typeof init?.body === "string" ? init.body : String(input));
+    if (!String(input).includes("/services/recruiting/")) return Promise.resolve(htmlResponse("<html></html>"));
+    return Promise.resolve(jsonResponse({ jobSearchResult: [], totalJobs: 0 }));
+  });
+  await sfunifyAdapter.listPostings(company);
+  assert.match(calls.at(-1) ?? "", /"locale":"en_US"/);
 });
