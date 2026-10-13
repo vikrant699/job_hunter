@@ -1,5 +1,5 @@
 // src/ats/sfcsb.ts — SAP SuccessFactors CSB (Career Site Builder) JSON API; distinct from successfactors.ts, which scrapes the legacy jobs2web HTML board.
-// List: POST <host>/services/recruiting/v1/jobs (page size fixed at 10, no country facet - India cut done by the pipeline's location filter). JD: GET <host>/job/<slug>/<id>-en_US/, the richest of several itemprop="description" spans.
+// List: POST <host>/services/recruiting/v1/jobs (0-based pageNumber, page size fixed at 10, sortBy "date"; India cut done by the pipeline's location filter). JD: GET <host>/job/<slug>/<id>-<locale>/ for CSB ids or /job/<slug>/<id>/ for jobs2web req ids; richest itemprop="description" span, else joblayouttoken value.
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { logger } from "../logger.js";
@@ -8,7 +8,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchJson, atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE, paginate, tenantOrigin } from "./shared.js";
-import { fetchSfSitemapIds, titleFromSitemapUrl, SITEMAP_GAP_FILL_CAP } from "./sfSitemap.js";
+import { fetchSfSitemapIds, sitemapOnlyEntries, titleFromSitemapUrl } from "./sfSitemap.js";
 import type { JsonValue } from "../util/json.js";
 
 const PAGE = 10; // server-fixed
@@ -38,16 +38,21 @@ const SfcsbResponseSchema = z.object({
   jobSearchResult: z.array(z.object({ response: SfcsbJobSchema })).nullable().optional(),
 });
 
-/** POST body for a 1-based page; locale is a TENANT setting (e.g. indegene needs en_GB, not en_US, to get its full job count) - apiMeta.locale overrides. */
+/** POST body for a 0-based page; the default relevance sort reshuffles ties between requests (tuv-sud: 302 unique of 381) while "date" is stable. Locale is a TENANT setting (indegene needs en_GB) - apiMeta.locale overrides. */
 export function sfcsbSearchBody(pageNumber: number, locale: string = LOCALE): JsonValue {
-  return { keywords: "", locale, pageNumber };
+  return { keywords: "", locale, pageNumber, sortBy: "date" };
 }
 
-/** Canonical public job URL; the slug segment is cosmetic. */
+/** Canonical public job URL for a CSB id; the slug segment is cosmetic. */
 export function sfcsbJobUrl(company: AdapterCompany, id: string, slug: string | null | undefined): string {
   const seg = slug !== undefined && slug !== null && slug !== "" ? slug : "x";
   const locale = company.apiMeta?.locale ?? LOCALE;
   return `${tenantOrigin(company)}/job/${seg}/${id}-${locale}/`;
+}
+
+/** The jobs2web req-id form of a sfcsbJobUrl (drops the -<locale> suffix); on req-id tenants the suffixed form can redirect-loop (indegene). */
+export function sfcsbReqIdJobUrl(csbJobUrl: string): string {
+  return csbJobUrl.replace(/\/(\d+)-[A-Za-z]{2}_[A-Za-z]{2}\/$/, "/$1/");
 }
 
 function sfcsbLocation(j: z.infer<typeof SfcsbJobSchema>): string | null {
@@ -101,15 +106,20 @@ function sfcsbPostingFromSitemap(company: AdapterCompany, id: string, url: strin
   };
 }
 
-/** Extract the JD from a CSB job page: the richest itemprop="description" span. */
-export function parseSfcsbJd(html: string): string {
-  const $ = cheerio.load(html);
+function richestText($: cheerio.CheerioAPI, selector: string): string {
   let best = "";
-  $("span[itemprop=description]").each((_i, el) => {
+  $(selector).each((_i, el) => {
     const text = htmlToText($(el).html() ?? "");
     if (text.length > best.length) best = text;
   });
   return best;
+}
+
+/** Extract the JD from a CSB job page: the richest itemprop="description" span, else (req-id pages carry no itemprop) the richest joblayouttoken value. */
+export function parseSfcsbJd(html: string): string {
+  const $ = cheerio.load(html);
+  const described = richestText($, "span[itemprop=description]");
+  return described !== "" ? described : richestText($, ".joblayouttoken span.rtltextaligneligible");
 }
 
 export const sfcsbAdapter: AtsAdapter = {
@@ -125,7 +135,7 @@ export const sfcsbAdapter: AtsAdapter = {
       fetchPage: async (_offset, page) => {
         const json = await atsFetchJson(`${tenantOrigin(company)}/services/recruiting/v1/jobs`, {
           method: "POST",
-          body: sfcsbSearchBody(page + 1, company.apiMeta?.locale ?? undefined),
+          body: sfcsbSearchBody(page, company.apiMeta?.locale ?? undefined),
           provider: "sfcsb",
         });
         const { jobs, total } = parseSfcsbPage(json, company);
@@ -141,19 +151,18 @@ export const sfcsbAdapter: AtsAdapter = {
     }
     const apiCount = out.length;
 
-    // Completeness backstop: a job the sitemap knows about but the JSON walk never surfaced is added as a placeholder.
+    // Completeness backstop, valid only when the API speaks the sitemap's id space: tuv-sud's API returns CSB ids (5311) while its sitemap lists jobs2web req ids (1350177555) for the SAME jobs.
     const sitemapIds = await fetchSfSitemapIds(company, "sfcsb");
     let gapFilled = 0;
     if (sitemapIds) {
-      for (const [id, url] of sitemapIds) {
-        if (seen.has(id)) continue;
-        if (gapFilled >= SITEMAP_GAP_FILL_CAP) {
-          logger.warn({ slug: company.slug, cap: SITEMAP_GAP_FILL_CAP }, "sfcsb: sitemap gap-fill cap reached, remaining sitemap-only ids skipped");
-          break;
+      if (apiCount > 0 && !out.some((p) => sitemapIds.has(p.externalId))) {
+        logger.info({ slug: company.slug, api: apiCount, sitemap: sitemapIds.size }, "sfcsb: sitemap lists a different id space than the API, gap-fill skipped");
+      } else {
+        for (const p of out) p.jobUrl = sitemapIds.get(p.externalId) ?? sfcsbReqIdJobUrl(p.jobUrl);
+        for (const [id, url] of sitemapOnlyEntries(sitemapIds, seen, { slug: company.slug, provider: "sfcsb" })) {
+          out.push(sfcsbPostingFromSitemap(company, id, url));
+          gapFilled++;
         }
-        out.push(sfcsbPostingFromSitemap(company, id, url));
-        seen.add(id);
-        gapFilled++;
       }
     }
     logger.info(
@@ -167,7 +176,7 @@ export const sfcsbAdapter: AtsAdapter = {
     const html = await atsFetchText(posting.jobUrl, { provider: "sfcsb" });
     const jd = parseSfcsbJd(html);
     if (jd === "") {
-      logger.warn({ company: company.slug, job: posting.externalId }, "sfcsb: job page had no itemprop=description content");
+      logger.warn({ company: company.slug, job: posting.externalId }, "sfcsb: job page had no description content");
     }
     return jd;
   },

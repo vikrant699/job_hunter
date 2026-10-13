@@ -7,7 +7,7 @@ import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
 import { atsFetchText } from "./http.js";
 import { REMOTE_RE, paginate, dateToIso, tenantOrigin, collapseWs } from "./shared.js";
-import { fetchSfSitemapIds, titleFromSitemapUrl, SITEMAP_GAP_FILL_CAP } from "./sfSitemap.js";
+import { fetchSfSitemapIds, sitemapOnlyEntries, titleFromSitemapUrl } from "./sfSitemap.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 
@@ -252,14 +252,8 @@ export const successfactorsAdapter: AtsAdapter = {
     const sitemapIds = await fetchSfSitemapIds(company, "successfactors");
     let gapFilled = 0;
     if (sitemapIds) {
-      for (const [id, url] of sitemapIds) {
-        if (seen.has(id)) continue;
-        if (gapFilled >= SITEMAP_GAP_FILL_CAP) {
-          logger.warn({ slug: company.slug, cap: SITEMAP_GAP_FILL_CAP }, "successfactors: sitemap gap-fill cap reached, remaining sitemap-only ids skipped");
-          break;
-        }
+      for (const [id, url] of sitemapOnlyEntries(sitemapIds, seen, { slug: company.slug, provider: "successfactors" })) {
         out.push(successfactorsPostingFromSitemap(company, id, url));
-        seen.add(id);
         gapFilled++;
       }
     }
