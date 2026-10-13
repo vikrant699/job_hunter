@@ -1,14 +1,16 @@
-// src/ats/radancy.ts — Radancy enterprise career sites (e.g. careers.ford.com, jobs.intuit.com): fully server-rendered HTML, no auth; pagination is `?p=N`, with pager state in data-total-pages/data-total-results attributes.
+// src/ats/radancy.ts — Radancy enterprise career sites (e.g. careers.ford.com, jobs.intuit.com): the landing page's #search-results attributes carry the query, which is POSTed with CurrentPage=N to its data-ajax-post-url (JSON {results: html}); pages without that endpoint fall back to `?p=N`.
 // JD comes from a per-job page fetch; both tenants' WAF/CDN blocks the plain bot UA on some routes, so every request uses a browser UA.
 import * as cheerio from "cheerio";
+import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AtsAdapter } from "./types.js";
 import type { AdapterCompany, NormalizedPosting } from "../types.js";
 import { htmlToText } from "./htmlText.js";
-import { atsFetchText } from "./http.js";
+import { atsFetchJson, atsFetchText, parseOrThrow } from "./http.js";
 import { REMOTE_RE, DEFAULT_MAX_PAGES, paginate, tenantOrigin, collapseWs } from "./shared.js";
 import { BROWSER_UA } from "../util/userAgent.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
+import type { JsonValue } from "../util/json.js";
 
 const NOMINAL_PAGE_SIZE = 15; // informational only; pagination relies on data-total-results, not this
 
@@ -40,6 +42,104 @@ export function radancyListUrl(careersUrl: string, page: number): string {
   if (page <= 1) return careersUrl;
   const sep = careersUrl.includes("?") ? "&" : "?";
   return `${careersUrl}${sep}p=${page}`;
+}
+
+// Mirrors the site's search.js mapSearchOptions; ?p=N on a /search-jobs/<keyword> landing page silently drops the keyword, the results endpoint does not.
+const INT_CRITERIA = [
+  ["ActiveFacetID", "active-facet-id"],
+  ["RecordsPerPage", "records-per-page"],
+  ["Distance", "distance"],
+  ["FacetType", "facet-type"],
+  ["SortCriteria", "sort-criteria"],
+  ["SortDirection", "sort-direction"],
+  ["SearchType", "search-type"],
+] as const;
+const FLOAT_CRITERIA = [
+  ["Latitude", "latitude"],
+  ["Longitude", "longitude"],
+] as const;
+const STRING_CRITERIA = [
+  ["Keywords", "keywords"],
+  ["Location", "location"],
+  ["CustomFacetName", "custom-facet-name"],
+  ["FacetTerm", "facet-term"],
+  ["SearchResultsModuleName", "search-results-module-name"],
+  ["KeywordType", "keyword-type"],
+  ["LocationType", "location-type"],
+  ["LocationPath", "location-path"],
+  ["OrganizationIds", "organization-ids"],
+  ["PostalCode", "postal-code"],
+] as const;
+// The pager's Next link asks for jobs only, so totals exclude content-page hits.
+const RESULTS_TYPE_JOBS = 1;
+
+const RadancyResultsSchema = z.object({ results: z.string() });
+
+export interface RadancySearch {
+  postUrl: string;
+  criteria: { [k: string]: JsonValue };
+}
+
+// Checked .filter-checkbox inputs are the facets the landing URL applied (Ford's /location/ pages scope by one), and the endpoint ignores the path, so they must be resent.
+export function parseRadancySearch(html: string, careersUrl: string): RadancySearch | null {
+  const $ = cheerio.load(html);
+  const $sec = $("#search-results").first();
+  const postPath = $sec.attr("data-ajax-post-url");
+  if (!postPath) return null;
+
+  const criteria: { [k: string]: JsonValue } = {};
+  for (const [key, attr] of INT_CRITERIA) {
+    const n = Number.parseInt($sec.attr(`data-${attr}`) ?? "", 10);
+    if (Number.isFinite(n)) criteria[key] = n;
+  }
+  for (const [key, attr] of FLOAT_CRITERIA) {
+    const n = Number.parseFloat($sec.attr(`data-${attr}`) ?? "");
+    if (Number.isFinite(n)) criteria[key] = n;
+  }
+  for (const [key, attr] of STRING_CRITERIA) {
+    const v = $sec.attr(`data-${attr}`);
+    if (v) criteria[key] = v;
+  }
+  criteria.ResultsType = RESULTS_TYPE_JOBS;
+
+  const facets: JsonValue[] = [];
+  const seen = new Set<string>();
+  $(".filter-checkbox:checked").each((_, el) => {
+    const $cb = $(el);
+    const id = $cb.attr("data-id") ?? "";
+    const facetType = Number.parseInt($cb.attr("data-facet-type") ?? "", 10);
+    const key = `${facetType}|${id}`;
+    if (!id || !Number.isFinite(facetType) || seen.has(key)) return;
+    seen.add(key);
+    const count = Number.parseInt($cb.attr("data-count") ?? "", 10);
+    facets.push({
+      ID: id,
+      FacetType: facetType,
+      Count: Number.isFinite(count) ? count : 0,
+      Display: $cb.attr("data-display") ?? "",
+      IsApplied: true,
+      FieldName: $cb.attr("data-field-name") ?? "",
+    });
+  });
+  criteria.FacetFilters = facets;
+
+  let postUrl: string;
+  try {
+    postUrl = new URL(postPath, careersUrl).toString();
+  } catch {
+    return null;
+  }
+  return { postUrl, criteria };
+}
+
+async function fetchRadancyResults(search: RadancySearch, page: number, slug: string): Promise<string> {
+  const raw = await atsFetchJson(search.postUrl, {
+    method: "POST",
+    body: { ...search.criteria, CurrentPage: page },
+    provider: "radancy",
+    userAgent: BROWSER_UA,
+  });
+  return parseOrThrow(RadancyResultsSchema, raw, { provider: "radancy", slug, what: "search results" }).results;
 }
 
 export function parseRadancyTotals(html: string): { totalPages: number | null; totalResults: number | null } {
@@ -139,7 +239,7 @@ export const radancyAdapter: AtsAdapter = {
   provider: "radancy",
 
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
-    const state: { page1Total: number | null } = { page1Total: null };
+    const state: { page1Total: number | null; search: RadancySearch | null } = { page1Total: null, search: null };
     return paginate<NormalizedPosting>({
       provider: "radancy",
       company: company.slug,
@@ -149,10 +249,17 @@ export const radancyAdapter: AtsAdapter = {
       maxPages: DEFAULT_MAX_PAGES,
       dedupeBy: (p) => p.externalId,
       fetchPage: async (_offset, page) => {
-        const html = await atsFetchText(radancyListUrl(company.careersUrl, page + 1), {
-          provider: "radancy",
-          userAgent: BROWSER_UA,
-        });
+        let html: string;
+        if (page === 0) {
+          const landing = await atsFetchText(company.careersUrl, { provider: "radancy", userAgent: BROWSER_UA });
+          state.search = parseRadancySearch(landing, company.careersUrl);
+          // Page 1 comes from the endpoint too: the landing HTML can be a stale cached copy whose total disagrees with the live pages.
+          html = state.search ? await fetchRadancyResults(state.search, 1, company.slug) : landing;
+        } else {
+          html = state.search
+            ? await fetchRadancyResults(state.search, page + 1, company.slug)
+            : await atsFetchText(radancyListUrl(company.careersUrl, page + 1), { provider: "radancy", userAgent: BROWSER_UA });
+        }
         const items = parseRadancyList(html, company);
         const { totalResults } = parseRadancyTotals(html);
         // Only page 1, and only when it produced no cards: a page with rows is a live board whatever its pager markup says, and a pager running off the end on a later page just stops.
@@ -160,7 +267,7 @@ export const radancyAdapter: AtsAdapter = {
           assertRadancyBoardServed(totalResults, radancyListUrl(company.careersUrl, 1), html);
         }
         if (page === 0) state.page1Total = totalResults;
-        // Location-scoped boards can drop the scope when ?p=N is appended, silently merging foreign postings into the result set; a page whose own reported total differs from page 1's is answering a different query - discard it and stop.
+        // Safety net: a page whose own reported total differs from page 1's is answering a different query (scope dropped, merging foreign postings) - discard it and stop.
         if (page > 0 && state.page1Total !== null && totalResults !== null && totalResults !== state.page1Total) {
           logger.warn(
             { slug: company.slug, page: page + 1, page1Total: state.page1Total, pageTotal: totalResults },

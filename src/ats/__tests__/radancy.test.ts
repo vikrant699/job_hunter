@@ -8,9 +8,13 @@ import {
   parseRadancyJobId,
   parseRadancyList,
   parseRadancyJd,
+  parseRadancySearch,
 } from "../radancy.js";
 import type { AdapterCompany } from "../../types.js";
-import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
+import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, jsonResponse, stubFetch } from "./testHelpers.js";
+import type { JsonValue } from "../../util/json.js";
+import { JsonValueSchema } from "../../util/json.js";
+import { captureLogs } from "../../__tests__/logCapture.js";
 import { thrownBy, rejectionOf } from "../../__tests__/caught.js";
 import {
   isEdgeInterstitialError,
@@ -419,4 +423,108 @@ test("parseRadancyList (Disney): takes the <h2> title and ignores brand/date spa
   assert.equal(first.jobTitle, "Senior Manager, Talent & Growth, India");
   assert.equal(first.location, "Bengaluru, India");
   assert.equal(first.externalId, "91086496512");
+});
+
+// Real arm.com shape (2026-10): a keyword-scoped landing page whose pager is the search-results AJAX endpoint, not ?p=N (which drops the keyword).
+const ARM_LANDING_HTML = `
+<html><body>
+<section id="search-results" data-keywords="India" data-location="" data-distance="50" data-latitude="" data-longitude=""
+  data-show-radius="False" data-total-results="31" data-total-job-results="30" data-total-pages="3" data-current-page="1"
+  data-records-per-page="2" data-active-facet-id="0" data-custom-facet-name="" data-facet-term="" data-facet-type="0"
+  data-search-results-module-name="Search Results" data-sort-criteria="0" data-sort-direction="1" data-search-type="1"
+  data-ajax-url="/search-jobs/results" data-ajax-post-url="/search-jobs/resultspost" data-keyword-type="" data-location-type=""
+  data-location-path="" data-organization-ids="33099" data-results-type="0">
+  <ul><li><a href="/job/bengaluru/stale-cached-row/33099/100"><h2>Stale Cached Row</h2></a></li></ul>
+</section>
+<section id="search-filters">
+  <input type="checkbox" class="filter-checkbox" data-facet-type="4" data-id="1269750-1255053" data-count="16" data-display="Chennai, India" data-field-name="" checked="checked">
+  <input type="checkbox" class="filter-checkbox" data-facet-type="1" data-id="8514096" data-count="3" data-display="Engineering" data-field-name="">
+</section>
+</body></html>
+`;
+
+function armResultsPage(page: number, total: number, ids: readonly number[]): string {
+  const rows = ids
+    .map((id) => `<li><a href="/job/bengaluru/role-${id}/33099/${id}"><h2>Role ${id}</h2><span class="location">Bengaluru, India</span></a></li>`)
+    .join("");
+  return `<section id="search-results" data-keywords="India" data-total-results="${total}" data-total-job-results="${total}" data-total-pages="2" data-current-page="${page}" data-records-per-page="2"><ul>${rows}</ul></section>`;
+}
+
+const armCompany: AdapterCompany = {
+  provider: "radancy",
+  slug: "arm",
+  name: "ARM India",
+  careersUrl: "https://careers.arm.com/search-jobs/India",
+  tenantUrl: null,
+  apiMeta: null,
+};
+
+interface SeenRequest { url: string; method: string; body: JsonValue }
+
+function recordingFetch(seen: SeenRequest[], responses: Array<() => Response>): typeof globalThis.fetch {
+  const serve = fetchSequence(...responses);
+  return (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    const rawBody = init?.body;
+    seen.push({
+      url,
+      method: init?.method ?? "GET",
+      body: typeof rawBody === "string" ? JsonValueSchema.parse(JSON.parse(rawBody)) : null,
+    });
+    return serve(input, init);
+  };
+}
+
+function field(body: JsonValue, key: string): JsonValue | undefined {
+  return body !== null && typeof body === "object" && !Array.isArray(body) ? body[key] : undefined;
+}
+
+test("parseRadancySearch lifts the page's own query (scope, module, checked facets) for the results endpoint", () => {
+  const search = parseRadancySearch(ARM_LANDING_HTML, armCompany.careersUrl);
+  assert.ok(search);
+  assert.equal(search.postUrl, "https://careers.arm.com/search-jobs/resultspost");
+  assert.equal(field(search.criteria, "Keywords"), "India");
+  assert.equal(field(search.criteria, "SearchResultsModuleName"), "Search Results");
+  assert.equal(field(search.criteria, "OrganizationIds"), "33099");
+  assert.equal(field(search.criteria, "RecordsPerPage"), 2);
+  assert.equal(field(search.criteria, "SearchType"), 1);
+  assert.equal(field(search.criteria, "ResultsType"), 1);
+  assert.deepEqual(field(search.criteria, "FacetFilters"), [
+    { ID: "1269750-1255053", FacetType: 4, Count: 16, Display: "Chennai, India", IsApplied: true, FieldName: "" },
+  ]);
+  assert.equal(parseRadancySearch(FORD_LIST_HTML, fordCompany.careersUrl), null);
+});
+
+test("radancyAdapter.listPostings pages a keyword-scoped board through the results endpoint, keeping the scope on every page", async (t) => {
+  const seen: SeenRequest[] = [];
+  stubFetch(t, recordingFetch(seen, [
+    () => htmlResponse(ARM_LANDING_HTML),
+    () => jsonResponse({ filters: "", results: armResultsPage(1, 3, [1, 2]), hasJobs: true, hasContent: false }),
+    () => jsonResponse({ filters: "", results: armResultsPage(2, 3, [3]), hasJobs: true, hasContent: false }),
+  ]));
+  const postings = await radancyAdapter.listPostings(armCompany);
+  assert.deepEqual(postings.map((p) => p.externalId), ["1", "2", "3"]);
+  assert.equal(at(postings, 2).jobUrl, "https://careers.arm.com/job/bengaluru/role-3/33099/3");
+  assert.equal(seen.length, 3);
+  assert.equal(at(seen, 0).url, armCompany.careersUrl);
+  for (const [i, page] of [[1, 1], [2, 2]] as const) {
+    const req = at(seen, i);
+    assert.equal(req.url, "https://careers.arm.com/search-jobs/resultspost");
+    assert.equal(req.method, "POST");
+    assert.equal(field(req.body, "Keywords"), "India");
+    assert.equal(field(req.body, "CurrentPage"), page);
+  }
+});
+
+test("radancyAdapter.listPostings still discards a results page that answers a different query than page 1", async (t) => {
+  stubFetch(t, fetchSequence(
+    () => htmlResponse(ARM_LANDING_HTML),
+    () => jsonResponse({ results: armResultsPage(1, 3, [1, 2]) }),
+    () => jsonResponse({ results: armResultsPage(2, 542, [900, 901]) }),
+  ));
+  const logs = await captureLogs(async () => {
+    const postings = await radancyAdapter.listPostings(armCompany);
+    assert.deepEqual(postings.map((p) => p.externalId), ["1", "2"]);
+  });
+  assert.ok(logs.some((l) => l.level === "warn" && /location scope dropped/.test(l.message ?? "")));
 });
