@@ -59,6 +59,7 @@ function mkRunContext(overrides: Partial<RunContext> = {}): RunContext {
     jdFetchFailed: 0,
     noJdRechecked: 0,
     noJdRecovered: 0,
+    gateErrorRetried: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,
@@ -487,4 +488,51 @@ test("an old posting with a real verdict is never re-fetched", async () => {
   assert.equal(calls(), 0);
   assert.equal(stats.noJdRechecked, 0);
   assert.equal(getPostingJdState(p.provider, p.externalId, stats.profileId)?.dropStage, "yoe-deny");
+});
+
+function storeAsGateError(p: NormalizedPosting, profileId: string, ageMs: number): void {
+  db.prepare(
+    "INSERT INTO postings (provider, external_id, profile_id, company_slug, job_title, job_url, location, is_remote, posted_at, discovered_at, last_seen_at, drop_stage, llm_relevant, llm_reason) VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, 'gate-error', 0, 'gate-error: timeout')",
+  ).run(p.provider, p.externalId, profileId, p.companySlug, p.jobTitle, p.jobUrl, p.location, new Date(Date.now() - ageMs).toISOString(), new Date().toISOString());
+}
+
+test("a gate-error posting from an earlier run is re-fetched and re-gated, not counted as new", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  storeAsGateError(p, stats.profileId, 2 * 60 * 60 * 1000);
+
+  // 8+ years trips the deterministic yoe-deny stage, proving the retry reached the gauntlet without an LLM call.
+  const { adapter, calls } = jdAdapter(() => "We need 8+ years of experience.");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(calls(), 1);
+  assert.equal(stats.gateErrorRetried, 1);
+  assert.equal(stats.postingsNew, 0);
+  assert.equal(stats.noJdRechecked, 0);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "yoe-deny");
+});
+
+test("a gate-error posting is not retried inside the retry window", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  storeAsGateError(p, stats.profileId, 5 * 60 * 1000);
+
+  const { adapter, calls } = jdAdapter(() => "We need 8+ years of experience.");
+  await processOnePosting(adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(calls(), 0);
+  assert.equal(stats.gateErrorRetried, 0);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "gate-error");
+});
+
+test("a gate-error retry whose JD is now empty stores no-jd", async () => {
+  const p = mkNormalizedPosting();
+  const stats = mkRunContext();
+  storeAsGateError(p, stats.profileId, 2 * 60 * 60 * 1000);
+
+  await processOnePosting(jdAdapter(() => "").adapter, orchAdapterCompany, { ...p }, mkCompany(), stats, FAST);
+
+  assert.equal(stats.gateErrorRetried, 1);
+  assert.equal(stats.noJdRecovered, 0);
+  assert.equal(storedResult(p, stats.profileId).drop_stage, "no-jd");
 });

@@ -139,7 +139,7 @@ export function getPostingJdState(provider: Provider, externalId: string, profil
 }
 
 // The due-check lives in the WHERE so two workers racing on one posting can't both claim it.
-const claimNoJdRecheckStmt = db.prepare(`
+const claimRecheckStmt = db.prepare(`
   UPDATE postings SET
     jd_checked_at = :checkedAt,
     job_title     = :jobTitle,
@@ -148,12 +148,16 @@ const claimNoJdRecheckStmt = db.prepare(`
     is_remote     = :isRemote,
     posted_at     = :postedAt
   WHERE provider = :provider AND external_id = :externalId AND profile_id = :profileId
-    AND drop_stage = 'no-jd' AND COALESCE(jd_checked_at, discovered_at) < :dueBefore
+    AND drop_stage = :dropStage AND COALESCE(jd_checked_at, discovered_at) < :dueBefore
 `);
 
-/** Stamps a no-jd row last checked before `dueBefore` as re-checked now and refreshes its listing fields; false if it isn't due (or another worker claimed it). */
-export function claimNoJdRecheck(p: NormalizedPosting, profileId: string, dueBefore: string, checkedAt: string): boolean {
-  const result = claimNoJdRecheckStmt.run({
+/** Drop stages a still-listed posting may be re-processed from: no-jd (JD added later) and gate-error (transient LLM failure). */
+export type RecheckStage = "no-jd" | "gate-error";
+
+/** Stamps a `dropStage` row last checked before `dueBefore` as re-checked now and refreshes its listing fields; false if it isn't due (or another worker claimed it). */
+export function claimRecheck(p: NormalizedPosting, profileId: string, dropStage: RecheckStage, dueBefore: string, checkedAt: string): boolean {
+  const result = claimRecheckStmt.run({
+    dropStage,
     provider: p.provider,
     externalId: p.externalId,
     profileId,

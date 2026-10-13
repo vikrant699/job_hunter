@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import {
   insertPostingIfNew,
   getPostingJdState,
-  claimNoJdRecheck,
+  claimRecheck,
   updatePostingResult,
   bumpMatched,
 } from "../db/index.js";
@@ -29,7 +29,8 @@ import type { RunContext } from "./index.js";
 // Type-only: the scheduler owns the policy and is this function's only production caller, so importing the shape back creates no runtime dependency on it.
 import type { TransportRetryPolicy } from "./scheduler.js";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
 
 interface PostingResultPatch {
   llmRelevant: number | null;
@@ -118,10 +119,13 @@ export async function processOnePosting(
     if (!loc.accept) return;
   }
 
-  // A stored posting is final, except a no-jd one: recruiters often add the JD later, so it is re-fetched once its recheck window lapses.
+  // A stored posting is final, except no-jd (recruiters add the JD later; weekly) and gate-error (a transient LLM failure; next run).
   const existing = getPostingJdState(posting.provider, posting.externalId, stats.profileId);
-  const recheckDueBefore = new Date(Date.now() - config.fetch.noJdRecheckDays * DAY_MS).toISOString();
-  if (existing && (existing.dropStage !== "no-jd" || existing.jdCheckedAt >= recheckDueBefore)) return;
+  const recheckStage = existing?.dropStage === "no-jd" || existing?.dropStage === "gate-error" ? existing.dropStage : null;
+  const recheckDueBefore = new Date(
+    Date.now() - (recheckStage === "gate-error" ? config.llm.gateErrorRetryMinutes * MINUTE_MS : config.fetch.noJdRecheckDays * DAY_MS),
+  ).toISOString();
+  if (existing && (recheckStage === null || existing.jdCheckedAt >= recheckDueBefore)) return;
 
   // Cross-run dedup: skip re-listings (same company/title/location notified before) before spending gate + extract calls, since we'd only drop them at notify time.
   const dupKey = notifyKey(posting.companyName, posting.jobTitle, posting.location);
@@ -166,10 +170,11 @@ export async function processOnePosting(
     }
   }
 
-  if (existing) {
-    // Stamped before the location check so a JD that now reveals a foreign location is still re-fetched only weekly.
-    if (!claimNoJdRecheck(posting, stats.profileId, recheckDueBefore, new Date().toISOString())) return;
-    stats.noJdRechecked++;
+  if (recheckStage !== null) {
+    // Stamped before the location check so a JD that now reveals a foreign location is still re-fetched only once per window.
+    if (!claimRecheck(posting, stats.profileId, recheckStage, recheckDueBefore, new Date().toISOString())) return;
+    if (recheckStage === "gate-error") stats.gateErrorRetried++;
+    else stats.noJdRechecked++;
     if (!lateLocationCheck(posting).accept) return;
   } else {
     // Late location filter: strict metadata if the adapter resolved a location during fetchJd, otherwise the title/JD/URL heuristic.
@@ -194,7 +199,7 @@ export async function processOnePosting(
     return;
   }
 
-  if (existing) {
+  if (recheckStage === "no-jd") {
     stats.noJdRecovered++;
     logger.debug({ company: company.name, title: posting.jobTitle }, "no-jd recheck: JD now present, re-scoring");
   }

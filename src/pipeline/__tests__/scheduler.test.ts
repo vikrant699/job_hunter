@@ -77,6 +77,7 @@ function mkRunContext(): RunContext {
     jdFetchFailed: 0,
     noJdRechecked: 0,
     noJdRecovered: 0,
+    gateErrorRetried: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,

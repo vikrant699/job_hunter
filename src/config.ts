@@ -54,6 +54,8 @@ export const config = {
     /** Timeout starts after the semaphore slot is acquired, so it measures generation, not queue wait. */
     timeoutMs: envInt("LLM_TIMEOUT_MS", 30_000),
     maxRetries: 2,
+    /** A posting stored as gate-error (retries exhausted, e.g. a provider slowdown burst) is re-gated by a run this long after the failure. */
+    gateErrorRetryMinutes: 60,
     /** Concurrent LLM calls in flight; override with LLM_MAX_CONCURRENT. */
     maxConcurrent: envInt("LLM_MAX_CONCURRENT", 8),
     /** Caps JD text per prompt to bound per-call cost. */

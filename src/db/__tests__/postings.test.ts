@@ -9,7 +9,7 @@ import {
   markRemoved,
   countRemovedNotifiedSince,
   getPostingJdState,
-  claimNoJdRecheck,
+  claimRecheck,
 } from "../postings.js";
 import { upsertCompany } from "../companies.js";
 import { db } from "../db.js";
@@ -321,7 +321,7 @@ test("getPostingJdState is undefined for an unknown posting and falls back to di
   assert.deepEqual(getPostingJdState("custom", id, profileId), { dropStage: "no-jd", jdCheckedAt: discoveredAt });
 });
 
-test("claimNoJdRecheck stamps a due no-jd row once, refreshes its listing fields, and refuses a second claim in the window", () => {
+test("claimRecheck stamps a due no-jd row once, refreshes its listing fields, and refuses a second claim in the window", () => {
   const profileId = `claim-${Date.now()}`;
   const id = `claim-${Date.now()}`;
   insertPostingIfNew(mk(id), profileId);
@@ -331,7 +331,7 @@ test("claimNoJdRecheck stamps a due no-jd row once, refreshes its listing fields
   const checkedAt = new Date().toISOString();
 
   const relisted = mk(id, { jobTitle: "Senior Data Analyst", location: "Pune, India" });
-  assert.equal(claimNoJdRecheck(relisted, profileId, dueBefore, checkedAt), true);
+  assert.equal(claimRecheck(relisted, profileId, "no-jd", dueBefore, checkedAt), true);
   assert.equal(getPostingJdState("custom", id, profileId)?.jdCheckedAt, checkedAt);
   const RowSchema = z.object({ job_title: z.string(), location: z.string() });
   const row = RowSchema.parse(
@@ -339,10 +339,10 @@ test("claimNoJdRecheck stamps a due no-jd row once, refreshes its listing fields
   );
   assert.deepEqual(row, { job_title: "Senior Data Analyst", location: "Pune, India" });
 
-  assert.equal(claimNoJdRecheck(relisted, profileId, dueBefore, new Date().toISOString()), false, "a racing worker must lose");
+  assert.equal(claimRecheck(relisted, profileId, "no-jd", dueBefore, new Date().toISOString()), false, "a racing worker must lose");
 });
 
-test("claimNoJdRecheck refuses a row that is not no-jd or not yet due", () => {
+test("claimRecheck refuses a row that is not no-jd or not yet due", () => {
   const profileId = `claim-no-${Date.now()}`;
   const dueBefore = new Date(Date.now() - 7 * DAY_MS).toISOString();
 
@@ -354,10 +354,27 @@ test("claimNoJdRecheck refuses a row that is not no-jd or not yet due", () => {
     yoeMin: null, yoeMax: null, dropStage: "silent", notifiedAt: null,
   });
   setDiscovered(silentId, profileId, new Date(Date.now() - 30 * DAY_MS).toISOString());
-  assert.equal(claimNoJdRecheck(mk(silentId), profileId, dueBefore, new Date().toISOString()), false);
+  assert.equal(claimRecheck(mk(silentId), profileId, "no-jd", dueBefore, new Date().toISOString()), false);
 
   const freshId = `claim-fresh-${Date.now()}`;
   insertPostingIfNew(mk(freshId), profileId);
   markNoJd(freshId, profileId);
-  assert.equal(claimNoJdRecheck(mk(freshId), profileId, dueBefore, new Date().toISOString()), false);
+  assert.equal(claimRecheck(mk(freshId), profileId, "no-jd", dueBefore, new Date().toISOString()), false);
+});
+
+test("claimRecheck claims a due gate-error row only under the gate-error stage", () => {
+  const profileId = `claim-gate-${Date.now()}`;
+  const id = `claim-gate-${Date.now()}`;
+  insertPostingIfNew(mk(id), profileId);
+  updatePostingResult({
+    provider: "custom", externalId: id, profileId,
+    llmRelevant: 0, llmReason: "gate-error: timeout", llmConfidence: null,
+    yoeMin: null, yoeMax: null, dropStage: "gate-error", notifiedAt: null,
+  });
+  setDiscovered(id, profileId, new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
+  const dueBefore = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+  assert.equal(claimRecheck(mk(id), profileId, "no-jd", dueBefore, new Date().toISOString()), false);
+  assert.equal(claimRecheck(mk(id), profileId, "gate-error", dueBefore, new Date().toISOString()), true);
+  assert.equal(claimRecheck(mk(id), profileId, "gate-error", dueBefore, new Date().toISOString()), false, "a racing worker must lose");
 });

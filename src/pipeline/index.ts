@@ -39,6 +39,8 @@ export interface RunContext {
   noJdRechecked: number;
   /** Of those, how many now had a real JD and went through the gate like a new posting. */
   noJdRecovered: number;
+  /** Stored gate-error postings re-gated this run (at most once per config.llm.gateErrorRetryMinutes). */
+  gateErrorRetried: number;
   errors: string[];
   /** Boards that errored this run (not merely zero-yield); drives the Discord issue list and are not counted as scanned. */
   failedCompanies: Array<{ provider: string; slug: string; reason: string }>;
@@ -119,6 +121,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     jdFetchFailed: 0,
     noJdRechecked: 0,
     noJdRecovered: 0,
+    gateErrorRetried: 0,
     errors: [],
     failedCompanies: [],
     transportRetried: 0,
@@ -236,7 +239,7 @@ export async function runProductionTick(): Promise<ProductionTickOutcome> {
     },
     "production tick complete",
   );
-  logger.info({ rechecked: stats.noJdRechecked, recovered: stats.noJdRecovered }, "no-jd recheck: stored no-jd postings re-fetched");
+  logger.info({ rechecked: stats.noJdRechecked, recovered: stats.noJdRecovered, gateErrorRetried: stats.gateErrorRetried }, "recheck: stored no-jd / gate-error postings re-processed");
 
   return {
     runId,

@@ -320,10 +320,12 @@ launch Playwright with `channel: "msedge"` because bundled Chromium is WAF-block
   one deferred end-of-run pass, worked one at a time, 3s apart. Board-shaped errors (HTTP
   status, schema) never retry. `config.fetch.timeoutMs` is 60s because big paginated boards
   (Bosch, ABB) abort under load at lower values.
-- **No-jd postings are rechecked weekly.** A posting stored as `no-jd` (empty or junk JD) is
+- **No-jd postings are rechecked weekly; gate-errors next run.** A posting stored as `no-jd` (empty or junk JD) is
   otherwise never looked at again, but recruiters often fill the JD in later. While it is still
   listed, `processOnePosting` re-fetches its JD at most once per `config.fetch.noJdRecheckDays`
   (stamped in `postings.jd_checked_at`); a recovered JD runs the normal gauntlet and can notify.
+  A `gate-error` row (LLM retries exhausted, e.g. a provider slowdown burst) is re-gated the same
+  way on a later run, once per `config.llm.gateErrorRetryMinutes`.
 - **Burst-sensitive providers are throttled per provider.** `config.fetch.providerThrottle`
   (currently `workday: { maxConcurrent: 2, minSpacingMs: 4000 }`) caps concurrent boards and
   spaces fetch starts; Workday serves HTML instead of JSON when many boards are hit in a
