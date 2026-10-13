@@ -8,6 +8,7 @@ import { htmlToText } from "./htmlText.js";
 import { atsFetchHtml, atsFetchText } from "./http.js";
 import { REMOTE_RE, INTER_PAGE_DELAY_MS, sleep, warnDeepPagination, dateToIso, collapseWs } from "./shared.js";
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
+import { listAvaturePortal, parseAvaturePortalPage } from "./avaturePortal.js";
 
 const MAX_PAGES = 5000; // safety cap in case a tenant's Next link never disappears (loops back on itself, etc.)
 
@@ -182,6 +183,7 @@ export const avatureAdapter: AtsAdapter = {
       const { postings, nextHref } = parseAvatureSearch(html, finalUrl, company);
       // A past-the-end page can render a stale placeholder that still carries a (wrong) Next link - stop regardless.
       if (postings.length === 0) {
+        if (page === 0 && parseAvaturePortalPage(html)) return listAvaturePortal(company, finalUrl);
         if (page === 0) assertAvatureBoardServed(html, finalUrl);
         break;
       }
