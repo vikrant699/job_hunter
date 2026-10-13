@@ -10,6 +10,7 @@ import { htmlToText } from "./htmlText.js";
 import { acquirePageSlot } from "../scraper/playwright.js";
 import { awaitNetwork } from "../util/connectivity.js";
 import { REMOTE_RE } from "./shared.js";
+import { assertNotEdgeChallenge } from "../util/errorCause.js";
 
 const ORIGIN = "https://www.sirion.ai";
 const WAF_SETTLE_MS = 4000;
@@ -56,6 +57,13 @@ export function parseSirionList(company: AdapterCompany, html: string): Normaliz
     });
   });
   return out;
+}
+
+/** One list page's rows; a zero-row page that is an Akamai block page throws so an edge refusal never reads as an empty board. */
+export function sirionPagePostings(company: AdapterCompany, url: string, html: string): NormalizedPosting[] {
+  const rows = parseSirionList(company, html);
+  if (rows.length === 0) assertNotEdgeChallenge("sirion", url, html);
+  return rows;
 }
 
 export function parseSirionJobTitle(html: string): string {
@@ -141,8 +149,8 @@ export const sirionAdapter: AtsAdapter = {
   async listPostings(company: AdapterCompany): Promise<NormalizedPosting[]> {
     const out = new Map<string, NormalizedPosting>();
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const html = await sirionFetch(sirionListUrl(page));
-      const rows = parseSirionList(company, html);
+      const url = sirionListUrl(page);
+      const rows = sirionPagePostings(company, url, await sirionFetch(url));
       if (rows.length === 0) break; // past the last page (or empty board)
       const before = out.size;
       for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r);
@@ -154,6 +162,7 @@ export const sirionAdapter: AtsAdapter = {
 
   async fetchJd(_company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const html = await sirionFetch(posting.jobUrl);
+    assertNotEdgeChallenge("sirion", posting.jobUrl, html);
     // Resolve the office/location the list deferred, so lateLocationCheck runs.
     const loc = parseSirionJobLocation(html);
     if (loc) posting.location = loc;

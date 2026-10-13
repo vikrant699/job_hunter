@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sirionListUrl, parseSirionList, parseSirionJobTitle, parseSirionJobLocation, parseSirionJd } from "../sirion.js";
+import { sirionListUrl, parseSirionList, sirionPagePostings, parseSirionJobTitle, parseSirionJobLocation, parseSirionJd } from "../sirion.js";
 import type { AdapterCompany } from "../../types.js";
 import { at } from "./testHelpers.js";
+import { thrownBy } from "../../__tests__/caught.js";
 
 const company: AdapterCompany = {
   provider: "sirion",
@@ -45,6 +46,20 @@ test("parseSirionList dedupes a slug seen twice and returns [] with no job links
   const dup = `<html><body><a href="/jobs/x/">X</a><a href="/jobs/x/">X again</a></body></html>`;
   assert.equal(parseSirionList(company, dup).length, 1);
   assert.deepEqual(parseSirionList(company, "<html><body><p>none</p></body></html>"), []);
+});
+
+const AKAMAI_DENIED = `<HTML><HEAD><TITLE>Access Denied</TITLE></HEAD><BODY><H1>Access Denied</H1>
+You don't have permission to access "http&#58;&#47;&#47;www&#46;sirion&#46;ai&#47;careers&#47;" on this server.<P>
+Reference&#32;&#35;18&#46;8fbb2e17&#46;1791900903&#46;2ab3dfd</BODY></HTML>`;
+
+test("sirionPagePostings throws an edge refusal on an Akamai Access Denied page instead of reporting an empty board", () => {
+  const err = thrownBy(() => sirionPagePostings(company, sirionListUrl(1), AKAMAI_DENIED));
+  assert.match(String(err), /edge refused/);
+});
+
+test("sirionPagePostings returns the parsed rows, and [] for a genuine page with no job links", () => {
+  assert.equal(sirionPagePostings(company, sirionListUrl(1), LIST_HTML).length, 2);
+  assert.deepEqual(sirionPagePostings(company, sirionListUrl(3), "<html><body><p>none</p></body></html>"), []);
 });
 
 // WordPress encodes location in the body class as gh_office-<city>.
