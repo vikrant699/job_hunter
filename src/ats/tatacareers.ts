@@ -27,6 +27,7 @@ export const BROAD_SEARCH_TERMS = [
   "Advisor", "Assistant", "Supervisor", "Representative", "Trainee",
   "Intern", "Sales", "Marketing", "Finance", "Operations", "Quality",
   "Support", "Product", "Data", "Cloud", "Security", "Network", "Research",
+  "Captain", "Pilot", "Apprentice", "Crew", "Job",
 ];
 
 export const TataJobSchema = z.object({
@@ -56,7 +57,8 @@ export function tataCompanyName(company: AdapterCompany): string {
 // Builds the form-urlencoded body for one page of the shared search. `start` is 1-indexed.
 export function tataSearchParams(company: AdapterCompany, start: number): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("searchTerm", BROAD_SEARCH_TERMS.join(", "));
+  // The company name matches nearly every JD body, catching titles no role word covers
+  params.set("searchTerm", [...BROAD_SEARCH_TERMS, tataCompanyName(company)].join(", "));
   params.set("companies", JSON.stringify([tataCompanyName(company)]));
   params.set("searchMode", "search");
   params.set("start", String(start));

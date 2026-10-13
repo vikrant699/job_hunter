@@ -53,13 +53,17 @@ test("tataCompanyName throws without apiMeta.company", () => {
   assert.throws(() => tataCompanyName(companyNoMeta), /apiMeta\.company/);
 });
 
-test("tataSearchParams builds the broad OR search + companies filter", () => {
+test("tataSearchParams builds the broad OR search (plus the company name as a catch-all term) + companies filter", () => {
   const params = tataSearchParams(company, 1);
-  assert.equal(params.get("searchTerm"), BROAD_SEARCH_TERMS.join(", "));
+  assert.equal(params.get("searchTerm"), [...BROAD_SEARCH_TERMS, "Tata Elxsi"].join(", "));
   assert.equal(params.get("companies"), JSON.stringify(["Tata Elxsi"]));
   assert.equal(params.get("searchMode"), "search");
   assert.equal(params.get("start"), "1");
   assert.equal(params.get("filtersFlag"), null);
+});
+
+test("BROAD_SEARCH_TERMS covers aviation titles the generic role words miss (Air India captains, apprentices)", () => {
+  for (const t of ["Captain", "Pilot", "Apprentice", "Crew", "Job"]) assert.ok(BROAD_SEARCH_TERMS.includes(t), t);
 });
 
 test("tataSearchParams marks continuation pages with filtersFlag=False", () => {
