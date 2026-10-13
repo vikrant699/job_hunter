@@ -194,7 +194,7 @@ async function runWorkdayListing(
 ): Promise<NormalizedPosting[]> {
   const listUrl = `${parts.cxsBase}/jobs`;
 
-  // An api_meta pin (facetParam + facetValueIds) wins outright, for tenants whose location facet has no "India"-token leaves (lowes: a flat locations facet, India leaf just "Bengaluru"); otherwise probe for an India country facet, and legacy tenants without one paginate unfiltered and rely on the downstream location filter.
+  // An api_meta pin (facetParam + facetValueIds) wins outright; otherwise probe for an India country/location facet, and tenants without one paginate unfiltered and rely on the downstream location filter.
   const indiaFacet = pinnedFacet(company.apiMeta) ?? (await discoverIndiaFacet(parts));
   const appliedFacets: Record<string, string[]> = indiaFacet
     ? { [indiaFacet.param]: indiaFacet.uuids }
