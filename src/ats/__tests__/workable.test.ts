@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeWorkable } from "../workable.js";
+import { normalizeWorkable, workableAdapter } from "../workable.js";
+import { fetchSequence, jsonResponse, mkAdapterCompany, stubFetch } from "./testHelpers.js";
 import type { AdapterCompany } from "../../types.js";
 
 const company: AdapterCompany = {
@@ -37,4 +38,40 @@ test("normalizeWorkable joins ALL locations so an India-second posting is not ge
     ],
   });
   assert.equal(p.location, "Boston, MA, United States; Bengaluru, Karnataka, India");
+});
+
+test("listPostings collapses the widget's one-row-per-location repeats into one posting per shortcode", async (t) => {
+  const row = (city: string, country: string) => ({
+    title: "Backend Engineer", shortcode: "5BC5EFE64F", url: "https://apply.workable.com/j/5BC5EFE64F",
+    city, country, locations: [{ city, country }], description: "<p>Build APIs.</p>",
+  });
+  stubFetch(t, fetchSequence(() => jsonResponse({
+    name: "CoverGo",
+    jobs: [row("", "Philippines"), row("Bengaluru", "India"), row("Pune", "India"), { ...row("Lisbon", "Portugal"), shortcode: "OTHER1" }],
+  })));
+  const postings = await workableAdapter.listPostings(company);
+  assert.deepEqual(postings.map((p) => [p.externalId, p.location]), [
+    ["5BC5EFE64F", "Philippines; Bengaluru, India; Pune, India"],
+    ["OTHER1", "Lisbon, Portugal"],
+  ]);
+});
+
+test("listPostings reads the account from tenantUrl when apiMeta names none", async (t) => {
+  const urls: string[] = [];
+  stubFetch(t, (input) => {
+    urls.push(String(input));
+    return Promise.resolve(jsonResponse({ name: "SaveIN", jobs: [] }));
+  });
+  await workableAdapter.listPostings(mkAdapterCompany(
+    { provider: "workable", slug: "savein", name: "SaveIN", careersUrl: "https://savein.money/career" },
+    { tenantUrl: "https://apply.workable.com/api/v1/widget/accounts/savein-fintech-private-limited" },
+  ));
+  await workableAdapter.listPostings(mkAdapterCompany(
+    { provider: "workable", slug: "oyo-rooms", name: "OYO", careersUrl: "https://www.oyorooms.com/careers/" },
+    { tenantUrl: "https://apply.workable.com/oyorooms/" },
+  ));
+  assert.deepEqual(urls, [
+    "https://apply.workable.com/api/v1/widget/accounts/savein-fintech-private-limited?details=true",
+    "https://apply.workable.com/api/v1/widget/accounts/oyorooms?details=true",
+  ]);
 });
