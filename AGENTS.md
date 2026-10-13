@@ -176,7 +176,8 @@ src/
                    (JsonValue), csv, probe, fs (writeFileAtomic), registryFile (writeAtomic
                    for the cache), regex (matchGroup), env (envInt, envList), httpRetry
                    (Retry-After), errorCause (transport vs edge vs board classification +
-                   Caught), connectivity (outage heartbeat), jobUrlResolver (probe-url),
+                   Caught), connectivity (outage heartbeat), aiaChain (completes a host's
+                   incomplete TLS chain via AIA for fetchOk), jobUrlResolver (probe-url),
                    aggregatorGuard (warns when one board spans >10 hiring-org names)
   __tests__/     repo-wide test helpers (caught.ts, logCapture.ts) + indexImportGraph.test.ts
 config/          profile.example.ts, outreach-template.md (tracked); profile.ts, resume.*,
@@ -320,6 +321,16 @@ launch Playwright with `channel: "msedge"` because bundled Chromium is WAF-block
   one deferred end-of-run pass, worked one at a time, 3s apart. Board-shaped errors (HTTP
   status, schema) never retry. `config.fetch.timeoutMs` is 60s because big paginated boards
   (Bosch, ABB) abort under load at lower values.
+- **Incomplete TLS chains are completed the way browsers do it.** A host that sends only its
+  leaf fails Node's verification (`UNABLE_TO_VERIFY_LEAF_SIGNATURE` /
+  `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`). `fetchOk` then reads the presented certs, downloads
+  the missing intermediates from their AIA CA-Issuers URLs (`src/util/aiaChain.ts`), and retries
+  through an undici `Agent` whose `ca` is the default store plus those intermediates, cached per
+  host for the process. Verification stays on and the chain must still end at a default root;
+  self-signed certs are never added. Never fix such a host with `--use-system-ca`,
+  `NODE_EXTRA_CA_CERTS` or `rejectUnauthorized: false`. A certificate error that cannot be repaired is
+  board-shaped (`isTransportError` is false), so it counts toward `broken` instead of being
+  deferred forever as a network blip.
 - **No-jd postings are rechecked weekly; gate-errors next run.** A posting stored as `no-jd` (empty or junk JD) is
   otherwise never looked at again, but recruiters often fill the JD in later. While it is still
   listed, `processOnePosting` re-fetches its JD at most once per `config.fetch.noJdRecheckDays`

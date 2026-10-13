@@ -7,6 +7,7 @@ import { awaitNetwork, reportNetworkFailure, reportNetworkSuccess } from "../uti
 import { assertNotEdgeChallenge } from "../util/errorCause.js";
 import { isRetryableHttpStatus, parseRetryAfterMs } from "../util/httpRetry.js";
 import { sleep } from "../util/sleep.js";
+import { fetchRepairingChain } from "../util/aiaChain.js";
 
 /** Build a typed Error for a failed ATS HTTP call. Pure — unit tested. */
 export function atsHttpError(provider: string, status: number, bodySnippet: string): Error {
@@ -34,7 +35,7 @@ async function fetchOk(url: string, init: RequestInit, provider: string): Promis
     const attemptInit: RequestInit = attempt === 0 ? init : { ...init, signal: AbortSignal.timeout(config.fetch.timeoutMs) };
     let res: Response;
     try {
-      res = await fetch(url, attemptInit);
+      res = await fetchRepairingChain(url, attemptInit);
     } catch (err) {
       // Not a verdict, just a request for an immediate probe — if the connection is fine, this host is simply refusing us.
       reportNetworkFailure();
