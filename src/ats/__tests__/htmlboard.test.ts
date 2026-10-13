@@ -7,6 +7,7 @@ import {
   htmlBoardExternalId,
   parseHtmlBoardListing,
   extractHtmlBoardJd,
+  isApplyFormUrl,
 } from "../htmlboard.js";
 import type { AdapterCompany } from "../../types.js";
 import { at, CHALLENGE_PAGE_HTML, fetchSequence, htmlResponse, stubFetch } from "./testHelpers.js";
@@ -311,4 +312,86 @@ test("jdUrlSuffix fetches the JD from jobUrl + suffix (GitBook .md)", async (t) 
   });
   assert.equal(at(calls, 0), "https://acme.example/careers/senior-engineer.md");
   assert.match(jd ?? "", /fiber networks/);
+});
+
+const FORM = "https://docs.google.com/forms/d/e/1FAIpQLSfAAA/viewform";
+// Hyperverge shape: the card IS the jdSelector, apply links go to LinkedIn or one Google Form shared by several roles, one href pasted twice.
+const APPLY_FORM_HTML = `
+<html><body>
+  <div class="job-col"><p class="job-title">Engineering Manager</p><span>Bengaluru</span><span>Full-time</span>
+    <a class="btn" href="https://www.linkedin.com/jobs/view/4412659818/?alternateChannel=search&amp;trk=d_flagship3&amp;refId=Cp9%3D%3D&amp;trackingId=Zv%3D%3D">Apply Now</a></div>
+  <div class="job-col"><p class="job-title">Site Reliability Engineer</p><span>Bengaluru</span><span>Full-time</span>
+    <a class="btn" href="${FORM}${FORM}">Apply Now</a></div>
+  <div class="job-col"><p class="job-title">Lead - Machine Learning (NLP)</p><span>Bengaluru</span><span>Full-time</span>
+    <a class="btn" href="${FORM}">Apply Now</a></div>
+  <div class="job-col"><p class="job-title">Lead - Machine Learning (NLP)</p><span>Bengaluru</span><span>Full-time</span>
+    <a class="btn" href="${FORM}">Apply Now</a></div>
+</body></html>`;
+
+const applyFormMeta = { itemSelector: ".job-col", titleSelector: ".job-title", jdSelector: ".job-col", locationRegex: "(Bengaluru)[^<]*" };
+
+test("a doubled pasted href resolves to one URL instead of a path-concatenated mess", () => {
+  const items = parseHtmlBoardListing(APPLY_FORM_HTML, htmlBoardConfig(company(applyFormMeta)));
+  const sre = items.find((i) => i.jobTitle === "Site Reliability Engineer");
+  assert.equal(sre?.jobUrl, FORM);
+});
+
+test("an embedded URL in a query param is not treated as a doubled href", () => {
+  const html = `<ul><li class="c"><a href="https://acme.example/apply?next=https://acme.example/jobs/7">Dev</a></li></ul>`;
+  const items = parseHtmlBoardListing(html, htmlBoardConfig(company({ itemSelector: "li.c" })));
+  assert.equal(at(items, 0).jobUrl, "https://acme.example/apply?next=https://acme.example/jobs/7");
+});
+
+test("roles sharing one apply form keep distinct per-role ids and carry the card text as their JD", () => {
+  const items = parseHtmlBoardListing(APPLY_FORM_HTML, htmlBoardConfig(company(applyFormMeta)));
+  assert.deepEqual(
+    items.map((i) => i.externalId),
+    ["/jobs/view/4412659818", "site-reliability-engineer", "lead-machine-learning-nlp"],
+  );
+  const lead = at(items, 2);
+  assert.equal(lead.jobUrl, FORM);
+  assert.match(lead.jdText, /Lead - Machine Learning \(NLP\)/);
+  assert.match(lead.jdText, /Full-time/);
+  assert.equal(at(items, 0).jdText, "", "a real JD page is still fetched by fetchJd");
+});
+
+test("htmlBoardExternalId drops tracking params but keeps meaningful ones byte-for-byte", () => {
+  assert.equal(
+    htmlBoardExternalId("https://www.linkedin.com/jobs/view/42/?trk=x&refId=y&trackingId=z&eBP=q&alternateChannel=search&utm_source=li", "T"),
+    "/jobs/view/42",
+  );
+  assert.equal(htmlBoardExternalId("https://a.example/jobs?id=2&utm_medium=x", "T"), "/jobs?id=2");
+  assert.equal(htmlBoardExternalId("https://a.example/jobs?q=a%20b", "T"), "/jobs?q=a%20b");
+});
+
+test("isApplyFormUrl recognizes hosted form builders only", () => {
+  assert.equal(isApplyFormUrl(FORM), true);
+  assert.equal(isApplyFormUrl("https://forms.gle/abc123"), true);
+  assert.equal(isApplyFormUrl("https://forms.office.com/r/xyz"), true);
+  assert.equal(isApplyFormUrl("https://acme.typeform.com/to/abc"), true);
+  assert.equal(isApplyFormUrl("https://docs.google.com/document/d/abc/edit"), false);
+  assert.equal(isApplyFormUrl("https://www.linkedin.com/jobs/view/42/"), false);
+  assert.equal(isApplyFormUrl("https://acme.example/careers/forms/apply"), false);
+});
+
+test("fetchJd never fetches an apply form as a JD page", async (t) => {
+  const calls: string[] = [];
+  stubFetch(t, (input) => {
+    calls.push(String(input));
+    return Promise.resolve(htmlResponse("<html><body>Sign in to continue</body></html>"));
+  });
+  const jd = await htmlboardAdapter.fetchJd?.(company(applyFormMeta), {
+    provider: "htmlboard",
+    externalId: "site-reliability-engineer",
+    companySlug: "acme",
+    companyName: "Acme",
+    jobTitle: "Site Reliability Engineer",
+    jobUrl: FORM,
+    location: "Bengaluru",
+    isRemote: false,
+    jdText: "",
+    postedAt: null,
+  });
+  assert.equal(jd, "");
+  assert.deepEqual(calls, []);
 });

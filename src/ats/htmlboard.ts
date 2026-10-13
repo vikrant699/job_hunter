@@ -102,12 +102,45 @@ function cleanText($el: { text(): string }): string {
   return collapseWs($el.text());
 }
 
-/** Stable id: the detail link's path+query when it doesn't just point back at the list page (accordion boards reuse identical "#"/mailto anchors), else a slug of the title. */
+const TRACKING_PARAM_RE = /^(?:utm_\w+|trk|trkInfo|refId|trackingId|eBP|alternateChannel|gclid|fbclid)$/i;
+
+// hosted form builders: an apply form, not a JD page, and often shared by several roles
+const APPLY_FORM_RE = /^(?:docs\.google\.com\/forms\/|forms\.gle\/|forms\.office\.com\/|forms\.microsoft\.com\/|[\w-]+\.typeform\.com\/|tally\.so\/|(?:form\.)?jotform\.com\/|airtable\.com\/(?:app\w+\/)?shr|forms\.zohopublic\.\w+\/|zfrmz\.\w+\/)/i;
+
+export function isApplyFormUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return APPLY_FORM_RE.test(u.host.replace(/^www\./, "") + u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+// a scheme glued straight onto a word char means the CMS pasted two URLs into one href; keep the last
+const GLUED_SCHEME_RE = /(?<=[A-Za-z0-9])https?:\/\//gi;
+
+export function resolveItemHref(href: string, base: string): string | null {
+  const glued = [...href.matchAll(GLUED_SCHEME_RE)].at(-1);
+  try {
+    return new URL(glued ? href.slice(glued.index) : href, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+/** The query minus tracking params, returned untouched when there are none so existing ids never re-encode. */
+function searchWithoutTracking(u: URL): string {
+  const tracking = [...u.searchParams.keys()].filter((k) => TRACKING_PARAM_RE.test(k));
+  for (const k of tracking) u.searchParams.delete(k);
+  return u.search;
+}
+
+/** Stable id: the detail link's path+query (tracking params dropped) when it is neither an apply form nor the list page itself (accordion boards reuse identical "#"/mailto anchors), else a slug of the title. */
 export function htmlBoardExternalId(jobUrl: string | null, title: string, listUrl?: string): string {
-  if (jobUrl && !jobUrl.startsWith("mailto:")) {
+  if (jobUrl && !jobUrl.startsWith("mailto:") && !isApplyFormUrl(jobUrl)) {
     try {
       const u = new URL(jobUrl);
-      const key = (u.pathname + u.search).replace(/\/+$/, "");
+      const key = (u.pathname + searchWithoutTracking(u)).replace(/\/+$/, "");
       let listKey: string | null = null;
       if (listUrl) {
         try {
@@ -162,14 +195,7 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
     const href = cfg.noItemLinks
       ? null
       : ((cfg.itemUrlAttr ? $item.attr(cfg.itemUrlAttr) : null) ?? $link.attr("href") ?? null);
-    let jobUrl: string | null = null;
-    if (href) {
-      try {
-        jobUrl = new URL(href, cfg.listUrl).toString();
-      } catch {
-        jobUrl = null;
-      }
-    }
+    const jobUrl = href ? resolveItemHref(href, cfg.listUrl) : null;
 
     let location: string | null = null;
     if (cfg.locationAttr) {
@@ -186,7 +212,7 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
     if (!location && cfg.fixedLocation) location = cfg.fixedLocation;
 
     // Join EVERY jdSelector match: single-page boards spread the JD across sibling widget blocks inside one item.
-    const jdText = cfg.jdSelector
+    const selectedJd = cfg.jdSelector
       ? htmlToText(
           $item
             .find(cfg.jdSelector)
@@ -195,6 +221,8 @@ export function parseHtmlBoardListing(html: string, cfg: HtmlBoardConfig): HtmlB
             .join("\n"),
         )
       : "";
+    // an apply form is never fetched as a JD, so the card's own text is the only JD there is
+    const jdText = !selectedJd && jobUrl && isApplyFormUrl(jobUrl) ? htmlToText($item.html() ?? "") : selectedJd;
 
     const externalId =
       (cfg.idAttr ? $item.attr(cfg.idAttr)?.trim() : null) ??
@@ -318,7 +346,7 @@ export const htmlboardAdapter: AtsAdapter = {
   async fetchJd(company: AdapterCompany, posting: NormalizedPosting): Promise<string> {
     const cfg = htmlBoardConfig(company);
     // Inline-JD boards never get here (jdText already set); detail boards do.
-    if (!posting.jobUrl || posting.jobUrl === cfg.listUrl) return posting.jdText;
+    if (!posting.jobUrl || posting.jobUrl === cfg.listUrl || isApplyFormUrl(posting.jobUrl)) return posting.jdText;
     const jdUrl = cfg.jdUrlSuffix ? posting.jobUrl + cfg.jdUrlSuffix : posting.jobUrl;
     const html = await atsFetchText(jdUrl, { provider: "htmlboard" });
     const jd = extractHtmlBoardJd(html, cfg);
