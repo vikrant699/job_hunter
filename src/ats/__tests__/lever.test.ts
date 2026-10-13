@@ -93,3 +93,26 @@ test("a non-array response rejects", async (t) => {
   stubFetch(t, fetchSequence(() => jsonResponse({ error: "not found" })));
   await assert.rejects(leverAdapter.listPostings(company), /was not an array/);
 });
+
+test("an empty-string descriptionPlain/additionalPlain falls back to the HTML description/additional", async (t) => {
+  stubFetch(
+    t,
+    fetchSequence(() =>
+      jsonResponse([
+        {
+          id: "1",
+          text: "QA Engineer",
+          hostedUrl: "https://jobs.lever.co/acme/1",
+          descriptionPlain: "",
+          description: "<div><strong>Roles:</strong> test protocols</div>",
+          lists: [],
+          additionalPlain: "",
+          additional: "<p>Perks.</p>",
+        },
+      ]),
+    ),
+  );
+  const postings = await leverAdapter.listPostings(company);
+  assert.match(postings[0]?.jdText ?? "", /Roles:.*test protocols/);
+  assert.match(postings[0]?.jdText ?? "", /Perks\./);
+});

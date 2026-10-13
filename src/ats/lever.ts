@@ -61,6 +61,12 @@ export const leverAdapter: AtsAdapter = {
   },
 };
 
+// Lever sends "" (not null) for the *Plain twin on some boards while the HTML field is populated.
+function plainOrHtml(plain: string | null | undefined, html: string | null | undefined): string {
+  if (plain?.trim()) return plain;
+  return html ? htmlToText(html) : "";
+}
+
 function normalize(company: AdapterCompany, j: LeverPosting): NormalizedPosting {
   const location = j.categories?.location ?? null;
   const workplace = j.workplaceType ?? "";
@@ -69,12 +75,12 @@ function normalize(company: AdapterCompany, j: LeverPosting): NormalizedPosting 
     (location ? REMOTE_RE.test(location) : false);
 
   // Assemble the WHOLE posting: intro + every list section + closing (see schema note above).
-  const intro = j.descriptionPlain ?? (j.description ? htmlToText(j.description) : "");
+  const intro = plainOrHtml(j.descriptionPlain, j.description);
   const listText = (j.lists ?? [])
     .map((l) => `${l.text ?? ""}\n${l.content ? htmlToText(l.content) : ""}`.trim())
     .filter(Boolean)
     .join("\n\n");
-  const closing = j.additionalPlain ?? (j.additional ? htmlToText(j.additional) : "");
+  const closing = plainOrHtml(j.additionalPlain, j.additional);
   const jdText = [intro, listText, closing].filter(Boolean).join("\n\n").trim();
 
   return {
