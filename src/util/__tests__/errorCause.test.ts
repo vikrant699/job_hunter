@@ -347,3 +347,12 @@ test("a dead-board verdict with no challenge markers is still a board defect", (
     false,
   );
 });
+
+test("isTransportError is false for a TLS certificate the host itself serves wrong", () => {
+  // A bad/unrepairable certificate is the host's persistent config, so it must count toward quarantine instead of being deferred forever as a network blip.
+  for (const code of ["UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_HAS_EXPIRED", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "ERR_TLS_CERT_ALTNAME_INVALID"]) {
+    const cause = new Error(`cert problem ${code}`);
+    Object.assign(cause, { code });
+    assert.equal(isTransportError(new TypeError("fetch failed", { cause })), false, code);
+  }
+});

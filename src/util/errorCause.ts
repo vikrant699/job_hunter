@@ -72,8 +72,22 @@ function hasTimeoutName(value: Caught): boolean {
   return value.name === "TimeoutError";
 }
 
+/** Certificate verification failures: the host's own TLS config (persistent), reached after a live handshake, so never a network blip. */
+const TLS_CERT_CODES: ReadonlySet<string> = new Set([
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+  "UNABLE_TO_GET_ISSUER_CERT",
+  "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "CERT_HAS_EXPIRED",
+  "CERT_NOT_YET_VALID",
+  "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "SELF_SIGNED_CERT_IN_CHAIN",
+  "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+
 export function isTransportError(err: Caught): boolean {
-  if (errorCauseCodes(err).some((c) => TRANSPORT_CODES.has(c))) return true;
+  const codes = errorCauseCodes(err);
+  if (codes.some((c) => TLS_CERT_CODES.has(c))) return false;
+  if (codes.some((c) => TRANSPORT_CODES.has(c))) return true;
   // A per-call timeout dies on our side of the wire; no response was read, so it says nothing about whether the board is healthy.
   if (chain(err).some(hasTimeoutName)) return true;
   return TRANSPORT_MESSAGE_RE.test(describeError(err));
